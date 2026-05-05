@@ -1,9 +1,16 @@
 [project]
 name = "flowforge-rbac-spicedb"
-version = "0.0.0"
-description = "flowforge-rbac-spicedb — flowforge adapter (placeholder)"
+version = "0.1.0"
+description = "flowforge-rbac-spicedb — RBAC resolver backed by SpiceDB via authzed-py"
+readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["flowforge"]
+dependencies = [
+    "flowforge>=0.1.0",
+]
+
+[project.optional-dependencies]
+spicedb = ["authzed>=0.13"]
+test = ["pytest>=7", "pytest-asyncio>=0.23"]
 
 [build-system]
 requires = ["hatchling"]
@@ -11,3 +18,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/flowforge_rbac_spicedb"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
