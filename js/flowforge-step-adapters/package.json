@@ -5,8 +5,21 @@
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
-    "test": "echo 'no tests yet' && exit 0",
-    "lint": "echo 'no lint yet' && exit 0",
-    "build": "echo 'no build yet' && exit 0"
+    "test": "vitest run",
+    "lint": "tsc --noEmit",
+    "build": "echo 'no build step — source-first package'"
+  },
+  "dependencies": {
+    "@flowforge/types": "workspace:*",
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.4.6",
+    "@testing-library/react": "^16.0.0",
+    "@types/react": "^19.0.0",
+    "jsdom": "^24.1.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.5.3",
+    "vitest": "^2.0.3"
   }
 }
