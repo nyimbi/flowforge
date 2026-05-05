@@ -1,9 +1,22 @@
 [project]
 name = "flowforge-notify-multichannel"
-version = "0.0.0"
-description = "flowforge-notify-multichannel — flowforge adapter (placeholder)"
+version = "0.1.0"
+description = "flowforge-notify-multichannel — multichannel notification adapter (in-app, email, SMS, push, webhook, Slack)"
 requires-python = ">=3.11"
-dependencies = ["flowforge"]
+dependencies = [
+    "flowforge",
+    "jinja2>=3.1",
+    "babel>=2.14",
+    "httpx>=0.27",
+    "aiosmtplib>=3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "anyio[trio]>=4.0",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -11,3 +24,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/flowforge_notify_multichannel"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
