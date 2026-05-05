@@ -4,3 +4,6 @@ packages:
   - "flowforge-runtime-client"
   - "flowforge-step-adapters"
   - "flowforge-designer"
+onlyBuiltDependencies:
+  - esbuild
+  - msw
