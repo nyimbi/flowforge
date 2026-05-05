@@ -31,6 +31,7 @@ packages = ["src/flowforge_cli"]
 [tool.hatch.build]
 include = [
 	"src/flowforge_cli/templates/**/*",
+	"src/flowforge_cli/jtbd/templates/**/*",
 ]
 
 [tool.pytest.ini_options]

@@ -143,6 +143,7 @@ def test_root_help_lists_commands() -> None:
 	for cmd in [
 		"new",
 		"add-jtbd",
+		"jtbd-generate",
 		"validate",
 		"simulate",
 		"regen-catalog",
@@ -154,3 +155,28 @@ def test_root_help_lists_commands() -> None:
 		"audit",
 	]:
 		assert cmd in r.output, f"missing {cmd!r} in help: {r.output}"
+
+
+# ---------- jtbd-generate (U19) ----------
+
+
+def test_jtbd_generate_writes_artefacts(jtbd_bundle: Path, tmp_path: Path) -> None:
+	out = tmp_path / "gen"
+	r = runner.invoke(
+		app,
+		[
+			"jtbd-generate",
+			"--jtbd",
+			str(jtbd_bundle),
+			"--out",
+			str(out),
+		],
+	)
+	assert r.exit_code == 0, r.output
+	# Per-JTBD artefacts.
+	assert (out / "workflows" / "claim_intake" / "definition.json").is_file()
+	assert (out / "workflows" / "claim_intake" / "form_spec.json").is_file()
+	# Cross-bundle aggregations.
+	assert (out / "README.md").is_file()
+	assert (out / ".env.example").is_file()
+	assert "jtbd-generate:" in r.output

@@ -21,6 +21,7 @@ app in `flowforge_cli.main`.
 |---|---|
 | `flowforge new <project> --jtbd <bundle>` | Implemented (Jinja2 backend skeleton scaffold) |
 | `flowforge add-jtbd <bundle>` | Implemented (idempotent JTBD merge into project) |
+| `flowforge jtbd-generate --jtbd <bundle> --out <dir>` | Implemented (U19 deterministic generator: 12+ files per JTBD) |
 | `flowforge validate [--def <path>]` | Implemented (schema + topology + priorities + lookup-permission) |
 | `flowforge simulate --def <path> [--context ...] [--events ...]` | Implemented (plan/commit log shape per §10.4) |
 | `flowforge regen-catalog [--root <path>]` | Implemented (workflows/catalog.json projection) |
@@ -38,6 +39,26 @@ uv run --package flowforge-cli pytest framework/python/flowforge-cli/tests -q
 ```
 
 Tests use `typer.testing.CliRunner` for command-level coverage.
+
+## JTBD generator (U19)
+
+`flowforge jtbd-generate --jtbd <bundle> --out <dir>` runs a deterministic
+transform from a JTBD bundle (validated against `jtbd-1.0.schema.json`) to a
+full app skeleton. Per JTBD it emits:
+
+- `workflows/<id>/definition.json` — JSON DSL workflow definition
+- `workflows/<id>/form_spec.json` — form spec for the intake step
+- `backend/src/<pkg>/models/<id>.py` — SQLAlchemy 2.x model
+- `backend/migrations/versions/<rev>_create_<table>.py` — alembic migration
+- `backend/src/<pkg>/adapters/<id>_adapter.py` — workflow adapter
+- `backend/src/<pkg>/services/<id>_service.py` — domain service
+- `backend/src/<pkg>/routers/<id>_router.py` — FastAPI router
+- `backend/tests/<id>/test_simulation.py` — simulation pytest
+- `frontend/src/components/<slug>/<Class>Step.tsx` + `frontend/src/app/<slug>/page.tsx`
+
+Cross-bundle aggregations: `permissions.py`, `audit_taxonomy.py`,
+`notifications.py`, `migrations/env.py`, `alembic.ini`, `README.md`,
+`.env.example`. Output is byte-deterministic; no LLM calls.
 
 ## See also
 

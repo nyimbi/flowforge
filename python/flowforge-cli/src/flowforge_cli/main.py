@@ -15,6 +15,7 @@ from .commands import (
 	ai_assist,
 	audit_verify,
 	diff,
+	jtbd_generate,
 	migrate_fork,
 	new,
 	regen_catalog,
@@ -38,6 +39,7 @@ app.add_typer(audit_app, name="audit")
 # Each module owns one command; this loop keeps wiring obvious.
 new.register(app)
 add_jtbd.register(app)
+jtbd_generate.register(app)
 regen_catalog.register(app)
 validate.register(app)
 simulate.register(app)
