@@ -1,5 +1,7 @@
 # flowforge-rbac-static changelog
 
-## Unreleased
+## 0.1.0 — Unreleased
 
-- Package skeleton scaffolded; implementation pending in dedicated unit.
+- Initial `StaticRbac` resolver with YAML + JSON loaders.
+- `assert_seed` returns missing names; strict mode raises `CatalogDriftError`.
+- Idempotent `register_permission`; `list_principals_with` enumerates grants.
