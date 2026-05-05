@@ -1,0 +1,242 @@
+{
+  "project": {
+    "name": "hiring-pipeline",
+    "package": "hiring_pipeline",
+    "domain": "hiring",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD"]
+  },
+  "shared": {
+    "roles": ["recruiter", "hiring_manager", "hr_partner", "candidate"],
+    "permissions": ["candidate.read", "pipeline.read"]
+  },
+  "jtbds": [
+    {
+      "id": "source_candidate",
+      "title": "Source a candidate",
+      "actor": {"role": "recruiter"},
+      "situation": "recruiter identifies a potential hire from job board, referral, or direct outreach",
+      "motivation": "build a qualified pipeline for an open role",
+      "outcome": "candidate record created and ready for screening",
+      "success_criteria": [
+        "candidate profile created within 1 business day of identification",
+        "source channel recorded for pipeline analytics"
+      ],
+      "data_capture": [
+        {"id": "candidate_name", "kind": "text",  "label": "Full name",     "required": true,  "pii": true},
+        {"id": "candidate_email","kind": "email", "label": "Email",         "required": true,  "pii": true},
+        {"id": "candidate_phone","kind": "phone", "label": "Phone",         "required": false, "pii": true},
+        {"id": "role_title",     "kind": "text",  "label": "Role applied",  "required": true,  "pii": false},
+        {"id": "source_channel", "kind": "enum",  "label": "Source channel","required": true,  "pii": false},
+        {"id": "resume",         "kind": "file",  "label": "Resume",        "required": false, "pii": true},
+        {"id": "notes",          "kind": "textarea","label": "Notes",       "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {
+          "id": "duplicate_candidate",
+          "condition": "candidate_email already exists in system",
+          "handle": "reject"
+        }
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "recruiter"},
+        {"trigger": "state_enter", "channel": "in_app", "audience": "recruiter"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 86400},
+      "metrics": ["time_to_source", "source_channel_conversion_rate"]
+    },
+    {
+      "id": "screen_candidate",
+      "title": "Screen a candidate",
+      "actor": {"role": "recruiter"},
+      "situation": "recruiter reviews resume and conducts a phone screen to assess basic fit",
+      "motivation": "filter unqualified candidates before investing interview cycles",
+      "outcome": "candidate advanced to interview or rejected with documented rationale",
+      "success_criteria": [
+        "phone screen completed within 3 business days of sourcing",
+        "screen decision recorded with pass/fail rationale"
+      ],
+      "data_capture": [
+        {"id": "screen_score",   "kind": "number",  "label": "Screen score (1-5)", "required": true,  "pii": false},
+        {"id": "screen_notes",   "kind": "textarea","label": "Screen notes",       "required": true,  "pii": false},
+        {"id": "years_exp",      "kind": "number",  "label": "Years experience",   "required": true,  "pii": false},
+        {"id": "salary_expect",  "kind": "money",   "label": "Salary expectation", "required": false, "pii": false},
+        {"id": "availability",   "kind": "date",    "label": "Available from",     "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {
+          "id": "overqualified",
+          "condition": "years_exp > role_max_years",
+          "handle": "escalate"
+        },
+        {
+          "id": "salary_above_band",
+          "condition": "salary_expect > band_max",
+          "handle": "branch",
+          "branch_to": "compensation_review"
+        }
+      ],
+      "approvals": [
+        {"role": "hiring_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "candidate"},
+        {"trigger": "approved",    "channel": "email",  "audience": "candidate"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "candidate"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 259200},
+      "metrics": ["screen_pass_rate", "time_to_screen_decision"]
+    },
+    {
+      "id": "conduct_interview",
+      "title": "Conduct interview loop",
+      "actor": {"role": "hiring_manager"},
+      "situation": "hiring manager coordinates structured interview panels for a screened candidate",
+      "motivation": "evaluate technical and cultural fit before extending an offer",
+      "outcome": "interview debrief completed with hire/no-hire consensus",
+      "success_criteria": [
+        "all panel interviews completed within 5 business days of screen approval",
+        "structured scorecard submitted by every interviewer",
+        "debrief meeting held and decision recorded"
+      ],
+      "data_capture": [
+        {"id": "panel_scorecard", "kind": "textarea","label": "Panel scorecard summary","required": true,  "pii": false},
+        {"id": "technical_score", "kind": "number",  "label": "Technical score (1-5)",  "required": true,  "pii": false},
+        {"id": "culture_score",   "kind": "number",  "label": "Culture score (1-5)",    "required": true,  "pii": false},
+        {"id": "debrief_notes",   "kind": "textarea","label": "Debrief notes",          "required": true,  "pii": false},
+        {"id": "interview_date",  "kind": "datetime","label": "Interview date/time",    "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {
+          "id": "no_show",
+          "condition": "candidate did not attend scheduled interview",
+          "handle": "branch",
+          "branch_to": "reschedule_or_withdraw"
+        },
+        {
+          "id": "split_decision",
+          "condition": "panel vote is tied",
+          "handle": "escalate"
+        }
+      ],
+      "approvals": [
+        {"role": "hiring_manager", "policy": "1_of_1"},
+        {"role": "hr_partner",     "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "candidate"},
+        {"trigger": "state_enter", "channel": "slack",  "audience": "hiring_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "recruiter"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "candidate"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 432000},
+      "metrics": ["interview_to_offer_conversion", "time_to_debrief"]
+    },
+    {
+      "id": "extend_offer",
+      "title": "Extend an offer",
+      "actor": {"role": "hr_partner"},
+      "situation": "hr partner prepares and delivers a formal offer letter after interview approval",
+      "motivation": "convert approved candidate into accepted hire before they accept a competing offer",
+      "outcome": "offer letter sent and candidate response recorded",
+      "success_criteria": [
+        "offer letter sent within 2 business days of interview approval",
+        "compensation within approved band",
+        "candidate response captured within offer expiry window"
+      ],
+      "data_capture": [
+        {"id": "base_salary",    "kind": "money",   "label": "Base salary",       "required": true,  "pii": false},
+        {"id": "bonus_target",   "kind": "money",   "label": "Bonus target",      "required": false, "pii": false},
+        {"id": "start_date",     "kind": "date",    "label": "Proposed start",    "required": true,  "pii": false},
+        {"id": "offer_expiry",   "kind": "date",    "label": "Offer expires",     "required": true,  "pii": false},
+        {"id": "offer_letter",   "kind": "file",    "label": "Offer letter PDF",  "required": true,  "pii": true},
+        {"id": "equity_units",   "kind": "number",  "label": "RSU units",         "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {
+          "id": "counter_offer",
+          "condition": "candidate negotiates above initial offer",
+          "handle": "branch",
+          "branch_to": "compensation_approval"
+        },
+        {
+          "id": "offer_expired",
+          "condition": "offer_expiry date passed without response",
+          "handle": "reject"
+        }
+      ],
+      "approvals": [
+        {"role": "hr_partner",     "policy": "1_of_1"},
+        {"role": "hiring_manager", "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",   "audience": "candidate"},
+        {"trigger": "approved",    "channel": "email",   "audience": "candidate"},
+        {"trigger": "approved",    "channel": "slack",   "audience": "recruiter"},
+        {"trigger": "rejected",    "channel": "email",   "audience": "recruiter"},
+        {"trigger": "sla_warn",    "channel": "in_app",  "audience": "hr_partner"},
+        {"trigger": "sla_breach",  "channel": "slack",   "audience": "hiring_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 172800},
+      "metrics": ["offer_acceptance_rate", "time_to_offer", "compensation_variance_pct"]
+    },
+    {
+      "id": "complete_hire",
+      "title": "Complete hire and onboard",
+      "actor": {"role": "hr_partner"},
+      "situation": "candidate accepts offer and hr partner triggers pre-boarding and onboarding tasks",
+      "motivation": "ensure new hire is productive from day one with zero missed compliance steps",
+      "outcome": "hire record created, background check cleared, day-1 access provisioned",
+      "success_criteria": [
+        "background check initiated within 24h of acceptance",
+        "IT provisioning ticket raised before start date",
+        "all pre-boarding documents signed at least 3 days before start"
+      ],
+      "data_capture": [
+        {"id": "acceptance_date",  "kind": "date",     "label": "Acceptance date",      "required": true,  "pii": false},
+        {"id": "legal_name",       "kind": "text",     "label": "Legal name",           "required": true,  "pii": true},
+        {"id": "national_id_ref",  "kind": "text",     "label": "National ID reference","required": true,  "pii": true},
+        {"id": "home_address",     "kind": "address",  "label": "Home address",         "required": true,  "pii": true},
+        {"id": "emergency_contact","kind": "text",     "label": "Emergency contact",    "required": true,  "pii": true},
+        {"id": "signed_contract",  "kind": "signature","label": "Signed contract",      "required": true,  "pii": true},
+        {"id": "bank_account_ref", "kind": "text",     "label": "Payroll account ref",  "required": true,  "pii": true}
+      ],
+      "documents_required": [
+        {"kind": "background_check", "min": 1, "freshness_days": 180, "av_required": true},
+        {"kind": "right_to_work",    "min": 1, "freshness_days": 365, "av_required": true},
+        {"kind": "signed_offer",     "min": 1, "av_required": false}
+      ],
+      "edge_cases": [
+        {
+          "id": "bgcheck_fail",
+          "condition": "background check returns adverse finding",
+          "handle": "escalate"
+        },
+        {
+          "id": "candidate_withdrawal",
+          "condition": "candidate withdraws after acceptance",
+          "handle": "reject"
+        }
+      ],
+      "approvals": [
+        {"role": "hr_partner", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "candidate"},
+        {"trigger": "state_enter", "channel": "slack",  "audience": "hiring_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "candidate"},
+        {"trigger": "approved",    "channel": "slack",  "audience": "recruiter"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "hr_partner"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "hr_partner"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 86400},
+      "metrics": [
+        "time_to_hire",
+        "onboarding_completion_rate",
+        "bgcheck_pass_rate",
+        "days_to_productivity"
+      ]
+    }
+  ]
+}
