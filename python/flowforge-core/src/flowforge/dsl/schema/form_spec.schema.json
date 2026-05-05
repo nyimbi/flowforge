@@ -1,0 +1,64 @@
+{
+  "$id": "https://flowforge.dev/schemas/form_spec-1.0.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FormSpec",
+  "type": "object",
+  "required": ["id", "version", "title", "fields"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string" },
+    "version": { "type": "string" },
+    "title": { "type": "string" },
+    "fields": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "kind"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "kind": {
+            "enum": [
+              "text", "number", "money", "date", "datetime",
+              "enum", "boolean", "party_ref", "document_ref",
+              "email", "phone", "address", "textarea",
+              "signature", "file", "lookup"
+            ]
+          },
+          "label": { "type": "string" },
+          "required": { "type": "boolean", "default": false },
+          "pii": { "type": "boolean", "default": false },
+          "default": {},
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["v"],
+              "additionalProperties": false,
+              "properties": {
+                "v": { "type": "string" },
+                "label": { "type": "string" }
+              }
+            }
+          },
+          "validation": { "type": "object", "additionalProperties": true },
+          "source": { "type": "object", "additionalProperties": true }
+        }
+      }
+    },
+    "layout": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "field_ids"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": { "const": "section" },
+          "title": { "type": "string" },
+          "field_ids": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}
