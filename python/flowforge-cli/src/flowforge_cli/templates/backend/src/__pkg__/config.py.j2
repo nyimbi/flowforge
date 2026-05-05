@@ -1,0 +1,19 @@
+"""Adapter wiring for {{ project.name }}.
+
+Replace the in-memory port_fakes here with the real adapters
+(``flowforge_sqlalchemy``, ``flowforge_audit_pg``, etc.) before
+deploying.
+"""
+
+from __future__ import annotations
+
+from flowforge import config as ff_config
+from flowforge.testing import port_fakes
+
+
+def configure() -> None:
+	ff_config.audit = port_fakes.InMemoryAuditSink()
+	ff_config.outbox = port_fakes.InMemoryOutbox()
+
+
+configure()

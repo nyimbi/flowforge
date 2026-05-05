@@ -1,0 +1,15 @@
+"""Smoke test for the {{ project.name }} workflow adapter."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from {{ project.package }}.workflow_adapter import load_workflows
+
+
+def test_load_workflows_smoke() -> None:
+	root = Path(__file__).resolve().parents[2] / "workflows"
+	if not root.exists():
+		return
+	defs = load_workflows(root)
+	assert isinstance(defs, dict)

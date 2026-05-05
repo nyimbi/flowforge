@@ -1,9 +1,25 @@
 [project]
 name = "flowforge-cli"
-version = "0.0.0"
-description = "flowforge-cli — flowforge adapter (placeholder)"
+version = "0.1.0"
+description = "flowforge-cli — typer-based CLI for the flowforge framework (new, validate, simulate, regen-catalog, add-jtbd, migrate, ...)"
+readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["flowforge"]
+dependencies = [
+	"flowforge>=0.1.0",
+	"typer>=0.12",
+	"jinja2>=3.1",
+	"pyyaml>=6.0",
+	"jsonschema>=4.0",
+]
+
+[project.optional-dependencies]
+test = [
+	"pytest>=7",
+	"pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+flowforge = "flowforge_cli.main:app"
 
 [build-system]
 requires = ["hatchling"]
@@ -11,3 +27,18 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/flowforge_cli"]
+
+[tool.hatch.build]
+include = [
+	"src/flowforge_cli/templates/**/*",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+include = ["src/flowforge_cli"]
+reportMissingImports = "warning"

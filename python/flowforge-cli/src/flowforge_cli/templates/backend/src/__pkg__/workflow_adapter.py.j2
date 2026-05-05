@@ -1,0 +1,35 @@
+"""Workflow adapter shim for {{ project.name }}.
+
+Loads ``workflows/<jtbd>/definition.json`` files at startup and exposes a
+single ``fire`` helper for callers.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+from flowforge.dsl import WorkflowDef
+from flowforge.engine.fire import fire as _fire, new_instance
+from flowforge.ports.types import Principal
+
+
+_WORKFLOWS: dict[str, WorkflowDef] = {}
+
+
+def load_workflows(root: Path) -> dict[str, WorkflowDef]:
+	defs: dict[str, WorkflowDef] = {}
+	for path in sorted(root.rglob("definition.json")):
+		raw = json.loads(path.read_text())
+		wd = WorkflowDef.model_validate(raw)
+		defs[wd.key] = wd
+	_WORKFLOWS.clear()
+	_WORKFLOWS.update(defs)
+	return defs
+
+
+async def fire(key: str, event: str, payload: dict[str, Any], *, tenant_id: str, principal: Principal) -> Any:
+	wd = _WORKFLOWS[key]
+	instance = new_instance(wd)
+	return await _fire(wd, instance, event, payload=payload, principal=principal, tenant_id=tenant_id)
