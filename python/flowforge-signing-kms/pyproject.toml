@@ -1,9 +1,22 @@
 [project]
 name = "flowforge-signing-kms"
-version = "0.0.0"
-description = "flowforge-signing-kms — flowforge adapter (placeholder)"
+version = "0.1.0"
+description = "flowforge-signing-kms — HMAC-dev, AWS KMS, and GCP KMS signing adapters"
 requires-python = ">=3.11"
-dependencies = ["flowforge"]
+dependencies = [
+    "flowforge",
+]
+
+[project.optional-dependencies]
+aws = ["boto3>=1.34"]
+gcp = ["google-cloud-kms>=2.21"]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "moto[kms]>=5.0",
+    "boto3>=1.34",
+    "google-cloud-kms>=2.21",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -11,3 +24,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/flowforge_signing_kms"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
