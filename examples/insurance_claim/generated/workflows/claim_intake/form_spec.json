@@ -1,0 +1,71 @@
+{
+  "fields": [
+    {
+      "id": "claimant_name",
+      "kind": "text",
+      "label": "Claimant full name",
+      "pii": true,
+      "required": true
+    },
+    {
+      "id": "policy_number",
+      "kind": "text",
+      "label": "Policy number",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "loss_date",
+      "kind": "date",
+      "label": "Date of loss",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "loss_amount",
+      "kind": "money",
+      "label": "Estimated loss amount",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "loss_description",
+      "kind": "textarea",
+      "label": "Description of loss",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "contact_email",
+      "kind": "email",
+      "label": "Contact email",
+      "pii": true,
+      "required": true
+    },
+    {
+      "id": "contact_phone",
+      "kind": "phone",
+      "label": "Contact phone",
+      "pii": true,
+      "required": false
+    }
+  ],
+  "id": "claim_intake_intake",
+  "layout": [
+    {
+      "field_ids": [
+        "claimant_name",
+        "policy_number",
+        "loss_date",
+        "loss_amount",
+        "loss_description",
+        "contact_email",
+        "contact_phone"
+      ],
+      "kind": "section",
+      "title": "Details"
+    }
+  ],
+  "title": "File an insurance claim (FNOL) \u2014 Intake",
+  "version": "1.0.0"
+}

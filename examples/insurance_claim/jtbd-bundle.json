@@ -1,0 +1,160 @@
+{
+  "project": {
+    "name": "insurance-claim-demo",
+    "package": "insurance_claim_demo",
+    "domain": "claims",
+    "tenancy": "single",
+    "languages": ["en"],
+    "currencies": ["USD", "ZAR"],
+    "frontend_framework": "nextjs"
+  },
+  "shared": {
+    "roles": ["adjuster", "supervisor", "claimant"],
+    "permissions": ["claim_intake.read"]
+  },
+  "jtbds": [
+    {
+      "id": "claim_intake",
+      "title": "File an insurance claim (FNOL)",
+      "actor": {
+        "role": "claimant",
+        "external": true
+      },
+      "situation": "A policyholder suffers a covered loss and needs to submit a First Notice of Loss so recovery can begin.",
+      "motivation": "Recover insured losses as quickly as possible with minimal friction.",
+      "outcome": "Claim is accepted into triage and assigned to an adjuster within 24 hours.",
+      "success_criteria": [
+        "Claim ID is generated and confirmed to the claimant within 5 minutes of submission.",
+        "Claim routed to correct triage queue within 24 hours.",
+        "Large-loss claims (> $100 000) automatically escalated to senior adjuster.",
+        "Lapsed-policy claims are rejected immediately with a reason code."
+      ],
+      "data_capture": [
+        {
+          "id": "claimant_name",
+          "kind": "text",
+          "label": "Claimant full name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "policy_number",
+          "kind": "text",
+          "label": "Policy number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "loss_date",
+          "kind": "date",
+          "label": "Date of loss",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "loss_amount",
+          "kind": "money",
+          "label": "Estimated loss amount",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "loss_description",
+          "kind": "textarea",
+          "label": "Description of loss",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "contact_email",
+          "kind": "email",
+          "label": "Contact email",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "contact_phone",
+          "kind": "phone",
+          "label": "Contact phone",
+          "required": false,
+          "pii": true
+        }
+      ],
+      "documents_required": [
+        {
+          "kind": "proof_of_loss",
+          "min": 1,
+          "freshness_days": 90,
+          "av_required": true
+        },
+        {
+          "kind": "police_report",
+          "min": 0,
+          "max": 3,
+          "av_required": false
+        }
+      ],
+      "edge_cases": [
+        {
+          "id": "large_loss",
+          "condition": "loss_amount > 100000",
+          "handle": "branch",
+          "branch_to": "senior_triage"
+        },
+        {
+          "id": "lapsed",
+          "condition": "policy status is lapsed at date of loss",
+          "handle": "reject"
+        }
+      ],
+      "approvals": [
+        {
+          "role": "adjuster",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "supervisor",
+          "policy": "authority_tier",
+          "tier": 2
+        }
+      ],
+      "sla": {
+        "warn_pct": 80,
+        "breach_seconds": 86400
+      },
+      "notifications": [
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "claimant"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "claimant"
+        },
+        {
+          "trigger": "rejected",
+          "channel": "email",
+          "audience": "claimant"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "slack",
+          "audience": "adjuster"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "supervisor"
+        }
+      ],
+      "metrics": [
+        "claim_intake.submission_count",
+        "claim_intake.time_to_triage_seconds",
+        "claim_intake.large_loss_rate",
+        "claim_intake.rejection_rate"
+      ]
+    }
+  ]
+}
