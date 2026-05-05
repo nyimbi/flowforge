@@ -206,12 +206,22 @@ TOTAL_TESTS=$(( TOTAL_TESTS + ${PARITY_COUNT:-0} ))
 ok "parity: ${PARITY_COUNT:-0} parity tests passed (22-def target)"
 cd "$REPO_ROOT"
 
-# ---------- Step 10: Summary -----------------------------------------
+# ---------- Step 10: Cross-package integration tests ------------------
+
+step "10/11  Cross-package integration tests"
+cd "$FRAMEWORK_ROOT"
+bash "$FRAMEWORK_ROOT/scripts/run_integration.sh"
+INT_PASS=$(uv run pytest "$FRAMEWORK_ROOT/tests/integration/python/tests/" -q --tb=no 2>&1 | grep -oE '^[0-9]+ passed' | grep -oE '^[0-9]+' || echo 0)
+TOTAL_TESTS=$(( TOTAL_TESTS + ${INT_PASS:-0} ))
+ok "integration tests: ${INT_PASS:-0} Python tests passed"
+cd "$REPO_ROOT"
+
+# ---------- Step 11: Summary -----------------------------------------
 
 END_TS=$(date +%s)
 ELAPSED=$(( END_TS - START_TS ))
 
-step "10/10  Summary"
+step "11/11  Summary"
 echo ""
 echo -e "${BOLD}flowforge gate — all steps green${RESET}"
 echo "  Python packages : ${#PY_PKGS[@]}"
