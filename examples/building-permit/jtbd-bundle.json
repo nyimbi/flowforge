@@ -1,0 +1,498 @@
+{
+  "project": {
+    "name": "building-permit",
+    "package": "building_permit",
+    "domain": "municipal_services",
+    "tenancy": "single",
+    "languages": ["en"],
+    "currencies": ["USD"],
+    "frontend_framework": "nextjs"
+  },
+  "shared": {
+    "roles": [
+      "applicant",
+      "permit_clerk",
+      "plan_reviewer",
+      "field_inspector",
+      "chief_building_official"
+    ],
+    "permissions": [
+      "permit.read"
+    ]
+  },
+  "jtbds": [
+    {
+      "id": "permit_intake",
+      "title": "Submit a Building Permit Application",
+      "actor": {
+        "role": "applicant",
+        "external": true
+      },
+      "situation": "A property owner or contractor needs to begin construction and must obtain a building permit before breaking ground.",
+      "motivation": "Comply with municipal code, avoid stop-work orders, and get official approval to build.",
+      "outcome": "Application is accepted and queued for plan review with a confirmed tracking number.",
+      "success_criteria": [
+        "Applicant receives a tracking number within 1 business day",
+        "All required documents are attached before submission",
+        "Fees are calculated and payment initiated at submission"
+      ],
+      "data_capture": [
+        {
+          "id": "owner_name",
+          "kind": "text",
+          "label": "Property Owner Name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "owner_email",
+          "kind": "email",
+          "label": "Owner Email",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "owner_phone",
+          "kind": "phone",
+          "label": "Owner Phone",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "site_address",
+          "kind": "address",
+          "label": "Construction Site Address",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "parcel_number",
+          "kind": "text",
+          "label": "Parcel / APN Number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "permit_type",
+          "kind": "enum",
+          "label": "Permit Type",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "project_description",
+          "kind": "textarea",
+          "label": "Project Description",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "estimated_cost",
+          "kind": "money",
+          "label": "Estimated Construction Cost",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "contractor_license",
+          "kind": "text",
+          "label": "Contractor License Number",
+          "required": false,
+          "pii": false
+        }
+      ],
+      "documents_required": [
+        {
+          "kind": "site_plan",
+          "min": 1,
+          "av_required": false
+        },
+        {
+          "kind": "architectural_drawings",
+          "min": 1,
+          "av_required": false
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 86400
+      },
+      "notifications": [
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "applicant"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "applicant"
+        }
+      ],
+      "metrics": [
+        "intake_submissions_total",
+        "intake_to_review_seconds"
+      ]
+    },
+    {
+      "id": "plan_review",
+      "title": "Review Building Plans for Code Compliance",
+      "actor": {
+        "role": "plan_reviewer",
+        "external": false
+      },
+      "situation": "A permit application has been accepted and plans must be reviewed for compliance with building codes, zoning, and fire safety regulations.",
+      "motivation": "Ensure construction meets all applicable codes before approval to protect public safety.",
+      "outcome": "Plans are approved or corrections are requested with specific deficiencies listed.",
+      "success_criteria": [
+        "Initial review completed within 10 business days",
+        "All code violations are documented with IBC references",
+        "Applicant notified of outcome within 1 business day of decision"
+      ],
+      "edge_cases": [
+        {
+          "id": "corrections_needed",
+          "condition": "plans have code deficiencies",
+          "handle": "loop"
+        },
+        {
+          "id": "major_variance_required",
+          "condition": "project requires zoning variance",
+          "handle": "branch",
+          "branch_to": "variance_review"
+        }
+      ],
+      "data_capture": [
+        {
+          "id": "review_notes",
+          "kind": "textarea",
+          "label": "Review Notes",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "code_sections",
+          "kind": "text",
+          "label": "Applicable Code Sections",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "review_outcome",
+          "kind": "enum",
+          "label": "Review Outcome",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "plan_reviewer",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 80,
+        "breach_seconds": 864000
+      },
+      "notifications": [
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "applicant"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "plan_reviewer"
+        }
+      ],
+      "metrics": [
+        "plan_review_cycle_time_seconds",
+        "correction_rounds_count"
+      ]
+    },
+    {
+      "id": "field_inspection",
+      "title": "Conduct Field Inspection",
+      "actor": {
+        "role": "field_inspector",
+        "external": false
+      },
+      "situation": "Construction has reached a stage requiring an official inspection (foundation, framing, electrical rough-in, plumbing rough-in, or final).",
+      "motivation": "Verify that work in progress matches approved plans and meets code before it is concealed or finalized.",
+      "outcome": "Inspection result recorded; either passed, failed with corrections, or re-inspection scheduled.",
+      "success_criteria": [
+        "Inspection scheduled within 2 business days of request",
+        "Inspection card updated same day as inspection",
+        "Failed items described with specific code references"
+      ],
+      "edge_cases": [
+        {
+          "id": "stop_work",
+          "condition": "imminent safety hazard found",
+          "handle": "escalate"
+        },
+        {
+          "id": "failed_inspection",
+          "condition": "work does not meet code",
+          "handle": "reject"
+        }
+      ],
+      "data_capture": [
+        {
+          "id": "inspection_type",
+          "kind": "enum",
+          "label": "Inspection Type",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "inspection_date",
+          "kind": "date",
+          "label": "Inspection Date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "inspector_notes",
+          "kind": "textarea",
+          "label": "Inspector Field Notes",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "pass_fail",
+          "kind": "enum",
+          "label": "Result",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "correction_items",
+          "kind": "textarea",
+          "label": "Correction Items",
+          "required": false,
+          "pii": false
+        }
+      ],
+      "documents_required": [
+        {
+          "kind": "inspection_photo",
+          "min": 1,
+          "max": 20,
+          "av_required": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "chief_building_official",
+          "policy": "authority_tier",
+          "tier": 3
+        }
+      ],
+      "sla": {
+        "warn_pct": 70,
+        "breach_seconds": 172800
+      },
+      "notifications": [
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "applicant"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "applicant"
+        },
+        {
+          "trigger": "rejected",
+          "channel": "email",
+          "audience": "applicant"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "in_app",
+          "audience": "chief_building_official"
+        }
+      ],
+      "metrics": [
+        "inspections_total",
+        "inspection_pass_rate",
+        "reinspection_count"
+      ]
+    },
+    {
+      "id": "permit_decision",
+      "title": "Approve or Deny Building Permit",
+      "actor": {
+        "role": "chief_building_official",
+        "external": false
+      },
+      "situation": "All plan reviews and required inspections are complete; the chief building official must make a final approval or denial decision.",
+      "motivation": "Provide a legally binding decision that either authorizes construction to proceed or formally denies the application with stated reasons.",
+      "outcome": "Permit is approved with conditions or denied with a written findings document.",
+      "success_criteria": [
+        "Decision issued within 5 business days of plan review approval",
+        "Denial includes written findings citing specific code sections",
+        "Approved permit includes all applicable conditions of approval"
+      ],
+      "edge_cases": [
+        {
+          "id": "denied",
+          "condition": "application does not meet code or fails review",
+          "handle": "reject"
+        }
+      ],
+      "data_capture": [
+        {
+          "id": "decision",
+          "kind": "enum",
+          "label": "Decision",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "conditions",
+          "kind": "textarea",
+          "label": "Conditions of Approval",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "denial_findings",
+          "kind": "textarea",
+          "label": "Denial Findings",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "expiry_date",
+          "kind": "date",
+          "label": "Permit Expiry Date",
+          "required": false,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "chief_building_official",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 80,
+        "breach_seconds": 432000
+      },
+      "notifications": [
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "applicant"
+        },
+        {
+          "trigger": "rejected",
+          "channel": "email",
+          "audience": "applicant"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "chief_building_official"
+        }
+      ],
+      "metrics": [
+        "permit_approval_rate",
+        "decision_cycle_time_seconds"
+      ]
+    },
+    {
+      "id": "permit_issuance",
+      "title": "Issue the Building Permit Certificate",
+      "actor": {
+        "role": "permit_clerk",
+        "external": false
+      },
+      "situation": "The permit has been approved and the permit certificate must be generated, signed, and delivered to the applicant so construction can legally begin.",
+      "motivation": "Provide the applicant with a legally valid permit document they can post at the construction site as required by law.",
+      "outcome": "Signed permit certificate issued and delivered; permit number recorded in the municipal registry.",
+      "success_criteria": [
+        "Permit certificate issued within 1 business day of approval",
+        "Certificate includes permit number, site address, expiry, and conditions",
+        "Permit recorded in the municipal registry before delivery"
+      ],
+      "data_capture": [
+        {
+          "id": "permit_number",
+          "kind": "text",
+          "label": "Permit Number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "issued_date",
+          "kind": "date",
+          "label": "Issued Date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "clerk_signature",
+          "kind": "signature",
+          "label": "Clerk Signature",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "fee_amount",
+          "kind": "money",
+          "label": "Total Fee Collected",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "receipt_number",
+          "kind": "text",
+          "label": "Payment Receipt Number",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "documents_required": [
+        {
+          "kind": "permit_certificate",
+          "min": 1,
+          "max": 1,
+          "av_required": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "permit_clerk",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 86400
+      },
+      "notifications": [
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "applicant"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "applicant"
+        }
+      ],
+      "metrics": [
+        "permits_issued_total",
+        "issuance_cycle_time_seconds"
+      ]
+    }
+  ]
+}

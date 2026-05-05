@@ -1,0 +1,39 @@
+{
+  "fields": [
+    {
+      "id": "review_notes",
+      "kind": "textarea",
+      "label": "Review Notes",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "code_sections",
+      "kind": "text",
+      "label": "Applicable Code Sections",
+      "pii": false,
+      "required": false
+    },
+    {
+      "id": "review_outcome",
+      "kind": "enum",
+      "label": "Review Outcome",
+      "pii": false,
+      "required": true
+    }
+  ],
+  "id": "plan_review_intake",
+  "layout": [
+    {
+      "field_ids": [
+        "review_notes",
+        "code_sections",
+        "review_outcome"
+      ],
+      "kind": "section",
+      "title": "Details"
+    }
+  ],
+  "title": "Review Building Plans for Code Compliance \u2014 Intake",
+  "version": "1.0.0"
+}

@@ -1,0 +1,74 @@
+{
+  "initial_state": "intake",
+  "key": "permit_issuance",
+  "metadata": {
+    "actor": "permit_clerk",
+    "generated_from": "jtbd",
+    "sla_breach_seconds": 86400,
+    "title": "Issue the Building Permit Certificate"
+  },
+  "states": [
+    {
+      "kind": "manual_review",
+      "name": "intake",
+      "swimlane": "permit_clerk"
+    },
+    {
+      "kind": "manual_review",
+      "name": "review",
+      "swimlane": "reviewer"
+    },
+    {
+      "kind": "terminal_success",
+      "name": "done"
+    }
+  ],
+  "subject_kind": "permit_issuance",
+  "transitions": [
+    {
+      "effects": [
+        {
+          "entity": "permit_issuance",
+          "kind": "create_entity"
+        },
+        {
+          "kind": "audit",
+          "template": "permit_issuance.submitted"
+        }
+      ],
+      "event": "submit",
+      "from_state": "intake",
+      "gates": [
+        {
+          "kind": "permission",
+          "permission": "permit_issuance.submit"
+        }
+      ],
+      "guards": [],
+      "id": "permit_issuance_submit",
+      "priority": 0,
+      "to_state": "review"
+    },
+    {
+      "effects": [
+        {
+          "kind": "notify",
+          "template": "permit_issuance.approved"
+        }
+      ],
+      "event": "approve",
+      "from_state": "review",
+      "gates": [
+        {
+          "kind": "permission",
+          "permission": "permit_issuance.approve"
+        }
+      ],
+      "guards": [],
+      "id": "permit_issuance_approve",
+      "priority": 0,
+      "to_state": "done"
+    }
+  ],
+  "version": "1.0.0"
+}

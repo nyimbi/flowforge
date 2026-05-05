@@ -1,0 +1,126 @@
+{
+  "initial_state": "intake",
+  "key": "plan_review",
+  "metadata": {
+    "actor": "plan_reviewer",
+    "generated_from": "jtbd",
+    "sla_breach_seconds": 864000,
+    "title": "Review Building Plans for Code Compliance"
+  },
+  "states": [
+    {
+      "kind": "manual_review",
+      "name": "intake",
+      "swimlane": "plan_reviewer"
+    },
+    {
+      "kind": "manual_review",
+      "name": "review",
+      "swimlane": "reviewer"
+    },
+    {
+      "kind": "manual_review",
+      "name": "variance_review",
+      "swimlane": "reviewer"
+    },
+    {
+      "kind": "terminal_success",
+      "name": "done"
+    }
+  ],
+  "subject_kind": "plan_review",
+  "transitions": [
+    {
+      "effects": [
+        {
+          "entity": "plan_review",
+          "kind": "create_entity"
+        },
+        {
+          "kind": "audit",
+          "template": "plan_review.submitted"
+        }
+      ],
+      "event": "submit",
+      "from_state": "intake",
+      "gates": [
+        {
+          "kind": "permission",
+          "permission": "plan_review.submit"
+        }
+      ],
+      "guards": [],
+      "id": "plan_review_submit",
+      "priority": 0,
+      "to_state": "review"
+    },
+    {
+      "effects": [
+        {
+          "kind": "notify",
+          "template": "plan_review.approved"
+        }
+      ],
+      "event": "approve",
+      "from_state": "review",
+      "gates": [
+        {
+          "kind": "permission",
+          "permission": "plan_review.approve"
+        }
+      ],
+      "guards": [],
+      "id": "plan_review_approve",
+      "priority": 0,
+      "to_state": "done"
+    },
+    {
+      "effects": [
+        {
+          "kind": "audit",
+          "template": "plan_review.corrections_needed_returned"
+        }
+      ],
+      "event": "request_more_info",
+      "from_state": "review",
+      "gates": [
+        {
+          "kind": "permission",
+          "permission": "plan_review.review"
+        }
+      ],
+      "guards": [],
+      "id": "plan_review_corrections_needed_loop",
+      "priority": 5,
+      "to_state": "intake"
+    },
+    {
+      "effects": [
+        {
+          "kind": "audit",
+          "template": "plan_review.major_variance_required"
+        }
+      ],
+      "event": "submit",
+      "from_state": "intake",
+      "gates": [
+        {
+          "kind": "permission",
+          "permission": "plan_review.submit"
+        }
+      ],
+      "guards": [
+        {
+          "expr": {
+            "var": "context.major_variance_required"
+          },
+          "kind": "expr"
+        }
+      ],
+      "id": "plan_review_major_variance_required",
+      "priority": 6,
+      "to_state": "variance_review"
+    }
+  ],
+  "version": "1.0.0"
+}

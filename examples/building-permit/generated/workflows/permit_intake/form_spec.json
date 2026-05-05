@@ -1,0 +1,87 @@
+{
+  "fields": [
+    {
+      "id": "owner_name",
+      "kind": "text",
+      "label": "Property Owner Name",
+      "pii": true,
+      "required": true
+    },
+    {
+      "id": "owner_email",
+      "kind": "email",
+      "label": "Owner Email",
+      "pii": true,
+      "required": true
+    },
+    {
+      "id": "owner_phone",
+      "kind": "phone",
+      "label": "Owner Phone",
+      "pii": true,
+      "required": true
+    },
+    {
+      "id": "site_address",
+      "kind": "address",
+      "label": "Construction Site Address",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "parcel_number",
+      "kind": "text",
+      "label": "Parcel / APN Number",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "permit_type",
+      "kind": "enum",
+      "label": "Permit Type",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "project_description",
+      "kind": "textarea",
+      "label": "Project Description",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "estimated_cost",
+      "kind": "money",
+      "label": "Estimated Construction Cost",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "contractor_license",
+      "kind": "text",
+      "label": "Contractor License Number",
+      "pii": false,
+      "required": false
+    }
+  ],
+  "id": "permit_intake_intake",
+  "layout": [
+    {
+      "field_ids": [
+        "owner_name",
+        "owner_email",
+        "owner_phone",
+        "site_address",
+        "parcel_number",
+        "permit_type",
+        "project_description",
+        "estimated_cost",
+        "contractor_license"
+      ],
+      "kind": "section",
+      "title": "Details"
+    }
+  ],
+  "title": "Submit a Building Permit Application \u2014 Intake",
+  "version": "1.0.0"
+}

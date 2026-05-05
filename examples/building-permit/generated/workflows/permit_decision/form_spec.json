@@ -1,0 +1,47 @@
+{
+  "fields": [
+    {
+      "id": "decision",
+      "kind": "enum",
+      "label": "Decision",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "conditions",
+      "kind": "textarea",
+      "label": "Conditions of Approval",
+      "pii": false,
+      "required": false
+    },
+    {
+      "id": "denial_findings",
+      "kind": "textarea",
+      "label": "Denial Findings",
+      "pii": false,
+      "required": false
+    },
+    {
+      "id": "expiry_date",
+      "kind": "date",
+      "label": "Permit Expiry Date",
+      "pii": false,
+      "required": false
+    }
+  ],
+  "id": "permit_decision_intake",
+  "layout": [
+    {
+      "field_ids": [
+        "decision",
+        "conditions",
+        "denial_findings",
+        "expiry_date"
+      ],
+      "kind": "section",
+      "title": "Details"
+    }
+  ],
+  "title": "Approve or Deny Building Permit \u2014 Intake",
+  "version": "1.0.0"
+}

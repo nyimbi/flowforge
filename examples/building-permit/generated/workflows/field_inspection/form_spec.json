@@ -1,0 +1,55 @@
+{
+  "fields": [
+    {
+      "id": "inspection_type",
+      "kind": "enum",
+      "label": "Inspection Type",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "inspection_date",
+      "kind": "date",
+      "label": "Inspection Date",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "inspector_notes",
+      "kind": "textarea",
+      "label": "Inspector Field Notes",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "pass_fail",
+      "kind": "enum",
+      "label": "Result",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "correction_items",
+      "kind": "textarea",
+      "label": "Correction Items",
+      "pii": false,
+      "required": false
+    }
+  ],
+  "id": "field_inspection_intake",
+  "layout": [
+    {
+      "field_ids": [
+        "inspection_type",
+        "inspection_date",
+        "inspector_notes",
+        "pass_fail",
+        "correction_items"
+      ],
+      "kind": "section",
+      "title": "Details"
+    }
+  ],
+  "title": "Conduct Field Inspection \u2014 Intake",
+  "version": "1.0.0"
+}

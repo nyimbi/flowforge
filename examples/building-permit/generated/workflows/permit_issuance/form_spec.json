@@ -1,0 +1,55 @@
+{
+  "fields": [
+    {
+      "id": "permit_number",
+      "kind": "text",
+      "label": "Permit Number",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "issued_date",
+      "kind": "date",
+      "label": "Issued Date",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "clerk_signature",
+      "kind": "signature",
+      "label": "Clerk Signature",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "fee_amount",
+      "kind": "money",
+      "label": "Total Fee Collected",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "receipt_number",
+      "kind": "text",
+      "label": "Payment Receipt Number",
+      "pii": false,
+      "required": true
+    }
+  ],
+  "id": "permit_issuance_intake",
+  "layout": [
+    {
+      "field_ids": [
+        "permit_number",
+        "issued_date",
+        "clerk_signature",
+        "fee_amount",
+        "receipt_number"
+      ],
+      "kind": "section",
+      "title": "Details"
+    }
+  ],
+  "title": "Issue the Building Permit Certificate \u2014 Intake",
+  "version": "1.0.0"
+}
