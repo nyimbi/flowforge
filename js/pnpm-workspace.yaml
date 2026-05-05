@@ -1,0 +1,6 @@
+packages:
+  - "flowforge-types"
+  - "flowforge-renderer"
+  - "flowforge-runtime-client"
+  - "flowforge-step-adapters"
+  - "flowforge-designer"

@@ -1,0 +1,11 @@
+{
+  "name": "flowforge-js-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "description": "flowforge JS workspace root (not published)",
+  "scripts": {
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "build": "pnpm -r build"
+  }
+}

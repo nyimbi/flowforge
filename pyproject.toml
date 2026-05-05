@@ -1,0 +1,43 @@
+[project]
+name = "flowforge-workspace"
+version = "0.0.0"
+description = "flowforge monorepo workspace root (not published)"
+requires-python = ">=3.11"
+
+[tool.uv.workspace]
+members = [
+    "python/flowforge-core",
+    "python/flowforge-fastapi",
+    "python/flowforge-sqlalchemy",
+    "python/flowforge-tenancy",
+    "python/flowforge-audit-pg",
+    "python/flowforge-outbox-pg",
+    "python/flowforge-rbac-static",
+    "python/flowforge-rbac-spicedb",
+    "python/flowforge-documents-s3",
+    "python/flowforge-money",
+    "python/flowforge-signing-kms",
+    "python/flowforge-notify-multichannel",
+    "python/flowforge-cli",
+]
+
+[tool.uv.sources]
+flowforge = { workspace = true }
+flowforge-fastapi = { workspace = true }
+flowforge-sqlalchemy = { workspace = true }
+flowforge-tenancy = { workspace = true }
+flowforge-audit-pg = { workspace = true }
+flowforge-outbox-pg = { workspace = true }
+flowforge-rbac-static = { workspace = true }
+flowforge-rbac-spicedb = { workspace = true }
+flowforge-documents-s3 = { workspace = true }
+flowforge-money = { workspace = true }
+flowforge-signing-kms = { workspace = true }
+flowforge-notify-multichannel = { workspace = true }
+flowforge-cli = { workspace = true }
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+reportMissingImports = "warning"
+include = ["python/*/src"]

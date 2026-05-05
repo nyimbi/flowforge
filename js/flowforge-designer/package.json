@@ -1,0 +1,12 @@
+{
+  "name": "@flowforge/designer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "echo 'no tests yet' && exit 0",
+    "lint": "echo 'no lint yet' && exit 0",
+    "build": "echo 'no build yet' && exit 0"
+  }
+}
