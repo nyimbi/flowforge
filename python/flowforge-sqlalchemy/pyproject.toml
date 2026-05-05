@@ -1,9 +1,25 @@
 [project]
 name = "flowforge-sqlalchemy"
-version = "0.0.0"
-description = "flowforge-sqlalchemy — flowforge adapter (placeholder)"
+version = "0.1.0"
+description = "flowforge-sqlalchemy — async SQLAlchemy 2.x storage adapter for the flowforge engine"
+readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["flowforge"]
+dependencies = [
+    "flowforge",
+    "sqlalchemy[asyncio]>=2.0",
+    "alembic>=1.13",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7",
+    "pytest-asyncio>=0.23",
+    "aiosqlite>=0.19",
+]
+postgres = [
+    "asyncpg>=0.29",
+    "testcontainers[postgres]>=3.7",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -11,3 +27,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/flowforge_sqlalchemy"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
