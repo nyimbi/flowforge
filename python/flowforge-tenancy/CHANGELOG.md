@@ -1,5 +1,6 @@
 # flowforge-tenancy changelog
 
-## Unreleased
+## 0.1.0 — Unreleased
 
-- Package skeleton scaffolded; implementation pending in dedicated unit.
+- Initial impls: `SingleTenantGUC`, `MultiTenantGUC`, `NoTenancy`.
+- `elevated_scope()` context manager mirrors UMS `app.elevated` GUC pattern.
