@@ -1,0 +1,55 @@
+[project]
+name = "flowforge-integration-tests"
+version = "0.0.0"
+description = "Cross-package integration tests for the flowforge framework. Not published."
+requires-python = ">=3.11"
+dependencies = [
+	"flowforge",
+	"flowforge-fastapi",
+	"flowforge-sqlalchemy",
+	"flowforge-tenancy",
+	"flowforge-audit-pg",
+	"flowforge-outbox-pg",
+	"flowforge-rbac-static",
+	"flowforge-rbac-spicedb",
+	"flowforge-documents-s3",
+	"flowforge-money",
+	"flowforge-signing-kms",
+	"flowforge-notify-multichannel",
+	"flowforge-cli",
+	"fastapi>=0.115",
+	"httpx>=0.27",
+	"aiosqlite>=0.20",
+	"sqlalchemy>=2.0",
+	"pyyaml>=6.0",
+	"pytest>=7",
+	"pytest-asyncio>=0.23",
+]
+
+[tool.uv.sources]
+flowforge = { path = "../../../python/flowforge-core", editable = true }
+flowforge-fastapi = { path = "../../../python/flowforge-fastapi", editable = true }
+flowforge-sqlalchemy = { path = "../../../python/flowforge-sqlalchemy", editable = true }
+flowforge-tenancy = { path = "../../../python/flowforge-tenancy", editable = true }
+flowforge-audit-pg = { path = "../../../python/flowforge-audit-pg", editable = true }
+flowforge-outbox-pg = { path = "../../../python/flowforge-outbox-pg", editable = true }
+flowforge-rbac-static = { path = "../../../python/flowforge-rbac-static", editable = true }
+flowforge-rbac-spicedb = { path = "../../../python/flowforge-rbac-spicedb", editable = true }
+flowforge-documents-s3 = { path = "../../../python/flowforge-documents-s3", editable = true }
+flowforge-money = { path = "../../../python/flowforge-money", editable = true }
+flowforge-signing-kms = { path = "../../../python/flowforge-signing-kms", editable = true }
+flowforge-notify-multichannel = { path = "../../../python/flowforge-notify-multichannel", editable = true }
+flowforge-cli = { path = "../../../python/flowforge-cli", editable = true }
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+filterwarnings = [
+	"ignore::DeprecationWarning",
+]
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+include = ["tests"]
+reportMissingImports = "warning"
