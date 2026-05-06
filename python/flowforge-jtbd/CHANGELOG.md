@@ -31,6 +31,25 @@
     authority error.
   - `JtbdRule` / `JtbdRulePack` protocols + `RuleRegistry`.
   - `Linter` orchestrator + `LintReport` output format.
+- E-25: Localisation layer.
+  - `flowforge_jtbd.i18n.LocaleCatalog` — one language's flat
+    `<jtbd_id>.<jcr_path>` → string table with merge / filter helpers.
+  - `flowforge_jtbd.i18n.LocaleRegistry` — multi-language registry
+    with configurable fallback chain (default `["en"]`); `get_or_key`
+    shorthand returns the key itself when unresolved so the editor
+    surface never goes blank.
+  - `flowforge_jtbd.i18n.keys_for_spec` — derives every translatable
+    catalog key from a `JtbdSpec` (Pydantic) or its dict form per the
+    arch §23.17 taxonomy: title, situation, motivation, outcome,
+    fields.<id>.label/help, edge_cases.<id>.message,
+    notifications.<trigger>.subject/body, success_criteria[<i>].
+  - `flowforge_jtbd.i18n.validate_catalog` — surfaces
+    `unknown_path` errors (catalog points at a field no spec
+    has) and `missing_translation` warnings (spec field not covered
+    by the catalog).
+  - `flowforge_jtbd.i18n.load_catalog_from_path` /
+    `load_catalog_from_dir` — read `i18n/<lang>.json` files from
+    library packs.
 - E-15: DomainInferer.
   - `flowforge_jtbd.ai.domain_inference` — `DomainInferer` wraps the
     E-7 `Recommender` to suggest starter library JTBDs for a free-text
