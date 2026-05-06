@@ -1,6 +1,8 @@
 export { Canvas } from "./Canvas.js";
 export type { CanvasProps } from "./Canvas.js";
 export { Designer } from "./Designer.js";
+export { ForkButton } from "./ForkButton.js";
+export type { ForkButtonProps } from "./ForkButton.js";
 export type { DesignerProps, DesignerTab } from "./Designer.js";
 export { DiffViewer } from "./DiffViewer.js";
 export type { DiffViewerProps } from "./DiffViewer.js";

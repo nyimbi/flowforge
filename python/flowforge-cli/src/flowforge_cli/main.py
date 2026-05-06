@@ -15,6 +15,7 @@ from .commands import (
 	ai_assist,
 	audit_verify,
 	diff,
+	jtbd_fork,
 	jtbd_generate,
 	migrate_fork,
 	new,
@@ -36,6 +37,10 @@ app = typer.Typer(
 audit_app = typer.Typer(name="audit", help="Audit-trail tools.", no_args_is_help=True)
 app.add_typer(audit_app, name="audit")
 
+# JTBD lifecycle subgroup (evolution.md §3 — E-2+).
+jtbd_app = typer.Typer(name="jtbd", help="JTBD lifecycle commands (fork, publish, lock).", no_args_is_help=True)
+app.add_typer(jtbd_app, name="jtbd")
+
 # Each module owns one command; this loop keeps wiring obvious.
 new.register(app)
 add_jtbd.register(app)
@@ -49,6 +54,7 @@ upgrade_deps.register(app)
 migrate_fork.register(app)
 ai_assist.register(app)
 audit_verify.register(audit_app)
+jtbd_fork.register(jtbd_app)
 
 
 def main() -> None:
