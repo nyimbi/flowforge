@@ -20,6 +20,15 @@ from .nl_to_jtbd import (
 	NlToJtbdGenerator,
 	PromptInjectionRejected,
 )
+from .pgvector_store import (
+	GoldenQuery,
+	HnswIndexSwapper,
+	IndexSwapAborted,
+	PgVectorEmbeddingStore,
+	PgVectorUnavailable,
+	SwapReport,
+	TableSpec,
+)
 from .quality import (
 	DimensionScore,
 	LlmProvider,
@@ -46,15 +55,22 @@ __all__ = [
 	"EmbeddingProvider",
 	"EmbeddingStore",
 	"GenerationResult",
+	"GoldenQuery",
+	"HnswIndexSwapper",
+	"IndexSwapAborted",
 	"InMemoryEmbeddingStore",
 	"LlmProvider",
 	"NlToJtbdError",
 	"NlToJtbdGenerator",
+	"PgVectorEmbeddingStore",
+	"PgVectorUnavailable",
 	"PromptInjectionRejected",
 	"QualityReport",
 	"QualityScorer",
 	"RecommendationResult",
 	"Recommender",
+	"SwapReport",
+	"TableSpec",
 	"build_recommender",
 	"score_jtbd",
 ]

@@ -31,6 +31,24 @@
     authority error.
   - `JtbdRule` / `JtbdRulePack` protocols + `RuleRegistry`.
   - `Linter` orchestrator + `LintReport` output format.
+- E-7 (production tier): pgvector embedding store + HNSW online-swap.
+  - `flowforge_jtbd.ai.pgvector_store.PgVectorEmbeddingStore` —
+    `EmbeddingStore` Protocol implementation backed by pgvector with
+    `<=>` cosine distance ordering. DDL emitter creates extension /
+    schema / table / ivfflat index idempotently. `upsert` uses
+    `ON CONFLICT (jtbd_id) DO UPDATE`; `search` selects
+    `1 - (vector <=> :vec)` as similarity. Optional dependencies
+    (`sqlalchemy`, `asyncpg`, `pgvector`) gated via
+    `PgVectorUnavailable`.
+  - `flowforge_jtbd.ai.pgvector_store.HnswIndexSwapper` — online
+    IVFFlat → HNSW switchover per arch §23.31. Builds the new index
+    with `CREATE INDEX CONCURRENTLY` (no read downtime), runs the
+    golden-query recall test, drops the old index only when recall ≥
+    `min_recall` (default 0.95). `IndexSwapAborted` raised on recall
+    miss; both indexes coexist on the failure path so the planner
+    keeps using the old one.
+  - `dry_run` toggle on `swap()` for staging-environment validation
+    runs.
 - E-25: Localisation layer.
   - `flowforge_jtbd.i18n.LocaleCatalog` — one language's flat
     `<jtbd_id>.<jcr_path>` → string table with merge / filter helpers.
