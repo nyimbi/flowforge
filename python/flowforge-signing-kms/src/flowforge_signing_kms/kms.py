@@ -10,7 +10,7 @@ light.
 from __future__ import annotations
 
 import base64
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
 	pass  # kept for future type-only imports
@@ -146,7 +146,7 @@ class GcpKmsSigning:
 		self,
 		key_version_name: str,
 		use_mac: bool = False,
-		client: object | None = None,
+		client: Any | None = None,
 	) -> None:
 		if client is None:
 			try:
@@ -156,7 +156,7 @@ class GcpKmsSigning:
 					"google-cloud-kms is required for GcpKmsSigning.  "
 					"Install it with: pip install flowforge-signing-kms[gcp]"
 				) from exc
-			self._client = kms.KeyManagementServiceClient()
+			self._client: Any = kms.KeyManagementServiceClient()
 		else:
 			self._client = client
 
