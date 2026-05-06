@@ -15,9 +15,12 @@ class SigningPort(Protocol):
 
 	async def sign_payload(self, payload: bytes) -> bytes:
 		"""Return a detached signature for *payload* using the active key."""
+		...
 
 	async def verify(self, payload: bytes, signature: bytes, key_id: str) -> bool:
 		"""Verify *signature* against *payload* under *key_id*."""
+		...
 
 	def current_key_id(self) -> str:
 		"""Return the active signing key id (deterministic, used in logs)."""
+		...

@@ -16,3 +16,4 @@ class TaskTrackerPort(Protocol):
 
 	async def create_task(self, kind: str, ref: str, note: str) -> str:
 		"""Create an operational task; return its id."""
+		...

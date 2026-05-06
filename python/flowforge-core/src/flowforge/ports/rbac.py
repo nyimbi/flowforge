@@ -23,6 +23,7 @@ class RbacResolver(Protocol):
 		scope: Scope,
 	) -> bool:
 		"""Return ``True`` iff *principal* may exercise *permission* in *scope*."""
+		...
 
 	async def list_principals_with(
 		self,
@@ -30,6 +31,7 @@ class RbacResolver(Protocol):
 		scope: Scope,
 	) -> list[Principal]:
 		"""Enumerate principals authorised for *permission* — used by reassign flows."""
+		...
 
 	async def register_permission(
 		self,
@@ -44,3 +46,4 @@ class RbacResolver(Protocol):
 
 		In strict mode, implementations raise instead of returning a list.
 		"""
+		...

@@ -24,12 +24,15 @@ class EntityAdapter(Protocol):
 
 	async def create(self, session: Any, payload: dict[str, Any]) -> dict[str, Any]:
 		"""Create the entity; return its dict projection."""
+		...
 
 	async def update(self, session: Any, id_: str, payload: dict[str, Any]) -> dict[str, Any]:
 		"""Update *id_*; return the new dict projection."""
+		...
 
 	async def lookup(self, session: Any, id_: str) -> dict[str, Any]:
 		"""Read the dict projection of *id_*."""
+		...
 
 
 class EntityRegistry:

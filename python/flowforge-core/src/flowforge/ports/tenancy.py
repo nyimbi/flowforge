@@ -19,6 +19,7 @@ class TenancyResolver(Protocol):
 
 	async def current_tenant(self) -> TenantId:
 		"""Return the active tenant identifier."""
+		...
 
 	async def bind_session(self, session: Any, tenant_id: TenantId) -> None:
 		"""Bind tenancy parameters onto the storage session.
@@ -33,3 +34,4 @@ class TenancyResolver(Protocol):
 		Inside the bracket, RLS predicates that test ``app.elevated`` see
 		``true``; outside, they see ``false``.
 		"""
+		...

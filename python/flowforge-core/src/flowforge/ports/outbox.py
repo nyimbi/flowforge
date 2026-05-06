@@ -31,3 +31,4 @@ class OutboxRegistry(Protocol):
 
 	def list_kinds(self, backend: str = "default") -> list[str]:
 		"""List registered kinds — used by validators + drift checks."""
+		...

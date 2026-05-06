@@ -22,3 +22,4 @@ class RlsBinder(Protocol):
 
 	def elevated(self, session: Any) -> AbstractAsyncContextManager[None]:
 		"""Bracket an operator-elevated section; clears state on exit."""
+		...

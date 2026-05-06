@@ -42,9 +42,11 @@ class AuditSink(Protocol):
 
 	async def record(self, event: AuditEvent) -> str:
 		"""Append *event*; return the assigned event id."""
+		...
 
 	async def verify_chain(self, since: str | None = None) -> Verdict:
 		"""Verify hash chain integrity from *since* (or beginning)."""
+		...
 
 	async def redact(self, paths: list[str], reason: str) -> int:
 		"""Tombstone the listed JSON paths across audit rows; return count.
@@ -52,3 +54,4 @@ class AuditSink(Protocol):
 		Hash chain MUST remain valid after redaction (use a tombstone
 		marker, not deletion).
 		"""
+		...

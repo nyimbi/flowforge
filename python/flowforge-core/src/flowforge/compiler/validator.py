@@ -51,6 +51,7 @@ def _wd_schema() -> dict[str, Any]:
 			# Fallback for editable installs where importlib.resources misses package data.
 			here = Path(__file__).resolve().parent.parent / "dsl" / "schema" / "workflow_def.schema.json"
 			_WD_SCHEMA = json.loads(here.read_text())
+	assert _WD_SCHEMA is not None
 	return _WD_SCHEMA
 
 

@@ -24,6 +24,8 @@ class MoneyPort(Protocol):
 		at: datetime,
 	) -> tuple[Decimal, Decimal]:
 		"""Convert *amount* from *from_currency* to *to_currency* at *at*."""
+		...
 
 	async def format(self, amount: Decimal, currency: str, locale: str = "en") -> str:
 		"""Locale-aware string formatting (Babel-compatible)."""
+		...

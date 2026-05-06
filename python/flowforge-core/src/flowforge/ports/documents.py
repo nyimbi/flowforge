@@ -20,12 +20,15 @@ class DocumentPort(Protocol):
 		kinds: list[str] | None = None,
 	) -> list[dict[str, Any]]:
 		"""Return doc descriptors for *subject_id*, optionally filtered by kind."""
+		...
 
 	async def attach(self, subject_id: str, doc_id: str) -> None:
 		"""Attach an existing document row to *subject_id*."""
 
 	async def get_classification(self, doc_id: str) -> str | None:
 		"""Return the document's PII classification (e.g., ``confidential``)."""
+		...
 
 	async def freshness_days(self, doc_id: str) -> int | None:
 		"""Return the document's age in days; ``None`` if unknown."""
+		...

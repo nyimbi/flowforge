@@ -23,6 +23,7 @@ class NotificationPort(Protocol):
 		ctx: dict[str, Any],
 	) -> tuple[str, str]:
 		"""Render the (subject, body) pair for *template_id*."""
+		...
 
 	async def send(
 		self,
