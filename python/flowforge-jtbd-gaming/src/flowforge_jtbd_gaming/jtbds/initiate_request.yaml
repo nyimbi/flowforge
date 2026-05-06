@@ -1,0 +1,26 @@
+id: initiate_request
+title: "Initiate Gaming Request"
+version: "1.0.0"
+actor:
+  role: game_designer
+  external: false
+situation: "A game designer needs to start a new gaming request."
+motivation: "Ensure the gaming process begins with all required information."
+outcome: "Request created, assigned, and tracked in the system."
+success_criteria:
+  - "Request processed within SLA"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

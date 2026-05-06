@@ -1,0 +1,11 @@
+permissions:
+  - name: const.bid.submit
+    description: "Const Bid Submit"
+  - name: const.work_order.create
+    description: "Const Work_Order Create"
+  - name: const.inspection.record
+    description: "Const Inspection Record"
+  - name: const.change_order.approve
+    description: "Const Change_Order Approve"
+  - name: const.safety.report
+    description: "Const Safety Report"

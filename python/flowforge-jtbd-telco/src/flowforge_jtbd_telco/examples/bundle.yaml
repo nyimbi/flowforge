@@ -1,0 +1,28 @@
+      project:
+        name: "telco-example"
+        package: "telco_example"
+        domain: "telco"
+        version: "1.0.0"
+      shared:
+        roles:
+      - provisioning_specialist
+  - billing_agent
+  - churn_analyst
+  - account_manager
+        permissions:
+      - telco.service.provision
+  - telco.billing.generate
+  - telco.churn.flag
+  - telco.fault.report
+  - telco.contract.renew
+      jtbds:
+    - id: close_request
+  version: "1.0.0"
+- id: initiate_request
+  version: "1.0.0"
+- id: process_request
+  version: "1.0.0"
+- id: report_outcomes
+  version: "1.0.0"
+- id: review_request
+  version: "1.0.0"

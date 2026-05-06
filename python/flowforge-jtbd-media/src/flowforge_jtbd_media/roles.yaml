@@ -1,0 +1,9 @@
+roles:
+  - name: editor
+    default_tier: 1
+  - name: rights_manager
+    default_tier: 1
+  - name: distribution_coordinator
+    default_tier: 1
+  - name: content_creator
+    default_tier: 1

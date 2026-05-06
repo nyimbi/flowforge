@@ -1,0 +1,9 @@
+roles:
+  - name: property_manager
+    default_tier: 1
+  - name: leasing_agent
+    default_tier: 1
+  - name: maintenance_tech
+    default_tier: 1
+  - name: tenant_coordinator
+    default_tier: 1

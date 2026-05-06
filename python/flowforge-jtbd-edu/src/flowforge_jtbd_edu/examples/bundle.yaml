@@ -1,0 +1,28 @@
+      project:
+        name: "education-example"
+        package: "education_example"
+        domain: "education"
+        version: "1.0.0"
+      shared:
+        roles:
+      - admissions_officer
+  - instructor
+  - student_registrar
+  - academic_advisor
+        permissions:
+      - edu.enrollment.read
+  - edu.enrollment.write
+  - edu.grade.submit
+  - edu.course.create
+  - edu.transcript.generate
+      jtbds:
+    - id: academic_advising
+  version: "1.0.0"
+- id: course_create
+  version: "1.0.0"
+- id: grade_submit
+  version: "1.0.0"
+- id: student_enroll
+  version: "1.0.0"
+- id: transcript_generate
+  version: "1.0.0"

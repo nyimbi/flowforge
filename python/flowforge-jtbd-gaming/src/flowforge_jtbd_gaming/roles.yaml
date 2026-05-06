@@ -1,0 +1,9 @@
+roles:
+  - name: game_designer
+    default_tier: 1
+  - name: economy_manager
+    default_tier: 1
+  - name: trust_safety_agent
+    default_tier: 1
+  - name: community_manager
+    default_tier: 1

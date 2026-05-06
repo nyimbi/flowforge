@@ -1,0 +1,11 @@
+permissions:
+  - name: telco.service.provision
+    description: "Telco Service Provision"
+  - name: telco.billing.generate
+    description: "Telco Billing Generate"
+  - name: telco.churn.flag
+    description: "Telco Churn Flag"
+  - name: telco.fault.report
+    description: "Telco Fault Report"
+  - name: telco.contract.renew
+    description: "Telco Contract Renew"

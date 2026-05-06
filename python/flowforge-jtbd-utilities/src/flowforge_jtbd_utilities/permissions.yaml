@@ -1,0 +1,11 @@
+permissions:
+  - name: util.meter.read
+    description: "Util Meter Read"
+  - name: util.outage.report
+    description: "Util Outage Report"
+  - name: util.billing.generate
+    description: "Util Billing Generate"
+  - name: util.connection.create
+    description: "Util Connection Create"
+  - name: util.disconnection.process
+    description: "Util Disconnection Process"

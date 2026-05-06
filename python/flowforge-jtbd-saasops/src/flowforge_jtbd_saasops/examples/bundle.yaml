@@ -1,0 +1,28 @@
+      project:
+        name: "saas-ops-example"
+        package: "saas-ops_example"
+        domain: "saas-ops"
+        version: "1.0.0"
+      shared:
+        roles:
+      - customer_success_manager
+  - platform_engineer
+  - incident_commander
+  - onboarding_specialist
+        permissions:
+      - saas.tenant.create
+  - saas.incident.open
+  - saas.incident.resolve
+  - saas.onboarding.start
+  - saas.lifecycle.offboard
+      jtbds:
+    - id: close_request
+  version: "1.0.0"
+- id: initiate_request
+  version: "1.0.0"
+- id: process_request
+  version: "1.0.0"
+- id: report_outcomes
+  version: "1.0.0"
+- id: review_request
+  version: "1.0.0"

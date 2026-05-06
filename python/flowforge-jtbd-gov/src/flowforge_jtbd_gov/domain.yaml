@@ -1,0 +1,11 @@
+      id: gov
+      name: "Government"
+      description: "JTBD domain library for Government workflows (Permit, case, license)."
+      package: flowforge-jtbd-gov
+      version: "1.0.0"
+      subdomains:
+    - "Permit"
+- "case"
+- "license"
+      regulator_hints: []
+      phase: E4

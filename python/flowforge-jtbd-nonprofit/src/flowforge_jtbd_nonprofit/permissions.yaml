@@ -1,0 +1,11 @@
+permissions:
+  - name: np.donor.record
+    description: "Np Donor Record"
+  - name: np.grant.apply
+    description: "Np Grant Apply"
+  - name: np.volunteer.onboard
+    description: "Np Volunteer Onboard"
+  - name: np.event.create
+    description: "Np Event Create"
+  - name: np.report.generate
+    description: "Np Report Generate"

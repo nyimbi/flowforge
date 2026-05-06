@@ -1,0 +1,11 @@
+      id: manufacturing
+      name: "Manufacturing"
+      description: "JTBD domain library for Manufacturing workflows (BOM, MES, QC)."
+      package: flowforge-jtbd-mfg
+      version: "1.0.0"
+      subdomains:
+    - "BOM"
+- "MES"
+- "QC"
+      regulator_hints: []
+      phase: E4

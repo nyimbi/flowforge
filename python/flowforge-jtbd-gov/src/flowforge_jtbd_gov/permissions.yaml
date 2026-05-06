@@ -1,0 +1,11 @@
+permissions:
+  - name: gov.permit.create
+    description: "Gov Permit Create"
+  - name: gov.case.open
+    description: "Gov Case Open"
+  - name: gov.license.issue
+    description: "Gov License Issue"
+  - name: gov.inspection.schedule
+    description: "Gov Inspection Schedule"
+  - name: gov.notice.issue
+    description: "Gov Notice Issue"

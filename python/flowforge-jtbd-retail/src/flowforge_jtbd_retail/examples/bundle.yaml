@@ -1,0 +1,28 @@
+      project:
+        name: "retail-store-example"
+        package: "retail-store_example"
+        domain: "retail-store"
+        version: "1.0.0"
+      shared:
+        roles:
+      - store_manager
+  - sales_associate
+  - inventory_specialist
+  - loyalty_coordinator
+        permissions:
+      - retail.sale.process
+  - retail.buyback.assess
+  - retail.loyalty.enroll
+  - retail.return.process
+  - retail.stock.replenish
+      jtbds:
+    - id: close_request
+  version: "1.0.0"
+- id: initiate_request
+  version: "1.0.0"
+- id: process_request
+  version: "1.0.0"
+- id: report_outcomes
+  version: "1.0.0"
+- id: review_request
+  version: "1.0.0"

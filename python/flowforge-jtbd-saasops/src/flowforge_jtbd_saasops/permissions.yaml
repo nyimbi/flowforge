@@ -1,0 +1,11 @@
+permissions:
+  - name: saas.tenant.create
+    description: "Saas Tenant Create"
+  - name: saas.incident.open
+    description: "Saas Incident Open"
+  - name: saas.incident.resolve
+    description: "Saas Incident Resolve"
+  - name: saas.onboarding.start
+    description: "Saas Onboarding Start"
+  - name: saas.lifecycle.offboard
+    description: "Saas Lifecycle Offboard"

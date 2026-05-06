@@ -1,0 +1,26 @@
+id: course_create
+title: "Create Course Section"
+version: "1.0.0"
+actor:
+  role: student_registrar
+  external: false
+situation: "A registrar needs to open a new course section for scheduling."
+motivation: "Make the course available for student enrollment."
+outcome: "Course section created with seat capacity, schedule, and instructor."
+success_criteria:
+  - "Course creation < 1 business day from request"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

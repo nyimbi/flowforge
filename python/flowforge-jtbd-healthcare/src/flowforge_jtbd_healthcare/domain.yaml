@@ -1,0 +1,11 @@
+      id: healthcare
+      name: "Healthcare"
+      description: "JTBD domain library for Healthcare workflows (Admissions, billing, clinical)."
+      package: flowforge-jtbd-healthcare
+      version: "1.0.0"
+      subdomains:
+    - "Admissions"
+- "billing"
+- "clinical"
+      regulator_hints: []
+      phase: E4

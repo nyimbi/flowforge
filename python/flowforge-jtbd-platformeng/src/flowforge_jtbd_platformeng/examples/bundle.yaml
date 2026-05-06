@@ -1,0 +1,28 @@
+      project:
+        name: "platform-eng-example"
+        package: "platform-eng_example"
+        domain: "platform-eng"
+        version: "1.0.0"
+      shared:
+        roles:
+      - platform_engineer
+  - sre
+  - release_manager
+  - security_engineer
+        permissions:
+      - pe.deploy.trigger
+  - pe.incident.declare
+  - pe.dr.test
+  - pe.observability.configure
+  - pe.infra.provision
+      jtbds:
+    - id: close_request
+  version: "1.0.0"
+- id: initiate_request
+  version: "1.0.0"
+- id: process_request
+  version: "1.0.0"
+- id: report_outcomes
+  version: "1.0.0"
+- id: review_request
+  version: "1.0.0"

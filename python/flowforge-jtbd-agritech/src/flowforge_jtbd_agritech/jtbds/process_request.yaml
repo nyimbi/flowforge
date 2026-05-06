@@ -1,0 +1,26 @@
+id: process_request
+title: "Process Agritech Work"
+version: "1.0.0"
+actor:
+  role: farm_manager
+  external: false
+situation: "An operator needs to execute the approved agritech task."
+motivation: "Complete the task efficiently and accurately."
+outcome: "Task completed and outcome recorded."
+success_criteria:
+  - "Task completion rate ≥ 95% on first attempt"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

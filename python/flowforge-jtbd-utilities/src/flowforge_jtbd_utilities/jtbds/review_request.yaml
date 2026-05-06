@@ -1,0 +1,26 @@
+id: review_request
+title: "Review Utilities Request"
+version: "1.0.0"
+actor:
+  role: outage_coordinator
+  external: false
+situation: "A reviewer needs to evaluate an open utilities request."
+motivation: "Ensure requests meet quality and compliance requirements."
+outcome: "Request approved or returned with documented feedback."
+success_criteria:
+  - "Review completed within 2 business days"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

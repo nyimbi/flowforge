@@ -1,0 +1,28 @@
+      project:
+        name: "media-example"
+        package: "media_example"
+        domain: "media"
+        version: "1.0.0"
+      shared:
+        roles:
+      - editor
+  - rights_manager
+  - distribution_coordinator
+  - content_creator
+        permissions:
+      - media.content.publish
+  - media.rights.register
+  - media.distribution.schedule
+  - media.archive.create
+  - media.rights.license
+      jtbds:
+    - id: close_request
+  version: "1.0.0"
+- id: initiate_request
+  version: "1.0.0"
+- id: process_request
+  version: "1.0.0"
+- id: report_outcomes
+  version: "1.0.0"
+- id: review_request
+  version: "1.0.0"

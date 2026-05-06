@@ -1,0 +1,9 @@
+roles:
+  - name: project_manager
+    default_tier: 1
+  - name: site_supervisor
+    default_tier: 1
+  - name: estimator
+    default_tier: 1
+  - name: inspector
+    default_tier: 1

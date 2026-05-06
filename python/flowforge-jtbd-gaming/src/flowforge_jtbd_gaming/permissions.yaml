@@ -1,0 +1,11 @@
+permissions:
+  - name: gaming.match.create
+    description: "Gaming Match Create"
+  - name: gaming.economy.adjust
+    description: "Gaming Economy Adjust"
+  - name: gaming.moderation.action
+    description: "Gaming Moderation Action"
+  - name: gaming.event.launch
+    description: "Gaming Event Launch"
+  - name: gaming.reward.issue
+    description: "Gaming Reward Issue"

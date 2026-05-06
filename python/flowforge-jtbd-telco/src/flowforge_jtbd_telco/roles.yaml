@@ -1,0 +1,9 @@
+roles:
+  - name: provisioning_specialist
+    default_tier: 1
+  - name: billing_agent
+    default_tier: 1
+  - name: churn_analyst
+    default_tier: 1
+  - name: account_manager
+    default_tier: 1

@@ -1,0 +1,11 @@
+      id: municipal
+      name: "Municipal"
+      description: "JTBD domain library for Municipal workflows (Utility, zoning, parks)."
+      package: flowforge-jtbd-municipal
+      version: "1.0.0"
+      subdomains:
+    - "Utility"
+- "zoning"
+- "parks"
+      regulator_hints: []
+      phase: E4

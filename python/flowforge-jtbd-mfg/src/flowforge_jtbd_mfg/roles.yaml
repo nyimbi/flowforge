@@ -1,0 +1,9 @@
+roles:
+  - name: bom_engineer
+    default_tier: 1
+  - name: production_supervisor
+    default_tier: 1
+  - name: qc_inspector
+    default_tier: 1
+  - name: plant_manager
+    default_tier: 1

@@ -1,0 +1,11 @@
+permissions:
+  - name: media.content.publish
+    description: "Media Content Publish"
+  - name: media.rights.register
+    description: "Media Rights Register"
+  - name: media.distribution.schedule
+    description: "Media Distribution Schedule"
+  - name: media.archive.create
+    description: "Media Archive Create"
+  - name: media.rights.license
+    description: "Media Rights License"

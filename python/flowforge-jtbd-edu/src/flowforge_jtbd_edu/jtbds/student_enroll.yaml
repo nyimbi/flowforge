@@ -1,0 +1,26 @@
+id: student_enroll
+title: "Enroll Student"
+version: "1.0.0"
+actor:
+  role: admissions_officer
+  external: false
+situation: "An admissions officer needs to register a new student for the semester."
+motivation: "Ensure the student is correctly enrolled before classes start."
+outcome: "Student record created with confirmed courses and tuition status."
+success_criteria:
+  - "Enrollment confirmed ≥ 5 days before semester start"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

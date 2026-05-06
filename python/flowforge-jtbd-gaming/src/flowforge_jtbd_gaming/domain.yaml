@@ -1,0 +1,11 @@
+      id: gaming
+      name: "Gaming"
+      description: "JTBD domain library for Gaming workflows (Matchmaking, economy, moderation)."
+      package: flowforge-jtbd-gaming
+      version: "1.0.0"
+      subdomains:
+    - "Matchmaking"
+- "economy"
+- "moderation"
+      regulator_hints: []
+      phase: E4

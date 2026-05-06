@@ -1,0 +1,9 @@
+roles:
+  - name: customer_success_manager
+    default_tier: 1
+  - name: platform_engineer
+    default_tier: 1
+  - name: incident_commander
+    default_tier: 1
+  - name: onboarding_specialist
+    default_tier: 1

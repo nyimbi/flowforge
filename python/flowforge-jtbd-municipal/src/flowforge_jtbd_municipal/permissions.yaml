@@ -1,0 +1,11 @@
+permissions:
+  - name: mun.utility.connect
+    description: "Mun Utility Connect"
+  - name: mun.zoning.review
+    description: "Mun Zoning Review"
+  - name: mun.parks.permit
+    description: "Mun Parks Permit"
+  - name: mun.billing.generate
+    description: "Mun Billing Generate"
+  - name: mun.outage.report
+    description: "Mun Outage Report"

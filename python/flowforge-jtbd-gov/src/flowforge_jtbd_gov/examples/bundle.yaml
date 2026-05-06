@@ -1,0 +1,28 @@
+      project:
+        name: "gov-example"
+        package: "gov_example"
+        domain: "gov"
+        version: "1.0.0"
+      shared:
+        roles:
+      - case_worker
+  - permit_officer
+  - licensing_agent
+  - compliance_officer
+        permissions:
+      - gov.permit.create
+  - gov.case.open
+  - gov.license.issue
+  - gov.inspection.schedule
+  - gov.notice.issue
+      jtbds:
+    - id: close_request
+  version: "1.0.0"
+- id: initiate_request
+  version: "1.0.0"
+- id: process_request
+  version: "1.0.0"
+- id: report_outcomes
+  version: "1.0.0"
+- id: review_request
+  version: "1.0.0"

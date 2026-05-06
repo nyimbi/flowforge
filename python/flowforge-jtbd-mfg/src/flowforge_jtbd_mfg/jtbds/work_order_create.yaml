@@ -1,0 +1,26 @@
+id: work_order_create
+title: "Issue Work Order"
+version: "1.0.0"
+actor:
+  role: plant_manager
+  external: false
+situation: "A plant manager needs to authorise production of a batch."
+motivation: "Convert a sales order into a manufacturable work order."
+outcome: "Work order created with assigned line, target qty, and due date."
+success_criteria:
+  - "Work order issued within 1 hour of sales order confirmation"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

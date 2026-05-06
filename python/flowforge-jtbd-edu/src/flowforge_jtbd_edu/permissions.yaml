@@ -1,0 +1,11 @@
+permissions:
+  - name: edu.enrollment.read
+    description: "Edu Enrollment Read"
+  - name: edu.enrollment.write
+    description: "Edu Enrollment Write"
+  - name: edu.grade.submit
+    description: "Edu Grade Submit"
+  - name: edu.course.create
+    description: "Edu Course Create"
+  - name: edu.transcript.generate
+    description: "Edu Transcript Generate"

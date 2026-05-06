@@ -1,0 +1,11 @@
+      id: nonprofit
+      name: "Nonprofit"
+      description: "JTBD domain library for Nonprofit workflows (Donor, grant, volunteer)."
+      package: flowforge-jtbd-nonprofit
+      version: "1.0.0"
+      subdomains:
+    - "Donor"
+- "grant"
+- "volunteer"
+      regulator_hints: []
+      phase: E4

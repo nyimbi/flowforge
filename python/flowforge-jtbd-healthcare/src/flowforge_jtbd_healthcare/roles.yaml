@@ -1,0 +1,9 @@
+roles:
+  - name: care_coordinator
+    default_tier: 1
+  - name: clinician
+    default_tier: 1
+  - name: billing_specialist
+    default_tier: 1
+  - name: patient_registrar
+    default_tier: 1

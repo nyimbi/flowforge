@@ -1,0 +1,9 @@
+roles:
+  - name: store_manager
+    default_tier: 1
+  - name: sales_associate
+    default_tier: 1
+  - name: inventory_specialist
+    default_tier: 1
+  - name: loyalty_coordinator
+    default_tier: 1

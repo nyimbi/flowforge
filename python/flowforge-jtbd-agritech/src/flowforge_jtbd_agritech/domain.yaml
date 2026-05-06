@@ -1,0 +1,11 @@
+      id: agritech
+      name: "Agritech"
+      description: "JTBD domain library for Agritech workflows (Farm, supply, yield)."
+      package: flowforge-jtbd-agritech
+      version: "1.0.0"
+      subdomains:
+    - "Farm"
+- "supply"
+- "yield"
+      regulator_hints: []
+      phase: E4

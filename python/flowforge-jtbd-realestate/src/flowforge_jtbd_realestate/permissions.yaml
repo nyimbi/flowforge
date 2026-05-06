@@ -1,0 +1,11 @@
+permissions:
+  - name: re.listing.create
+    description: "Re Listing Create"
+  - name: re.lease.draft
+    description: "Re Lease Draft"
+  - name: re.maintenance.request
+    description: "Re Maintenance Request"
+  - name: re.inspection.schedule
+    description: "Re Inspection Schedule"
+  - name: re.payment.record
+    description: "Re Payment Record"

@@ -1,0 +1,26 @@
+id: component_issue
+title: "Issue Components to Line"
+version: "1.0.0"
+actor:
+  role: plant_manager
+  external: false
+situation: "A plant manager needs to release raw materials to the production line."
+motivation: "Ensure the right components reach the line on time."
+outcome: "Components issued and inventory decremented accurately."
+success_criteria:
+  - "Component shortfall incidents < 1 per week"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

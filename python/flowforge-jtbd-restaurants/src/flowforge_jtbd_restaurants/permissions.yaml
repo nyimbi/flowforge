@@ -1,0 +1,11 @@
+permissions:
+  - name: rest.order.create
+    description: "Rest Order Create"
+  - name: rest.kitchen.ticket.close
+    description: "Rest Kitchen Ticket Close"
+  - name: rest.inventory.reorder
+    description: "Rest Inventory Reorder"
+  - name: rest.staff.schedule
+    description: "Rest Staff Schedule"
+  - name: rest.waste.record
+    description: "Rest Waste Record"

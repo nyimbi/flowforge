@@ -1,0 +1,11 @@
+      id: education
+      name: "Education"
+      description: "JTBD domain library for Education workflows (Admissions, grading, LMS)."
+      package: flowforge-jtbd-edu
+      version: "1.0.0"
+      subdomains:
+    - "Admissions"
+- "grading"
+- "LMS"
+      regulator_hints: []
+      phase: E4

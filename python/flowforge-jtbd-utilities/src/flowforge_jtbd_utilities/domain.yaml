@@ -1,0 +1,11 @@
+      id: utilities
+      name: "Utilities"
+      description: "JTBD domain library for Utilities workflows (Meter, outage, billing)."
+      package: flowforge-jtbd-utilities
+      version: "1.0.0"
+      subdomains:
+    - "Meter"
+- "outage"
+- "billing"
+      regulator_hints: []
+      phase: E4

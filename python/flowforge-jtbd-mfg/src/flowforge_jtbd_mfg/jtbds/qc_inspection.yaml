@@ -1,0 +1,26 @@
+id: qc_inspection
+title: "Perform Quality Inspection"
+version: "1.0.0"
+actor:
+  role: qc_inspector
+  external: false
+situation: "A QC inspector needs to verify a finished batch meets spec."
+motivation: "Catch defects before shipment."
+outcome: "Batch passed or quarantined with documented findings."
+success_criteria:
+  - "Zero defective units shipped to customers"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

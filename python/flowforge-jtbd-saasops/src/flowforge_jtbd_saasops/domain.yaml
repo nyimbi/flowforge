@@ -1,0 +1,11 @@
+      id: saas-ops
+      name: "SaaS Ops"
+      description: "JTBD domain library for SaaS Ops workflows (Lifecycle, incident, onboard-tenant)."
+      package: flowforge-jtbd-saasops
+      version: "1.0.0"
+      subdomains:
+    - "Lifecycle"
+- "incident"
+- "onboard-tenant"
+      regulator_hints: []
+      phase: E4

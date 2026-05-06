@@ -1,0 +1,26 @@
+id: transcript_generate
+title: "Generate Official Transcript"
+version: "1.0.0"
+actor:
+  role: student_registrar
+  external: false
+situation: "A registrar needs to produce a certified academic transcript."
+motivation: "Provide a verified record of the student's academic history."
+outcome: "Transcript generated, digitally signed, and delivered."
+success_criteria:
+  - "Transcript delivered within 3 business days of request"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

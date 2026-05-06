@@ -1,0 +1,26 @@
+id: academic_advising
+title: "Conduct Academic Advising Session"
+version: "1.0.0"
+actor:
+  role: academic_advisor
+  external: false
+situation: "An advisor needs to review a student's progress and plan next semester."
+motivation: "Prevent academic probation and align student to graduation path."
+outcome: "Advising notes recorded and next-semester plan approved by student."
+success_criteria:
+  - "Each at-risk student advised within 2 weeks of semester start"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

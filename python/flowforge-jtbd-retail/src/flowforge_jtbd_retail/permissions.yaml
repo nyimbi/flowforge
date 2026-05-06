@@ -1,0 +1,11 @@
+permissions:
+  - name: retail.sale.process
+    description: "Retail Sale Process"
+  - name: retail.buyback.assess
+    description: "Retail Buyback Assess"
+  - name: retail.loyalty.enroll
+    description: "Retail Loyalty Enroll"
+  - name: retail.return.process
+    description: "Retail Return Process"
+  - name: retail.stock.replenish
+    description: "Retail Stock Replenish"

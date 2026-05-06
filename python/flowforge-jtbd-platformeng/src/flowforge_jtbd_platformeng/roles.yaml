@@ -1,0 +1,9 @@
+roles:
+  - name: platform_engineer
+    default_tier: 1
+  - name: sre
+    default_tier: 1
+  - name: release_manager
+    default_tier: 1
+  - name: security_engineer
+    default_tier: 1

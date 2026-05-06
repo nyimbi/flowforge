@@ -1,0 +1,11 @@
+permissions:
+  - name: pe.deploy.trigger
+    description: "Pe Deploy Trigger"
+  - name: pe.incident.declare
+    description: "Pe Incident Declare"
+  - name: pe.dr.test
+    description: "Pe Dr Test"
+  - name: pe.observability.configure
+    description: "Pe Observability Configure"
+  - name: pe.infra.provision
+    description: "Pe Infra Provision"

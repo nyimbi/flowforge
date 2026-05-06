@@ -1,0 +1,9 @@
+roles:
+  - name: meter_reader
+    default_tier: 1
+  - name: outage_coordinator
+    default_tier: 1
+  - name: billing_specialist
+    default_tier: 1
+  - name: field_technician
+    default_tier: 1

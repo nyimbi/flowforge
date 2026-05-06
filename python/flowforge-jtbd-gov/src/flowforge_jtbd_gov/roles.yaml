@@ -1,0 +1,9 @@
+roles:
+  - name: case_worker
+    default_tier: 1
+  - name: permit_officer
+    default_tier: 1
+  - name: licensing_agent
+    default_tier: 1
+  - name: compliance_officer
+    default_tier: 1

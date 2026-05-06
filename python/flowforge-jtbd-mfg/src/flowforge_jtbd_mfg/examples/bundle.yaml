@@ -1,0 +1,28 @@
+      project:
+        name: "manufacturing-example"
+        package: "manufacturing_example"
+        domain: "manufacturing"
+        version: "1.0.0"
+      shared:
+        roles:
+      - bom_engineer
+  - production_supervisor
+  - qc_inspector
+  - plant_manager
+        permissions:
+      - mfg.bom.read
+  - mfg.bom.write
+  - mfg.qc.inspect
+  - mfg.work_order.create
+  - mfg.work_order.close
+      jtbds:
+    - id: bom_creation
+  version: "1.0.0"
+- id: component_issue
+  version: "1.0.0"
+- id: mes_update
+  version: "1.0.0"
+- id: qc_inspection
+  version: "1.0.0"
+- id: work_order_create
+  version: "1.0.0"

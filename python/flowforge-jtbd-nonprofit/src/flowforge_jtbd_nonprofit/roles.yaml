@@ -1,0 +1,9 @@
+roles:
+  - name: fundraising_coordinator
+    default_tier: 1
+  - name: grant_writer
+    default_tier: 1
+  - name: volunteer_manager
+    default_tier: 1
+  - name: program_director
+    default_tier: 1

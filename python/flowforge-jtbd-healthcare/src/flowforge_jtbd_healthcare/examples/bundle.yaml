@@ -1,0 +1,28 @@
+      project:
+        name: "healthcare-example"
+        package: "healthcare_example"
+        domain: "healthcare"
+        version: "1.0.0"
+      shared:
+        roles:
+      - care_coordinator
+  - clinician
+  - billing_specialist
+  - patient_registrar
+        permissions:
+      - hc.admission.create
+  - hc.clinical.note.write
+  - hc.billing.submit
+  - hc.consent.record
+  - hc.discharge.process
+      jtbds:
+    - id: close_request
+  version: "1.0.0"
+- id: initiate_request
+  version: "1.0.0"
+- id: process_request
+  version: "1.0.0"
+- id: report_outcomes
+  version: "1.0.0"
+- id: review_request
+  version: "1.0.0"

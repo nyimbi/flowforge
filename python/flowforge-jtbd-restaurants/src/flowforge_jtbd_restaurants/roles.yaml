@@ -1,0 +1,9 @@
+roles:
+  - name: restaurant_manager
+    default_tier: 1
+  - name: head_chef
+    default_tier: 1
+  - name: inventory_coordinator
+    default_tier: 1
+  - name: service_staff
+    default_tier: 1

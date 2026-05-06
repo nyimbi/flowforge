@@ -1,0 +1,11 @@
+      id: retail-store
+      name: "Retail Store"
+      description: "JTBD domain library for Retail Store workflows (Clientelling, buyback, loyalty)."
+      package: flowforge-jtbd-retail
+      version: "1.0.0"
+      subdomains:
+    - "Clientelling"
+- "buyback"
+- "loyalty"
+      regulator_hints: []
+      phase: E4

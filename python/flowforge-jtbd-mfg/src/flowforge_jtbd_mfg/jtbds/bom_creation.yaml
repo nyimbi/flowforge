@@ -1,0 +1,26 @@
+id: bom_creation
+title: "Create Bill of Materials"
+version: "1.0.0"
+actor:
+  role: production_supervisor
+  external: false
+situation: "A production supervisor needs to define component requirements for a new product."
+motivation: "Ensure all parts are sourced and costed before production starts."
+outcome: "BOM approved and all components have preferred suppliers."
+success_criteria:
+  - "BOM approval cycle < 3 business days"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

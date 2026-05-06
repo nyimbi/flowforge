@@ -1,0 +1,28 @@
+      project:
+        name: "real-estate-example"
+        package: "real-estate_example"
+        domain: "real-estate"
+        version: "1.0.0"
+      shared:
+        roles:
+      - property_manager
+  - leasing_agent
+  - maintenance_tech
+  - tenant_coordinator
+        permissions:
+      - re.listing.create
+  - re.lease.draft
+  - re.maintenance.request
+  - re.inspection.schedule
+  - re.payment.record
+      jtbds:
+    - id: close_request
+  version: "1.0.0"
+- id: initiate_request
+  version: "1.0.0"
+- id: process_request
+  version: "1.0.0"
+- id: report_outcomes
+  version: "1.0.0"
+- id: review_request
+  version: "1.0.0"

@@ -1,0 +1,11 @@
+      id: restaurants
+      name: "Restaurants"
+      description: "JTBD domain library for Restaurants workflows (POS, kitchen, inventory)."
+      package: flowforge-jtbd-restaurants
+      version: "1.0.0"
+      subdomains:
+    - "POS"
+- "kitchen"
+- "inventory"
+      regulator_hints: []
+      phase: E4

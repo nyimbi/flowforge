@@ -1,0 +1,11 @@
+permissions:
+  - name: agri.field.plan
+    description: "Agri Field Plan"
+  - name: agri.harvest.record
+    description: "Agri Harvest Record"
+  - name: agri.supply.order
+    description: "Agri Supply Order"
+  - name: agri.yield.report
+    description: "Agri Yield Report"
+  - name: agri.pest.report
+    description: "Agri Pest Report"

@@ -1,0 +1,9 @@
+roles:
+  - name: utility_manager
+    default_tier: 1
+  - name: zoning_officer
+    default_tier: 1
+  - name: parks_coordinator
+    default_tier: 1
+  - name: billing_clerk
+    default_tier: 1

@@ -1,0 +1,11 @@
+permissions:
+  - name: travel.booking.create
+    description: "Travel Booking Create"
+  - name: travel.itinerary.modify
+    description: "Travel Itinerary Modify"
+  - name: travel.loyalty.award
+    description: "Travel Loyalty Award"
+  - name: travel.refund.process
+    description: "Travel Refund Process"
+  - name: travel.complaint.handle
+    description: "Travel Complaint Handle"

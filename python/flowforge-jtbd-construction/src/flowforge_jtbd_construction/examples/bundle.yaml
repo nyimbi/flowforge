@@ -1,0 +1,28 @@
+      project:
+        name: "construction-example"
+        package: "construction_example"
+        domain: "construction"
+        version: "1.0.0"
+      shared:
+        roles:
+      - project_manager
+  - site_supervisor
+  - estimator
+  - inspector
+        permissions:
+      - const.bid.submit
+  - const.work_order.create
+  - const.inspection.record
+  - const.change_order.approve
+  - const.safety.report
+      jtbds:
+    - id: close_request
+  version: "1.0.0"
+- id: initiate_request
+  version: "1.0.0"
+- id: process_request
+  version: "1.0.0"
+- id: report_outcomes
+  version: "1.0.0"
+- id: review_request
+  version: "1.0.0"

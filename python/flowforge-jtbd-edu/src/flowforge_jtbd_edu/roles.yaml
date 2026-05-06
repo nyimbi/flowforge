@@ -1,0 +1,9 @@
+roles:
+  - name: admissions_officer
+    default_tier: 1
+  - name: instructor
+    default_tier: 1
+  - name: student_registrar
+    default_tier: 1
+  - name: academic_advisor
+    default_tier: 1

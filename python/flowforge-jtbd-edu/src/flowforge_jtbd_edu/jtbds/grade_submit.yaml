@@ -1,0 +1,26 @@
+id: grade_submit
+title: "Submit Final Grades"
+version: "1.0.0"
+actor:
+  role: instructor
+  external: false
+situation: "An instructor needs to record final grades for all enrolled students."
+motivation: "Ensure grades are accurately recorded before the grading deadline."
+outcome: "All grades submitted and transcript updated."
+success_criteria:
+  - "100% of grades submitted by the deadline"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

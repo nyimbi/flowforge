@@ -1,0 +1,11 @@
+permissions:
+  - name: hc.admission.create
+    description: "Hc Admission Create"
+  - name: hc.clinical.note.write
+    description: "Hc Clinical Note Write"
+  - name: hc.billing.submit
+    description: "Hc Billing Submit"
+  - name: hc.consent.record
+    description: "Hc Consent Record"
+  - name: hc.discharge.process
+    description: "Hc Discharge Process"

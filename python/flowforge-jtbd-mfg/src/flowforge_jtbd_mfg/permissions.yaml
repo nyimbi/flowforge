@@ -1,0 +1,11 @@
+permissions:
+  - name: mfg.bom.read
+    description: "Mfg Bom Read"
+  - name: mfg.bom.write
+    description: "Mfg Bom Write"
+  - name: mfg.qc.inspect
+    description: "Mfg Qc Inspect"
+  - name: mfg.work_order.create
+    description: "Mfg Work_Order Create"
+  - name: mfg.work_order.close
+    description: "Mfg Work_Order Close"

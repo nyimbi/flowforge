@@ -1,0 +1,9 @@
+roles:
+  - name: travel_agent
+    default_tier: 1
+  - name: loyalty_manager
+    default_tier: 1
+  - name: concierge
+    default_tier: 1
+  - name: operations_coordinator
+    default_tier: 1

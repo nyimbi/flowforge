@@ -1,0 +1,26 @@
+id: initiate_request
+title: "Initiate Media Request"
+version: "1.0.0"
+actor:
+  role: editor
+  external: false
+situation: "A editor needs to start a new media request."
+motivation: "Ensure the media process begins with all required information."
+outcome: "Request created, assigned, and tracked in the system."
+success_criteria:
+  - "Request processed within SLA"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false
