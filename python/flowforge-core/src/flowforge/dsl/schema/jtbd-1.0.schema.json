@@ -3,169 +3,443 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "JTBDBundle",
   "type": "object",
-  "required": ["project", "jtbds"],
+  "required": [
+    "project",
+    "jtbds"
+  ],
   "additionalProperties": false,
   "properties": {
     "project": {
       "type": "object",
-      "required": ["name", "package", "domain"],
+      "required": [
+        "name",
+        "package",
+        "domain"
+      ],
       "additionalProperties": false,
       "properties": {
-        "name": { "type": "string" },
-        "package": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
-        "domain": { "type": "string" },
-        "tenancy": { "enum": ["none", "single", "multi"], "default": "single" },
-        "languages": { "type": "array", "items": { "type": "string" } },
-        "currencies": { "type": "array", "items": { "type": "string" } },
-        "frontend_framework": { "enum": ["nextjs", "remix", "vite-react"], "default": "nextjs" }
+        "name": {
+          "type": "string"
+        },
+        "package": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "domain": {
+          "type": "string"
+        },
+        "tenancy": {
+          "enum": [
+            "none",
+            "single",
+            "multi"
+          ],
+          "default": "single"
+        },
+        "languages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "currencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "frontend_framework": {
+          "enum": [
+            "nextjs",
+            "remix",
+            "vite-react"
+          ],
+          "default": "nextjs"
+        }
       }
     },
     "shared": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "roles": { "type": "array", "items": { "type": "string" } },
-        "permissions": { "type": "array", "items": { "type": "string" } },
-        "entities": { "type": "array", "items": { "type": "object" } }
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "entities": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
       }
     },
     "jtbds": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/jtbd" }
+      "items": {
+        "$ref": "#/$defs/jtbd"
+      }
     }
   },
   "$defs": {
     "jtbd": {
       "type": "object",
-      "required": ["id", "actor", "situation", "motivation", "outcome", "success_criteria"],
+      "required": [
+        "id",
+        "actor",
+        "situation",
+        "motivation",
+        "outcome",
+        "success_criteria"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
-        "title": { "type": "string" },
-        "actor": { "$ref": "#/$defs/actor" },
-        "situation": { "type": "string" },
-        "motivation": { "type": "string" },
-        "outcome": { "type": "string" },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "actor": {
+          "$ref": "#/$defs/actor"
+        },
+        "situation": {
+          "type": "string"
+        },
+        "motivation": {
+          "type": "string"
+        },
+        "outcome": {
+          "type": "string"
+        },
         "success_criteria": {
           "type": "array",
           "minItems": 1,
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         },
         "edge_cases": {
           "type": "array",
-          "items": { "$ref": "#/$defs/edge_case" }
+          "items": {
+            "$ref": "#/$defs/edge_case"
+          }
         },
         "data_capture": {
           "type": "array",
-          "items": { "$ref": "#/$defs/field" }
+          "items": {
+            "$ref": "#/$defs/field"
+          }
         },
         "documents_required": {
           "type": "array",
-          "items": { "$ref": "#/$defs/doc_req" }
+          "items": {
+            "$ref": "#/$defs/doc_req"
+          }
         },
         "approvals": {
           "type": "array",
-          "items": { "$ref": "#/$defs/approval" }
+          "items": {
+            "$ref": "#/$defs/approval"
+          }
         },
         "sla": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "warn_pct": { "type": "integer", "minimum": 1, "maximum": 99 },
-            "breach_seconds": { "type": "integer", "minimum": 60 }
+            "warn_pct": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 99
+            },
+            "breach_seconds": {
+              "type": "integer",
+              "minimum": 60
+            }
           }
         },
         "notifications": {
           "type": "array",
-          "items": { "$ref": "#/$defs/notification" }
+          "items": {
+            "$ref": "#/$defs/notification"
+          }
         },
-        "metrics": { "type": "array", "items": { "type": "string" } }
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "data_sensitivity": {
+          "type": "array",
+          "description": "Data sensitivity categories applicable to this JTBD (E-22).",
+          "items": {
+            "enum": [
+              "PII",
+              "PHI",
+              "PCI",
+              "secrets",
+              "regulated"
+            ]
+          }
+        },
+        "compliance": {
+          "type": "array",
+          "description": "Compliance regimes this JTBD must satisfy (E-22).",
+          "items": {
+            "enum": [
+              "GDPR",
+              "SOX",
+              "HIPAA",
+              "PCI-DSS",
+              "ISO27001",
+              "SOC2",
+              "NIST-800-53",
+              "CCPA"
+            ]
+          }
+        }
       }
     },
     "actor": {
       "type": "object",
-      "required": ["role"],
+      "required": [
+        "role"
+      ],
       "additionalProperties": false,
       "properties": {
-        "role": { "type": "string" },
-        "department": { "type": "string" },
-        "external": { "type": "boolean", "default": false }
+        "role": {
+          "type": "string"
+        },
+        "department": {
+          "type": "string"
+        },
+        "external": {
+          "type": "boolean",
+          "default": false
+        }
       }
     },
     "edge_case": {
       "type": "object",
-      "required": ["id", "condition", "handle"],
+      "required": [
+        "id",
+        "condition",
+        "handle"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string" },
-        "condition": { "type": "string" },
-        "handle": { "enum": ["branch", "reject", "escalate", "compensate", "loop"] },
-        "branch_to": { "type": "string" }
+        "id": {
+          "type": "string"
+        },
+        "condition": {
+          "type": "string"
+        },
+        "handle": {
+          "enum": [
+            "branch",
+            "reject",
+            "escalate",
+            "compensate",
+            "loop"
+          ]
+        },
+        "branch_to": {
+          "type": "string"
+        }
       }
     },
     "field": {
       "type": "object",
-      "required": ["id", "kind", "pii"],
+      "required": [
+        "id",
+        "kind",
+        "pii"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string" },
+        "id": {
+          "type": "string"
+        },
         "kind": {
           "enum": [
-            "text", "number", "money", "date", "datetime",
-            "enum", "boolean", "party_ref", "document_ref",
-            "email", "phone", "address", "textarea",
-            "signature", "file"
+            "text",
+            "number",
+            "money",
+            "date",
+            "datetime",
+            "enum",
+            "boolean",
+            "party_ref",
+            "document_ref",
+            "email",
+            "phone",
+            "address",
+            "textarea",
+            "signature",
+            "file"
           ]
         },
-        "label": { "type": "string" },
-        "required": { "type": "boolean", "default": false },
-        "pii": { "type": "boolean" },
-        "validation": { "type": "object", "additionalProperties": true }
+        "label": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "pii": {
+          "type": "boolean"
+        },
+        "validation": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "sensitivity": {
+          "type": "array",
+          "description": "Granular sensitivity tags for this field (superset of pii bool, E-22).",
+          "items": {
+            "enum": [
+              "PII",
+              "PHI",
+              "PCI",
+              "secrets",
+              "regulated"
+            ]
+          }
+        }
       }
     },
     "doc_req": {
       "type": "object",
-      "required": ["kind"],
+      "required": [
+        "kind"
+      ],
       "additionalProperties": false,
       "properties": {
-        "kind": { "type": "string" },
-        "min": { "type": "integer", "default": 1 },
-        "max": { "type": "integer" },
-        "freshness_days": { "type": "integer" },
-        "av_required": { "type": "boolean", "default": true }
+        "kind": {
+          "type": "string"
+        },
+        "min": {
+          "type": "integer",
+          "default": 1
+        },
+        "max": {
+          "type": "integer"
+        },
+        "freshness_days": {
+          "type": "integer"
+        },
+        "av_required": {
+          "type": "boolean",
+          "default": true
+        }
       }
     },
     "approval": {
       "type": "object",
-      "required": ["role", "policy"],
+      "required": [
+        "role",
+        "policy"
+      ],
       "additionalProperties": false,
       "properties": {
-        "role": { "type": "string" },
-        "policy": { "enum": ["1_of_1", "2_of_2", "n_of_m", "authority_tier"] },
-        "n": { "type": "integer" },
-        "tier": { "type": "integer" }
+        "role": {
+          "type": "string"
+        },
+        "policy": {
+          "enum": [
+            "1_of_1",
+            "2_of_2",
+            "n_of_m",
+            "authority_tier"
+          ]
+        },
+        "n": {
+          "type": "integer"
+        },
+        "tier": {
+          "type": "integer"
+        }
       },
       "oneOf": [
-        { "properties": { "policy": { "const": "n_of_m" } }, "required": ["n"] },
-        { "properties": { "policy": { "const": "authority_tier" } }, "required": ["tier"] },
-        { "properties": { "policy": { "const": "1_of_1" } } },
-        { "properties": { "policy": { "const": "2_of_2" } } }
+        {
+          "properties": {
+            "policy": {
+              "const": "n_of_m"
+            }
+          },
+          "required": [
+            "n"
+          ]
+        },
+        {
+          "properties": {
+            "policy": {
+              "const": "authority_tier"
+            }
+          },
+          "required": [
+            "tier"
+          ]
+        },
+        {
+          "properties": {
+            "policy": {
+              "const": "1_of_1"
+            }
+          }
+        },
+        {
+          "properties": {
+            "policy": {
+              "const": "2_of_2"
+            }
+          }
+        }
       ]
     },
     "notification": {
       "type": "object",
-      "required": ["trigger", "channel", "audience"],
+      "required": [
+        "trigger",
+        "channel",
+        "audience"
+      ],
       "additionalProperties": false,
       "properties": {
         "trigger": {
           "enum": [
-            "state_enter", "state_exit", "sla_warn", "sla_breach",
-            "approved", "rejected", "escalated"
+            "state_enter",
+            "state_exit",
+            "sla_warn",
+            "sla_breach",
+            "approved",
+            "rejected",
+            "escalated"
           ]
         },
-        "channel": { "enum": ["email", "sms", "slack", "webhook", "in_app"] },
-        "audience": { "type": "string" }
+        "channel": {
+          "enum": [
+            "email",
+            "sms",
+            "slack",
+            "webhook",
+            "in_app"
+          ]
+        },
+        "audience": {
+          "type": "string"
+        }
       }
     }
   }
