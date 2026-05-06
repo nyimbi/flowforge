@@ -1,8 +1,12 @@
 export { Canvas } from "./Canvas.js";
 export type { CanvasProps } from "./Canvas.js";
+export { CommentThread, extractMentions } from "./CommentThread.js";
+export type { Comment, CommentThreadProps } from "./CommentThread.js";
 export { Designer } from "./Designer.js";
 export { ForkButton } from "./ForkButton.js";
 export type { ForkButtonProps } from "./ForkButton.js";
+export { ReviewPanel } from "./ReviewPanel.js";
+export type { ReviewDecision, ReviewPanelProps } from "./ReviewPanel.js";
 export type { DesignerProps, DesignerTab } from "./Designer.js";
 export { DiffViewer } from "./DiffViewer.js";
 export type { DiffViewerProps } from "./DiffViewer.js";

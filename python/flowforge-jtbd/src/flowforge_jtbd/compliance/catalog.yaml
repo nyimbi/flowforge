@@ -1,0 +1,74 @@
+# flowforge JTBD compliance catalog — per-regime required job ids (E-23).
+#
+# Each compliance regime lists the JTBD ids a bundle MUST contain if it
+# declares that regime in its `compliance[]` list. Bundles that declare a
+# regime but lack one of the required job ids get a lint WARNING (not error)
+# so existing bundles can incrementally adopt compliance coverage.
+#
+# The Python API is in catalog.py; this file is the authoritative source
+# loaded at import time. Hosts may override by pointing
+# `JTBD_COMPLIANCE_CATALOG` env var at a replacement YAML.
+
+GDPR:
+  description: EU General Data Protection Regulation
+  required_jobs:
+    - data_export          # Art. 20 – right to data portability
+    - data_erasure         # Art. 17 – right to be forgotten
+    - consent_capture      # Art. 7  – conditions for consent
+    - breach_notification  # Art. 33 – supervisory authority notification
+
+SOX:
+  description: Sarbanes-Oxley Act (US financial reporting)
+  required_jobs:
+    - financial_reporting_audit       # §302/404 management assessment
+    - access_control_review           # IT general controls
+    - change_management_approval      # change-control evidence
+
+HIPAA:
+  description: Health Insurance Portability and Accountability Act (US)
+  required_jobs:
+    - phi_access_control       # 164.312(a) – access control
+    - phi_audit_log            # 164.312(b) – audit controls
+    - breach_notification      # 164.400   – breach notification rule
+    - data_retention           # 164.530(j) – retention policy
+    - minimum_necessary_access # 164.502(b) – minimum necessary standard
+
+PCI-DSS:
+  description: Payment Card Industry Data Security Standard
+  required_jobs:
+    - cardholder_data_protection  # Req 3   – protect stored cardholder data
+    - access_control_review       # Req 7   – restrict access by need-to-know
+    - vulnerability_management    # Req 6   – patch management
+    - audit_log_review            # Req 10  – log and monitor access
+
+ISO27001:
+  description: ISO/IEC 27001 Information Security Management
+  required_jobs:
+    - risk_assessment          # A.8 – asset risk assessment
+    - information_classification # A.8.2 – information classification
+    - incident_management      # A.16 – information security incident mgmt
+    - access_review            # A.9.2 – user access management
+
+SOC2:
+  description: AICPA Service Organisation Control 2
+  required_jobs:
+    - security_monitoring      # CC6 – logical and physical access
+    - availability_monitoring  # CC7 – system operations
+    - confidentiality_control  # CC6 – confidentiality commitments
+    - privacy_notice           # P1  – privacy notice
+
+NIST-800-53:
+  description: NIST Special Publication 800-53 (US federal)
+  required_jobs:
+    - access_control           # AC – access control family
+    - audit_accountability     # AU – audit and accountability family
+    - configuration_management # CM – configuration management family
+    - incident_response        # IR – incident response family
+
+CCPA:
+  description: California Consumer Privacy Act
+  required_jobs:
+    - consumer_data_disclosure  # §1798.100 – right to know
+    - opt_out_processing        # §1798.120 – right to opt-out
+    - data_deletion             # §1798.105 – right to delete
+    - data_portability          # §1798.100 – right to data portability

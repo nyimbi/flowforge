@@ -8,6 +8,7 @@ dependencies = [
     "flowforge",
     "flowforge-sqlalchemy",
     "pydantic>=2.5",
+    "pyyaml>=6.0",
     "sqlalchemy[asyncio]>=2.0",
     "alembic>=1.13",
 ]

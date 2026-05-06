@@ -32,6 +32,7 @@ from .conflicts import (
 	extract_semantics,
 )
 from .dependencies import DependencyCycle, DependencyGraph
+from .compliance import ComplianceLinterPack, ComplianceMissingJobRule, SensitivityImpliesRegimeRule
 from .glossary import GlossaryConflictRule, GlossaryConflictRulePack, builtin_glossary_pack
 from .quality import LowQualityRule, LowQualityRulePack
 from .lifecycle import LifecycleAnalyzer
@@ -51,6 +52,9 @@ from .results import (
 
 __all__ = [
 	"ActorConsistencyAnalyzer",
+	"ComplianceLinterPack",
+	"ComplianceMissingJobRule",
+	"SensitivityImpliesRegimeRule",
 	"ConflictSolver",
 	"DependencyCycle",
 	"DependencyGraph",
