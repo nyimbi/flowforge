@@ -19,10 +19,12 @@ members = [
     "python/flowforge-signing-kms",
     "python/flowforge-notify-multichannel",
     "python/flowforge-cli",
+    "python/flowforge-jtbd",
 ]
 
 [tool.uv.sources]
 flowforge = { workspace = true }
+flowforge-jtbd = { workspace = true }
 flowforge-fastapi = { workspace = true }
 flowforge-sqlalchemy = { workspace = true }
 flowforge-tenancy = { workspace = true }
