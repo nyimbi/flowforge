@@ -4,6 +4,7 @@ packages:
   - "flowforge-runtime-client"
   - "flowforge-step-adapters"
   - "flowforge-designer"
+  - "flowforge-jtbd-editor"
   - "flowforge-integration-tests"
 onlyBuiltDependencies:
   - esbuild

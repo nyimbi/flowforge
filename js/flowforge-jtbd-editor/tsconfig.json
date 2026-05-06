@@ -1,0 +1,24 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"lib": ["dom", "dom.iterable", "es2023"],
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"jsx": "react-jsx",
+		"strict": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitOverride": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"forceConsistentCasingInFileNames": true,
+		"noEmit": true,
+		"allowImportingTsExtensions": false,
+		"types": ["vitest/globals", "@testing-library/jest-dom"]
+	},
+	"include": ["src/**/*", "__tests__/**/*"],
+	"exclude": ["node_modules", "dist"]
+}
