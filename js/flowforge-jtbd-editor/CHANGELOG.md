@@ -2,6 +2,20 @@
 
 ## 0.1.0 — Unreleased
 
+- E-11: visual swimlane animation.
+  - `buildDefaultTrace(bundle)` — Kahn topological order that lands
+    cycle members at the end (animation never deadlocks).
+  - `buildTraceFromEvents(bundle, events)` — replay a captured event
+    list; unknown ids dropped, repeats preserved.
+  - `animationReducer(state, action, trace)` — pure state machine
+    (play / pause / reset / step_forward / step_back / seek). No
+    timers, no DOM. Total over every state × action; clamped seeks.
+  - `JobMapAnimation` — React component layering a play/step/reset
+    toolbar plus a replay slider on top of `JobMap`. `tickMs` controls
+    the play-loop interval. `autoplay`, `onStepChange` callbacks.
+  - `JobMap` gains `firedIds` / `activeIds` props plus
+    `data-animation-state` so the canvas highlights the currently-
+    active node and fades the visited ones.
 - E-6: visual job map.
   - `layoutJobMap(bundle)` — deterministic swimlane layout: one lane
     per actor role (first-appearance order), topological columns

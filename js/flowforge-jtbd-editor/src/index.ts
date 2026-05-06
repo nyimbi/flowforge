@@ -1,5 +1,25 @@
 export { JobMap } from "./JobMap.js";
-export type { JobMapProps } from "./JobMap.js";
+export type { JobMapProps, NodeAnimationState } from "./JobMap.js";
+
+export { JobMapAnimation } from "./JobMapAnimation.js";
+export type { JobMapAnimationProps } from "./JobMapAnimation.js";
+
+export {
+	animationReducer,
+	initialAnimationState,
+	runToEnd,
+	stepLabel,
+} from "./animation.js";
+export type {
+	AnimationAction,
+	AnimationState,
+} from "./animation.js";
+
+export {
+	buildDefaultTrace,
+	buildTraceFromEvents,
+} from "./trace.js";
+export type { Trace, TraceStep } from "./trace.js";
 
 export {
 	FIRST_NODE_X,
