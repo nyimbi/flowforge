@@ -1,11 +1,11 @@
-      id: platform-eng
-      name: "Platform Engineering"
-      description: "JTBD domain library for Platform Engineering workflows (Deploy, observability, DR)."
-      package: flowforge-jtbd-platformeng
-      version: "1.0.0"
-      subdomains:
-    - "Deploy"
-- "observability"
-- "DR"
-      regulator_hints: []
-      phase: E4
+id: platform-eng
+name: "Platform Engineering"
+description: "JTBD domain library for Platform Engineering workflows (Deploy, observability, DR)."
+package: flowforge-jtbd-platformeng
+version: "1.0.0"
+subdomains:
+  - "Deploy"
+  - "observability"
+  - "DR"
+regulator_hints: []
+phase: E4

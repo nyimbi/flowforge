@@ -1,11 +1,11 @@
-      id: media
-      name: "Media"
-      description: "JTBD domain library for Media workflows (Editorial, rights, distribution)."
-      package: flowforge-jtbd-media
-      version: "1.0.0"
-      subdomains:
-    - "Editorial"
-- "rights"
-- "distribution"
-      regulator_hints: []
-      phase: E4
+id: media
+name: "Media"
+description: "JTBD domain library for Media workflows (Editorial, rights, distribution)."
+package: flowforge-jtbd-media
+version: "1.0.0"
+subdomains:
+  - "Editorial"
+  - "rights"
+  - "distribution"
+regulator_hints: []
+phase: E4

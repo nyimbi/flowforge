@@ -1,11 +1,11 @@
-      id: telco
-      name: "Telco"
-      description: "JTBD domain library for Telco workflows (Provisioning, billing, churn)."
-      package: flowforge-jtbd-telco
-      version: "1.0.0"
-      subdomains:
-    - "Provisioning"
-- "billing"
-- "churn"
-      regulator_hints: []
-      phase: E4
+id: telco
+name: "Telco"
+description: "JTBD domain library for Telco workflows (Provisioning, billing, churn)."
+package: flowforge-jtbd-telco
+version: "1.0.0"
+subdomains:
+  - "Provisioning"
+  - "billing"
+  - "churn"
+regulator_hints: []
+phase: E4

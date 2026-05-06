@@ -1,11 +1,11 @@
-      id: construction
-      name: "Construction"
-      description: "JTBD domain library for Construction workflows (Bid, build, inspect)."
-      package: flowforge-jtbd-construction
-      version: "1.0.0"
-      subdomains:
-    - "Bid"
-- "build"
-- "inspect"
-      regulator_hints: []
-      phase: E4
+id: construction
+name: "Construction"
+description: "JTBD domain library for Construction workflows (Bid, build, inspect)."
+package: flowforge-jtbd-construction
+version: "1.0.0"
+subdomains:
+  - "Bid"
+  - "build"
+  - "inspect"
+regulator_hints: []
+phase: E4

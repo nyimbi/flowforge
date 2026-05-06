@@ -1,11 +1,11 @@
-      id: travel
-      name: "Travel"
-      description: "JTBD domain library for Travel workflows (Booking, itinerary, loyalty)."
-      package: flowforge-jtbd-travel
-      version: "1.0.0"
-      subdomains:
-    - "Booking"
-- "itinerary"
-- "loyalty"
-      regulator_hints: []
-      phase: E4
+id: travel
+name: "Travel"
+description: "JTBD domain library for Travel workflows (Booking, itinerary, loyalty)."
+package: flowforge-jtbd-travel
+version: "1.0.0"
+subdomains:
+  - "Booking"
+  - "itinerary"
+  - "loyalty"
+regulator_hints: []
+phase: E4

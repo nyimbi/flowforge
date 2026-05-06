@@ -1,11 +1,11 @@
-      id: real-estate
-      name: "Real Estate"
-      description: "JTBD domain library for Real Estate workflows (Listing, lease, maintenance)."
-      package: flowforge-jtbd-realestate
-      version: "1.0.0"
-      subdomains:
-    - "Listing"
-- "lease"
-- "maintenance"
-      regulator_hints: []
-      phase: E4
+id: real-estate
+name: "Real Estate"
+description: "JTBD domain library for Real Estate workflows (Listing, lease, maintenance)."
+package: flowforge-jtbd-realestate
+version: "1.0.0"
+subdomains:
+  - "Listing"
+  - "lease"
+  - "maintenance"
+regulator_hints: []
+phase: E4
