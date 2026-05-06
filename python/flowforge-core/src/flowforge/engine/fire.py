@@ -114,11 +114,20 @@ def _apply_effect(effect: Effect, instance: Instance, ctx: dict[str, Any]) -> tu
 		val = evaluate(effect.expr, ctx)
 		_set_dotted(instance.context, target, val)
 	elif effect.kind == "notify":
+		notify_body: dict[str, Any] = {
+			"template": effect.template,
+			"instance_id": instance.id,
+		}
+		# Propagate JTBD provenance for observability dashboards (E-10).
+		if ctx.get("__jtbd_id__") is not None:
+			notify_body["jtbd_id"] = ctx["__jtbd_id__"]
+		if ctx.get("__jtbd_version__") is not None:
+			notify_body["jtbd_version"] = ctx["__jtbd_version__"]
 		outboxes.append(
 			OutboxEnvelope(
 				kind="wf.notify",
 				tenant_id=ctx.get("__tenant_id__", ""),
-				body={"template": effect.template, "instance_id": instance.id},
+				body=notify_body,
 				correlation_id=instance.id,
 			)
 		)
@@ -193,12 +202,19 @@ async def fire(
 	payload: dict[str, Any] | None = None,
 	principal: Principal | None = None,
 	tenant_id: str = "default",
+	jtbd_id: str | None = None,
+	jtbd_version: str | None = None,
 ) -> FireResult:
 	"""Plan + commit *event* against *instance* per *wd*.
 
 	The engine builds an evaluator-context that puts the workflow's
 	``context`` under the ``context`` key so DSL ``var`` expressions like
 	``{"var": "context.intake.loss_amount"}`` resolve.
+
+	``jtbd_id`` and ``jtbd_version`` are propagated into every audit event
+	and outbox envelope produced during this fire (E-10). Tracing consumers
+	use these to group events by originating JTBD spec. Pass ``None`` for
+	workflows not originating from a JTBD bundle (backwards-compatible).
 	"""
 
 	if instance.state.startswith("terminal_") or _is_terminal(wd, instance.state):
@@ -210,6 +226,8 @@ async def fire(
 		"context": instance.context,
 		"__tenant_id__": tenant_id,
 		"__actor__": principal.user_id if principal else None,
+		"__jtbd_id__": jtbd_id,
+		"__jtbd_version__": jtbd_version,
 		"event": {"name": event, "payload": payload or {}},
 	}
 	for t in candidates:
@@ -232,7 +250,19 @@ async def fire(
 	instance.state = chosen.to_state
 	instance.history.append(f"{prev_state}-({chosen.id}:{event})->{chosen.to_state}")
 
-	# Always audit the transition itself.
+	# Always audit the transition itself.  jtbd_id / jtbd_version are
+	# included when present so dashboards can GROUP BY jtbd_id (E-10).
+	transition_payload: dict[str, Any] = {
+		"transition_id": chosen.id,
+		"from_state": prev_state,
+		"to_state": chosen.to_state,
+		"event": event,
+	}
+	if jtbd_id is not None:
+		transition_payload["jtbd_id"] = jtbd_id
+	if jtbd_version is not None:
+		transition_payload["jtbd_version"] = jtbd_version
+
 	audits.insert(
 		0,
 		AuditEvent(
@@ -241,12 +271,7 @@ async def fire(
 			subject_id=instance.id,
 			tenant_id=tenant_id,
 			actor_user_id=principal.user_id if principal else None,
-			payload={
-				"transition_id": chosen.id,
-				"from_state": prev_state,
-				"to_state": chosen.to_state,
-				"event": event,
-			},
+			payload=transition_payload,
 		),
 	)
 
