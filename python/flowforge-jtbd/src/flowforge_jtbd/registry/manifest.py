@@ -69,17 +69,29 @@ class JtbdManifest(BaseModel):
 		"""Return the canonical bytes to sign / verify.
 
 		Excludes ``signature`` and ``key_id`` (those are the result of
-		signing, not the input). Sorted-key JSON, UTF-8.
+		signing, not the input). The encoding is canonical regardless
+		of how the manifest was constructed (direct ``__init__`` vs
+		``model_validate`` from JSON): every declared field whose
+		value is non-None lands in the body, sorted by name. This
+		makes the signature stable across HTTP round-trips through
+		the hub service (the wire JSON is parsed back into a fresh
+		manifest with all fields populated).
 		"""
 		body: dict[str, Any] = {}
-		for field_name in sorted(self.model_fields_set | {"name", "version", "schema_version"}):
+		for field_name in sorted(self.__class__.model_fields):
 			if field_name in ("signature", "key_id"):
 				continue
 			val = getattr(self, field_name)
-			if val is not None:
-				if isinstance(val, datetime):
-					val = val.isoformat()
-				body[field_name] = val
+			if val is None:
+				continue
+			# Empty list defaults — drop so manifests that did not
+			# explicitly set a list field hash the same as those that
+			# did.
+			if isinstance(val, list) and len(val) == 0:
+				continue
+			if isinstance(val, datetime):
+				val = val.isoformat()
+			body[field_name] = val
 		return json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 	def with_signature(self, signature: str, key_id: str) -> "JtbdManifest":
