@@ -32,3 +32,9 @@ packages = ["src/flowforge_jtbd"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+include = ["src/flowforge_jtbd"]
+reportMissingImports = "warning"

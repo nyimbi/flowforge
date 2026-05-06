@@ -24,6 +24,7 @@ from __future__ import annotations
 from .actors import ActorConsistencyAnalyzer
 from .dependencies import DependencyCycle, DependencyGraph
 from .glossary import GlossaryConflictRule, GlossaryConflictRulePack, builtin_glossary_pack
+from .quality import LowQualityRule, LowQualityRulePack
 from .lifecycle import LifecycleAnalyzer
 from .linter import Linter
 from .registry import (
@@ -56,4 +57,6 @@ __all__ = [
 	"Severity",
 	"StaticRulePack",
 	"builtin_glossary_pack",
+	"LowQualityRule",
+	"LowQualityRulePack",
 ]
