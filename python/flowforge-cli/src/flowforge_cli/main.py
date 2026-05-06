@@ -16,6 +16,7 @@ from .commands import (
 	audit_verify,
 	diff,
 	generate_llmtxt,
+	tutorial,
 	jtbd_fork,
 	jtbd_generate,
 	jtbd_lint,
@@ -61,6 +62,8 @@ audit_verify.register(audit_app)
 jtbd_fork.register(jtbd_app)
 jtbd_lint.register(jtbd_app)
 jtbd_migrate.register(jtbd_app)
+
+tutorial.register(app)
 
 
 def main() -> None:
