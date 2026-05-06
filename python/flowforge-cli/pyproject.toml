@@ -13,9 +13,16 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# E-5 conflict solver — Z3 backend. Not a hard dep so hosts that
+# can't ship Z3 (constrained runtimes, AOT-compiled bundles) still
+# get the simple-pairs fallback.
+lint = [
+	"z3-solver>=4.13",
+]
 test = [
 	"pytest>=7",
 	"pytest-asyncio>=0.23",
+	"z3-solver>=4.13",
 ]
 
 [project.scripts]
