@@ -124,7 +124,7 @@ class S3DocumentPort:
 			import boto3  # type: ignore[import-untyped]
 
 			client = boto3.client("s3")
-		self._s3 = client
+		self._s3: Any = client
 		# subject_id -> ordered list of doc_ids
 		self._subject_index: dict[str, list[str]] = {}
 		# doc_id -> DocumentMeta
