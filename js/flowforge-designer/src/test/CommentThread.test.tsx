@@ -6,7 +6,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 
 import { CommentThread, extractMentions, type Comment } from "../CommentThread.js";
-import { ReviewPanel, type ReviewDecision } from "../ReviewPanel.js";
+import { ReviewPanel } from "../ReviewPanel.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

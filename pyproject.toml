@@ -3,6 +3,21 @@ name = "flowforge-workspace"
 version = "0.0.0"
 description = "flowforge monorepo workspace root (not published)"
 requires-python = ">=3.11"
+dependencies = [
+    "flowforge",
+    "flowforge-fastapi",
+    "flowforge-sqlalchemy",
+    "flowforge-tenancy",
+    "flowforge-audit-pg",
+    "flowforge-outbox-pg",
+    "flowforge-rbac-static",
+    "flowforge-rbac-spicedb",
+    "flowforge-documents-s3",
+    "flowforge-money",
+    "flowforge-signing-kms",
+    "flowforge-notify-multichannel",
+    "flowforge-cli",
+]
 
 [tool.uv.workspace]
 members = [
@@ -45,3 +60,13 @@ pythonVersion = "3.11"
 typeCheckingMode = "basic"
 reportMissingImports = "warning"
 include = ["python/*/src"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.3.0",
+    "boto3>=1.34",
+    "moto[s3,kms]>=5.0",
+    "anyio[trio]>=4.0",
+    "z3-solver>=4.13",
+]
