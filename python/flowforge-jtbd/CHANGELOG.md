@@ -31,6 +31,19 @@
     authority error.
   - `JtbdRule` / `JtbdRulePack` protocols + `RuleRegistry`.
   - `Linter` orchestrator + `LintReport` output format.
+- E-15: DomainInferer.
+  - `flowforge_jtbd.ai.domain_inference` — `DomainInferer` wraps the
+    E-7 `Recommender` to suggest starter library JTBDs for a free-text
+    description. Two modes:
+      * Auto — keyword catalogue covers the 30 domains in §12; the
+        inferer detects matching domains and queries the recommender
+        once per domain, merging results in similarity order.
+      * Targeted — caller pins one or more domains and skips
+        auto-detection.
+  - `DomainHit` records the matched keywords and a confidence count
+    (one per matched phrase).
+  - `DomainInferenceResult` carries detected hits, queried domains,
+    and the dedup'd merged recommendation list.
 - E-14: LlmProvider port + NL→JTBD generator.
   - `flowforge_jtbd.ports.llm` — `LlmProvider` Protocol
     (generate / embed / stream_chat) + `LlmProviderError`.
