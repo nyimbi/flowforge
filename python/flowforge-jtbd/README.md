@@ -1,16 +1,45 @@
 # flowforge-jtbd
 
-JTBD (Jobs-To-Be-Done) spec model and linter core for the flowforge
-framework. Implements ticket **E-4** of the JTBD Editor evolution plan
-(see `framework/docs/flowforge-evolution.md` §4 and
-`framework/docs/jtbd-editor-arch.md` §2).
+JTBD (Jobs-To-Be-Done) spec model, lockfile, storage tables, and linter
+core for the flowforge framework. Implements tickets **E-1** (canonical
+spec + lockfile + storage) and **E-4** (linter core) of the JTBD Editor
+evolution plan (see `framework/docs/flowforge-evolution.md` §3-§4 and
+`framework/docs/jtbd-editor-arch.md` §13).
 
-## What's in here
+## E-1 — canonical spec + lockfile + storage
+
+- `flowforge_jtbd.dsl.canonical_json(obj) -> bytes` and
+  `flowforge_jtbd.dsl.spec_hash(obj) -> str` — RFC-8785-aligned canonical
+  JSON encoder + sha256 wrapper that anchors content addressing. Two
+  CLIs hashing the same logical bundle MUST produce byte-identical
+  output; the `tests/ci/test_canonical_json.py` fixture matrix pins
+  the property.
+- `flowforge_jtbd.dsl.JtbdSpec`, `JtbdBundle`, `JtbdProject`,
+  `JtbdShared`, plus the supporting `JtbdField`, `JtbdEdgeCase`,
+  `JtbdDocReq`, `JtbdApproval`, `JtbdSla`, `JtbdNotification` shapes —
+  pydantic v2 models with `extra='forbid'`. `JtbdField` enforces
+  mandatory `pii` on sensitive kinds at validation time.
+- `flowforge_jtbd.dsl.JtbdLockfile`, `JtbdLockfilePin`,
+  `JtbdComposition` — frozen pin table for a composition. `body_hash`
+  computes through the same canonical-JSON helper as `spec_hash`;
+  `generated_at` / `generated_by` are metadata, not part of the body.
+- `flowforge_jtbd.db` — SQLAlchemy 2.x ORM for `jtbd_libraries`,
+  `jtbd_domains`, `jtbd_specs`, `jtbd_compositions`,
+  `jtbd_compositions_pins`, `jtbd_lockfiles`. Catalogue-tier rows
+  (`tenant_id IS NULL`) cohabit with tenant-scoped rows; RLS isolates
+  on the `app.tenant_id` GUC.
+- `flowforge_jtbd.db.alembic_bundle` — Alembic revision `r2_jtbd`
+  chained after `flowforge_sqlalchemy`'s `r1_initial`. Dialect-aware:
+  PostgreSQL gets `JSONB` + RLS policies; SQLite (test harness) skips
+  RLS DDL.
+
+## E-4 — linter core
 
 - `flowforge_jtbd.spec` — lint-facing Pydantic models (`JtbdLintSpec`,
-  `JtbdBundle`, `ActorRef`, `RoleDef`, `StageDecl`). The full
-  `JtbdSpec` schema lives elsewhere (E-1); this module defines the
-  subset the linter needs and acts as a stable contract for adapters.
+  lint-side `JtbdBundle`, `ActorRef`, `RoleDef`, `StageDecl`). Distinct
+  from `flowforge_jtbd.dsl.JtbdSpec` (E-1's canonical model); the lint
+  surface keeps `extra='allow'` so it rides forward through schema
+  churn while the canonical layer rejects unknown keys.
 - `flowforge_jtbd.lint.lifecycle` — `LifecycleAnalyzer`: completeness
   analysis. Required default stages: `discover`, `execute`,
   `error_handle`, `report`, `audit`. `undo` is optional. Per-domain

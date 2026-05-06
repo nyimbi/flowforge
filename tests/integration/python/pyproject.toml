@@ -17,6 +17,7 @@ dependencies = [
 	"flowforge-signing-kms",
 	"flowforge-notify-multichannel",
 	"flowforge-cli",
+	"flowforge-jtbd",
 	"fastapi>=0.115",
 	"httpx>=0.27",
 	"aiosqlite>=0.20",
@@ -40,6 +41,7 @@ flowforge-money = { path = "../../../python/flowforge-money", editable = true }
 flowforge-signing-kms = { path = "../../../python/flowforge-signing-kms", editable = true }
 flowforge-notify-multichannel = { path = "../../../python/flowforge-notify-multichannel", editable = true }
 flowforge-cli = { path = "../../../python/flowforge-cli", editable = true }
+flowforge-jtbd = { path = "../../../python/flowforge-jtbd", editable = true }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
