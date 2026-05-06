@@ -31,3 +31,18 @@
     authority error.
   - `JtbdRule` / `JtbdRulePack` protocols + `RuleRegistry`.
   - `Linter` orchestrator + `LintReport` output format.
+- E-14: LlmProvider port + NL→JTBD generator.
+  - `flowforge_jtbd.ports.llm` — `LlmProvider` Protocol
+    (generate / embed / stream_chat) + `LlmProviderError`.
+  - `flowforge_jtbd.ports.llm_claude` — `LlmProviderClaude` default
+    using the official Anthropic SDK; lazy import so non-Claude hosts
+    do not pay the dep cost.
+  - `flowforge_jtbd.ai.nl_to_jtbd` — `NlToJtbdGenerator` pipeline:
+    sanitise input → build prompt with schema + bundle context +
+    examples + compliance hints → LLM call → JSON extraction
+    (markdown-fence tolerant) → `JtbdSpec.model_validate` → one retry
+    on validation failure with errors fed back.
+  - Direct prompt-injection guard strips known role markers
+    (`<|im_start|>`, `[INST]`, …); indirect guard rejects descriptions
+    that match instruction-override patterns ("ignore previous
+    instructions", "role: system", …) before any LLM call.
