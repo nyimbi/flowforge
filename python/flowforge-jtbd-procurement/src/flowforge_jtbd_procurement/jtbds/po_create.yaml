@@ -1,0 +1,26 @@
+id: po_create
+title: "Create Purchase Order"
+version: "1.0.0"
+actor:
+  role: procurement_officer
+  external: false
+situation: "Procurement officer needs to convert an approved requisition into a PO."
+motivation: "Formalise the commitment to a supplier."
+outcome: "PO created, approved, and dispatched to supplier."
+success_criteria:
+  - "PO issued within 24 hours of requisition approval"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

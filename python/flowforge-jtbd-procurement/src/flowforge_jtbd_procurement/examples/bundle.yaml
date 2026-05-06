@@ -1,0 +1,28 @@
+project:
+  name: "procurement-example"
+  package: "procurement_example"
+  domain: "procurement"
+  version: "1.0.0"
+shared:
+  roles:
+  - procurement_officer
+  - category_manager
+  - approver
+  - accounts_payable_clerk
+  permissions:
+  - proc.rfq.issue
+  - proc.po.create
+  - proc.goods.receipt
+  - proc.invoice.match
+  - proc.vendor.approve
+jtbds:
+  - id: goods_receipt
+    version: "1.0.0"
+  - id: po_create
+    version: "1.0.0"
+  - id: rfq_issue
+    version: "1.0.0"
+  - id: three_way_match
+    version: "1.0.0"
+  - id: vendor_approve
+    version: "1.0.0"

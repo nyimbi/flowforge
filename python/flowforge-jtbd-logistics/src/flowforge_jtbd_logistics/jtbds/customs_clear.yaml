@@ -1,0 +1,26 @@
+id: customs_clear
+title: "Clear Customs"
+version: "1.0.0"
+actor:
+  role: customs_officer
+  external: false
+situation: "Logistics team needs to submit customs declarations for an international shipment."
+motivation: "Prevent delays at border due to incomplete documentation."
+outcome: "Customs cleared and release order received."
+success_criteria:
+  - "Customs clearance within 24 hours of arrival at port of entry"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

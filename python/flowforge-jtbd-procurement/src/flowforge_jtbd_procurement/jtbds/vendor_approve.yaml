@@ -1,0 +1,26 @@
+id: vendor_approve
+title: "Approve New Vendor"
+version: "1.0.0"
+actor:
+  role: category_manager
+  external: false
+situation: "Procurement needs to onboard and approve a new supplier."
+motivation: "Ensure supplier meets quality, compliance, and financial standards."
+outcome: "Vendor approved and added to approved supplier list."
+success_criteria:
+  - "Vendor onboarding completed within 15 business days"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

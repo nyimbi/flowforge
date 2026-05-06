@@ -1,0 +1,26 @@
+id: shipment_create
+title: "Create Shipment"
+version: "1.0.0"
+actor:
+  role: logistics_coordinator
+  external: false
+situation: "Logistics team needs to book a shipment for a customer order."
+motivation: "Get goods moving promptly with the right carrier."
+outcome: "Shipment booked, carrier confirmed, tracking number generated."
+success_criteria:
+  - "Shipment booked within 2 hours of pick confirmation"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

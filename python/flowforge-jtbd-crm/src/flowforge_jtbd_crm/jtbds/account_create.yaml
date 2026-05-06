@@ -1,0 +1,26 @@
+id: account_create
+title: "Create New Account"
+version: "1.0.0"
+actor:
+  role: sales_rep
+  external: false
+situation: "Sales rep needs to create a CRM account record for a new prospect."
+motivation: "Establish a single source of truth for the customer."
+outcome: "Account created with complete firmographic data and primary contact."
+success_criteria:
+  - "No duplicate accounts created (dedup check run)"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

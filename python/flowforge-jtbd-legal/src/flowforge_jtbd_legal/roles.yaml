@@ -1,0 +1,9 @@
+roles:
+  - name: legal_counsel
+    default_tier: 1
+  - name: paralegal
+    default_tier: 1
+  - name: contracts_manager
+    default_tier: 1
+  - name: compliance_officer
+    default_tier: 1

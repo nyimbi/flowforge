@@ -1,0 +1,26 @@
+id: project_kick
+title: "Kick Off Project"
+version: "1.0.0"
+actor:
+  role: project_manager
+  external: false
+situation: "PM needs to formally start a project with defined scope and team."
+motivation: "Align all stakeholders before work begins."
+outcome: "Project charter signed and kick-off meeting held."
+success_criteria:
+  - "Project kicked off within 5 days of contract signature"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

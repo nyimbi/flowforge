@@ -1,0 +1,26 @@
+id: card_issue
+title: "Issue Debit/Credit Card"
+version: "1.0.0"
+actor:
+  role: card_services_agent
+  external: false
+situation: "Cards team needs to issue a new payment card to a customer."
+motivation: "Provide the customer with a payment instrument."
+outcome: "Card produced, PIN set, and delivered to customer."
+success_criteria:
+  - "Card delivered within 5 business days of approval"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

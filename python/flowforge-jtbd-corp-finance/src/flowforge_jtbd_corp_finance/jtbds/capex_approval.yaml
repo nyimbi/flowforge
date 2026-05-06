@@ -1,0 +1,26 @@
+id: capex_approval
+title: "Approve Capital Expenditure"
+version: "1.0.0"
+actor:
+  role: cfo
+  external: false
+situation: "CFO needs to approve a capital investment above threshold."
+motivation: "Ensure CAPEX aligns to strategy and is within budget."
+outcome: "CAPEX approved with documented business case."
+success_criteria:
+  - "Approval decision within 5 business days of submission"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

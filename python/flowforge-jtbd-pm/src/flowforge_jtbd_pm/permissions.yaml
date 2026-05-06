@@ -1,0 +1,11 @@
+permissions:
+  - name: pm.project.create
+    description: "Pm Project Create"
+  - name: pm.sprint.plan
+    description: "Pm Sprint Plan"
+  - name: pm.issue.close
+    description: "Pm Issue Close"
+  - name: pm.milestone.approve
+    description: "Pm Milestone Approve"
+  - name: pm.release.ship
+    description: "Pm Release Ship"

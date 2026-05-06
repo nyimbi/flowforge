@@ -1,0 +1,26 @@
+id: loan_apply
+title: "Apply for Loan"
+version: "1.0.0"
+actor:
+  role: relationship_manager
+  external: false
+situation: "RM needs to submit a customer's loan application for credit assessment."
+motivation: "Secure financing for the customer within their eligibility."
+outcome: "Application submitted with complete documentation and credit data."
+success_criteria:
+  - "Application decision within 5 business days"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

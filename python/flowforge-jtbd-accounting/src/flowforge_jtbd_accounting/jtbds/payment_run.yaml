@@ -1,0 +1,26 @@
+id: payment_run
+title: "Execute Payment Run"
+version: "1.0.0"
+actor:
+  role: payroll_manager
+  external: false
+situation: "Finance team needs to batch-pay all due invoices."
+motivation: "Reduce late-payment penalties and maintain supplier relationships."
+outcome: "All due invoices paid and bank file generated."
+success_criteria:
+  - "Zero late payments due to system error"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

@@ -1,0 +1,11 @@
+id: banking
+name: "Banking"
+description: "JTBD domain library for Banking workflows (Lending, deposit, cards)."
+package: flowforge-jtbd-banking
+version: "1.0.0"
+subdomains:
+  - "Lending"
+  - "deposit"
+  - "cards"
+regulator_hints: []
+phase: E2

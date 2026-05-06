@@ -1,0 +1,11 @@
+permissions:
+  - name: comp.kyc.verify
+    description: "Comp Kyc Verify"
+  - name: comp.aml.screen
+    description: "Comp Aml Screen"
+  - name: comp.sar.file
+    description: "Comp Sar File"
+  - name: comp.audit.conduct
+    description: "Comp Audit Conduct"
+  - name: comp.policy.review
+    description: "Comp Policy Review"

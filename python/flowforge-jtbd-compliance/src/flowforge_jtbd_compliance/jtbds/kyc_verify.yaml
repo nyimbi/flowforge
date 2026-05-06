@@ -1,0 +1,26 @@
+id: kyc_verify
+title: "Perform KYC Verification"
+version: "1.0.0"
+actor:
+  role: kyc_analyst
+  external: false
+situation: "KYC analyst needs to verify a new customer's identity and risk profile."
+motivation: "Onboard only customers who meet regulatory requirements."
+outcome: "KYC checks passed and customer status set to verified."
+success_criteria:
+  - "KYC completed within 3 business days of document receipt"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

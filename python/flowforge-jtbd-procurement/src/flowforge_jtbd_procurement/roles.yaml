@@ -1,0 +1,9 @@
+roles:
+  - name: procurement_officer
+    default_tier: 1
+  - name: category_manager
+    default_tier: 1
+  - name: approver
+    default_tier: 1
+  - name: accounts_payable_clerk
+    default_tier: 1

@@ -1,0 +1,26 @@
+id: issue_triage
+title: "Triage Incoming Issue"
+version: "1.0.0"
+actor:
+  role: product_owner
+  external: false
+situation: "PO needs to classify and prioritise a newly reported issue."
+motivation: "Route the issue to the right team within SLA."
+outcome: "Issue categorised, prioritised, and assigned."
+success_criteria:
+  - "All P1 issues triaged within 1 hour of report"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

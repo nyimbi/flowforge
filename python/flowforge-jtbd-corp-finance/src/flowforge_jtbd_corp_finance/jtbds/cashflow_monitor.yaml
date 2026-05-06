@@ -1,0 +1,26 @@
+id: cashflow_monitor
+title: "Monitor Daily Cash Position"
+version: "1.0.0"
+actor:
+  role: treasury_manager
+  external: false
+situation: "Treasury needs to track daily cash balances across accounts."
+motivation: "Ensure sufficient liquidity to meet obligations."
+outcome: "Daily cash report produced and reviewed."
+success_criteria:
+  - "No overdraft events in any entity account"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

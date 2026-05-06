@@ -1,0 +1,26 @@
+id: policy_underwrite
+title: "Underwrite New Policy"
+version: "1.0.0"
+actor:
+  role: underwriter
+  external: false
+situation: "Underwriter needs to evaluate a risk submission and set terms."
+motivation: "Price risk appropriately to maintain portfolio profitability."
+outcome: "Policy issued with agreed terms and premium."
+success_criteria:
+  - "Underwriting decision within 5 business days of complete submission"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

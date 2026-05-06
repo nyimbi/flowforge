@@ -1,0 +1,26 @@
+id: order_confirm
+title: "Confirm Customer Order"
+version: "1.0.0"
+actor:
+  role: order_manager
+  external: false
+situation: "Order management team needs to validate and confirm a customer order."
+motivation: "Prevent fulfillment of fraudulent or invalid orders."
+outcome: "Order confirmed with payment authorised and inventory reserved."
+success_criteria:
+  - "Order confirmation sent within 5 minutes of placement"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

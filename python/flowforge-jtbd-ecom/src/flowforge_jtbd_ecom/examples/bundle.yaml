@@ -1,0 +1,28 @@
+project:
+  name: "ecom-example"
+  package: "ecom_example"
+  domain: "ecom"
+  version: "1.0.0"
+shared:
+  roles:
+  - catalog_manager
+  - order_manager
+  - fulfillment_coordinator
+  - customer_service_agent
+  permissions:
+  - ecom.product.publish
+  - ecom.order.confirm
+  - ecom.fulfill.ship
+  - ecom.return.process
+  - ecom.review.moderate
+jtbds:
+  - id: order_confirm
+    version: "1.0.0"
+  - id: order_fulfill
+    version: "1.0.0"
+  - id: product_publish
+    version: "1.0.0"
+  - id: return_process
+    version: "1.0.0"
+  - id: review_moderate
+    version: "1.0.0"

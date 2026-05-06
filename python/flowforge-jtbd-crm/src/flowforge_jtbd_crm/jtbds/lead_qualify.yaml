@@ -1,0 +1,26 @@
+id: lead_qualify
+title: "Qualify Incoming Lead"
+version: "1.0.0"
+actor:
+  role: sales_rep
+  external: false
+situation: "Sales rep needs to evaluate a new inbound lead against ICP criteria."
+motivation: "Focus effort on leads most likely to convert."
+outcome: "Lead scored, qualified or disqualified, and routed appropriately."
+success_criteria:
+  - "Qualified leads converted at ≥ 20% to opportunity"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

@@ -1,0 +1,11 @@
+permissions:
+  - name: proc.rfq.issue
+    description: "Proc Rfq Issue"
+  - name: proc.po.create
+    description: "Proc Po Create"
+  - name: proc.goods.receipt
+    description: "Proc Goods Receipt"
+  - name: proc.invoice.match
+    description: "Proc Invoice Match"
+  - name: proc.vendor.approve
+    description: "Proc Vendor Approve"

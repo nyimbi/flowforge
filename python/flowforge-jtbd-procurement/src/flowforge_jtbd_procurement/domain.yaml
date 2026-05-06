@@ -1,0 +1,11 @@
+id: procurement
+name: "Procurement"
+description: "JTBD domain library for Procurement workflows (Sourcing, PO, 3-way match)."
+package: flowforge-jtbd-procurement
+version: "1.0.0"
+subdomains:
+  - "Sourcing"
+  - "PO"
+  - "3-way match"
+regulator_hints: []
+phase: E2

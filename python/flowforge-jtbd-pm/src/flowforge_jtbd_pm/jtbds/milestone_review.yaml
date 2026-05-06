@@ -1,0 +1,26 @@
+id: milestone_review
+title: "Conduct Milestone Review"
+version: "1.0.0"
+actor:
+  role: project_manager
+  external: false
+situation: "PM needs to assess whether a project milestone has been met."
+motivation: "Gate progress to prevent downstream waste."
+outcome: "Milestone passed or remediation plan approved."
+success_criteria:
+  - "Milestone gate completed within 2 days of deadline"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

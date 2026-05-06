@@ -1,0 +1,28 @@
+project:
+  name: "compliance-example"
+  package: "compliance_example"
+  domain: "compliance"
+  version: "1.0.0"
+shared:
+  roles:
+  - compliance_officer
+  - kyc_analyst
+  - aml_investigator
+  - internal_auditor
+  permissions:
+  - comp.kyc.verify
+  - comp.aml.screen
+  - comp.sar.file
+  - comp.audit.conduct
+  - comp.policy.review
+jtbds:
+  - id: aml_screen
+    version: "1.0.0"
+  - id: audit_conduct
+    version: "1.0.0"
+  - id: kyc_verify
+    version: "1.0.0"
+  - id: policy_review
+    version: "1.0.0"
+  - id: sar_file
+    version: "1.0.0"

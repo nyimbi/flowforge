@@ -1,0 +1,26 @@
+id: tax_return
+title: "File Tax Return"
+version: "1.0.0"
+actor:
+  role: tax_analyst
+  external: false
+situation: "Tax analyst needs to prepare and submit a periodic tax return."
+motivation: "Comply with tax obligations and avoid penalties."
+outcome: "Tax return submitted and reference number received."
+success_criteria:
+  - "Filed before statutory deadline"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

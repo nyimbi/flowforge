@@ -1,0 +1,26 @@
+id: gl_reconcile
+title: "Reconcile GL Account"
+version: "1.0.0"
+actor:
+  role: ar_specialist
+  external: false
+situation: "An accountant needs to match transactions to GL entries."
+motivation: "Close the books accurately by period end."
+outcome: "GL account balanced with zero unexplained variance."
+success_criteria:
+  - "Reconciliation completed within 2 days of period close"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

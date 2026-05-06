@@ -1,0 +1,9 @@
+roles:
+  - name: sales_rep
+    default_tier: 1
+  - name: account_executive
+    default_tier: 1
+  - name: sales_manager
+    default_tier: 1
+  - name: customer_success_manager
+    default_tier: 1

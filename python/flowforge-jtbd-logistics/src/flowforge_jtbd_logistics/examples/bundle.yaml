@@ -1,0 +1,28 @@
+project:
+  name: "logistics-example"
+  package: "logistics_example"
+  domain: "logistics"
+  version: "1.0.0"
+shared:
+  roles:
+  - logistics_coordinator
+  - warehouse_manager
+  - route_planner
+  - customs_officer
+  permissions:
+  - log.shipment.create
+  - log.warehouse.receive
+  - log.route.plan
+  - log.customs.clear
+  - log.pod.record
+jtbds:
+  - id: customs_clear
+    version: "1.0.0"
+  - id: pod_record
+    version: "1.0.0"
+  - id: route_plan
+    version: "1.0.0"
+  - id: shipment_create
+    version: "1.0.0"
+  - id: warehouse_receive
+    version: "1.0.0"

@@ -1,0 +1,9 @@
+roles:
+  - name: compliance_officer
+    default_tier: 1
+  - name: kyc_analyst
+    default_tier: 1
+  - name: aml_investigator
+    default_tier: 1
+  - name: internal_auditor
+    default_tier: 1

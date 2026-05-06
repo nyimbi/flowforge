@@ -1,0 +1,28 @@
+project:
+  name: "project-mgmt-example"
+  package: "project-mgmt_example"
+  domain: "project-mgmt"
+  version: "1.0.0"
+shared:
+  roles:
+  - project_manager
+  - scrum_master
+  - product_owner
+  - team_lead
+  permissions:
+  - pm.project.create
+  - pm.sprint.plan
+  - pm.issue.close
+  - pm.milestone.approve
+  - pm.release.ship
+jtbds:
+  - id: issue_triage
+    version: "1.0.0"
+  - id: milestone_review
+    version: "1.0.0"
+  - id: project_kick
+    version: "1.0.0"
+  - id: release_deploy
+    version: "1.0.0"
+  - id: sprint_plan
+    version: "1.0.0"

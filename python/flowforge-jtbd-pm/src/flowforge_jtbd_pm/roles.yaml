@@ -1,0 +1,9 @@
+roles:
+  - name: project_manager
+    default_tier: 1
+  - name: scrum_master
+    default_tier: 1
+  - name: product_owner
+    default_tier: 1
+  - name: team_lead
+    default_tier: 1

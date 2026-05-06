@@ -1,0 +1,28 @@
+project:
+  name: "hr-example"
+  package: "hr_example"
+  domain: "hr"
+  version: "1.0.0"
+shared:
+  roles:
+  - recruiter
+  - hr_manager
+  - line_manager
+  - hr_business_partner
+  permissions:
+  - hr.job.post
+  - hr.offer.extend
+  - hr.onboarding.start
+  - hr.leave.approve
+  - hr.review.conduct
+jtbds:
+  - id: employee_onboard
+    version: "1.0.0"
+  - id: job_post
+    version: "1.0.0"
+  - id: leave_approve
+    version: "1.0.0"
+  - id: offer_extend
+    version: "1.0.0"
+  - id: perf_review
+    version: "1.0.0"

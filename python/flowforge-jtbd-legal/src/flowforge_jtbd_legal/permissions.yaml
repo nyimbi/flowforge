@@ -1,0 +1,11 @@
+permissions:
+  - name: legal.contract.draft
+    description: "Legal Contract Draft"
+  - name: legal.contract.review
+    description: "Legal Contract Review"
+  - name: legal.ip.register
+    description: "Legal Ip Register"
+  - name: legal.matter.open
+    description: "Legal Matter Open"
+  - name: legal.ndа.sign
+    description: "Legal Ndа Sign"

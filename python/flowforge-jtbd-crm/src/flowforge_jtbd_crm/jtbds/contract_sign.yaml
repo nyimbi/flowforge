@@ -1,0 +1,26 @@
+id: contract_sign
+title: "Execute Customer Contract"
+version: "1.0.0"
+actor:
+  role: account_executive
+  external: false
+situation: "AE needs to get a signed contract from the customer."
+motivation: "Convert a closed-won opportunity into a binding agreement."
+outcome: "Contract signed by both parties and stored in document management."
+success_criteria:
+  - "Contract executed within 5 days of verbal close"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

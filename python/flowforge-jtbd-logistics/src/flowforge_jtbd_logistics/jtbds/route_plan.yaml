@@ -1,0 +1,26 @@
+id: route_plan
+title: "Plan Delivery Route"
+version: "1.0.0"
+actor:
+  role: route_planner
+  external: false
+situation: "Dispatch team needs to optimise delivery routes for the day's orders."
+motivation: "Maximise on-time delivery while minimising fuel cost."
+outcome: "Routes assigned to drivers with manifests generated."
+success_criteria:
+  - "Route plan ready by dispatch window close each morning"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

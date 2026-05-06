@@ -1,0 +1,26 @@
+id: ip_register
+title: "Register Intellectual Property"
+version: "1.0.0"
+actor:
+  role: legal_counsel
+  external: false
+situation: "Legal team needs to file an IP registration (trademark, patent, copyright)."
+motivation: "Protect proprietary assets from infringement."
+outcome: "IP application filed and filing receipt received."
+success_criteria:
+  - "IP filed within 30 days of invention/creation disclosure"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

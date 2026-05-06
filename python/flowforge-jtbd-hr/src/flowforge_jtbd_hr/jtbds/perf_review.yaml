@@ -1,0 +1,26 @@
+id: perf_review
+title: "Conduct Performance Review"
+version: "1.0.0"
+actor:
+  role: hr_business_partner
+  external: false
+situation: "HR needs to coordinate and document an employee performance review."
+motivation: "Provide structured feedback and set next-cycle objectives."
+outcome: "Review completed, ratings recorded, development plan signed off."
+success_criteria:
+  - "100% of reviews completed within the review window"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

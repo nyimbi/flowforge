@@ -1,0 +1,26 @@
+id: product_publish
+title: "Publish Product to Catalog"
+version: "1.0.0"
+actor:
+  role: catalog_manager
+  external: false
+situation: "Catalog team needs to list a new product on the e-commerce platform."
+motivation: "Make the product available to customers for purchase."
+outcome: "Product listed with accurate descriptions, pricing, and images."
+success_criteria:
+  - "Product live within 4 hours of content approval"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

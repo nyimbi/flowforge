@@ -1,0 +1,11 @@
+permissions:
+  - name: ecom.product.publish
+    description: "Ecom Product Publish"
+  - name: ecom.order.confirm
+    description: "Ecom Order Confirm"
+  - name: ecom.fulfill.ship
+    description: "Ecom Fulfill Ship"
+  - name: ecom.return.process
+    description: "Ecom Return Process"
+  - name: ecom.review.moderate
+    description: "Ecom Review Moderate"

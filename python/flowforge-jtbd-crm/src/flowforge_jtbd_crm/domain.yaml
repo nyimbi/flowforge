@@ -1,0 +1,11 @@
+id: crm
+name: "CRM"
+description: "JTBD domain library for CRM workflows (Lead, opportunity, account)."
+package: flowforge-jtbd-crm
+version: "1.0.0"
+subdomains:
+  - "Lead"
+  - "opportunity"
+  - "account"
+regulator_hints: []
+phase: E2

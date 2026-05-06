@@ -1,0 +1,11 @@
+id: compliance
+name: "Compliance"
+description: "JTBD domain library for Compliance workflows (KYC, AML, audit)."
+package: flowforge-jtbd-compliance
+version: "1.0.0"
+subdomains:
+  - "KYC"
+  - "AML"
+  - "audit"
+regulator_hints: []
+phase: E2

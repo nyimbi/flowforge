@@ -1,0 +1,9 @@
+roles:
+  - name: treasury_manager
+    default_tier: 1
+  - name: budget_analyst
+    default_tier: 1
+  - name: cfo
+    default_tier: 1
+  - name: finance_director
+    default_tier: 1

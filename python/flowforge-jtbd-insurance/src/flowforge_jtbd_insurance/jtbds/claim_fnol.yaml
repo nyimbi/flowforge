@@ -1,0 +1,26 @@
+id: claim_fnol
+title: "File First Notice of Loss"
+version: "1.0.0"
+actor:
+  role: policyholder
+  external: false
+situation: "Policyholder needs to report a loss event to start the claim process."
+motivation: "Recover insured losses quickly and accurately."
+outcome: "FNOL recorded with loss details and initial reserve set."
+success_criteria:
+  - "FNOL processed within 1 hour of receipt"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

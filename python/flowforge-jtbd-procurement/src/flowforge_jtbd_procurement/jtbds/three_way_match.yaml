@@ -1,0 +1,26 @@
+id: three_way_match
+title: "Perform 3-Way Match"
+version: "1.0.0"
+actor:
+  role: accounts_payable_clerk
+  external: false
+situation: "AP clerk needs to match invoice against PO and GRN."
+motivation: "Prevent payment of incorrect or fraudulent invoices."
+outcome: "Invoice approved for payment or discrepancy raised."
+success_criteria:
+  - "Match rate ≥ 95% on first pass"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

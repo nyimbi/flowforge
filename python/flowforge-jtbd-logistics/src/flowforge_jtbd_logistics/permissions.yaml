@@ -1,0 +1,11 @@
+permissions:
+  - name: log.shipment.create
+    description: "Log Shipment Create"
+  - name: log.warehouse.receive
+    description: "Log Warehouse Receive"
+  - name: log.route.plan
+    description: "Log Route Plan"
+  - name: log.customs.clear
+    description: "Log Customs Clear"
+  - name: log.pod.record
+    description: "Log Pod Record"

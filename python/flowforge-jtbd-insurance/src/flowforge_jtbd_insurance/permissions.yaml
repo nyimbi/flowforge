@@ -1,0 +1,11 @@
+permissions:
+  - name: ins.claim.create
+    description: "Ins Claim Create"
+  - name: ins.claim.assess
+    description: "Ins Claim Assess"
+  - name: ins.policy.underwrite
+    description: "Ins Policy Underwrite"
+  - name: ins.reins.place
+    description: "Ins Reins Place"
+  - name: ins.subrogation.pursue
+    description: "Ins Subrogation Pursue"

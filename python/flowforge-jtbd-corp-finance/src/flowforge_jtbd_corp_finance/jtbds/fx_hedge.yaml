@@ -1,0 +1,26 @@
+id: fx_hedge
+title: "Execute FX Hedge"
+version: "1.0.0"
+actor:
+  role: treasury_manager
+  external: false
+situation: "Treasury needs to hedge a foreign currency exposure."
+motivation: "Reduce P&L volatility from currency fluctuations."
+outcome: "Hedge instrument executed and confirmed."
+success_criteria:
+  - "Hedge effectiveness ≥ 80% per IAS 39"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

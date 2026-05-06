@@ -1,0 +1,26 @@
+id: employee_onboard
+title: "Onboard New Employee"
+version: "1.0.0"
+actor:
+  role: hr_manager
+  external: false
+situation: "HR needs to onboard a new hire into all systems and policies."
+motivation: "Productive employee from day one."
+outcome: "All system access granted, induction completed, probation checklist signed."
+success_criteria:
+  - "Day-one readiness rate ≥ 95%"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

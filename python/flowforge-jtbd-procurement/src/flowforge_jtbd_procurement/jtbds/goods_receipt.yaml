@@ -1,0 +1,26 @@
+id: goods_receipt
+title: "Record Goods Receipt"
+version: "1.0.0"
+actor:
+  role: procurement_officer
+  external: false
+situation: "Warehouse team needs to confirm receipt of ordered goods."
+motivation: "Trigger the 3-way match process."
+outcome: "GRN recorded and matched against PO line items."
+success_criteria:
+  - "GRN accuracy ≥ 99% vs. physical count"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

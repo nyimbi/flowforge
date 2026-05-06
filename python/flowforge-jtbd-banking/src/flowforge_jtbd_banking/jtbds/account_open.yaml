@@ -1,0 +1,26 @@
+id: account_open
+title: "Open Deposit Account"
+version: "1.0.0"
+actor:
+  role: operations_officer
+  external: false
+situation: "Operations team needs to open a new deposit account for a KYC-verified customer."
+motivation: "Activate the customer relationship with a funded account."
+outcome: "Account opened, account number assigned, welcome pack sent."
+success_criteria:
+  - "Account active within 1 business day of KYC clearance"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

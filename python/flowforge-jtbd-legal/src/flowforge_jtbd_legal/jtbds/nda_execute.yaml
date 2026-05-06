@@ -1,0 +1,26 @@
+id: nda_execute
+title: "Execute NDA"
+version: "1.0.0"
+actor:
+  role: paralegal
+  external: false
+situation: "Legal needs to get a mutual NDA signed before disclosing confidential information."
+motivation: "Protect confidential information before discussions begin."
+outcome: "NDA signed by both parties and filed."
+success_criteria:
+  - "NDA turnaround within 2 business days of request"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

@@ -1,0 +1,26 @@
+id: leave_approve
+title: "Approve Leave Request"
+version: "1.0.0"
+actor:
+  role: line_manager
+  external: false
+situation: "Manager needs to review and approve/decline an employee leave request."
+motivation: "Balance team capacity with employee wellbeing."
+outcome: "Leave approved or declined with reason within 2 days."
+success_criteria:
+  - "Leave response within SLA > 95% of requests"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

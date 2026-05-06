@@ -1,0 +1,11 @@
+id: project-mgmt
+name: "Project Management"
+description: "JTBD domain library for Project Management workflows (Kanban, scrum, waterfall)."
+package: flowforge-jtbd-pm
+version: "1.0.0"
+subdomains:
+  - "Kanban"
+  - "scrum"
+  - "waterfall"
+regulator_hints: []
+phase: E2

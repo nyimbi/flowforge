@@ -1,0 +1,28 @@
+project:
+  name: "legal-example"
+  package: "legal_example"
+  domain: "legal"
+  version: "1.0.0"
+shared:
+  roles:
+  - legal_counsel
+  - paralegal
+  - contracts_manager
+  - compliance_officer
+  permissions:
+  - legal.contract.draft
+  - legal.contract.review
+  - legal.ip.register
+  - legal.matter.open
+  - legal.ndа.sign
+jtbds:
+  - id: contract_draft
+    version: "1.0.0"
+  - id: contract_review
+    version: "1.0.0"
+  - id: ip_register
+    version: "1.0.0"
+  - id: matter_open
+    version: "1.0.0"
+  - id: nda_execute
+    version: "1.0.0"

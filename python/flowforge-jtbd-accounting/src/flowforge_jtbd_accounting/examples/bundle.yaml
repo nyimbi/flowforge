@@ -1,0 +1,28 @@
+project:
+  name: "accounting-example"
+  package: "accounting_example"
+  domain: "accounting"
+  version: "1.0.0"
+shared:
+  roles:
+  - ap_clerk
+  - ar_specialist
+  - payroll_manager
+  - tax_analyst
+  permissions:
+  - acct.invoice.create
+  - acct.payment.process
+  - acct.payroll.run
+  - acct.tax.file
+  - acct.recon.perform
+jtbds:
+  - id: gl_reconcile
+    version: "1.0.0"
+  - id: invoice_approval
+    version: "1.0.0"
+  - id: payment_run
+    version: "1.0.0"
+  - id: payroll_run
+    version: "1.0.0"
+  - id: tax_return
+    version: "1.0.0"

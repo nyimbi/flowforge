@@ -1,0 +1,26 @@
+id: aml_screen
+title: "Screen Transaction for AML"
+version: "1.0.0"
+actor:
+  role: aml_investigator
+  external: false
+situation: "AML team needs to screen a flagged transaction for money laundering indicators."
+motivation: "Prevent financial crime and regulatory breach."
+outcome: "Transaction cleared or escalated with documented rationale."
+success_criteria:
+  - "Screening decision within 24 hours of flag"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

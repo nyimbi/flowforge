@@ -1,0 +1,26 @@
+id: order_fulfill
+title: "Fulfill and Ship Order"
+version: "1.0.0"
+actor:
+  role: fulfillment_coordinator
+  external: false
+situation: "Warehouse team needs to pick, pack, and dispatch an order."
+motivation: "Deliver to the customer accurately and on time."
+outcome: "Order shipped with tracking number provided to customer."
+success_criteria:
+  - "Same-day ship rate ≥ 95% for orders placed before cut-off"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

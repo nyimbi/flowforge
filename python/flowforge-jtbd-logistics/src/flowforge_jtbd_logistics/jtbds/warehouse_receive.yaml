@@ -1,0 +1,26 @@
+id: warehouse_receive
+title: "Receive Inbound Goods"
+version: "1.0.0"
+actor:
+  role: warehouse_manager
+  external: false
+situation: "Warehouse team needs to receive and inspect an inbound delivery."
+motivation: "Ensure inventory accuracy from point of receipt."
+outcome: "Goods receipted, quality check passed, stock updated."
+success_criteria:
+  - "GRN completed within 4 hours of delivery"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

@@ -1,0 +1,26 @@
+id: invoice_approval
+title: "Approve Supplier Invoice"
+version: "1.0.0"
+actor:
+  role: ap_clerk
+  external: false
+situation: "AP clerk needs to approve a supplier invoice for payment."
+motivation: "Ensure invoice is valid and authorised before disbursement."
+outcome: "Invoice approved and queued for payment run."
+success_criteria:
+  - "Payment disbursed within payment terms (30/45/60 days)"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

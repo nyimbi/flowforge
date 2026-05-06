@@ -1,0 +1,11 @@
+permissions:
+  - name: crm.lead.qualify
+    description: "Crm Lead Qualify"
+  - name: crm.opportunity.advance
+    description: "Crm Opportunity Advance"
+  - name: crm.account.create
+    description: "Crm Account Create"
+  - name: crm.contract.sign
+    description: "Crm Contract Sign"
+  - name: crm.churn.flag
+    description: "Crm Churn Flag"

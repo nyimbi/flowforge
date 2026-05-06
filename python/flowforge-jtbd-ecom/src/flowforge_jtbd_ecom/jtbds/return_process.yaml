@@ -1,0 +1,26 @@
+id: return_process
+title: "Process Product Return"
+version: "1.0.0"
+actor:
+  role: customer_service_agent
+  external: false
+situation: "CS team needs to handle a customer return request."
+motivation: "Resolve the return fairly and quickly."
+outcome: "Return authorised, item received, refund or exchange processed."
+success_criteria:
+  - "Refund issued within 5 business days of item receipt"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

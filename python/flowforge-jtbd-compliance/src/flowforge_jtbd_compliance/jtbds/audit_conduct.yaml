@@ -1,0 +1,26 @@
+id: audit_conduct
+title: "Conduct Compliance Audit"
+version: "1.0.0"
+actor:
+  role: internal_auditor
+  external: false
+situation: "Internal auditor needs to assess compliance with a specific regulation or policy."
+motivation: "Identify gaps and remediation actions before external review."
+outcome: "Audit report produced with findings and management responses."
+success_criteria:
+  - "Audit report issued within 10 business days of fieldwork completion"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

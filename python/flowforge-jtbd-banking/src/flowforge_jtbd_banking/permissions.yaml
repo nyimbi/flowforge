@@ -1,0 +1,11 @@
+permissions:
+  - name: bank.loan.apply
+    description: "Bank Loan Apply"
+  - name: bank.account.open
+    description: "Bank Account Open"
+  - name: bank.card.issue
+    description: "Bank Card Issue"
+  - name: bank.transfer.process
+    description: "Bank Transfer Process"
+  - name: bank.kyc.complete
+    description: "Bank Kyc Complete"

@@ -1,0 +1,11 @@
+id: ecom
+name: "E-Commerce"
+description: "JTBD domain library for E-Commerce workflows (Catalog, order, fulfillment)."
+package: flowforge-jtbd-ecom
+version: "1.0.0"
+subdomains:
+  - "Catalog"
+  - "order"
+  - "fulfillment"
+regulator_hints: []
+phase: E2

@@ -1,0 +1,9 @@
+roles:
+  - name: policyholder
+    default_tier: 1
+  - name: claims_adjuster
+    default_tier: 1
+  - name: underwriter
+    default_tier: 1
+  - name: reinsurance_analyst
+    default_tier: 1

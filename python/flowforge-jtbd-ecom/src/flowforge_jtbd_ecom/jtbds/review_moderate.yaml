@@ -1,0 +1,26 @@
+id: review_moderate
+title: "Moderate Product Review"
+version: "1.0.0"
+actor:
+  role: catalog_manager
+  external: false
+situation: "Catalog team needs to approve or reject a customer product review."
+motivation: "Maintain review authenticity and comply with content policy."
+outcome: "Review published or rejected with policy reason."
+success_criteria:
+  - "Review moderation decision within 24 hours of submission"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

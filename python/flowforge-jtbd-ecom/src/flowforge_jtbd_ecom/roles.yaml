@@ -1,0 +1,9 @@
+roles:
+  - name: catalog_manager
+    default_tier: 1
+  - name: order_manager
+    default_tier: 1
+  - name: fulfillment_coordinator
+    default_tier: 1
+  - name: customer_service_agent
+    default_tier: 1

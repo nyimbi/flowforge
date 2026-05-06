@@ -1,0 +1,26 @@
+id: opp_advance
+title: "Advance Opportunity Stage"
+version: "1.0.0"
+actor:
+  role: account_executive
+  external: false
+situation: "AE needs to move an opportunity through the pipeline after a key milestone."
+motivation: "Maintain an accurate, up-to-date pipeline."
+outcome: "Opportunity stage updated with supporting evidence."
+success_criteria:
+  - "Pipeline accuracy vs. closed-won ≥ 85%"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

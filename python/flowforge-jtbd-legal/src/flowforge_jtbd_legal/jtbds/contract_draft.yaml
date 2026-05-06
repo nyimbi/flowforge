@@ -1,0 +1,26 @@
+id: contract_draft
+title: "Draft Contract"
+version: "1.0.0"
+actor:
+  role: paralegal
+  external: false
+situation: "Paralegal needs to draft a standard commercial contract from a template."
+motivation: "Produce a legally sound document ready for negotiation."
+outcome: "Contract draft produced, reviewed internally, and ready for counterparty."
+success_criteria:
+  - "First draft delivered within 2 business days of instruction"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

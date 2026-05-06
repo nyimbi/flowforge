@@ -1,0 +1,26 @@
+id: reins_place
+title: "Place Reinsurance"
+version: "1.0.0"
+actor:
+  role: reinsurance_analyst
+  external: false
+situation: "Reinsurance team needs to cede a risk to reinsurers."
+motivation: "Reduce net retention to within risk appetite."
+outcome: "Reinsurance slip signed and cession recorded."
+success_criteria:
+  - "Reinsurance placed before inception of the reinsured policy"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

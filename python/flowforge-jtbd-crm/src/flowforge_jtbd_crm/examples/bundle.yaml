@@ -1,0 +1,28 @@
+project:
+  name: "crm-example"
+  package: "crm_example"
+  domain: "crm"
+  version: "1.0.0"
+shared:
+  roles:
+  - sales_rep
+  - account_executive
+  - sales_manager
+  - customer_success_manager
+  permissions:
+  - crm.lead.qualify
+  - crm.opportunity.advance
+  - crm.account.create
+  - crm.contract.sign
+  - crm.churn.flag
+jtbds:
+  - id: account_create
+    version: "1.0.0"
+  - id: churn_flag
+    version: "1.0.0"
+  - id: contract_sign
+    version: "1.0.0"
+  - id: lead_qualify
+    version: "1.0.0"
+  - id: opp_advance
+    version: "1.0.0"

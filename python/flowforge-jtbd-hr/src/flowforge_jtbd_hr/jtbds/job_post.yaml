@@ -1,0 +1,26 @@
+id: job_post
+title: "Post Job Vacancy"
+version: "1.0.0"
+actor:
+  role: recruiter
+  external: false
+situation: "Recruiter needs to publish an open position across sourcing channels."
+motivation: "Attract qualified candidates quickly."
+outcome: "Job posted across agreed channels with accurate description."
+success_criteria:
+  - "Role posted within 48 hours of headcount approval"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

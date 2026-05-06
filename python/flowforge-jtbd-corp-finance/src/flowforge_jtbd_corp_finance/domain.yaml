@@ -1,0 +1,11 @@
+id: corporate-finance
+name: "Corporate Finance"
+description: "JTBD domain library for Corporate Finance workflows (Treasury, budget, forecast)."
+package: flowforge-jtbd-corp-finance
+version: "1.0.0"
+subdomains:
+  - "Treasury"
+  - "budget"
+  - "forecast"
+regulator_hints: []
+phase: E2

@@ -1,0 +1,26 @@
+id: subrogation
+title: "Pursue Subrogation"
+version: "1.0.0"
+actor:
+  role: claims_adjuster
+  external: false
+situation: "Adjuster needs to recover claim costs from the responsible third party."
+motivation: "Reduce net claims cost to the insurer."
+outcome: "Recovery demand issued and tracked to resolution."
+success_criteria:
+  - "Subrogation recovery rate ≥ benchmark for class of business"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

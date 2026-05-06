@@ -1,0 +1,28 @@
+project:
+  name: "corporate-finance-example"
+  package: "corporate-finance_example"
+  domain: "corporate-finance"
+  version: "1.0.0"
+shared:
+  roles:
+  - treasury_manager
+  - budget_analyst
+  - cfo
+  - finance_director
+  permissions:
+  - cf.budget.create
+  - cf.forecast.update
+  - cf.cashflow.monitor
+  - cf.fx.hedge
+  - cf.capex.approve
+jtbds:
+  - id: budget_create
+    version: "1.0.0"
+  - id: capex_approval
+    version: "1.0.0"
+  - id: cashflow_monitor
+    version: "1.0.0"
+  - id: forecast_update
+    version: "1.0.0"
+  - id: fx_hedge
+    version: "1.0.0"

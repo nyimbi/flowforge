@@ -1,0 +1,11 @@
+id: legal
+name: "Legal"
+description: "JTBD domain library for Legal workflows (Contract management, IP, litigation)."
+package: flowforge-jtbd-legal
+version: "1.0.0"
+subdomains:
+  - "Contract management"
+  - "IP"
+  - "litigation"
+regulator_hints: []
+phase: E2

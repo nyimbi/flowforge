@@ -1,0 +1,26 @@
+id: policy_review
+title: "Review Compliance Policy"
+version: "1.0.0"
+actor:
+  role: compliance_officer
+  external: false
+situation: "Compliance officer needs to review and update a compliance policy."
+motivation: "Ensure policies reflect current regulations and business practices."
+outcome: "Policy revised, approved, and communicated to affected staff."
+success_criteria:
+  - "Policy review completed at least annually"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

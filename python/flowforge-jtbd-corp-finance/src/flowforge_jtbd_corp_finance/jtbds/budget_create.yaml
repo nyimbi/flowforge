@@ -1,0 +1,26 @@
+id: budget_create
+title: "Create Annual Budget"
+version: "1.0.0"
+actor:
+  role: budget_analyst
+  external: false
+situation: "Finance team needs to consolidate department budgets into the annual plan."
+motivation: "Align spend to strategy before board approval."
+outcome: "Consolidated budget approved by CFO."
+success_criteria:
+  - "Budget submitted to board by fiscal year start"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

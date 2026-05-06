@@ -1,0 +1,9 @@
+roles:
+  - name: recruiter
+    default_tier: 1
+  - name: hr_manager
+    default_tier: 1
+  - name: line_manager
+    default_tier: 1
+  - name: hr_business_partner
+    default_tier: 1

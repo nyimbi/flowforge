@@ -1,0 +1,11 @@
+permissions:
+  - name: cf.budget.create
+    description: "Cf Budget Create"
+  - name: cf.forecast.update
+    description: "Cf Forecast Update"
+  - name: cf.cashflow.monitor
+    description: "Cf Cashflow Monitor"
+  - name: cf.fx.hedge
+    description: "Cf Fx Hedge"
+  - name: cf.capex.approve
+    description: "Cf Capex Approve"

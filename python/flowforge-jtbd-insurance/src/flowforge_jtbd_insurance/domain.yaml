@@ -1,0 +1,11 @@
+id: insurance
+name: "Insurance"
+description: "JTBD domain library for Insurance workflows (Claims, underwriting, reinsurance)."
+package: flowforge-jtbd-insurance
+version: "1.0.0"
+subdomains:
+  - "Claims"
+  - "underwriting"
+  - "reinsurance"
+regulator_hints: []
+phase: E2

@@ -1,0 +1,26 @@
+id: claim_assess
+title: "Assess and Settle Claim"
+version: "1.0.0"
+actor:
+  role: claims_adjuster
+  external: false
+situation: "Adjuster needs to investigate, quantify, and settle an FNOL."
+motivation: "Pay valid claims promptly and fairly."
+outcome: "Claim settled or denied with documented rationale."
+success_criteria:
+  - "Settlement decision within 30 days of FNOL for standard claims"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

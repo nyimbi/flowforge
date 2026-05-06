@@ -1,0 +1,26 @@
+id: contract_review
+title: "Review Incoming Contract"
+version: "1.0.0"
+actor:
+  role: legal_counsel
+  external: false
+situation: "Counsel needs to review a counterparty contract for risk and acceptability."
+motivation: "Protect the company from unfavourable terms."
+outcome: "Contract reviewed with redlines and recommendations."
+success_criteria:
+  - "Review completed within 5 business days"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

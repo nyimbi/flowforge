@@ -1,0 +1,26 @@
+id: forecast_update
+title: "Update Rolling Forecast"
+version: "1.0.0"
+actor:
+  role: budget_analyst
+  external: false
+situation: "Finance team needs to revise quarterly forecast based on actuals."
+motivation: "Maintain accurate forward-looking financials."
+outcome: "Forecast updated and distributed to stakeholders."
+success_criteria:
+  - "Forecast variance vs. actuals < 5%"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

@@ -1,0 +1,26 @@
+id: churn_flag
+title: "Flag Customer as Churn Risk"
+version: "1.0.0"
+actor:
+  role: customer_success_manager
+  external: false
+situation: "CSM needs to escalate an at-risk customer to a save programme."
+motivation: "Prevent churn and preserve ARR."
+outcome: "Customer flagged, save plan created, and executive sponsor notified."
+success_criteria:
+  - "Churn risk acknowledged within 1 business day"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

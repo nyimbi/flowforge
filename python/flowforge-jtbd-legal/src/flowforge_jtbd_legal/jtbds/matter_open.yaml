@@ -1,0 +1,26 @@
+id: matter_open
+title: "Open Legal Matter"
+version: "1.0.0"
+actor:
+  role: legal_counsel
+  external: false
+situation: "Counsel needs to formally open a legal matter record."
+motivation: "Track costs, documents, and tasks in one place."
+outcome: "Matter opened with budget, team, and scope defined."
+success_criteria:
+  - "Matter opened within 24 hours of instruction"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

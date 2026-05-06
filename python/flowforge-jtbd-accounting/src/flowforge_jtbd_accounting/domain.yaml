@@ -1,0 +1,13 @@
+id: accounting
+name: "Accounting"
+description: "JTBD domain library for Accounting workflows (AP, AR, GL, payroll, tax)."
+package: flowforge-jtbd-accounting
+version: "1.0.0"
+subdomains:
+  - "AP"
+  - "AR"
+  - "GL"
+  - "payroll"
+  - "tax"
+regulator_hints: []
+phase: E2

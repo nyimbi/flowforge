@@ -1,0 +1,11 @@
+id: logistics
+name: "Logistics"
+description: "JTBD domain library for Logistics workflows (Shipment, warehouse, routing)."
+package: flowforge-jtbd-logistics
+version: "1.0.0"
+subdomains:
+  - "Shipment"
+  - "warehouse"
+  - "routing"
+regulator_hints: []
+phase: E2

@@ -1,0 +1,11 @@
+permissions:
+  - name: hr.job.post
+    description: "Hr Job Post"
+  - name: hr.offer.extend
+    description: "Hr Offer Extend"
+  - name: hr.onboarding.start
+    description: "Hr Onboarding Start"
+  - name: hr.leave.approve
+    description: "Hr Leave Approve"
+  - name: hr.review.conduct
+    description: "Hr Review Conduct"

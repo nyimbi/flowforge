@@ -1,0 +1,9 @@
+roles:
+  - name: relationship_manager
+    default_tier: 1
+  - name: credit_analyst
+    default_tier: 1
+  - name: operations_officer
+    default_tier: 1
+  - name: card_services_agent
+    default_tier: 1

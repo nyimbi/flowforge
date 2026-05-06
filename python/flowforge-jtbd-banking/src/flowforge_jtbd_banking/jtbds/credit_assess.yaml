@@ -1,0 +1,26 @@
+id: credit_assess
+title: "Assess Credit Application"
+version: "1.0.0"
+actor:
+  role: credit_analyst
+  external: false
+situation: "Credit analyst needs to evaluate a loan application against credit policy."
+motivation: "Make a sound lending decision within policy limits."
+outcome: "Credit assessment completed and recommendation documented."
+success_criteria:
+  - "Assessment completed within 48 hours of complete submission"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

@@ -1,0 +1,28 @@
+project:
+  name: "banking-example"
+  package: "banking_example"
+  domain: "banking"
+  version: "1.0.0"
+shared:
+  roles:
+  - relationship_manager
+  - credit_analyst
+  - operations_officer
+  - card_services_agent
+  permissions:
+  - bank.loan.apply
+  - bank.account.open
+  - bank.card.issue
+  - bank.transfer.process
+  - bank.kyc.complete
+jtbds:
+  - id: account_open
+    version: "1.0.0"
+  - id: card_issue
+    version: "1.0.0"
+  - id: credit_assess
+    version: "1.0.0"
+  - id: loan_apply
+    version: "1.0.0"
+  - id: payment_process
+    version: "1.0.0"

@@ -1,0 +1,9 @@
+roles:
+  - name: logistics_coordinator
+    default_tier: 1
+  - name: warehouse_manager
+    default_tier: 1
+  - name: route_planner
+    default_tier: 1
+  - name: customs_officer
+    default_tier: 1

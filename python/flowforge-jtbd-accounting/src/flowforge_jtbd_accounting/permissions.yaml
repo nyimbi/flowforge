@@ -1,0 +1,11 @@
+permissions:
+  - name: acct.invoice.create
+    description: "Acct Invoice Create"
+  - name: acct.payment.process
+    description: "Acct Payment Process"
+  - name: acct.payroll.run
+    description: "Acct Payroll Run"
+  - name: acct.tax.file
+    description: "Acct Tax File"
+  - name: acct.recon.perform
+    description: "Acct Recon Perform"

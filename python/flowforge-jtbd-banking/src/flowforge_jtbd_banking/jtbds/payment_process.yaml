@@ -1,0 +1,26 @@
+id: payment_process
+title: "Process Bank Transfer"
+version: "1.0.0"
+actor:
+  role: operations_officer
+  external: false
+situation: "Operations team needs to execute a customer-initiated payment instruction."
+motivation: "Move funds accurately and on time."
+outcome: "Payment processed and confirmation sent to customer."
+success_criteria:
+  - "Same-day processing for instructions received before cut-off"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

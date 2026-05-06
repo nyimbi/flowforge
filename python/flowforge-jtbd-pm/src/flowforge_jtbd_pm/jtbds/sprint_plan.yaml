@@ -1,0 +1,26 @@
+id: sprint_plan
+title: "Plan Sprint"
+version: "1.0.0"
+actor:
+  role: scrum_master
+  external: false
+situation: "Scrum master needs to load the next sprint from the backlog."
+motivation: "Ensure the team has a committed, achievable sprint goal."
+outcome: "Sprint backlog committed and sprint started."
+success_criteria:
+  - "Sprint commitment delivered at ≥ 80% rate"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false

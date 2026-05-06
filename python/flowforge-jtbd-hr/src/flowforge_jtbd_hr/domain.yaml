@@ -1,0 +1,12 @@
+id: hr
+name: "Human Resources"
+description: "JTBD domain library for Human Resources workflows (Hiring, onboarding, leave, performance)."
+package: flowforge-jtbd-hr
+version: "1.0.0"
+subdomains:
+  - "Hiring"
+  - "onboarding"
+  - "leave"
+  - "performance"
+regulator_hints: []
+phase: E2

@@ -1,0 +1,26 @@
+id: pod_record
+title: "Record Proof of Delivery"
+version: "1.0.0"
+actor:
+  role: logistics_coordinator
+  external: false
+situation: "Driver needs to capture customer signature as proof of delivery."
+motivation: "Provide evidence that goods were received in good condition."
+outcome: "POD captured digitally and linked to shipment record."
+success_criteria:
+  - "POD uploaded within 1 hour of delivery"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: reference_id
+    kind: text
+    label: Reference ID
+    pii: false
+  - id: notes
+    kind: text
+    label: Notes
+    pii: false
