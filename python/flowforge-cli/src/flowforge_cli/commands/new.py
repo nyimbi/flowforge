@@ -16,6 +16,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 from jsonschema import Draft202012Validator
 
 from .._io import load_structured, write_json
+from ..llmtxt import write_llmtxt
 
 
 def register(app: typer.Typer) -> None:
@@ -27,6 +28,11 @@ def new_cmd(
 	jtbd: Path = typer.Option(..., "--jtbd", exists=True, dir_okay=False, help="JTBD bundle file."),
 	out: Path | None = typer.Option(None, "--out", help="Parent directory (default: current working directory)."),
 	force: bool = typer.Option(False, "--force", help="Allow scaffolding into a non-empty directory."),
+	emit_llmtxt: bool = typer.Option(
+		False,
+		"--emit-llmtxt",
+		help="Also generate an llm.txt agent-quickstart at the project root (E-29).",
+	),
 ) -> None:
 	"""Scaffold the backend skeleton for *project* from *jtbd*."""
 
@@ -67,6 +73,15 @@ def new_cmd(
 	bundle_dst = target / "workflows" / "jtbd_bundle.json"
 	write_json(bundle_dst, bundle)
 	typer.echo(f"      created  {bundle_dst.relative_to(target)}")
+
+	if emit_llmtxt:
+		llmtxt_dst = target / "llm.txt"
+		write_llmtxt(
+			bundle,
+			out_path=llmtxt_dst,
+			bundle_path=str(bundle_dst.relative_to(target)),
+		)
+		typer.echo(f"      created  {llmtxt_dst.relative_to(target)}")
 
 	typer.echo("")
 	typer.echo(f"generated project at {target}")

@@ -1,0 +1,124 @@
+# {{ project.name }} — LLM Quickstart (llms.txt)
+
+> AI-optimised entry point for the {{ project.name }} project.
+> Auto-generated from `{{ bundle_path }}` by `flowforge generate-llmtxt`.
+> Regenerate after editing the bundle.
+> Follows the [llmstxt.org](https://llmstxt.org) convention.
+
+## Project facts
+
+- **Name**: {{ project.name }}
+- **Package**: `{{ project.package }}`
+- **Domain**: {{ project.get("domain") or "—" }}
+{%- if project.get("tenancy") %}
+- **Tenancy mode**: {{ project.tenancy }}
+{%- endif %}
+{%- if project.get("languages") %}
+- **Languages**: {{ project.languages | join(", ") }}
+{%- endif %}
+- **JTBD count**: {{ jtbds | length }}
+- **Generated at**: {{ generated_at }} (UTC)
+
+## Section 1 — Capability summary
+
+This project is built on **flowforge** — a JSON-DSL workflow engine
+plus JTBD-to-app generator. See the framework-level llm.txt at
+`framework/docs/llm.txt` for a full capability tour. The 10-bullet
+summary below is project-specific:
+
+1. The project ships **{{ jtbds | length }} JTBD{% if jtbds | length != 1 %}s{% endif %}**, scaffolded from `{{ bundle_path }}`.
+2. Each JTBD owns one workflow definition under `workflows/<jtbd_id>/definition.json`.
+3. The two-phase fire engine (`flowforge.engine.fire`) walks plan → commit on every event.
+4. Audit, outbox, RBAC, tenancy are wired through the 14 ports — see `backend/src/{{ project.package }}/workflow_adapter.py`.
+5. Forms are rendered from JSON specs by `flowforge-renderer` (TS).
+6. The CLI ships with `flowforge validate` (schema + topology) and `flowforge jtbd lint` (lifecycle / dependency / actor consistency).
+7. `flowforge simulate` walks any DSL deterministically; `flowforge replay` reconstructs from events.
+8. `flowforge ai-assist` (when configured with an LlmProvider) drafts JTBD edits from natural language.
+9. CI gates: pre-commit hook + GitHub Action template at `framework/scripts/ci/precommit.yaml` + `.github/workflows/jtbd-lint.yml`.
+10. Hash-chain audit: every JTBD edit and runtime event is hash-chained via `flowforge-audit-pg`.
+
+## Section 2 — JTBD catalogue
+
+{% for jtbd in jtbds -%}
+{%- set actor = jtbd.get("actor") or {} -%}
+### {{ jtbd.id }}{% if jtbd.get("version") %}@{{ jtbd.version }}{% endif %}
+
+- **Actor**: {{ actor.get("role") or "—" }}{% if actor.get("tier") %} (tier {{ actor.tier }}){% endif %}
+- **Situation**: {{ jtbd.get("situation") or "—" }}
+- **Motivation**: {{ jtbd.get("motivation") or "—" }}
+- **Outcome**: {{ jtbd.get("outcome") or "—" }}
+{%- if jtbd.get("success_criteria") %}
+- **Success criteria**:
+{%- for crit in jtbd.success_criteria %}
+  - {{ crit }}
+{%- endfor %}
+{%- endif %}
+{%- if jtbd.get("requires") %}
+- **Requires**: {{ jtbd.requires | join(", ") }}
+{%- endif %}
+{%- if jtbd.get("compliance") %}
+- **Compliance**: {{ jtbd.compliance | join(", ") }}
+{%- endif %}
+{%- if jtbd.get("data_sensitivity") %}
+- **Data sensitivity**: {{ jtbd.data_sensitivity | join(", ") }}
+{%- endif %}
+- **Workflow**: `workflows/{{ jtbd.id }}/definition.json`
+
+{% endfor -%}
+## Section 3 — Shared roles + permissions
+
+{% if shared.get("roles") -%}
+**Roles**: {{ shared.roles | join(", ") }}
+{% else -%}
+**Roles**: (none declared)
+{% endif %}
+{% if shared.get("permissions") -%}
+**Permissions**: {{ shared.permissions | join(", ") }}
+{% else -%}
+**Permissions**: (none declared)
+{% endif %}
+## Section 4 — Project layout
+
+```
+{{ project.name }}/
+├── backend/
+│   ├── pyproject.toml
+│   ├── src/{{ project.package }}/
+│   │   ├── main.py            # FastAPI app
+│   │   ├── config.py
+│   │   └── workflow_adapter.py
+│   └── tests/
+├── workflows/
+│   ├── jtbd_bundle.json       # canonical bundle
+│   {%- for jtbd in jtbds %}
+│   └── {{ jtbd.id }}/definition.json
+│   {%- endfor %}
+├── llm.txt                    # this file
+└── README.md
+```
+
+## Section 5 — Common operations
+
+```bash
+# Validate the JTBD bundle.
+flowforge jtbd lint --bundle workflows/jtbd_bundle.json
+
+# Validate every workflow definition.
+flowforge validate --root workflows
+
+# Simulate one JTBD against a fixture.
+flowforge simulate --def workflows/{{ jtbds[0].id if jtbds else "<jtbd>" }}/definition.json --fixture fixtures/{{ jtbds[0].id if jtbds else "<jtbd>" }}.json
+
+# Regenerate this file after editing the bundle.
+flowforge generate-llmtxt --bundle workflows/jtbd_bundle.json --out llm.txt
+```
+
+## Section 6 — Where to look first
+
+- **Edit a JTBD**: `workflows/jtbd_bundle.json` — re-run lint after every save.
+- **Edit a workflow definition**: `workflows/<jtbd_id>/definition.json`.
+- **Wire a new port** (audit / outbox / rbac / …): `backend/src/{{ project.package }}/workflow_adapter.py`.
+- **Add an HTTP handler**: `backend/src/{{ project.package }}/main.py`.
+- **Framework-level reference**: `framework/docs/llm.txt`,
+  `framework/docs/flowforge-handbook.md`,
+  `framework/docs/jtbd-editor-arch.md`.

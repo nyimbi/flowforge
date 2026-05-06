@@ -15,6 +15,7 @@ from .commands import (
 	ai_assist,
 	audit_verify,
 	diff,
+	generate_llmtxt,
 	jtbd_fork,
 	jtbd_generate,
 	jtbd_lint,
@@ -55,6 +56,7 @@ replay.register(app)
 upgrade_deps.register(app)
 migrate_fork.register(app)
 ai_assist.register(app)
+generate_llmtxt.register(app)
 audit_verify.register(audit_app)
 jtbd_fork.register(jtbd_app)
 jtbd_lint.register(jtbd_app)
