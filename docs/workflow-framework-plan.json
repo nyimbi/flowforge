@@ -1,0 +1,659 @@
+{
+  "name": "flowforge",
+  "scope": "Build the flowforge framework as `framework/` subtree inside the UMS repo. No PyPI/npm publish. Quality bar: every public ABC has docstring + types + default impl + test. Every package has README + CHANGELOG. JTBD generator runs the 3 worked examples (claim, hiring, permit) end-to-end with passing tests.",
+  "constraints": {
+    "agent_invocation_cap": 25,
+    "do_not_touch": [
+      "backend/app/workflows_v2/ (until migration unit U23)",
+      "frontend/src/components/workflow-designer/ (until UI migration)",
+      "audit-remediation work in progress"
+    ],
+    "reference_paths": [
+      "backend/app/workflows/engine.py",
+      "backend/app/workflows/definitions/",
+      "backend/app/audit/service.py",
+      "backend/app/workers/outbox_worker.py",
+      "backend/app/db/session.py",
+      "backend/app/admin/permissions.py",
+      "backend/app/platform/signing.py",
+      "backend/app/notifications/transports/"
+    ]
+  },
+  "layers": [
+    {
+      "id": "L0",
+      "name": "Repo skeleton + monorepo layout",
+      "parallel_safe": false,
+      "units": ["U00"]
+    },
+    {
+      "id": "L1",
+      "name": "Port ABC contracts (lock first)",
+      "parallel_safe": false,
+      "units": ["U01"]
+    },
+    {
+      "id": "L2",
+      "name": "PyPI packages (parallel layer A)",
+      "parallel_safe": true,
+      "units": ["U02", "U03", "U04", "U05", "U06", "U07"]
+    },
+    {
+      "id": "L3",
+      "name": "PyPI packages (parallel layer B)",
+      "parallel_safe": true,
+      "units": ["U08", "U09", "U10", "U11", "U12", "U13"]
+    },
+    {
+      "id": "L4",
+      "name": "npm packages (parallel)",
+      "parallel_safe": true,
+      "units": ["U14", "U15", "U16", "U17", "U18"]
+    },
+    {
+      "id": "L5",
+      "name": "JTBD generator + CLI",
+      "parallel_safe": false,
+      "units": ["U19"]
+    },
+    {
+      "id": "L6",
+      "name": "JTBD worked examples (parallel)",
+      "parallel_safe": true,
+      "units": ["U20", "U21", "U22"]
+    },
+    {
+      "id": "L7",
+      "name": "UMS migration of 23 Python defs",
+      "parallel_safe": false,
+      "units": ["U23"]
+    },
+    {
+      "id": "L8",
+      "name": "End-to-end gate",
+      "parallel_safe": false,
+      "units": ["U24"]
+    }
+  ],
+  "units": [
+    {
+      "id": "U00",
+      "title": "framework/ monorepo skeleton + workspace config",
+      "deliverables": [
+        "framework/README.md",
+        "framework/CHANGELOG.md",
+        "framework/pyproject.toml (uv workspace root)",
+        "framework/python/ subdirs for 12 packages",
+        "framework/js/ subdirs for 5 packages",
+        "framework/js/package.json (pnpm workspace root)",
+        "framework/js/pnpm-workspace.yaml",
+        "framework/.gitignore",
+        "framework/scripts/check_workspace.py"
+      ],
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Workspace root files exist; uv sync (dry-run) parses without error",
+        "pnpm-workspace.yaml lists 5 npm packages",
+        "framework/scripts/check_workspace.py passes",
+        "12 empty Python pkg dirs exist with placeholder pyproject.toml + README",
+        "5 empty npm pkg dirs exist with placeholder package.json + README"
+      ],
+      "agent_tier": "haiku",
+      "parallel_safe": false
+    },
+    {
+      "id": "U01",
+      "title": "Lock flowforge-core port ABCs + DSL types + skeleton",
+      "deliverables": [
+        "framework/python/flowforge-core/src/flowforge/__init__.py",
+        "framework/python/flowforge-core/src/flowforge/version.py",
+        "framework/python/flowforge-core/src/flowforge/config.py",
+        "framework/python/flowforge-core/src/flowforge/ports/{tenancy,rbac,audit,outbox,documents,money,settings,signing,notification,rls,entity,metrics,tasks,grants}.py",
+        "framework/python/flowforge-core/src/flowforge/ports/types.py",
+        "framework/python/flowforge-core/src/flowforge/dsl/workflow_def.py",
+        "framework/python/flowforge-core/src/flowforge/dsl/form_spec.py",
+        "framework/python/flowforge-core/src/flowforge/dsl/schema/workflow_def.schema.json",
+        "framework/python/flowforge-core/src/flowforge/dsl/schema/form_spec.schema.json",
+        "framework/python/flowforge-core/src/flowforge/dsl/schema/jtbd-1.0.schema.json",
+        "framework/python/flowforge-core/src/flowforge/expr/evaluator.py",
+        "framework/python/flowforge-core/src/flowforge/expr/ops/__init__.py",
+        "framework/python/flowforge-core/src/flowforge/compiler/{compile,validator,catalog}.py",
+        "framework/python/flowforge-core/src/flowforge/engine/{fire,tokens,saga,signals,subworkflow,timers,snapshots}.py",
+        "framework/python/flowforge-core/src/flowforge/replay/{reconstruct,simulator}.py",
+        "framework/python/flowforge-core/src/flowforge/testing/{fixtures,port_fakes,parity}.py",
+        "framework/python/flowforge-core/tests/unit/test_ports_protocols.py",
+        "framework/python/flowforge-core/tests/unit/test_dsl_validation.py",
+        "framework/python/flowforge-core/tests/unit/test_expr_evaluator.py",
+        "framework/python/flowforge-core/tests/unit/test_engine_fire.py",
+        "framework/python/flowforge-core/tests/unit/test_simulator.py",
+        "framework/python/flowforge-core/README.md",
+        "framework/python/flowforge-core/CHANGELOG.md",
+        "framework/python/flowforge-core/pyproject.toml"
+      ],
+      "dependencies": ["U00"],
+      "acceptance_criteria": [
+        "Every port ABC is a runtime_checkable Protocol with docstring + full type hints",
+        "Every port has at least one in-memory port_fake default impl in flowforge.testing.port_fakes",
+        "JSON schemas for workflow_def, form_spec, and jtbd-1.0 validate the §5.3 examples",
+        "expr evaluator implements >=20 whitelisted operators (>, <, ==, !=, and, or, not, var, +, -, *, /, %, in, contains, not_null, if, length, lower, upper)",
+        "fire algorithm (two-phase: plan + commit) executes a 3-state demo workflow end-to-end with port_fake adapters",
+        "simulator traverses all 3 example JTBD-derived workflows correctly",
+        "pytest passes; pyright clean for flowforge package"
+      ],
+      "agent_tier": "opus",
+      "parallel_safe": false,
+      "complexity_split_rule": "If exceeding 4-6h, split into U01a (ports + DSL + schemas) and U01b (engine + simulator + tests). Single agent attempt first."
+    },
+    {
+      "id": "U02",
+      "title": "flowforge-fastapi adapter",
+      "deliverables": [
+        "framework/python/flowforge-fastapi/src/flowforge_fastapi/__init__.py",
+        "framework/python/flowforge-fastapi/src/flowforge_fastapi/router_designer.py",
+        "framework/python/flowforge-fastapi/src/flowforge_fastapi/router_runtime.py",
+        "framework/python/flowforge-fastapi/src/flowforge_fastapi/ws.py",
+        "framework/python/flowforge-fastapi/src/flowforge_fastapi/auth.py",
+        "framework/python/flowforge-fastapi/tests/test_router_runtime.py",
+        "framework/python/flowforge-fastapi/tests/test_ws.py",
+        "framework/python/flowforge-fastapi/README.md",
+        "framework/python/flowforge-fastapi/CHANGELOG.md",
+        "framework/python/flowforge-fastapi/pyproject.toml"
+      ],
+      "dependencies": ["U01"],
+      "acceptance_criteria": [
+        "Designer + runtime routers mount on a FastAPI test app via WebAdapter ABC",
+        "TestClient round-trips an event POST and reads back instance state",
+        "WS endpoint pushes a state-change event",
+        "All ports wired via flowforge.config (no direct DB usage)"
+      ],
+      "agent_tier": "sonnet",
+      "parallel_safe": true
+    },
+    {
+      "id": "U03",
+      "title": "flowforge-sqlalchemy adapter",
+      "deliverables": [
+        "framework/python/flowforge-sqlalchemy/src/flowforge_sqlalchemy/__init__.py",
+        "framework/python/flowforge-sqlalchemy/src/flowforge_sqlalchemy/base.py",
+        "framework/python/flowforge-sqlalchemy/src/flowforge_sqlalchemy/models.py",
+        "framework/python/flowforge-sqlalchemy/src/flowforge_sqlalchemy/snapshot_store.py",
+        "framework/python/flowforge-sqlalchemy/src/flowforge_sqlalchemy/saga_queries.py",
+        "framework/python/flowforge-sqlalchemy/src/flowforge_sqlalchemy/alembic_bundle/__init__.py",
+        "framework/python/flowforge-sqlalchemy/src/flowforge_sqlalchemy/alembic_bundle/versions/r1_initial.py",
+        "framework/python/flowforge-sqlalchemy/src/flowforge_sqlalchemy/rls_pg.py",
+        "framework/python/flowforge-sqlalchemy/tests/test_models_roundtrip.py",
+        "framework/python/flowforge-sqlalchemy/tests/test_alembic_upgrade.py",
+        "framework/python/flowforge-sqlalchemy/tests/test_rls_binder.py",
+        "framework/python/flowforge-sqlalchemy/README.md",
+        "framework/python/flowforge-sqlalchemy/CHANGELOG.md",
+        "framework/python/flowforge-sqlalchemy/pyproject.toml"
+      ],
+      "dependencies": ["U01"],
+      "acceptance_criteria": [
+        "Models compile against SQLAlchemy 2.x async",
+        "Alembic bundle r1 upgrade/downgrade roundtrips on SQLite (RLS skipped) + Postgres skipped if unavailable",
+        "PgRlsBinder issues set_config calls for tenant + elevated; tests use a stub session",
+        "Snapshot store roundtrips state"
+      ],
+      "agent_tier": "sonnet",
+      "parallel_safe": true
+    },
+    {
+      "id": "U04",
+      "title": "flowforge-tenancy adapter",
+      "deliverables": [
+        "framework/python/flowforge-tenancy/src/flowforge_tenancy/__init__.py",
+        "framework/python/flowforge-tenancy/src/flowforge_tenancy/single.py",
+        "framework/python/flowforge-tenancy/src/flowforge_tenancy/multi.py",
+        "framework/python/flowforge-tenancy/src/flowforge_tenancy/none.py",
+        "framework/python/flowforge-tenancy/tests/test_resolvers.py",
+        "framework/python/flowforge-tenancy/README.md",
+        "framework/python/flowforge-tenancy/CHANGELOG.md",
+        "framework/python/flowforge-tenancy/pyproject.toml"
+      ],
+      "dependencies": ["U01"],
+      "acceptance_criteria": [
+        "SingleTenantGUC + MultiTenantGUC + NoTenancy implementations satisfy TenancyResolver Protocol",
+        "elevated_scope context manager toggles GUC and clears on exit",
+        "100% test coverage on resolvers"
+      ],
+      "agent_tier": "haiku",
+      "parallel_safe": true
+    },
+    {
+      "id": "U05",
+      "title": "flowforge-audit-pg adapter",
+      "deliverables": [
+        "framework/python/flowforge-audit-pg/src/flowforge_audit_pg/__init__.py",
+        "framework/python/flowforge-audit-pg/src/flowforge_audit_pg/sink.py",
+        "framework/python/flowforge-audit-pg/src/flowforge_audit_pg/hash_chain.py",
+        "framework/python/flowforge-audit-pg/tests/test_hash_chain.py",
+        "framework/python/flowforge-audit-pg/tests/test_sink.py",
+        "framework/python/flowforge-audit-pg/README.md",
+        "framework/python/flowforge-audit-pg/CHANGELOG.md",
+        "framework/python/flowforge-audit-pg/pyproject.toml"
+      ],
+      "dependencies": ["U01", "U03"],
+      "acceptance_criteria": [
+        "Hash chain mirrors backend/app/audit/service.py logic (sha256 prev->curr)",
+        "verify_chain detects tampering",
+        "redact() preserves chain (uses tombstone marker)",
+        "Tests run on SQLite-compatible reduced schema"
+      ],
+      "agent_tier": "sonnet",
+      "parallel_safe": true
+    },
+    {
+      "id": "U06",
+      "title": "flowforge-outbox-pg adapter",
+      "deliverables": [
+        "framework/python/flowforge-outbox-pg/src/flowforge_outbox_pg/__init__.py",
+        "framework/python/flowforge-outbox-pg/src/flowforge_outbox_pg/registry.py",
+        "framework/python/flowforge-outbox-pg/src/flowforge_outbox_pg/worker.py",
+        "framework/python/flowforge-outbox-pg/tests/test_registry.py",
+        "framework/python/flowforge-outbox-pg/tests/test_worker.py",
+        "framework/python/flowforge-outbox-pg/README.md",
+        "framework/python/flowforge-outbox-pg/CHANGELOG.md",
+        "framework/python/flowforge-outbox-pg/pyproject.toml"
+      ],
+      "dependencies": ["U01", "U03"],
+      "acceptance_criteria": [
+        "register(kind, handler, backend='default') + dispatch(envelope) works",
+        "Multi-backend registration supported (per audit doc A-1)",
+        "Worker drains pending rows + handles failure with retry counter"
+      ],
+      "agent_tier": "sonnet",
+      "parallel_safe": true
+    },
+    {
+      "id": "U07",
+      "title": "flowforge-rbac-static adapter",
+      "deliverables": [
+        "framework/python/flowforge-rbac-static/src/flowforge_rbac_static/__init__.py",
+        "framework/python/flowforge-rbac-static/src/flowforge_rbac_static/resolver.py",
+        "framework/python/flowforge-rbac-static/tests/test_resolver.py",
+        "framework/python/flowforge-rbac-static/README.md",
+        "framework/python/flowforge-rbac-static/CHANGELOG.md",
+        "framework/python/flowforge-rbac-static/pyproject.toml"
+      ],
+      "dependencies": ["U01"],
+      "acceptance_criteria": [
+        "Reads YAML/JSON role->permissions map",
+        "has_permission, list_principals_with, register_permission, assert_seed implemented",
+        "Catalog-drift error raised in strict mode"
+      ],
+      "agent_tier": "haiku",
+      "parallel_safe": true
+    },
+    {
+      "id": "U08",
+      "title": "flowforge-rbac-spicedb adapter",
+      "deliverables": [
+        "framework/python/flowforge-rbac-spicedb/src/flowforge_rbac_spicedb/__init__.py",
+        "framework/python/flowforge-rbac-spicedb/src/flowforge_rbac_spicedb/resolver.py",
+        "framework/python/flowforge-rbac-spicedb/tests/test_resolver.py",
+        "framework/python/flowforge-rbac-spicedb/README.md",
+        "framework/python/flowforge-rbac-spicedb/CHANGELOG.md",
+        "framework/python/flowforge-rbac-spicedb/pyproject.toml"
+      ],
+      "dependencies": ["U01"],
+      "acceptance_criteria": [
+        "Wraps authzed-py client; tests use a fake SpiceDB stub",
+        "has_permission delegates to CheckPermission RPC",
+        "Tests do not require a live SpiceDB"
+      ],
+      "agent_tier": "sonnet",
+      "parallel_safe": true
+    },
+    {
+      "id": "U09",
+      "title": "flowforge-documents-s3 adapter (+ noop)",
+      "deliverables": [
+        "framework/python/flowforge-documents-s3/src/flowforge_documents_s3/__init__.py",
+        "framework/python/flowforge-documents-s3/src/flowforge_documents_s3/port.py",
+        "framework/python/flowforge-documents-s3/src/flowforge_documents_s3/noop.py",
+        "framework/python/flowforge-documents-s3/tests/test_port.py",
+        "framework/python/flowforge-documents-s3/README.md",
+        "framework/python/flowforge-documents-s3/CHANGELOG.md",
+        "framework/python/flowforge-documents-s3/pyproject.toml"
+      ],
+      "dependencies": ["U01"],
+      "acceptance_criteria": [
+        "S3 port impl uses moto fake; noop returns empty",
+        "Magic-bytes validation hook stub present",
+        "list_for_subject, attach, get_classification, freshness_days all tested"
+      ],
+      "agent_tier": "sonnet",
+      "parallel_safe": true
+    },
+    {
+      "id": "U10",
+      "title": "flowforge-money adapter",
+      "deliverables": [
+        "framework/python/flowforge-money/src/flowforge_money/__init__.py",
+        "framework/python/flowforge-money/src/flowforge_money/static.py",
+        "framework/python/flowforge-money/src/flowforge_money/format.py",
+        "framework/python/flowforge-money/tests/test_static.py",
+        "framework/python/flowforge-money/tests/test_format.py",
+        "framework/python/flowforge-money/README.md",
+        "framework/python/flowforge-money/CHANGELOG.md",
+        "framework/python/flowforge-money/pyproject.toml"
+      ],
+      "dependencies": ["U01"],
+      "acceptance_criteria": [
+        "convert(amount, from, to, at) returns Decimal w/ rate snapshot",
+        "format() locale-aware via babel",
+        "Replay determinism: same `at` timestamp -> same rate"
+      ],
+      "agent_tier": "haiku",
+      "parallel_safe": true
+    },
+    {
+      "id": "U11",
+      "title": "flowforge-signing-kms (+ hmac dev impl)",
+      "deliverables": [
+        "framework/python/flowforge-signing-kms/src/flowforge_signing_kms/__init__.py",
+        "framework/python/flowforge-signing-kms/src/flowforge_signing_kms/hmac_dev.py",
+        "framework/python/flowforge-signing-kms/src/flowforge_signing_kms/kms.py",
+        "framework/python/flowforge-signing-kms/tests/test_hmac.py",
+        "framework/python/flowforge-signing-kms/tests/test_kms.py",
+        "framework/python/flowforge-signing-kms/README.md",
+        "framework/python/flowforge-signing-kms/CHANGELOG.md",
+        "framework/python/flowforge-signing-kms/pyproject.toml"
+      ],
+      "dependencies": ["U01"],
+      "acceptance_criteria": [
+        "HMAC dev impl signs/verifies with rotating keys",
+        "KMS impl tested via moto",
+        "current_key_id() returns deterministic id"
+      ],
+      "agent_tier": "haiku",
+      "parallel_safe": true
+    },
+    {
+      "id": "U12",
+      "title": "flowforge-notify-multichannel adapter",
+      "deliverables": [
+        "framework/python/flowforge-notify-multichannel/src/flowforge_notify_multichannel/__init__.py",
+        "framework/python/flowforge-notify-multichannel/src/flowforge_notify_multichannel/router.py",
+        "framework/python/flowforge-notify-multichannel/src/flowforge_notify_multichannel/transports.py",
+        "framework/python/flowforge-notify-multichannel/tests/test_router.py",
+        "framework/python/flowforge-notify-multichannel/tests/test_transports.py",
+        "framework/python/flowforge-notify-multichannel/README.md",
+        "framework/python/flowforge-notify-multichannel/CHANGELOG.md",
+        "framework/python/flowforge-notify-multichannel/pyproject.toml"
+      ],
+      "dependencies": ["U01"],
+      "acceptance_criteria": [
+        "register_template(spec) stores template",
+        "render(template, locale, ctx) interpolates safely",
+        "send() routes to 5 channels (email, sms, slack, webhook, in_app) with stubs",
+        "Channel selection per recipient pref"
+      ],
+      "agent_tier": "sonnet",
+      "parallel_safe": true
+    },
+    {
+      "id": "U13",
+      "title": "flowforge-cli (typer-based)",
+      "deliverables": [
+        "framework/python/flowforge-cli/src/flowforge_cli/__init__.py",
+        "framework/python/flowforge-cli/src/flowforge_cli/main.py",
+        "framework/python/flowforge-cli/src/flowforge_cli/commands/{new,add_jtbd,validate,simulate,regen_catalog,diff,replay,upgrade_deps,audit_verify,ai_assist,migrate_fork}.py",
+        "framework/python/flowforge-cli/src/flowforge_cli/templates/ (jinja2)",
+        "framework/python/flowforge-cli/tests/test_validate.py",
+        "framework/python/flowforge-cli/tests/test_simulate.py",
+        "framework/python/flowforge-cli/tests/test_new_scaffold.py",
+        "framework/python/flowforge-cli/README.md",
+        "framework/python/flowforge-cli/CHANGELOG.md",
+        "framework/python/flowforge-cli/pyproject.toml"
+      ],
+      "dependencies": ["U01"],
+      "acceptance_criteria": [
+        "All §10.1 commands present (skeletons OK; new+validate+simulate fully implemented)",
+        "`flowforge new <proj> --jtbd <bundle>` scaffolds at least the backend skeleton from a JTBD bundle",
+        "`flowforge validate` matches §10.3 sample structure (schema + unreachable + duplicate priority + lookup-permission)",
+        "`flowforge simulate` matches §10.4 plan/commit log shape",
+        "Templates are pure jinja2 (deterministic)"
+      ],
+      "agent_tier": "opus",
+      "parallel_safe": true,
+      "complexity_split_rule": "Split if scaffolder + 11 commands exceed budget. Validate + simulate + new are mandatory; others can be skeleton stubs returning NotImplementedError."
+    },
+    {
+      "id": "U14",
+      "title": "@flowforge/types (TS types from JSON schemas)",
+      "deliverables": [
+        "framework/js/flowforge-types/package.json",
+        "framework/js/flowforge-types/src/index.ts",
+        "framework/js/flowforge-types/src/workflow_def.ts",
+        "framework/js/flowforge-types/src/form_spec.ts",
+        "framework/js/flowforge-types/src/jtbd.ts",
+        "framework/js/flowforge-types/scripts/gen.ts (json-schema-to-typescript)",
+        "framework/js/flowforge-types/tsconfig.json",
+        "framework/js/flowforge-types/README.md",
+        "framework/js/flowforge-types/CHANGELOG.md",
+        "framework/js/flowforge-types/__tests__/types.test.ts"
+      ],
+      "dependencies": ["U01"],
+      "acceptance_criteria": [
+        "TS types generated from framework/python/flowforge-core/src/flowforge/dsl/schema/*.json",
+        "tsc --noEmit passes",
+        "tests verify type structure on a sample DSL JSON"
+      ],
+      "agent_tier": "haiku",
+      "parallel_safe": true
+    },
+    {
+      "id": "U15",
+      "title": "@flowforge/renderer (form components)",
+      "deliverables": [
+        "framework/js/flowforge-renderer/package.json",
+        "framework/js/flowforge-renderer/src/FormRenderer.tsx",
+        "framework/js/flowforge-renderer/src/fields/{TextField,NumberField,DateField,MoneyField,EnumField,BooleanField,LookupField,FileField,TextAreaField}.tsx",
+        "framework/js/flowforge-renderer/src/validators/ajv.ts",
+        "framework/js/flowforge-renderer/src/index.ts",
+        "framework/js/flowforge-renderer/tsconfig.json",
+        "framework/js/flowforge-renderer/__tests__/FormRenderer.test.tsx",
+        "framework/js/flowforge-renderer/README.md",
+        "framework/js/flowforge-renderer/CHANGELOG.md"
+      ],
+      "dependencies": ["U14"],
+      "acceptance_criteria": [
+        "FormRenderer renders all 9+ field kinds for a JTBD-derived form spec",
+        "ajv validates against form_spec.schema.json",
+        "vitest passes"
+      ],
+      "agent_tier": "sonnet",
+      "parallel_safe": true
+    },
+    {
+      "id": "U16",
+      "title": "@flowforge/runtime-client",
+      "deliverables": [
+        "framework/js/flowforge-runtime-client/package.json",
+        "framework/js/flowforge-runtime-client/src/client.ts",
+        "framework/js/flowforge-runtime-client/src/ws.ts",
+        "framework/js/flowforge-runtime-client/src/hooks/useFlowforgeWorkflow.ts",
+        "framework/js/flowforge-runtime-client/src/hooks/useTenantQueryKey.ts",
+        "framework/js/flowforge-runtime-client/src/index.ts",
+        "framework/js/flowforge-runtime-client/tsconfig.json",
+        "framework/js/flowforge-runtime-client/__tests__/client.test.ts",
+        "framework/js/flowforge-runtime-client/README.md",
+        "framework/js/flowforge-runtime-client/CHANGELOG.md"
+      ],
+      "dependencies": ["U14"],
+      "acceptance_criteria": [
+        "REST client covers: list defs, get instance, post event, list events",
+        "WS hook with exp backoff",
+        "useTenantQueryKey hook present (host-pluggable)",
+        "Tests with msw mocks pass"
+      ],
+      "agent_tier": "sonnet",
+      "parallel_safe": true
+    },
+    {
+      "id": "U17",
+      "title": "@flowforge/step-adapters",
+      "deliverables": [
+        "framework/js/flowforge-step-adapters/package.json",
+        "framework/js/flowforge-step-adapters/src/ManualReviewStep.tsx",
+        "framework/js/flowforge-step-adapters/src/FormStep.tsx",
+        "framework/js/flowforge-step-adapters/src/DocumentReviewStep.tsx",
+        "framework/js/flowforge-step-adapters/src/index.ts",
+        "framework/js/flowforge-step-adapters/tsconfig.json",
+        "framework/js/flowforge-step-adapters/__tests__/steps.test.tsx",
+        "framework/js/flowforge-step-adapters/README.md",
+        "framework/js/flowforge-step-adapters/CHANGELOG.md"
+      ],
+      "dependencies": ["U15", "U16"],
+      "acceptance_criteria": [
+        "Three generic step components exposed",
+        "Each implements WorkflowStepProps from @flowforge/types",
+        "vitest renders each with sample props"
+      ],
+      "agent_tier": "haiku",
+      "parallel_safe": true
+    },
+    {
+      "id": "U18",
+      "title": "@flowforge/designer (canvas + property panel)",
+      "deliverables": [
+        "framework/js/flowforge-designer/package.json",
+        "framework/js/flowforge-designer/src/Designer.tsx",
+        "framework/js/flowforge-designer/src/Canvas.tsx",
+        "framework/js/flowforge-designer/src/PropertyPanel.tsx",
+        "framework/js/flowforge-designer/src/FormBuilder.tsx",
+        "framework/js/flowforge-designer/src/SimulationPanel.tsx",
+        "framework/js/flowforge-designer/src/DiffViewer.tsx",
+        "framework/js/flowforge-designer/src/store.ts (zustand)",
+        "framework/js/flowforge-designer/src/index.ts",
+        "framework/js/flowforge-designer/tsconfig.json",
+        "framework/js/flowforge-designer/__tests__/designer.test.tsx",
+        "framework/js/flowforge-designer/README.md",
+        "framework/js/flowforge-designer/CHANGELOG.md"
+      ],
+      "dependencies": ["U15", "U16", "U17"],
+      "acceptance_criteria": [
+        "Designer renders ReactFlow canvas of a sample workflow def",
+        "PropertyPanel edits state metadata (test on click+commit)",
+        "DiffViewer shows two-version diff",
+        "vitest covers happy paths; no reactflow-pro features used"
+      ],
+      "agent_tier": "opus",
+      "parallel_safe": true,
+      "complexity_split_rule": "Split if exceeds budget into U18a (Canvas + PropertyPanel + store) and U18b (SimulationPanel + DiffViewer + FormBuilder)."
+    },
+    {
+      "id": "U19",
+      "title": "JTBD generator core (bundled into flowforge-cli)",
+      "deliverables": [
+        "framework/python/flowforge-cli/src/flowforge_cli/jtbd/__init__.py",
+        "framework/python/flowforge-cli/src/flowforge_cli/jtbd/parse.py",
+        "framework/python/flowforge-cli/src/flowforge_cli/jtbd/normalize.py",
+        "framework/python/flowforge-cli/src/flowforge_cli/jtbd/generators/{workflow_def,form_spec,db_migration,sa_model,workflow_adapter,domain_service,domain_router,permissions,audit_taxonomy,notifications,tests,frontend,alembic,readme,env_example}.py",
+        "framework/python/flowforge-cli/src/flowforge_cli/jtbd/transforms.py",
+        "framework/python/flowforge-cli/tests/test_jtbd_parse.py",
+        "framework/python/flowforge-cli/tests/test_jtbd_generators.py"
+      ],
+      "dependencies": ["U13"],
+      "acceptance_criteria": [
+        "Parser validates jtbd-1.0 schema (rejects missing pii on text/email/file/etc kinds per §B-1 fix)",
+        "Normalizer applies §5.4 transform table",
+        "Generators emit byte-deterministic outputs (snapshot tests pass twice)",
+        "Generator produces 12+ files for a one-JTBD bundle (per §4.3)",
+        "Cross-bundle aggregations (permissions.py, audit_taxonomy.py) deduplicate"
+      ],
+      "agent_tier": "opus",
+      "parallel_safe": false,
+      "complexity_split_rule": "Split into U19a (parse+normalize+5 backend generators) and U19b (5 frontend+test+alembic+readme generators) if needed."
+    },
+    {
+      "id": "U20",
+      "title": "JTBD example A — claims-intake-demo (executable end-to-end)",
+      "deliverables": [
+        "framework/examples/claim_intake/jtbd.yaml",
+        "framework/examples/claim_intake/expected/ (golden output snapshot)",
+        "framework/examples/claim_intake/tests/test_generated_simulation.py"
+      ],
+      "dependencies": ["U19"],
+      "acceptance_criteria": [
+        "Bundle from §5.3 Example A drives `flowforge new claims-intake-demo --jtbd jtbd.yaml`",
+        "Generated test_simulation.py runs three cases: happy_path -> triage, large_loss -> senior_triage, lapsed -> rejected",
+        "All three pass"
+      ],
+      "agent_tier": "sonnet",
+      "parallel_safe": true
+    },
+    {
+      "id": "U21",
+      "title": "JTBD example B — ats-lite (hiring) executable end-to-end",
+      "deliverables": [
+        "framework/examples/ats_lite/jtbd.yaml",
+        "framework/examples/ats_lite/expected/",
+        "framework/examples/ats_lite/tests/test_generated_simulation.py"
+      ],
+      "dependencies": ["U19"],
+      "acceptance_criteria": [
+        "Bundle from §5.3 Example B drives generator",
+        "Tests cover candidate_screen + offer_loop happy paths and one rejection",
+        "All pass"
+      ],
+      "agent_tier": "sonnet",
+      "parallel_safe": true
+    },
+    {
+      "id": "U22",
+      "title": "JTBD example C — permits (gov) executable end-to-end",
+      "deliverables": [
+        "framework/examples/permits/jtbd.yaml",
+        "framework/examples/permits/expected/",
+        "framework/examples/permits/tests/test_generated_simulation.py"
+      ],
+      "dependencies": ["U19"],
+      "acceptance_criteria": [
+        "Bundle from §5.3 Example C drives generator",
+        "Tests cover happy path + heritage_zone branch + incomplete_docs loop",
+        "All pass"
+      ],
+      "agent_tier": "sonnet",
+      "parallel_safe": true
+    },
+    {
+      "id": "U23",
+      "title": "UMS migration of 23 Python defs to flowforge JSON DSL",
+      "deliverables": [
+        "framework/migration/reflect_python_workflows.py",
+        "framework/migration/parity_test_runner.py",
+        "framework/migration/output/{23 def JSONs}",
+        "framework/migration/README.md",
+        "framework/migration/tests/test_parity_for_def.py"
+      ],
+      "dependencies": ["U01", "U13"],
+      "acceptance_criteria": [
+        "Reflection script reads backend/app/workflows/definitions/*.py + emits one workflow_def.schema.json-valid JSON each",
+        "All 23 defs reflected without errors",
+        "Parity test loads each into flowforge.compiler + simulator and asserts initial/terminal states match the Python original",
+        "No edit to existing UMS workflows_v2 code (read-only reflection)"
+      ],
+      "agent_tier": "opus",
+      "parallel_safe": false,
+      "complexity_split_rule": "If 23 defs exceed budget, split into U23a (reflection of 12 simpler defs) and U23b (11 complex defs incl saga/subworkflow). Mark non-parity defs as KNOWN_GAPS in README and proceed."
+    },
+    {
+      "id": "U24",
+      "title": "End-to-end gate: pytest + pyright + pnpm test + pnpm lint",
+      "deliverables": [
+        "framework/scripts/check_all.sh"
+      ],
+      "dependencies": ["U02", "U03", "U04", "U05", "U06", "U07", "U08", "U09", "U10", "U11", "U12", "U13", "U14", "U15", "U16", "U17", "U18", "U19", "U20", "U21", "U22", "U23"],
+      "acceptance_criteria": [
+        "framework/scripts/check_all.sh runs pytest on every Python pkg + pyright + pnpm -r test + pnpm -r lint",
+        "All gates green",
+        "Output captured in framework/.last-check.log"
+      ],
+      "agent_tier": "haiku",
+      "parallel_safe": false
+    }
+  ]
+}
