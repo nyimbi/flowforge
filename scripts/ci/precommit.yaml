@@ -1,0 +1,40 @@
+# flowforge JTBD lint — pre-commit hook configuration template (E-9).
+#
+# Copy or symlink this file to your project root as .pre-commit-config.yaml
+# (or merge the `repos` block into your existing config).
+#
+# Install pre-commit once: pip install pre-commit && pre-commit install
+# Run manually:           pre-commit run --all-files
+#
+# The hook runs `flowforge jtbd lint` on every staged jtbd-bundle.json /
+# jtbd_bundle.json file.  The check fails on lint errors; warnings are
+# advisory by default.  Pass --strict to the hook args to treat warnings
+# as errors.
+#
+# Requirements:
+#   - Python ≥ 3.11
+#   - flowforge-cli installed in the hook environment (handled automatically
+#     by pre-commit via the `additional_dependencies` list below).
+
+repos:
+  - repo: local
+    hooks:
+      - id: flowforge-jtbd-lint
+        name: flowforge JTBD lint
+        language: python
+        entry: flowforge jtbd lint
+        args:
+          - "--bundle"
+        # pre-commit passes the staged files as extra positional args;
+        # we use `pass_filenames: true` so the hook receives the bundle path.
+        pass_filenames: true
+        files: "(jtbd[-_]bundle\\.json|jtbd[-_]bundle\\.yaml)$"
+        types: [file]
+        additional_dependencies:
+          - "flowforge-cli>=0.1.0"
+          - "flowforge-jtbd>=0.1.0"
+
+# To enable strict mode (warnings → errors), change args to:
+#   args:
+#     - "--bundle"
+#     - "--strict"

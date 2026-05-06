@@ -17,6 +17,7 @@ from .commands import (
 	diff,
 	jtbd_fork,
 	jtbd_generate,
+	jtbd_lint,
 	jtbd_migrate,
 	migrate_fork,
 	new,
@@ -56,6 +57,7 @@ migrate_fork.register(app)
 ai_assist.register(app)
 audit_verify.register(audit_app)
 jtbd_fork.register(jtbd_app)
+jtbd_lint.register(jtbd_app)
 jtbd_migrate.register(jtbd_app)
 
 

@@ -1,0 +1,25 @@
+# flowforge pre-commit hook definitions (E-9).
+#
+# This file is the hook registry consumed by the pre-commit framework when
+# this repository is used as a remote hook source:
+#
+#   repos:
+#     - repo: https://github.com/your-org/ums
+#       rev: v0.1.0
+#       hooks:
+#         - id: flowforge-jtbd-lint
+#
+# For a self-contained local setup, use framework/scripts/ci/precommit.yaml
+# instead (the `repo: local` variant that bundles dependencies inline).
+
+- id: flowforge-jtbd-lint
+  name: flowforge JTBD lint
+  description: >
+    Lint JTBD bundle files for lifecycle completeness, dependency cycles,
+    actor-consistency errors, and semantic conflicts.
+  language: python
+  entry: flowforge jtbd lint --bundle
+  pass_filenames: true
+  files: "(jtbd[-_]bundle\\.json|jtbd[-_]bundle\\.yaml)$"
+  types: [file]
+  minimum_pre_commit_version: "3.0.0"
