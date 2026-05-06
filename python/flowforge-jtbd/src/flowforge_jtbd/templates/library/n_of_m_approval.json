@@ -1,0 +1,93 @@
+{
+  "id": "n_of_m_approval",
+  "name": "N-of-M Approval",
+  "description": "Require N approvals from a pool of M approvers before advancing. Classic for financial sign-off, policy changes, and risk decisions.",
+  "tags": [
+    "approval",
+    "finance",
+    "compliance",
+    "risk"
+  ],
+  "parameters": [
+    {
+      "name": "workflow_key",
+      "type": "string",
+      "required": true,
+      "description": "Unique workflow key."
+    },
+    {
+      "name": "subject_kind",
+      "type": "string",
+      "required": true,
+      "description": "Entity being approved."
+    },
+    {
+      "name": "required_approvals",
+      "type": "integer",
+      "required": false,
+      "default": 2,
+      "description": "How many approvals needed."
+    },
+    {
+      "name": "approval_permission",
+      "type": "string",
+      "required": false,
+      "default": "subject.approve",
+      "description": "Permission required to approve."
+    }
+  ],
+  "workflow_template": {
+    "key": "{{workflow_key}}",
+    "version": "1.0.0",
+    "subject_kind": "{{subject_kind}}",
+    "initial_state": "pending_approval",
+    "states": [
+      {
+        "name": "pending_approval",
+        "kind": "manual_review"
+      },
+      {
+        "name": "approved",
+        "kind": "terminal_success"
+      },
+      {
+        "name": "rejected",
+        "kind": "terminal_fail"
+      }
+    ],
+    "transitions": [
+      {
+        "id": "approve",
+        "event": "approve",
+        "from_state": "pending_approval",
+        "to_state": "approved",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.approved"
+          }
+        ]
+      },
+      {
+        "id": "reject",
+        "event": "reject",
+        "from_state": "pending_approval",
+        "to_state": "rejected",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.rejected"
+          },
+          {
+            "kind": "notify",
+            "template": "{{workflow_key}}.rejection_notice"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,107 @@
+{
+  "id": "notification_dispatch",
+  "name": "Notification Dispatch",
+  "description": "Trigger a notification chain on a state change. Used for confirmations, reminders, and status alerts.",
+  "tags": [
+    "notification",
+    "messaging",
+    "alerts",
+    "communication"
+  ],
+  "parameters": [
+    {
+      "name": "workflow_key",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "subject_kind",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "confirmation_template",
+      "type": "string",
+      "required": false,
+      "default": "notification.confirmation"
+    },
+    {
+      "name": "completion_template",
+      "type": "string",
+      "required": false,
+      "default": "notification.completion"
+    }
+  ],
+  "workflow_template": {
+    "key": "{{workflow_key}}",
+    "version": "1.0.0",
+    "subject_kind": "{{subject_kind}}",
+    "initial_state": "pending",
+    "states": [
+      {
+        "name": "pending",
+        "kind": "manual_review"
+      },
+      {
+        "name": "sent",
+        "kind": "manual_review"
+      },
+      {
+        "name": "acknowledged",
+        "kind": "terminal_success"
+      },
+      {
+        "name": "failed",
+        "kind": "terminal_fail"
+      }
+    ],
+    "transitions": [
+      {
+        "id": "send",
+        "event": "send",
+        "from_state": "pending",
+        "to_state": "sent",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "notify",
+            "template": "{{confirmation_template}}"
+          },
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.sent"
+          }
+        ]
+      },
+      {
+        "id": "acknowledge",
+        "event": "acknowledge",
+        "from_state": "sent",
+        "to_state": "acknowledged",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "notify",
+            "template": "{{completion_template}}"
+          }
+        ]
+      },
+      {
+        "id": "fail",
+        "event": "fail",
+        "from_state": "sent",
+        "to_state": "failed",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.failed"
+          }
+        ]
+      }
+    ]
+  }
+}

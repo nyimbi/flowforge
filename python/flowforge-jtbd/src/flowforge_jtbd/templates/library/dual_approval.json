@@ -1,0 +1,99 @@
+{
+  "id": "dual_approval",
+  "name": "Dual Approval (4-Eyes)",
+  "description": "Require exactly two different approvers (maker-checker). Neither approver can be the initiator.",
+  "tags": [
+    "approval",
+    "4-eyes",
+    "finance",
+    "fraud-prevention"
+  ],
+  "parameters": [
+    {
+      "name": "workflow_key",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "subject_kind",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "workflow_template": {
+    "key": "{{workflow_key}}",
+    "version": "1.0.0",
+    "subject_kind": "{{subject_kind}}",
+    "initial_state": "pending_first_approval",
+    "states": [
+      {
+        "name": "pending_first_approval",
+        "kind": "manual_review"
+      },
+      {
+        "name": "pending_second_approval",
+        "kind": "manual_review"
+      },
+      {
+        "name": "approved",
+        "kind": "terminal_success"
+      },
+      {
+        "name": "rejected",
+        "kind": "terminal_fail"
+      }
+    ],
+    "transitions": [
+      {
+        "id": "first_approve",
+        "event": "approve",
+        "from_state": "pending_first_approval",
+        "to_state": "pending_second_approval",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.first_approved"
+          }
+        ]
+      },
+      {
+        "id": "second_approve",
+        "event": "approve",
+        "from_state": "pending_second_approval",
+        "to_state": "approved",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.dual_approved"
+          },
+          {
+            "kind": "notify",
+            "template": "{{workflow_key}}.approval_complete"
+          }
+        ]
+      },
+      {
+        "id": "reject",
+        "event": "reject",
+        "from_state": "pending_first_approval",
+        "to_state": "rejected",
+        "priority": 0,
+        "guards": [],
+        "effects": []
+      },
+      {
+        "id": "reject_second",
+        "event": "reject",
+        "from_state": "pending_second_approval",
+        "to_state": "rejected",
+        "priority": 0,
+        "guards": [],
+        "effects": []
+      }
+    ]
+  }
+}

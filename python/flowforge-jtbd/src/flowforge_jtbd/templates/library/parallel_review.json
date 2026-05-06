@@ -1,0 +1,101 @@
+{
+  "id": "parallel_review",
+  "name": "Parallel Review",
+  "description": "Multiple reviewers evaluate simultaneously; all must agree for the item to advance.",
+  "tags": [
+    "review",
+    "parallel",
+    "collaboration",
+    "compliance"
+  ],
+  "parameters": [
+    {
+      "name": "workflow_key",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "subject_kind",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "reviewer_permission",
+      "type": "string",
+      "required": false,
+      "default": "subject.review"
+    }
+  ],
+  "workflow_template": {
+    "key": "{{workflow_key}}",
+    "version": "1.0.0",
+    "subject_kind": "{{subject_kind}}",
+    "initial_state": "in_review",
+    "states": [
+      {
+        "name": "in_review",
+        "kind": "manual_review"
+      },
+      {
+        "name": "approved",
+        "kind": "terminal_success"
+      },
+      {
+        "name": "changes_requested",
+        "kind": "manual_review"
+      },
+      {
+        "name": "rejected",
+        "kind": "terminal_fail"
+      }
+    ],
+    "transitions": [
+      {
+        "id": "approve",
+        "event": "approve",
+        "from_state": "in_review",
+        "to_state": "approved",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.approved"
+          }
+        ]
+      },
+      {
+        "id": "request_changes",
+        "event": "request_changes",
+        "from_state": "in_review",
+        "to_state": "changes_requested",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "notify",
+            "template": "{{workflow_key}}.changes_requested"
+          }
+        ]
+      },
+      {
+        "id": "resubmit",
+        "event": "resubmit",
+        "from_state": "changes_requested",
+        "to_state": "in_review",
+        "priority": 0,
+        "guards": [],
+        "effects": []
+      },
+      {
+        "id": "reject",
+        "event": "reject",
+        "from_state": "in_review",
+        "to_state": "rejected",
+        "priority": 0,
+        "guards": [],
+        "effects": []
+      }
+    ]
+  }
+}

@@ -1,0 +1,142 @@
+{
+  "id": "retry_with_backoff",
+  "name": "Retry with Backoff",
+  "description": "Retry a failed operation up to a configurable number of times before marking as permanently failed.",
+  "tags": [
+    "retry",
+    "resilience",
+    "integration",
+    "fault-tolerance"
+  ],
+  "parameters": [
+    {
+      "name": "workflow_key",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "subject_kind",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "max_retries",
+      "type": "integer",
+      "required": false,
+      "default": 3
+    },
+    {
+      "name": "failure_notify_template",
+      "type": "string",
+      "required": false,
+      "default": "retry.permanent_failure"
+    }
+  ],
+  "workflow_template": {
+    "key": "{{workflow_key}}",
+    "version": "1.0.0",
+    "subject_kind": "{{subject_kind}}",
+    "initial_state": "pending",
+    "states": [
+      {
+        "name": "pending",
+        "kind": "manual_review"
+      },
+      {
+        "name": "in_flight",
+        "kind": "manual_review"
+      },
+      {
+        "name": "retrying",
+        "kind": "manual_review"
+      },
+      {
+        "name": "succeeded",
+        "kind": "terminal_success"
+      },
+      {
+        "name": "permanently_failed",
+        "kind": "terminal_fail"
+      }
+    ],
+    "transitions": [
+      {
+        "id": "execute",
+        "event": "execute",
+        "from_state": "pending",
+        "to_state": "in_flight",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.execution_started"
+          }
+        ]
+      },
+      {
+        "id": "succeed",
+        "event": "succeed",
+        "from_state": "in_flight",
+        "to_state": "succeeded",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.succeeded"
+          }
+        ]
+      },
+      {
+        "id": "fail",
+        "event": "fail",
+        "from_state": "in_flight",
+        "to_state": "retrying",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "set",
+            "target": "context.retry.count",
+            "expr": {
+              "+": [
+                {
+                  "var": "context.retry.count"
+                },
+                1
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "retry",
+        "event": "retry",
+        "from_state": "retrying",
+        "to_state": "in_flight",
+        "priority": 0,
+        "guards": [],
+        "effects": []
+      },
+      {
+        "id": "exhaust",
+        "event": "exhaust_retries",
+        "from_state": "retrying",
+        "to_state": "permanently_failed",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "notify",
+            "template": "{{failure_notify_template}}"
+          },
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.permanently_failed"
+          }
+        ]
+      }
+    ]
+  }
+}

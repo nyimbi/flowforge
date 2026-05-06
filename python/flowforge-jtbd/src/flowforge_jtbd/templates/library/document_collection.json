@@ -1,0 +1,106 @@
+{
+  "id": "document_collection",
+  "name": "Document Collection",
+  "description": "Gather a defined set of required documents before advancing. Used for KYC, loan applications, and compliance packs.",
+  "tags": [
+    "documents",
+    "kyc",
+    "compliance",
+    "onboarding"
+  ],
+  "parameters": [
+    {
+      "name": "workflow_key",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "subject_kind",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "notify_template",
+      "type": "string",
+      "required": false,
+      "default": "document.missing_reminder"
+    }
+  ],
+  "workflow_template": {
+    "key": "{{workflow_key}}",
+    "version": "1.0.0",
+    "subject_kind": "{{subject_kind}}",
+    "initial_state": "collecting",
+    "states": [
+      {
+        "name": "collecting",
+        "kind": "manual_review"
+      },
+      {
+        "name": "reviewing",
+        "kind": "manual_review"
+      },
+      {
+        "name": "complete",
+        "kind": "terminal_success"
+      },
+      {
+        "name": "rejected",
+        "kind": "terminal_fail"
+      }
+    ],
+    "transitions": [
+      {
+        "id": "submit",
+        "event": "submit_documents",
+        "from_state": "collecting",
+        "to_state": "reviewing",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "notify",
+            "template": "{{workflow_key}}.documents_received"
+          }
+        ]
+      },
+      {
+        "id": "approve",
+        "event": "approve",
+        "from_state": "reviewing",
+        "to_state": "complete",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.docs_approved"
+          }
+        ]
+      },
+      {
+        "id": "request_more",
+        "event": "request_more_documents",
+        "from_state": "reviewing",
+        "to_state": "collecting",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "notify",
+            "template": "{{notify_template}}"
+          }
+        ]
+      },
+      {
+        "id": "reject",
+        "event": "reject",
+        "from_state": "reviewing",
+        "to_state": "rejected",
+        "priority": 0,
+        "guards": [],
+        "effects": []
+      }
+    ]
+  }
+}

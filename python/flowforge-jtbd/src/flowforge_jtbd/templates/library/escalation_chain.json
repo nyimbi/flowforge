@@ -1,0 +1,112 @@
+{
+  "id": "escalation_chain",
+  "name": "Escalation Chain",
+  "description": "Escalate through a hierarchy of approvers on SLA breach or explicit escalation trigger.",
+  "tags": [
+    "escalation",
+    "sla",
+    "compliance",
+    "risk"
+  ],
+  "parameters": [
+    {
+      "name": "workflow_key",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "subject_kind",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "l1_permission",
+      "type": "string",
+      "required": false,
+      "default": "subject.approve.l1"
+    },
+    {
+      "name": "l2_permission",
+      "type": "string",
+      "required": false,
+      "default": "subject.approve.l2"
+    }
+  ],
+  "workflow_template": {
+    "key": "{{workflow_key}}",
+    "version": "1.0.0",
+    "subject_kind": "{{subject_kind}}",
+    "initial_state": "l1_review",
+    "states": [
+      {
+        "name": "l1_review",
+        "kind": "manual_review"
+      },
+      {
+        "name": "l2_review",
+        "kind": "manual_review"
+      },
+      {
+        "name": "approved",
+        "kind": "terminal_success"
+      },
+      {
+        "name": "rejected",
+        "kind": "terminal_fail"
+      }
+    ],
+    "transitions": [
+      {
+        "id": "approve",
+        "event": "approve",
+        "from_state": "l1_review",
+        "to_state": "approved",
+        "priority": 10,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.l1_approved"
+          }
+        ]
+      },
+      {
+        "id": "escalate",
+        "event": "escalate",
+        "from_state": "l1_review",
+        "to_state": "l2_review",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "notify",
+            "template": "{{workflow_key}}.escalation_notice"
+          }
+        ]
+      },
+      {
+        "id": "approve_l2",
+        "event": "approve",
+        "from_state": "l2_review",
+        "to_state": "approved",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.l2_approved"
+          }
+        ]
+      },
+      {
+        "id": "reject",
+        "event": "reject",
+        "from_state": "l2_review",
+        "to_state": "rejected",
+        "priority": 0,
+        "guards": [],
+        "effects": []
+      }
+    ]
+  }
+}

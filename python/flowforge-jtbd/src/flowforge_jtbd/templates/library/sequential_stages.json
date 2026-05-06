@@ -1,0 +1,123 @@
+{
+  "id": "sequential_stages",
+  "name": "Sequential Stages",
+  "description": "A multi-stage pipeline where each stage must complete before the next begins. Configurable stage count.",
+  "tags": [
+    "pipeline",
+    "sequential",
+    "workflow",
+    "process"
+  ],
+  "parameters": [
+    {
+      "name": "workflow_key",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "subject_kind",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "stage_count",
+      "type": "integer",
+      "required": false,
+      "default": 3
+    }
+  ],
+  "workflow_template": {
+    "key": "{{workflow_key}}",
+    "version": "1.0.0",
+    "subject_kind": "{{subject_kind}}",
+    "initial_state": "stage_1",
+    "states": [
+      {
+        "name": "stage_1",
+        "kind": "manual_review"
+      },
+      {
+        "name": "stage_2",
+        "kind": "manual_review"
+      },
+      {
+        "name": "stage_3",
+        "kind": "manual_review"
+      },
+      {
+        "name": "complete",
+        "kind": "terminal_success"
+      },
+      {
+        "name": "cancelled",
+        "kind": "terminal_fail"
+      }
+    ],
+    "transitions": [
+      {
+        "id": "advance_1",
+        "event": "advance",
+        "from_state": "stage_1",
+        "to_state": "stage_2",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.stage_1_complete"
+          }
+        ]
+      },
+      {
+        "id": "advance_2",
+        "event": "advance",
+        "from_state": "stage_2",
+        "to_state": "stage_3",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.stage_2_complete"
+          }
+        ]
+      },
+      {
+        "id": "advance_3",
+        "event": "advance",
+        "from_state": "stage_3",
+        "to_state": "complete",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.complete"
+          },
+          {
+            "kind": "notify",
+            "template": "{{workflow_key}}.completion_notice"
+          }
+        ]
+      },
+      {
+        "id": "cancel",
+        "event": "cancel",
+        "from_state": "stage_1",
+        "to_state": "cancelled",
+        "priority": 0,
+        "guards": [],
+        "effects": []
+      },
+      {
+        "id": "cancel_2",
+        "event": "cancel",
+        "from_state": "stage_2",
+        "to_state": "cancelled",
+        "priority": 0,
+        "guards": [],
+        "effects": []
+      }
+    ]
+  }
+}

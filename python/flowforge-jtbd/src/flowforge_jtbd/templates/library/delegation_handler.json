@@ -1,0 +1,119 @@
+{
+  "id": "delegation_handler",
+  "name": "Delegation Handler",
+  "description": "Allow an actor to delegate a task to another, with expiry and reassignment on expiry.",
+  "tags": [
+    "delegation",
+    "assignment",
+    "workflow",
+    "authority"
+  ],
+  "parameters": [
+    {
+      "name": "workflow_key",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "subject_kind",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "delegation_expiry_notify",
+      "type": "string",
+      "required": false,
+      "default": "delegation.expired"
+    }
+  ],
+  "workflow_template": {
+    "key": "{{workflow_key}}",
+    "version": "1.0.0",
+    "subject_kind": "{{subject_kind}}",
+    "initial_state": "unassigned",
+    "states": [
+      {
+        "name": "unassigned",
+        "kind": "manual_review"
+      },
+      {
+        "name": "delegated",
+        "kind": "manual_review"
+      },
+      {
+        "name": "completed",
+        "kind": "terminal_success"
+      },
+      {
+        "name": "expired",
+        "kind": "manual_review"
+      }
+    ],
+    "transitions": [
+      {
+        "id": "delegate",
+        "event": "delegate",
+        "from_state": "unassigned",
+        "to_state": "delegated",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "notify",
+            "template": "{{workflow_key}}.delegation_notice"
+          },
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.delegated"
+          }
+        ]
+      },
+      {
+        "id": "complete",
+        "event": "complete",
+        "from_state": "delegated",
+        "to_state": "completed",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.completed"
+          }
+        ]
+      },
+      {
+        "id": "expire",
+        "event": "expire",
+        "from_state": "delegated",
+        "to_state": "expired",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "notify",
+            "template": "{{delegation_expiry_notify}}"
+          },
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.delegation_expired"
+          }
+        ]
+      },
+      {
+        "id": "reassign",
+        "event": "reassign",
+        "from_state": "expired",
+        "to_state": "delegated",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "notify",
+            "template": "{{workflow_key}}.reassignment_notice"
+          }
+        ]
+      }
+    ]
+  }
+}

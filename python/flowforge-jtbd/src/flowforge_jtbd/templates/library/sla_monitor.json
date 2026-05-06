@@ -1,0 +1,115 @@
+{
+  "id": "sla_monitor",
+  "name": "SLA Monitor",
+  "description": "Track SLA deadlines and escalate automatically when a breach is imminent or has occurred.",
+  "tags": [
+    "sla",
+    "escalation",
+    "monitoring",
+    "compliance"
+  ],
+  "parameters": [
+    {
+      "name": "workflow_key",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "subject_kind",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "sla_breach_notify_template",
+      "type": "string",
+      "required": false,
+      "default": "sla.breach_alert"
+    }
+  ],
+  "workflow_template": {
+    "key": "{{workflow_key}}",
+    "version": "1.0.0",
+    "subject_kind": "{{subject_kind}}",
+    "initial_state": "within_sla",
+    "states": [
+      {
+        "name": "within_sla",
+        "kind": "manual_review"
+      },
+      {
+        "name": "sla_warning",
+        "kind": "manual_review"
+      },
+      {
+        "name": "sla_breached",
+        "kind": "manual_review"
+      },
+      {
+        "name": "resolved",
+        "kind": "terminal_success"
+      }
+    ],
+    "transitions": [
+      {
+        "id": "warn",
+        "event": "sla_warning_triggered",
+        "from_state": "within_sla",
+        "to_state": "sla_warning",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "notify",
+            "template": "{{workflow_key}}.sla_warning"
+          }
+        ]
+      },
+      {
+        "id": "breach",
+        "event": "sla_breach_triggered",
+        "from_state": "sla_warning",
+        "to_state": "sla_breached",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "notify",
+            "template": "{{sla_breach_notify_template}}"
+          },
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.sla_breached"
+          }
+        ]
+      },
+      {
+        "id": "resolve",
+        "event": "resolve",
+        "from_state": "sla_breached",
+        "to_state": "resolved",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.resolved_after_breach"
+          }
+        ]
+      },
+      {
+        "id": "resolve_in_time",
+        "event": "resolve",
+        "from_state": "within_sla",
+        "to_state": "resolved",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.resolved_within_sla"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "id": "audit_trail",
+  "name": "Audit Trail",
+  "description": "Every state transition is audited with actor, timestamp, and context snapshot. Suitable for regulated workflows.",
+  "tags": [
+    "audit",
+    "compliance",
+    "regulatory",
+    "finance"
+  ],
+  "parameters": [
+    {
+      "name": "workflow_key",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "subject_kind",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "workflow_template": {
+    "key": "{{workflow_key}}",
+    "version": "1.0.0",
+    "subject_kind": "{{subject_kind}}",
+    "initial_state": "open",
+    "states": [
+      {
+        "name": "open",
+        "kind": "manual_review"
+      },
+      {
+        "name": "in_progress",
+        "kind": "manual_review"
+      },
+      {
+        "name": "closed",
+        "kind": "terminal_success"
+      }
+    ],
+    "transitions": [
+      {
+        "id": "start",
+        "event": "start",
+        "from_state": "open",
+        "to_state": "in_progress",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.started"
+          },
+          {
+            "kind": "set",
+            "target": "context.audit.started_at",
+            "expr": "now"
+          }
+        ]
+      },
+      {
+        "id": "close",
+        "event": "close",
+        "from_state": "in_progress",
+        "to_state": "closed",
+        "priority": 0,
+        "guards": [],
+        "effects": [
+          {
+            "kind": "audit",
+            "template": "{{workflow_key}}.closed"
+          },
+          {
+            "kind": "set",
+            "target": "context.audit.closed_at",
+            "expr": "now"
+          }
+        ]
+      }
+    ]
+  }
+}
