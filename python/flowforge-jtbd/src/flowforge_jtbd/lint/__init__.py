@@ -22,6 +22,15 @@ Public API:
 from __future__ import annotations
 
 from .actors import ActorConsistencyAnalyzer
+from .conflicts import (
+	ConflictSolver,
+	JtbdSemantics,
+	PairsConflictSolver,
+	Z3ConflictSolver,
+	default_solver,
+	detect_conflicts,
+	extract_semantics,
+)
 from .dependencies import DependencyCycle, DependencyGraph
 from .glossary import GlossaryConflictRule, GlossaryConflictRulePack, builtin_glossary_pack
 from .quality import LowQualityRule, LowQualityRulePack
@@ -42,8 +51,15 @@ from .results import (
 
 __all__ = [
 	"ActorConsistencyAnalyzer",
+	"ConflictSolver",
 	"DependencyCycle",
 	"DependencyGraph",
+	"JtbdSemantics",
+	"PairsConflictSolver",
+	"Z3ConflictSolver",
+	"default_solver",
+	"detect_conflicts",
+	"extract_semantics",
 	"GlossaryConflictRule",
 	"GlossaryConflictRulePack",
 	"Issue",
