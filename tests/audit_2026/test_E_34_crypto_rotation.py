@@ -23,8 +23,10 @@ import pytest
 
 
 def _run(coro):
-	loop = asyncio.get_event_loop()
-	return loop.run_until_complete(coro)
+	# asyncio.run() gives each call a fresh, properly-scoped loop; isolates
+	# the test from prior tests that close the global loop. See E-41 for
+	# the same fix applied to that file.
+	return asyncio.run(coro)
 
 
 # ---------------------------------------------------------------------------

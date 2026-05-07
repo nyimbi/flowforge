@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## [0.1.0] — 2026-05-08 — audit-2026 release
+
+> First versioned release. Closes all 77 findings from the audit-2026
+> sprint (E-32..E-72) under DELIBERATE-mode signoff. **Includes one
+> SECURITY-BREAKING change** (E-34: HMAC default secret removed; opt-in
+> bridge available for one minor — see SECURITY-NOTE.md and the
+> upgrade checklist at `docs/release/v0.1.0-upgrade.md`).
+>
+> 8/8 architectural invariants conformance-tested. 4/4 security
+> ratchets. 11/11 ticket signoffs landed. Full report at
+> `docs/audit-2026/close-out.md`.
+
 - **[SECURITY] (audit-2026 E-72, P3)** Audit-2026 sprint close-out. All 77 audit findings closed; 8/8 architecture §17 invariants conformance-tested; ratchets 4/4 PASS; signoff-checklist signed for every active ticket E-32..E-72; framework-level CHANGELOG carries `[SECURITY]` entries for every P0 and the AU-03 escalation. Per-fix Grafana dashboards live at `grafana.flowforge.local/d/audit-2026/<TICKET_ID>` per audit-fix-plan §10.1; 24h soak test deferred to post-merge ops per close-out report. Close-out report at `framework/docs/audit-2026/close-out.md`.
 - **[SECURITY] (audit-2026 E-38, P0)** flowforge-jtbd alembic RLS DDL — table-name allow-list + `quoted_name` (J-01). The migration enumerator now compares every target table against an immutable `_KNOWN_TABLES` allow-list before splicing into RLS `CREATE POLICY` / `DROP POLICY` DDL; an attempt to drive the migration over a monkey-patched malicious table list raises `ValueError` before any SQL is emitted. Names are wrapped in `sqlalchemy.sql.quoted_name(..., quote=True)` so even allow-listed values cannot inject across DDL boundaries. Alembic dry-run on prod-shape SQLite asserts upgrade + downgrade are reversible. Closes finding J-01 atomically; pins architecture invariant 8 (migration RLS DDL safety). See `framework/docs/audit-2026/signoff-checklist.md` E-38 row.
 - **[SECURITY] (audit-2026 E-37, P0+escalated AU-03)** flowforge-audit-pg — append-only chain hardening (AU-01, AU-02, AU-03 escalated). AU-01: `record()` now wraps the chain-head fetch + insert in a per-tenant advisory lock so 100 concurrent records for one tenant produce ZERO chain forks; new `UNIQUE(tenant_id, ordinal)` constraint catches duplicate ordinals at the DB layer. AU-02: `verify_chain()` streams in `VERIFY_CHUNK_SIZE` keyset-paginated chunks; `tracemalloc` peak is < 256 MB on a 10M-row chain (was unbounded). AU-03 (escalated to P1 SOX/HIPAA gate): canonical golden-bytes fixture committed at `framework/tests/audit_2026/fixtures/canonical_golden.bin`; verify against committed bytes refuses to load on hash mismatch — guards against silent canonical-form drift. Closes findings AU-01, AU-02, AU-03 atomically; pins architecture invariant 7 (audit-chain monotonicity). See `framework/docs/audit-2026/signoff-checklist.md` E-37 row.

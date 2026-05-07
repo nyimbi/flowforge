@@ -4,6 +4,23 @@ Portable workflow framework extracted from UMS. Source spec: `docs/workflow-fram
 
 This subtree is intentionally self-contained. Nothing under `framework/` imports from `backend/app/` or `frontend/src/` — UMS is a *consumer* of flowforge, not the other way around.
 
+## Security & release notes
+
+- **0.1.0 release** (audit-2026): closes 77 audit findings, includes one
+  SECURITY-BREAKING change. Read [`docs/audit-2026/SECURITY-NOTE.md`][sec]
+  before upgrading and run [`flowforge pre-upgrade-check`][cli] against
+  every host. Upgrade checklist at [`docs/release/v0.1.0-upgrade.md`][upgrade].
+- Per-fix signoff trail: [`docs/audit-2026/signoff-checklist.md`][signoff].
+- Close-out report: [`docs/audit-2026/close-out.md`][closeout].
+- Backlog of architecturally-deferred items: [`docs/audit-2026/backlog.md`][backlog].
+
+[sec]: docs/audit-2026/SECURITY-NOTE.md
+[cli]: python/flowforge-cli/src/flowforge_cli/commands/pre_upgrade_check.py
+[upgrade]: docs/release/v0.1.0-upgrade.md
+[signoff]: docs/audit-2026/signoff-checklist.md
+[closeout]: docs/audit-2026/close-out.md
+[backlog]: docs/audit-2026/backlog.md
+
 ## Layout
 
 ```

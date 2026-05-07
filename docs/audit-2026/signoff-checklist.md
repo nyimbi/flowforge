@@ -482,6 +482,14 @@
     signer: Nyimbi Odero
     date: 2026-05-07
     commit_sha: 61a4aff
+  security_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-07
+    commit_sha: 61a4aff
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-07
+    commit_sha: 61a4aff
 
 - ticket: E-44
   title: "Hypothesis property tests (5 properties)"
@@ -513,6 +521,14 @@
     commit_sha: 61a4aff
     note: "single-stakeholder approval pattern (see roles header)"
   qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-07
+    commit_sha: 61a4aff
+  security_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-07
+    commit_sha: 61a4aff
+  release_manager_signoff:
     signer: Nyimbi Odero
     date: 2026-05-07
     commit_sha: 61a4aff
@@ -552,6 +568,14 @@
     commit_sha: 61a4aff
     note: "single-stakeholder approval pattern (see roles header)"
   qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-07
+    commit_sha: 61a4aff
+  security_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-07
+    commit_sha: 61a4aff
+  release_manager_signoff:
     signer: Nyimbi Odero
     date: 2026-05-07
     commit_sha: 61a4aff
