@@ -73,7 +73,7 @@ describe("validateWorkflow", () => {
 
 	it("flags duplicate state ids", () => {
 		const wf = sampleWorkflow();
-		wf.states.push({ id: "submitted", name: "dup", kind: "task" });
+		wf.states.push({ id: "submitted", name: "dup", kind: "automatic" });
 		const issues = validateWorkflow(wf);
 		expect(issues.find((i) => i.code === "STATE_DUP")).toBeDefined();
 	});
@@ -105,8 +105,8 @@ describe("diffWorkflows", () => {
 			name: "Claim intake v2",
 			states: [
 				...sampleWorkflow().states.filter((s) => s.id !== "in_review"),
-				{ id: "in_review", name: "Reviewing now", kind: "review" },
-				{ id: "rejected", name: "Rejected", kind: "end" },
+				{ id: "in_review", name: "Reviewing now", kind: "manual_review" },
+				{ id: "rejected", name: "Rejected", kind: "terminal_fail" },
 			],
 			transitions: [
 				...sampleWorkflow().transitions.filter((t) => t.id !== "t3"),
@@ -196,7 +196,7 @@ describe("Designer (integration)", () => {
 			name: "Renamed",
 			states: [
 				...before.states.filter((s) => s.id !== "in_review"),
-				{ id: "in_review", name: "Reviewing", kind: "review" },
+				{ id: "in_review", name: "Reviewing", kind: "manual_review" },
 			],
 		};
 		render(<DiffViewer before={before} after={after} />);

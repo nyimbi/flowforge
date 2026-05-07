@@ -93,23 +93,43 @@ JtbdSpecStatus = Literal[
 
 
 def _semver(value: str) -> str:
-	"""Tolerant semver guard.
+	"""Strict semver guard backed by :mod:`packaging.version`.
 
-	Fully-spec-compliant semver parsing is overkill here; what we need
-	is a sanity check that the value looks like ``MAJOR.MINOR.PATCH``
-	with optional pre-release / build suffix. We do not pin the regex
-	to the exact PCRE in the semver spec because it gives unhelpful
-	error messages and rejects common pre-release shapes downstream
-	dev tools emit.
+	audit-2026 J-09: the previous implementation accepted ``"1.0.0-"``
+	(empty pre-release suffix) because it only checked that the digit
+	parts looked numeric. ``packaging.version.Version`` enforces the
+	full PEP 440 / semver shape — empty suffixes, leading zeros in
+	pre-release segments, and other malformed inputs all raise
+	``InvalidVersion``.
+
+	We additionally require the bare ``MAJOR.MINOR.PATCH`` triple to be
+	present (``packaging.Version`` accepts ``"1.0"`` for example). This
+	matches the JTBD spec's documented contract.
 	"""
+
+	from packaging.version import InvalidVersion, Version
+
 	if not value:
 		raise ValueError("version must be non-empty")
-	parts = value.split("-", 1)[0].split("+", 1)[0].split(".")
-	if len(parts) != 3 or not all(p.isdigit() for p in parts):
+	core = value.split("-", 1)[0].split("+", 1)[0]
+	parts = core.split(".")
+	if len(parts) != 3 or not all(p.isdigit() and p == str(int(p)) for p in parts):
 		raise ValueError(
 			"version must look like 'MAJOR.MINOR.PATCH' with optional"
 			f" pre-release/build suffix; got {value!r}"
 		)
+	# Reject empty suffix shapes ("1.0.0-", "1.0.0+") that the simple
+	# split above would otherwise let through.
+	if value.endswith("-") or value.endswith("+"):
+		raise ValueError(
+			f"version has empty pre-release/build suffix: {value!r}"
+		)
+	try:
+		Version(value)
+	except InvalidVersion as exc:
+		raise ValueError(
+			f"version is not a valid PEP 440 / semver: {value!r} ({exc})"
+		) from exc
 	return value
 
 
@@ -128,13 +148,26 @@ def _spec_hash_format(value: str) -> str:
 
 
 def _id_pattern(value: str) -> str:
-	"""Snake-case identifier pattern shared by jtbd_id, package, etc."""
-	if not value or not value[0].isalpha() or not value[0].islower():
-		raise ValueError("id must start with a lowercase letter")
+	"""Snake-case identifier pattern shared by jtbd_id, package, etc.
+
+	ASCII-only — ``str.islower()`` and ``str.isalpha()`` accept Unicode
+	letters like ``é`` and ``α``, which would let cross-script identifiers
+	(e.g. ``café_run``) slip past validation. Audit E-64 / IT-04 class 3
+	requires the validator to reject every non-ASCII identifier.
+	"""
+	if (
+		not value
+		or not value[0].isascii()
+		or not ("a" <= value[0] <= "z")
+	):
+		raise ValueError("id must start with an ASCII lowercase letter")
 	for ch in value:
-		if not (ch.islower() or ch.isdigit() or ch == "_"):
+		if not (
+			ch.isascii()
+			and (("a" <= ch <= "z") or ("0" <= ch <= "9") or ch == "_")
+		):
 			raise ValueError(
-				"id must contain only lowercase letters, digits, and underscores"
+				"id must contain only ASCII lowercase letters, digits, and underscores"
 				f"; got {value!r}"
 			)
 	return value

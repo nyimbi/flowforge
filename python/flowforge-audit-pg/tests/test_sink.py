@@ -21,6 +21,11 @@ from flowforge_audit_pg import PgAuditSink, create_tables
 from flowforge_audit_pg.hash_chain import TOMBSTONE
 
 
+# Make tests work both from the package directory (auto mode) and from the
+# framework root (STRICT mode + macro audit-2026 target).
+pytestmark = pytest.mark.asyncio
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

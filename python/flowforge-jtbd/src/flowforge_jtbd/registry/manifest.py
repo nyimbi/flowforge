@@ -125,13 +125,16 @@ def manifest_from_bundle(
 	``spec_hash`` if they have one (from
 	:func:`flowforge_jtbd.dsl.canonical.spec_hash`).
 	"""
-	from ..dsl.canonical import canonical_json
+	from ..dsl import canonical as canonical_mod
 
+	# E-59 / J-10: narrowed from a bare catch-all so encoder bugs and
+	# missing-import errors are not silently swallowed into spec_hash=None.
 	try:
 		parsed = json.loads(bundle_bytes)
-		shash = "sha256:" + hashlib.sha256(canonical_json(parsed)).hexdigest()
-	except Exception:
+	except json.JSONDecodeError:
 		shash = None
+	else:
+		shash = "sha256:" + hashlib.sha256(canonical_mod.canonical_json(parsed)).hexdigest()
 
 	return JtbdManifest(
 		name=name,

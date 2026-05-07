@@ -99,6 +99,32 @@ class SpiceDBRbac:
 		# Local mirror of the description text — SpiceDB only stores the
 		# fact that a permission is *defined*, not its prose.
 		self._descriptions: dict[str, str] = {}
+		# E-55 / RB-02: most-recently-observed Zedtoken from
+		# ``WriteRelationships`` responses. Reads pass it as
+		# ``consistency.at_least_as_fresh`` so SpiceDB serves a revision at
+		# or after the last write the resolver issued — read-after-write
+		# consistency without a global ``fully_consistent`` round-trip.
+		self._zedtoken: str | None = None
+
+	# ----------------------------------------------------------------- public ZT API
+
+	def last_zedtoken(self) -> str | None:
+		"""Return the most-recently-observed write Zedtoken, or None."""
+		return self._zedtoken
+
+	def reset_zedtoken(self) -> None:
+		"""Drop the cached Zedtoken; subsequent reads send no consistency hint.
+
+		Useful in batched read-only contexts where a small staleness is
+		acceptable and the latency saving matters.
+		"""
+		self._zedtoken = None
+
+	def _consistency(self) -> "_wire.Consistency | None":
+		"""Build a ``Consistency`` message for reads when a Zedtoken is cached."""
+		if self._zedtoken:
+			return _wire.Consistency(at_least_as_fresh=self._zedtoken)
+		return None
 
 	# ----------------------------------------------------------------- helpers
 
@@ -144,6 +170,7 @@ class SpiceDBRbac:
 			resource=self._resource(scope),
 			permission=permission,
 			subject=self._subject(principal),
+			consistency=self._consistency(),
 		)
 		resp = await self._client.CheckPermission(req)
 		return getattr(resp, "permissionship", _wire.PERMISSIONSHIP_NO_PERMISSION) == \
@@ -159,6 +186,7 @@ class SpiceDBRbac:
 			resource=self._resource(scope),
 			permission=permission,
 			subject_object_type=self._subject_type,
+			consistency=self._consistency(),
 		)
 		out: list[Principal] = []
 		async for item in self._client.LookupSubjects(req):
@@ -200,9 +228,13 @@ class SpiceDBRbac:
 					),
 				)
 			)
-		await self._client.WriteRelationships(
+		resp = await self._client.WriteRelationships(
 			_wire.WriteRelationshipsRequest(updates=updates),
 		)
+		# E-55 / RB-02: capture the Zedtoken so subsequent reads see this write.
+		token = getattr(resp, "written_at_token", "")
+		if token:
+			self._zedtoken = token
 
 	async def assert_seed(self, names: list[PermissionName]) -> list[PermissionName]:
 		assert isinstance(names, list), "names must be a list"
@@ -210,6 +242,7 @@ class SpiceDBRbac:
 			resource=self._catalog_resource(),
 			permission="defined",
 			subject_object_type="permission_name",
+			consistency=self._consistency(),
 		)
 		known: set[str] = set()
 		async for item in self._client.LookupSubjects(req):

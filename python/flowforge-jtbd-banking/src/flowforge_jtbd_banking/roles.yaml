@@ -1,9 +1,43 @@
 roles:
   - name: relationship_manager
     default_tier: 1
+    capacities: ["operator", "creator"]
   - name: credit_analyst
     default_tier: 1
+    capacities: ["reviewer"]
+  - name: credit_underwriter
+    default_tier: 2
+    capacities: ["approver", "reviewer"]
+  - name: senior_credit_officer
+    default_tier: 3
+    capacities: ["approver"]
+  - name: loan_committee
+    default_tier: 4
+    capacities: ["approver"]
   - name: operations_officer
     default_tier: 1
+    capacities: ["operator"]
+  - name: senior_operations_officer
+    default_tier: 2
+    capacities: ["approver"]
+  - name: branch_operations_manager
+    default_tier: 2
+    capacities: ["approver"]
+  - name: wire_operations_officer
+    default_tier: 1
+    capacities: ["operator"]
   - name: card_services_agent
     default_tier: 1
+    capacities: ["operator"]
+  - name: fraud_investigator
+    default_tier: 1
+    capacities: ["operator", "reviewer"]
+  - name: fraud_operations_manager
+    default_tier: 2
+    capacities: ["approver"]
+  - name: bsa_compliance_officer
+    default_tier: 3
+    capacities: ["approver", "reviewer"]
+  - name: senior_management_designee
+    default_tier: 4
+    capacities: ["approver"]

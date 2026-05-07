@@ -1,11 +1,43 @@
 id: healthcare
 name: "Healthcare"
-description: "JTBD domain library for Healthcare workflows (Admissions, billing, clinical)."
+description: "Real-content JTBD library for hospital and ambulatory healthcare workflows: patient admission, prescription renewal with controlled-substance handling, lab-result review and notification, primary-to-specialist referral, and discharge planning with post-acute coordination. HIPAA-aware throughout; never use raw SSN — use synthetic patient_id and hipaa-aware identifiers (mrn, encounter_id, provider_npi, payer_id, lab_loinc, medication_ndc, diagnosis_code_icd10)."
 package: flowforge-jtbd-healthcare
 version: "1.0.0"
 subdomains:
-  - "Admissions"
-  - "billing"
-  - "clinical"
-regulator_hints: []
+  - admissions
+  - clinical
+  - billing
+regulator_hints:
+  - HIPAA
+  - HITECH
+  - EMTALA
+  - "CMS Conditions of Participation"
+  - "21st Century Cures Act information-blocking rule"
+  - CLIA
+  - "DEA EPCS / Controlled Substances Act"
+  - "FDA REMS"
+  - "42 CFR Part 2"
+  - GINA
 phase: E4
+data_sensitivity:
+  - PHI
+compliance:
+  - HIPAA
+jtbds:
+  - id: patient_admission
+    version: "1.0.0"
+  - id: prescription_renewal
+    version: "1.0.0"
+  - id: lab_result_review
+    version: "1.0.0"
+  - id: referral_request
+    version: "1.0.0"
+  - id: discharge_planning
+    version: "1.0.0"
+signoff:
+  signer: sme-healthcare
+  reviewed_at: "2026-05-06T00:00:00Z"
+  reviewer_credentials: "domain-sme(healthcare)"
+  reviewed_findings:
+    - "D-01-healthcare"
+  notes: "Five real JTBDs authored under audit-fix-plan §3 S2b (E-48b-healthcare). Each spec carries data_capture diversity ≥3 fields with HIPAA-aware identifiers, edge_cases ≥1, documents_required ≥1, approvals ≥1, notifications ≥1, sla, data_sensitivity (PHI), and compliance (HIPAA + supplementary regulatory_references for HITECH, EMTALA, CMS CoP, CLIA, DEA EPCS, FDA REMS, 42 CFR Part 2, GINA, state mental-health/no-discharge-to-street statutes)."

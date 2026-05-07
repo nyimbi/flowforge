@@ -1,0 +1,195 @@
+id: lab_result_review
+title: "Review Laboratory Result and Notify Patient"
+version: "1.0.0"
+subdomain: clinical
+actor:
+  role: ordering_provider
+  external: false
+situation: "A laboratory result has been resulted by the performing laboratory and the ordering provider must review it, decide on clinical action, and release the result to the patient under the ONC Cures Act information-blocking rule and any state notifiable-disease statutes."
+motivation: "Catch and act on critical and actionable results quickly, satisfy CLIA reporting and 21st Century Cures Act information-blocking requirements, and document the clinical interpretation in the chart."
+outcome: "Result is reviewed, interpreted, signed, released to the patient portal, and any required public-health or care-coordination notifications are sent."
+success_criteria:
+  - "Provider notification on critical (panic) values within 30 minutes with documented read-back"
+  - "Routine results released to the patient portal within 4 business days unless a Cures-Act exception applies"
+  - "100% of reportable conditions transmitted to the public-health authority within statutory windows"
+  - "Result interpretations are signed by the ordering provider before release"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: patient_id
+    kind: identifier
+    label: "Internal patient identifier"
+    pii: true
+    hipaa_identifier: true
+  - id: encounter_id
+    kind: identifier
+    label: "Encounter id"
+    pii: true
+    hipaa_identifier: true
+  - id: order_id
+    kind: identifier
+    label: "Lab order identifier"
+    pii: false
+  - id: lab_loinc
+    kind: code
+    label: "Test code (LOINC)"
+    pii: false
+    code_system: "LOINC"
+  - id: result_value
+    kind: text
+    label: "Result value (numeric, ordinal, or text)"
+    pii: true
+  - id: result_unit
+    kind: text
+    label: "Result unit (UCUM)"
+    pii: false
+    code_system: "UCUM"
+  - id: reference_range
+    kind: text
+    label: "Reference range as supplied by the performing lab"
+    pii: false
+  - id: abnormal_flag
+    kind: enum
+    label: "HL7 abnormal flag"
+    pii: false
+    enum: ["N", "L", "H", "LL", "HH", "A", "AA", "neg", "pos"]
+  - id: critical_flag
+    kind: boolean
+    label: "Critical (panic) value indicator"
+    pii: false
+  - id: ordering_provider_npi
+    kind: identifier
+    label: "Ordering provider NPI"
+    pii: false
+  - id: performing_lab_clia
+    kind: identifier
+    label: "Performing lab CLIA number"
+    pii: false
+  - id: collection_datetime
+    kind: datetime
+    label: "Specimen collection time (ISO 8601)"
+    pii: true
+  - id: result_datetime
+    kind: datetime
+    label: "Result available time (ISO 8601)"
+    pii: false
+  - id: interpretation
+    kind: text
+    label: "Provider's clinical interpretation and plan"
+    pii: true
+edge_cases:
+  - id: critical_panic_value
+    condition: "Result is flagged critical (e.g., potassium > 6.0 mmol/L, troponin positive, INR > 5, glucose < 40 mg/dL)."
+    handle: branch
+    branch_to: critical_value_escalation
+    action: "Performing lab calls the ordering provider directly, captures a read-back of the value, and documents caller, callee, time, and read-back text per CLIA §493.1109; if the ordering provider cannot be reached within 15 minutes, escalate to the covering provider or rapid-response team."
+    severity: critical
+  - id: incidental_genetic_finding
+    condition: "Result reveals a clinically significant secondary genetic variant the patient did not specifically consent to receive."
+    handle: branch
+    branch_to: gina_disclosure_review
+    action: "Hold release pending genetic-counsellor review and renewed consent; GINA-protected information is held to a higher disclosure bar than ordinary lab data and never shared with employers or health insurers."
+    severity: high
+  - id: misidentified_specimen
+    condition: "Specimen labelling fails the two-identifier check or the laboratory rejects the specimen."
+    handle: pause
+    action: "Quarantine the result, do not release; trigger the specimen-rejection workflow, recollect, and document the labelling failure as a patient-safety event."
+    severity: critical
+  - id: deceased_patient_result
+    condition: "Result returns after the patient has died."
+    handle: branch
+    branch_to: posthumous_disclosure
+    action: "Update the problem list, notify the personal representative consistent with HIPAA's deceased-individual rule (45 CFR 164.502(g)(4)), and report communicable diseases to the public-health authority where required."
+    severity: medium
+  - id: reportable_condition
+    condition: "Result identifies a state-reportable communicable disease (e.g., active TB, syphilis, measles, HIV depending on state)."
+    handle: branch
+    branch_to: public_health_reporting
+    action: "Submit the case to the state or local public-health authority within the statutory window (often 24 hours for Class A diseases); document the report identifier."
+    severity: high
+abort_conditions:
+  - "Performing-lab CLIA number is missing or invalid"
+  - "Result references an order that cannot be matched to a patient"
+documents_required:
+  - kind: lab_order
+    min: 1
+    max: 1
+    av_required: true
+    description: "Signed lab order with documented medical necessity (CMS-required ICD-10 link)."
+  - kind: lab_report
+    min: 1
+    max: 1
+    av_required: true
+    description: "CLIA-validated lab report including reference range, units, and methodology."
+  - kind: amended_result_addendum
+    min: 0
+    description: "Required when a previously released result is corrected; both versions are retained for audit."
+  - kind: portal_release_record
+    min: 1
+    av_required: true
+    description: "Audit record showing when and to whom the result was released, including any Cures-Act information-blocking exception applied."
+approvals:
+  - role: ordering_provider
+    policy: any_of
+    description: "Ordering provider electronically signs the result and interpretation before release to the patient portal (or documents a delegation rule for normal results)."
+  - role: pathologist
+    policy: any_of
+    description: "Anatomic pathology and complex molecular results are signed by the responsible pathologist."
+  - role: medical_director
+    policy: any_of
+    description: "Medical director attests to the critical-value notification chain when the read-back loop fails or escalates."
+notifications:
+  - trigger: critical_value
+    channel: phone
+    audience: ordering_provider
+    description: "Direct phone call from the lab to the ordering provider with documented read-back per CLIA §493.1109."
+  - trigger: result_released
+    channel: portal
+    audience: patient
+    description: "Result released to the patient portal under the ONC Cures Act information-blocking rule (no routine delay for non-sensitive results)."
+  - trigger: result_released
+    channel: ehr_message
+    audience: primary_care_provider
+    description: "PCP receives a continuity-of-care notification when the orderer is a specialist."
+  - trigger: reportable_condition
+    channel: public_health_api
+    audience: public_health_authority
+    description: "Electronic Laboratory Reporting (ELR) submission via the state public-health gateway."
+sla:
+  warn_pct: 80
+  breach_seconds: 1800
+  narrative: "Critical value provider-notification: 30 minutes with read-back. Routine portal release: 4 business days. Reportable conditions: 24 hours for Class A, 72 hours for Class B (state-dependent)."
+  targets:
+    - event: critical_value_provider_notified
+      deadline: "PT30M"
+    - event: result_released_to_portal
+      deadline: "P4D"
+    - event: public_health_reportable_submitted
+      deadline: "PT24H"
+metrics:
+  - "% of critical values with documented read-back within 30 minutes"
+  - "% of routine results released to portal within 4 business days"
+  - "% of reportable conditions submitted within statutory window"
+  - "% of amended results with addendum tracked"
+data_sensitivity:
+  - PHI
+compliance:
+  - HIPAA
+regulatory_references:
+  - "HIPAA Privacy and Security Rules"
+  - "HITECH"
+  - "CLIA (42 CFR Part 493) — including §493.1109 critical-value reporting"
+  - "21st Century Cures Act information-blocking rule (45 CFR 171)"
+  - "GINA (Genetic Information Nondiscrimination Act)"
+  - "State notifiable-disease statutes and CDC NNDSS"
+  - "FDA Investigational Device Exemption rules for LDTs (where applicable)"
+signoff:
+  signer: sme-healthcare
+  reviewed_at: "2026-05-06T00:00:00Z"
+  reviewer_credentials: "domain-sme(healthcare)"
+  reviewed_findings:
+    - "D-01-healthcare"

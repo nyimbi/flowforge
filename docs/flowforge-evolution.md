@@ -449,8 +449,8 @@ ratings, no reputation system.
 | Add `flowforge jtbd publish/install/search` CLI subcommands | `framework/python/flowforge-cli/src/flowforge_cli/jtbd_hub.py` (new) |
 | Add OCI-like manifest format | `framework/python/flowforge-jtbd/src/flowforge_jtbd/registry/manifest.py` (new) |
 | Add signing + verification (reuse `SigningPort`) | `framework/python/flowforge-jtbd/src/flowforge_jtbd/registry/signing.py` (new) |
-| Build `jtbd-hub` registry service (separate Next.js + Python app) | `apps/jtbd-hub/` (new) |
-| Add ratings + reviews tables | `apps/jtbd-hub/db/migrations/0001_ratings.sql` (new) |
+| Build `flowforge-jtbd-hub` registry service (Python pkg + JS designer plugin) | `framework/python/flowforge-jtbd-hub/` |
+| Add ratings + reviews tables | `framework/python/flowforge-jtbd-hub/src/flowforge_jtbd_hub/db/alembic_bundle/versions/r3_ratings.py` (new) |
 
 ### 11.4 New ports / adapters
 
@@ -1223,3 +1223,92 @@ modes; canonical list in `docs/jtbd-editor-arch.md` §23.18)". The
 ### 25.18 Iteration 3 changelog
 
 - §25.17 added: E-1I/E-1J/E-1K tickets.
+
+---
+
+## 26. Audit 2026 — ticket reconciliation (E-31..E-72)
+
+This section reconciles the audit-fix-plan v1 ticket range with the
+evolution roadmap. Source of truth: `framework/docs/audit-fix-plan.md`
+§7. Tickets E-1..E-30 in §15 cover the original evolution arc; E-31
+onward is the audit hardening.
+
+### 26.1 S0 — P0 hotfix (week 1)
+
+| ID | Title | Findings | Owner phase |
+|---|---|---|---|
+| E-32 | ENGINE-HOTFIX EPIC: per-instance lock + transactional fire + outbox safety | C-01, C-04 | S0 |
+| E-33 | (merged into E-37) | — | — |
+| E-34 | Crypto rotation: HMAC default removal + key_id map + transient/invalid distinction | SK-01, SK-02, SK-03 | S0 |
+| E-35 | Frozen op registry + arity enforcement | C-06, C-07 | S0 |
+| E-36 | Tenancy SQL hardening: bind-param GUC + ContextVar elevation + in-tx assert | T-01, T-02, T-03 | S0 |
+| E-37 | Audit-chain hardening: advisory lock + chunked verify + canonical golden | AU-01, AU-02, AU-03 | S0 |
+| E-37b | Hub trust gate: signed_at_publish explicit | JH-01 | S0 |
+| E-38 | Migration RLS DDL: whitelist + quoted_name | J-01 | S0 |
+
+### 26.2 S1 — P1 GA-blockers (weeks 2–4)
+
+| ID | Title | Findings | Owner phase |
+|---|---|---|---|
+| E-39 | Engine quality + correctness pass + sqlalchemy uuid7 | C-02, C-03, C-05, C-08, C-10, C-13, SA-01 | S1 |
+| E-40 | Saga ledger persistence + minimal compensation worker | C-09, SA-02 | S1 |
+| E-41 | FastAPI + WS hardening | FA-01..FA-06 | S1 |
+| E-42 | Outbox hardening: table validate, SQLite single-worker, reconnect, utf8 truncation | OB-01..OB-04 | S1 |
+| E-43 | TS↔Python expr conformance suite | JS-01, JS-02, JS-03 | S1 |
+| E-44 | Hypothesis property tests (5 properties) | IT-01 | S1 |
+| E-45 | E2E suite: fire→audit→verify, fire→outbox→ack, fork→migrate→replay | IT-02 | S1 |
+| E-46 | Workspace + docs alignment (45 pkgs registered, README count, doc paths) | DOC-01, DOC-02 | S1 |
+| E-47 | JTBD intelligence quality | J-02..J-09 | S1 |
+
+### 26.3 S2a — Domain rebrand (weeks 2–3, parallel)
+
+| ID | Title | Findings | Owner phase |
+|---|---|---|---|
+| E-48a | Domain rebrand (25 non-strategic pkgs to *-starter) | D-01 (25/30) | S2a |
+| E-49 | Per-domain smoke tests (all 30 pkgs) | D-04 | S2a |
+| E-50 | Domain pkg semver pin (all 30 to 0.0.1) | D-05 | S2a |
+| E-51 | Domain pkg `__init__.py` standard (all 30) | D-03 | S2a |
+
+### 26.4 S2b — Domain real content (weeks 4–8, 5 SMEs)
+
+| ID | Title | Findings | Owner phase |
+|---|---|---|---|
+| E-48b | Real JTBD content for 5 strategic verticals (insurance, healthcare, banking, gov, hr) | D-01 (5/30), D-02 | S2b |
+
+### 26.5 S3 — P2 hardening (weeks 5–6)
+
+| ID | Title | Findings | Owner phase |
+|---|---|---|---|
+| E-52 | Documents-S3 hardening | DS-01..DS-04 | S3 |
+| E-53 | Money rounding + reverse-rate consistency + hash/eq invariant | M-01, M-02, M-03 | S3 |
+| E-54 | Notify transports: compare_digest + specific exceptions + cause chain | NM-01..NM-03 | S3 |
+| E-55 | RBAC static path traversal + SpiceDB Zedtoken propagation | RB-01, RB-02 | S3 |
+| E-56 | KMS async correctness | KMS-01 | S3 |
+| E-57 | CLI quality | CLI-01..CLI-04 | S3 |
+| E-58 | Hub residual (counter, verify cache, admin rotation, path, except) | JH-02..JH-06 | S3 |
+| E-59 | JTBD lint cleanup (dead code, mention regex, manifest exception narrowing) | J-10, J-11, J-12 | S3 |
+| E-60 | Audit-pg residual (datetime regex) | AU-04 | S3 |
+| E-61 | DSL spec hygiene | DSL-01, DSL-02 | S3 |
+| E-62 | JS designer + renderer hardening | JS-04..JS-07 | S3 |
+
+### 26.6 S4 — P3 polish (week 7)
+
+| ID | Title | Findings | Owner phase |
+|---|---|---|---|
+| E-63 | JS test coverage (WS reconnect + collab edge cases) | IT-03 | S4 |
+| E-64 | Edge-case test bank (9 classes) | IT-04 | S4 |
+| E-65 | Doc currency (per-pkg READMEs as doctests + handbook paths) | DOC-03, DOC-04 | S4 |
+| E-66 | JS workspace marker (private flag) | DOC-06 | S4 |
+| E-67 | JTBD core polish (SVG virtualisation for large jobmaps) | UX-01 | S4 |
+| E-68 | Tests location convention | TC-01 | S4 |
+| E-69 | E-31 reconciliation + version cadence | E-31-mismatch, DOC-05 | S4 |
+| E-70 | Tenancy in-tx assert (residual after E-36) | T-03 (residual) | S4 |
+| E-72 | Final sweep + audit-2026 close-out | aggregate | S4 |
+
+### 26.7 Cross-references
+
+- Per-ticket signoff trail: `framework/docs/audit-2026/signoff-checklist.md`.
+- Architectural invariants: `framework/tests/conformance/test_arch_invariants.py`.
+- Per-finding regression suite: `framework/tests/audit_2026/`.
+- Property-based suite: `framework/tests/property/`.
+- Edge-case bank: `framework/tests/edge_cases/`.

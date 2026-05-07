@@ -7,7 +7,8 @@ describe("expr.evaluate", () => {
 	it("reads a path ref", () => {
 		expect(evaluate("$.age", v)).toBe(30);
 		expect(evaluate("$.nested.ok", v)).toBe(true);
-		expect(evaluate("$.missing", v)).toBeUndefined();
+		// audit-2026 E-43: missing paths return null (parity with Python None).
+		expect(evaluate("$.missing", v)).toBeNull();
 	});
 
 	it("supports comparison ops", () => {
@@ -50,8 +51,25 @@ describe("expr.evaluate", () => {
 		expect(evaluate({ coalesce: [null, "", "$.name"] }, v)).toBe("Ada");
 	});
 
-	it("rejects unknown operators", () => {
-		expect(() => evaluate({ "$$danger": [1] }, v)).toThrow(/unknown operator/);
+	it("test_JS_01_unknown_op_returns_false: unknown ops fall through to false", () => {
+		// audit-2026 JS-01: unknown ops no longer throw; they return false so
+		// guards (`evaluateBoolean`) collapse safely instead of crashing the
+		// render path. Verified across symbols, dotted names, and unicode.
+		expect(evaluate({ "$$danger": [1] }, v)).toBe(false);
+		expect(evaluate({ unknown_op: [1, 2] }, v)).toBe(false);
+		expect(evaluate({ "x.y.z": "anything" }, v)).toBe(false);
+		expect(evaluateBoolean({ unknown_op: [] }, v)).toBe(false);
+	});
+
+	it("test_JS_02_strict_equality_only: == / != use === / !==", () => {
+		// audit-2026 JS-02: loose null-equality removed. null and undefined
+		// now compare unequal; JSON-typed inputs match the Python `_eq` op.
+		expect(evaluate({ "==": [null, null] }, v)).toBe(true);
+		expect(evaluate({ "==": [null, undefined] }, v)).toBe(false);
+		expect(evaluate({ "==": [0, false] }, v)).toBe(false);
+		expect(evaluate({ "==": ["1", 1] }, v)).toBe(false);
+		expect(evaluate({ "!=": [null, undefined] }, v)).toBe(true);
+		expect(evaluate({ "!=": [1, 1] }, v)).toBe(false);
 	});
 
 	it("evaluateBoolean falls back when expr is undefined", () => {

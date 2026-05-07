@@ -1,14 +1,32 @@
 id: reins_place
-title: "Place Reinsurance"
+title: "Place Reinsurance Cession"
 version: "1.0.0"
+domain: insurance
 actor:
   role: reinsurance_analyst
   external: false
-situation: "Reinsurance team needs to cede a risk to reinsurers."
-motivation: "Reduce net retention to within risk appetite."
-outcome: "Reinsurance slip signed and cession recorded."
+  capacity: operator
+situation: >-
+  Underwriting has bound (or is preparing to bind) a risk whose retained
+  exposure exceeds the carrier's net retention, or treaty period roll
+  requires renewal of automatic cession terms. The reinsurance team must
+  cede risk via treaty (quota-share, surplus, XOL) or facultatively, with
+  signed slip and bordereau reporting.
+motivation: >-
+  Manage net retained exposure and capital adequacy (RBC ratio, Solvency
+  II SCR, AM Best BCAR) within the carrier's risk appetite, optimise
+  ceded commission and reinstatement-premium mechanics, and ensure no
+  uncovered gap exists at inception.
+outcome: >-
+  Cession recorded against the appropriate treaty layer or facultative
+  contract; signed slip on file; ceded premium booked; bordereau
+  scheduled in the next reporting cycle; collateral / Reg 114 trust /
+  letter-of-credit verified for non-admitted reinsurer if applicable.
 success_criteria:
-  - "Reinsurance placed before inception of the reinsured policy"
+  - "Cession placed before policy inception (no uncovered hours)"
+  - "Slip signed by all participating reinsurers within binder period"
+  - "Ceded premium recorded in same accounting period as direct policy"
+  - "Reinsurance recoverable balance reconciles to bordereau within ±1%"
 stages:
   - name: discover
   - name: execute
@@ -16,11 +34,185 @@ stages:
   - name: report
   - name: audit
 data_capture:
-  - id: reference_id
+  - id: cession_id
     kind: text
-    label: Reference ID
+    label: "Cession Identifier"
     pii: false
-  - id: notes
+  - id: ceding_policy_number
     kind: text
-    label: Notes
+    label: "Ceding (Direct) Policy Number"
+    pii: true
+    sensitivity: financial
+  - id: treaty_or_fac_indicator
+    kind: enum
+    label: "Treaty or Facultative Indicator"
+    options:
+      - "treaty_quota_share"
+      - "treaty_surplus"
+      - "treaty_excess_of_loss_per_risk"
+      - "treaty_excess_of_loss_per_event_cat"
+      - "facultative_proportional"
+      - "facultative_excess_of_loss"
     pii: false
+  - id: treaty_id
+    kind: text
+    label: "Treaty Contract Identifier (if treaty cession)"
+    pii: false
+  - id: layer_attachment
+    kind: money
+    label: "Layer Attachment Point"
+    pii: false
+    sensitivity: financial
+  - id: layer_limit
+    kind: money
+    label: "Layer Limit"
+    pii: false
+    sensitivity: financial
+  - id: cession_pct
+    kind: number
+    label: "Cession Percentage (proportional treaties)"
+    pii: false
+  - id: subject_premium
+    kind: money
+    label: "Subject Premium (gross before cession)"
+    pii: false
+    sensitivity: financial
+  - id: ceded_premium
+    kind: money
+    label: "Ceded Premium"
+    pii: false
+    sensitivity: financial
+  - id: ceding_commission_pct
+    kind: number
+    label: "Ceding Commission Percentage"
+    pii: false
+  - id: reinsurer_naic_or_neaic_id
+    kind: text
+    label: "Reinsurer NAIC Cocode (admitted) or NEAIC ID (alien)"
+    pii: false
+  - id: reinsurer_admitted_status
+    kind: enum
+    label: "Reinsurer Admitted Status in Ceding-State"
+    options:
+      - "admitted"
+      - "accredited"
+      - "certified"
+      - "reciprocal_jurisdiction"
+      - "non_admitted_collateralised"
+    pii: false
+  - id: collateral_type
+    kind: enum
+    label: "Collateral Type for Reg 114 Credit"
+    options:
+      - "regulation_114_trust"
+      - "letter_of_credit"
+      - "funds_held_by_ceding_company"
+      - "not_required_admitted"
+    pii: false
+  - id: collateral_amount
+    kind: money
+    label: "Collateral Amount on File"
+    pii: false
+    sensitivity: financial
+  - id: cession_effective_date
+    kind: datetime
+    label: "Cession Effective Date / Time"
+    pii: false
+edge_cases:
+  - id: treaty_capacity_exhausted
+    description: >-
+      Cession would exceed the treaty's annual aggregate or per-event
+      capacity. Place residual via facultative; if no facultative market
+      available, hold underwriting pending treaty reinstatement-premium
+      payment.
+  - id: non_admitted_collateral_shortfall
+    description: >-
+      Non-admitted reinsurer's posted collateral falls below the Reg 114
+      requirement (or NAIC Credit for Reinsurance Model Law schedule).
+      Statutory credit must be reduced on financial statements; ceding
+      company demands top-up or moves business to admitted market.
+  - id: late_notice_to_reinsurer
+    description: >-
+      Loss notice to reinsurer fails the treaty's "as soon as practicable"
+      claim-cooperation clause. Reinsurer may assert prejudice and reduce
+      recoverable; document mitigation and submit late-notice memorandum.
+  - id: follow_the_fortunes_dispute
+    description: >-
+      Reinsurer challenges the ceding company's settlement under
+      "follow-the-fortunes" / "follow-the-settlements" doctrine arguing ex
+      gratia or unreasonable claim handling. Route to reinsurance dispute
+      arbitration per treaty arbitration clause.
+  - id: reinsurance_commutation_offer
+    description: >-
+      Long-tail reserves on closed underwriting years offered for
+      commutation; actuarial NPV vs. nominal reserve compared; book gain
+      / loss recognised at agreed commutation amount.
+documents_required:
+  - id: signed_reinsurance_slip
+    description: "Signed reinsurance slip / cover note (binding contract evidence)"
+    retention_years: 10
+  - id: treaty_wording
+    description: "Underlying treaty wording in force on cession_effective_date"
+    retention_years: 10
+  - id: bordereau_premium_and_loss
+    description: "Premium and loss bordereaux for the reporting period"
+    retention_years: 10
+  - id: collateral_evidence
+    description: "Reg 114 trust statement, LOC instrument, or funds-held confirmation"
+    retention_years: 10
+  - id: rms_or_air_cat_model_output
+    description: "Cat model run (RMS / AIR / KCC) supporting CAT-XOL placement"
+    retention_years: 7
+approvals:
+  - role: reinsurance_analyst
+    when: "ceded_premium < 250000 and treaty_or_fac_indicator like 'treaty_%'"
+    rationale: "Standard treaty cession booking"
+  - role: chief_reinsurance_officer
+    when: "ceded_premium >= 250000 or treaty_or_fac_indicator like 'facultative_%'"
+    rationale: "CRO signoff for facultative placements and large cessions"
+  - role: chief_financial_officer
+    when: "reinsurer_admitted_status == 'non_admitted_collateralised' and collateral_amount > 5000000"
+    rationale: "CFO signoff on material non-admitted credit and collateral structures"
+  - role: chief_actuary
+    when: "treaty_or_fac_indicator == 'treaty_excess_of_loss_per_event_cat'"
+    rationale: "Chief actuary signoff on CAT XOL pricing and PML / TVaR coverage"
+notifications:
+  - id: reinsurer_slip_confirmation
+    channel: broker_secure_message
+    audience: reinsurer_or_broker
+    trigger: cession_recorded
+  - id: bordereau_dispatch
+    channel: bordereaux_feed
+    audience: reinsurer
+    trigger: bordereau_period_close
+  - id: state_doi_credit_for_reinsurance_filing
+    channel: regulator_portal
+    audience: domiciliary_state_doi
+    trigger: schedule_f_supporting_filing
+  - id: rating_agency_disclosure
+    channel: rating_agency_portal
+    audience: am_best_or_sp_or_moodys
+    trigger: material_program_change
+sla:
+  bind_to_slip_signature_business_days: 30
+  bordereau_cadence: "monthly"
+  collateral_top_up_business_days: 30
+  cat_event_loss_notification_business_days: 5
+  commutation_decision_calendar_days: 180
+data_sensitivity:
+  - PII
+  - financial
+compliance:
+  - "NAIC Credit for Reinsurance Model Law (#785) and Regulation (#786)"
+  - "Regulation 114 Trust (NY 11 NYCRR §126; analogous state rules)"
+  - "Reciprocal Jurisdiction Reinsurer rules (post-Covered Agreement EU/UK)"
+  - "AM Best BCAR / S&P PCRC / Moody's capital adequacy disclosure"
+  - "OFAC sanctions screening on reinsurer parties"
+  - "Schedule F (US statutory annual statement) reporting"
+  - "Solvency II (EU cessions: SCR / MCR impact)"
+  - "GDPR (EU reinsurer data sharing)"
+signoff:
+  signer: sme-insurance
+  reviewed_at: "2026-05-06T12:00:00Z"
+  reviewer_credentials: "domain-sme(insurance)"
+  reviewed_findings: ["D-01-insurance"]

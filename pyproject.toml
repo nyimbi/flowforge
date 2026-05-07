@@ -1,3 +1,33 @@
+# =============================================================================
+# Version cadence policy (E-69 / DOC-05)
+# =============================================================================
+#
+# Two tiers govern version numbers across the 45-package workspace:
+#
+#   * tier-1 — engine + adapters (15 packages):
+#       flowforge-core, flowforge-fastapi, flowforge-sqlalchemy,
+#       flowforge-tenancy, flowforge-audit-pg, flowforge-outbox-pg,
+#       flowforge-rbac-static, flowforge-rbac-spicedb, flowforge-documents-s3,
+#       flowforge-money, flowforge-signing-kms, flowforge-notify-multichannel,
+#       flowforge-cli, flowforge-jtbd, flowforge-jtbd-hub.
+#       → version = "0.1.x". Patch bump per audit-fix release; minor
+#         (0.2.0) reserved for the post-audit GA. Public APIs are stable
+#         within 0.1.x; SECURITY-flagged removals follow the F-7 two-version
+#         deprecation rule.
+#
+#   * tier-2 — domain JTBD libraries (30 packages):
+#       flowforge-jtbd-* (excluding -hub). Currently scaffolds /
+#       starter content and registered as ``[tool.uv] package = false``
+#       per F-5 mitigation.
+#       → version = "0.0.1" until the package passes E-48a (rebrand to
+#         *-starter) or E-48b (real-content review by named SME). On
+#         flip to ``package = true``, the version moves to 0.1.0 in
+#         lockstep with the tier-1 cadence.
+#
+# CI test ``framework/tests/audit_2026/test_E_69_evolution_reconciliation.py``
+# enforces both rules; any drift fails the audit-2026 macro target.
+# =============================================================================
+
 [project]
 name = "flowforge-workspace"
 version = "0.0.0"
@@ -20,7 +50,14 @@ dependencies = [
 ]
 
 [tool.uv.workspace]
+# E-46 / DOC-01: every Python package under ``framework/python/`` is a
+# workspace member. Strategic packages ship today (default ``package=true``);
+# the 30 ``flowforge-jtbd-*`` domain libraries (excluding ``-hub``) carry
+# ``[tool.uv] package = false`` per pkg until they are reviewed and rebranded
+# by E-48a / E-48b. F-5 mitigation: two-step registration so ``uv build``
+# discovery doesn't accidentally pull unreviewed wheels into UMS lockfiles.
 members = [
+    # Strategic / shipping packages (package=true default)
     "python/flowforge-core",
     "python/flowforge-fastapi",
     "python/flowforge-sqlalchemy",
@@ -36,6 +73,38 @@ members = [
     "python/flowforge-cli",
     "python/flowforge-jtbd",
     "python/flowforge-jtbd-hub",
+    # Domain libraries — registered for build discovery; package=false until
+    # they pass E-48a (rebrand to *-starter) or E-48b (real-content review).
+    "python/flowforge-jtbd-accounting",
+    "python/flowforge-jtbd-agritech",
+    "python/flowforge-jtbd-banking",
+    "python/flowforge-jtbd-compliance",
+    "python/flowforge-jtbd-construction",
+    "python/flowforge-jtbd-corp-finance",
+    "python/flowforge-jtbd-crm",
+    "python/flowforge-jtbd-ecom",
+    "python/flowforge-jtbd-edu",
+    "python/flowforge-jtbd-gaming",
+    "python/flowforge-jtbd-gov",
+    "python/flowforge-jtbd-healthcare",
+    "python/flowforge-jtbd-hr",
+    "python/flowforge-jtbd-insurance",
+    "python/flowforge-jtbd-legal",
+    "python/flowforge-jtbd-logistics",
+    "python/flowforge-jtbd-media",
+    "python/flowforge-jtbd-mfg",
+    "python/flowforge-jtbd-municipal",
+    "python/flowforge-jtbd-nonprofit",
+    "python/flowforge-jtbd-platformeng",
+    "python/flowforge-jtbd-pm",
+    "python/flowforge-jtbd-procurement",
+    "python/flowforge-jtbd-realestate",
+    "python/flowforge-jtbd-restaurants",
+    "python/flowforge-jtbd-retail",
+    "python/flowforge-jtbd-saasops",
+    "python/flowforge-jtbd-telco",
+    "python/flowforge-jtbd-travel",
+    "python/flowforge-jtbd-utilities",
 ]
 
 [tool.uv.sources]
@@ -69,4 +138,6 @@ dev = [
     "moto[s3,kms]>=5.0",
     "anyio[trio]>=4.0",
     "z3-solver>=4.13",
+    # E-44 / IT-01: property-based tests under framework/tests/property/.
+    "hypothesis>=6.100",
 ]

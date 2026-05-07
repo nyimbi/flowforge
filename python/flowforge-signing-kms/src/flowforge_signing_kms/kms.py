@@ -5,15 +5,129 @@ Both classes implement the ``SigningPort`` protocol from ``flowforge.ports.signi
 Import guards ensure the optional dependencies (boto3 / google-cloud-kms) are only
 required when the respective class is actually instantiated, keeping the base install
 light.
+
+E-34 SK-03 hardening (audit-fix-plan §4.1, §7):
+
+* ``KmsTransientError`` — raised when KMS reports a recoverable failure
+  (throttling, network error, internal error).  Caller is expected to retry
+  with backoff.
+* ``KmsSignatureInvalid`` — declared for callers that want to differentiate
+  "permanent invalid" from "transient".  ``verify()`` itself returns ``False``
+  for permanent invalid (branch-friendly default).
+* ``UnknownKeyId`` — raised when KMS reports the key id does not exist; this
+  is a configuration error, not a "tampered signature".
 """
 
 from __future__ import annotations
 
-import base64
+import asyncio
+import logging
 from typing import Any, TYPE_CHECKING
+
+from flowforge_signing_kms.errors import (
+	KmsSignatureInvalid as KmsSignatureInvalid,  # re-export for callers
+	KmsTransientError,
+	UnknownKeyId,
+)
 
 if TYPE_CHECKING:
 	pass  # kept for future type-only imports
+
+_logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# AWS error classification (SK-03)
+# ---------------------------------------------------------------------------
+
+
+# AWS error codes that indicate a *transient* condition — caller should retry.
+_AWS_TRANSIENT_CODES: frozenset[str] = frozenset(
+	{
+		"ThrottlingException",
+		"Throttling",
+		"RequestLimitExceeded",
+		"InternalServerError",
+		"InternalFailure",
+		"ServiceUnavailable",
+		"KMSInternalException",
+		"DependencyTimeoutException",
+		"RequestTimeout",
+		"RequestTimeoutException",
+	}
+)
+
+# AWS error codes that indicate the key_id is unknown.
+_AWS_UNKNOWN_KEY_CODES: frozenset[str] = frozenset(
+	{
+		"NotFoundException",
+		"NoSuchKey",
+	}
+)
+
+
+def _aws_error_code(exc: Exception) -> str | None:
+	"""Best-effort extraction of an AWS error code from a botocore-style exception."""
+	resp = getattr(exc, "response", None)
+	if isinstance(resp, dict):
+		err = resp.get("Error")
+		if isinstance(err, dict):
+			code = err.get("Code")
+			if isinstance(code, str):
+				return code
+	# Fall back: some error classes carry their AWS code as attribute name.
+	return type(exc).__name__
+
+
+def _aws_classify(exc: Exception) -> Exception:
+	"""Map a raw AWS exception to one of our domain types.
+
+	Returns:
+		``KmsTransientError`` for retryable infra failures,
+		``UnknownKeyId`` for "key not found",
+		otherwise the original exception (caller treats as permanent invalid).
+	"""
+	code = _aws_error_code(exc)
+	if code in _AWS_TRANSIENT_CODES:
+		return KmsTransientError(f"AWS KMS transient error: {code}: {exc}")
+	if code in _AWS_UNKNOWN_KEY_CODES:
+		return UnknownKeyId(f"AWS KMS reports unknown key: {code}: {exc}")
+	return exc
+
+
+# ---------------------------------------------------------------------------
+# GCP error classification (SK-03)
+# ---------------------------------------------------------------------------
+
+
+# google.api_core.exceptions class names that indicate a transient condition.
+_GCP_TRANSIENT_NAMES: frozenset[str] = frozenset(
+	{
+		"DeadlineExceeded",
+		"InternalServerError",
+		"ServiceUnavailable",
+		"TooManyRequests",
+		"ResourceExhausted",
+		"Aborted",
+		"RetryError",
+	}
+)
+
+_GCP_UNKNOWN_NAMES: frozenset[str] = frozenset(
+	{
+		"NotFound",
+	}
+)
+
+
+def _gcp_classify(exc: Exception) -> Exception:
+	"""Map a raw GCP exception to one of our domain types."""
+	name = type(exc).__name__
+	if name in _GCP_TRANSIENT_NAMES:
+		return KmsTransientError(f"GCP KMS transient error: {name}: {exc}")
+	if name in _GCP_UNKNOWN_NAMES:
+		return UnknownKeyId(f"GCP KMS reports unknown key: {name}: {exc}")
+	return exc
 
 
 # ---------------------------------------------------------------------------
@@ -72,28 +186,58 @@ class AwsKmsSigning:
 	# ------------------------------------------------------------------
 
 	async def sign_payload(self, payload: bytes) -> bytes:
-		"""Sign *payload* with AWS KMS and return the raw signature bytes."""
-		if self._algorithm.startswith("HMAC"):
-			resp = self._client.generate_mac(
-				KeyId=self._key_id,
-				Message=payload,
-				MacAlgorithm=self._algorithm,
-			)
-			return resp["Mac"]
-		else:
-			resp = self._client.sign(
-				KeyId=self._key_id,
-				Message=payload,
-				MessageType="RAW",
-				SigningAlgorithm=self._algorithm,
-			)
-			return resp["Signature"]
+		"""Sign *payload* with AWS KMS and return the raw signature bytes.
 
-	async def verify(self, payload: bytes, signature: bytes, key_id: str) -> bool:
-		"""Verify *signature* against *payload* via AWS KMS."""
+		E-56 / SK-04: the blocking ``boto3`` client call is dispatched
+		via :func:`asyncio.to_thread` so it does not stall the event
+		loop during the ~50–500 ms KMS round-trip.
+
+		Transient errors are re-raised as ``KmsTransientError`` (SK-03) so
+		callers can retry with backoff.
+		"""
 		try:
 			if self._algorithm.startswith("HMAC"):
-				resp = self._client.verify_mac(
+				resp = await asyncio.to_thread(
+					self._client.generate_mac,
+					KeyId=self._key_id,
+					Message=payload,
+					MacAlgorithm=self._algorithm,
+				)
+				return resp["Mac"]
+			else:
+				resp = await asyncio.to_thread(
+					self._client.sign,
+					KeyId=self._key_id,
+					Message=payload,
+					MessageType="RAW",
+					SigningAlgorithm=self._algorithm,
+				)
+				return resp["Signature"]
+		except (KmsTransientError, UnknownKeyId):
+			raise
+		except Exception as exc:
+			classified = _aws_classify(exc)
+			if classified is exc:
+				raise
+			raise classified from exc
+
+	async def verify(self, payload: bytes, signature: bytes, key_id: str) -> bool:
+		"""Verify *signature* against *payload* via AWS KMS.
+
+		E-56 / SK-04: blocking ``boto3`` call dispatched via
+		:func:`asyncio.to_thread`.
+
+		Error classification (SK-03):
+
+		* Transient failures (throttling, network, internal errors) re-raise
+		  as ``KmsTransientError`` so callers can retry with backoff.
+		* Unknown key_id re-raises as ``UnknownKeyId``.
+		* Permanent "signature invalid" responses return ``False``.
+		"""
+		try:
+			if self._algorithm.startswith("HMAC"):
+				resp = await asyncio.to_thread(
+					self._client.verify_mac,
 					KeyId=key_id,
 					Message=payload,
 					Mac=signature,
@@ -101,7 +245,8 @@ class AwsKmsSigning:
 				)
 				return bool(resp.get("MacValid", False))
 			else:
-				resp = self._client.verify(
+				resp = await asyncio.to_thread(
+					self._client.verify,
 					KeyId=key_id,
 					Message=payload,
 					MessageType="RAW",
@@ -109,7 +254,15 @@ class AwsKmsSigning:
 					SigningAlgorithm=self._algorithm,
 				)
 				return bool(resp.get("SignatureValid", False))
-		except Exception:
+		except (KmsTransientError, UnknownKeyId):
+			# Already a domain error — propagate.
+			raise
+		except Exception as exc:  # pragma: no cover - boto3 specific paths
+			classified = _aws_classify(exc)
+			if isinstance(classified, (KmsTransientError, UnknownKeyId)):
+				raise classified from exc
+			# Permanent invalid (e.g. KMSInvalidSignatureException) → False.
+			_logger.debug("AWS KMS verify returned False due to %s: %s", type(exc).__name__, exc)
 			return False
 
 	def current_key_id(self) -> str:
@@ -168,52 +321,90 @@ class GcpKmsSigning:
 	# ------------------------------------------------------------------
 
 	async def sign_payload(self, payload: bytes) -> bytes:
-		"""Sign *payload* with GCP KMS and return the raw signature bytes."""
-		if self._use_mac:
-			response = self._client.mac_sign(
-				request={
-					"name": self._key_version_name,
-					"data": payload,
-				}
-			)
-			return bytes(response.mac)
-		else:
-			import hashlib
+		"""Sign *payload* with GCP KMS and return the raw signature bytes.
 
-			digest = hashlib.sha256(payload).digest()
-			response = self._client.asymmetric_sign(
-				request={
-					"name": self._key_version_name,
-					"digest": {"sha256": digest},
-				}
-			)
-			return bytes(response.signature)
+		E-56 / SK-04: blocking ``google-cloud-kms`` call dispatched via
+		:func:`asyncio.to_thread` so the event loop stays responsive
+		during the gRPC round-trip.
 
-	async def verify(self, payload: bytes, signature: bytes, key_id: str) -> bool:
-		"""Verify *signature* against *payload* via GCP KMS."""
+		Transient errors are re-raised as ``KmsTransientError`` (SK-03).
+		"""
 		try:
 			if self._use_mac:
-				response = self._client.mac_verify(
+				response = await asyncio.to_thread(
+					self._client.mac_sign,
+					request={
+						"name": self._key_version_name,
+						"data": payload,
+					},
+				)
+				return bytes(response.mac)
+			else:
+				import hashlib
+
+				digest = hashlib.sha256(payload).digest()
+				response = await asyncio.to_thread(
+					self._client.asymmetric_sign,
+					request={
+						"name": self._key_version_name,
+						"digest": {"sha256": digest},
+					},
+				)
+				return bytes(response.signature)
+		except (KmsTransientError, UnknownKeyId):
+			raise
+		except Exception as exc:
+			classified = _gcp_classify(exc)
+			if classified is exc:
+				raise
+			raise classified from exc
+
+	async def verify(self, payload: bytes, signature: bytes, key_id: str) -> bool:
+		"""Verify *signature* against *payload* via GCP KMS.
+
+		E-56 / SK-04: blocking gRPC call dispatched via
+		:func:`asyncio.to_thread`.
+
+		Error classification (SK-03):
+
+		* Transient (Deadline, Unavailable, ResourceExhausted, etc.) →
+		  ``KmsTransientError``.
+		* ``NotFound`` (unknown key) → ``UnknownKeyId``.
+		* Permanent invalid → ``False``.
+		"""
+		try:
+			if self._use_mac:
+				response = await asyncio.to_thread(
+					self._client.mac_verify,
 					request={
 						"name": key_id,
 						"data": payload,
 						"mac": signature,
-					}
+					},
 				)
 				return bool(response.success)
 			else:
 				import hashlib
 
 				digest = hashlib.sha256(payload).digest()
-				response = self._client.asymmetric_verify(
+				response = await asyncio.to_thread(
+					self._client.asymmetric_verify,
 					request={
 						"name": key_id,
 						"digest": {"sha256": digest},
 						"signature": signature,
-					}
+					},
 				)
 				return bool(response.success)
-		except Exception:
+		except (KmsTransientError, UnknownKeyId):
+			raise
+		except Exception as exc:
+			classified = _gcp_classify(exc)
+			if isinstance(classified, (KmsTransientError, UnknownKeyId)):
+				raise classified from exc
+			_logger.debug(
+				"GCP KMS verify returned False due to %s: %s", type(exc).__name__, exc
+			)
 			return False
 
 	def current_key_id(self) -> str:

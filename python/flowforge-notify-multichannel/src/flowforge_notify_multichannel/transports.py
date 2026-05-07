@@ -168,7 +168,13 @@ class EmailAdapter:
 				start_tls=self._start_tls,
 			)
 			return DeliveryResult(ok=True)
-		except Exception as exc:  # noqa: BLE001
+		except aiosmtplib.SMTPException as exc:
+			# E-54 / NM-02: only the transport's own exception family is
+			# reported as a delivery failure. Other exceptions (bug,
+			# misconfig, asyncio.CancelledError, etc.) propagate.
+			return DeliveryResult(ok=False, error=str(exc))
+		except (TimeoutError, OSError) as exc:
+			# Network-layer issues that aiosmtplib does not always wrap.
 			return DeliveryResult(ok=False, error=str(exc))
 
 
@@ -241,7 +247,9 @@ class SESEmailAdapter:
 				data = resp.json() if resp.content else {}
 				return DeliveryResult(ok=True, provider_id=data.get("MessageId"))
 			return DeliveryResult(ok=False, error=f"SES HTTP {resp.status_code}: {resp.text[:256]}")
-		except Exception as exc:  # noqa: BLE001
+		except httpx.RequestError as exc:
+			# E-54 / NM-02: only httpx transport-level errors are reported
+			# as a delivery failure; other exception types propagate.
 			return DeliveryResult(ok=False, error=str(exc))
 
 
@@ -314,7 +322,7 @@ class SMSAdapter:
 				msg_sid = resp.json().get("sid")
 				return DeliveryResult(ok=True, provider_id=msg_sid)
 			return DeliveryResult(ok=False, error=f"Twilio HTTP {resp.status_code}: {resp.text[:256]}")
-		except Exception as exc:  # noqa: BLE001
+		except httpx.RequestError as exc:
 			return DeliveryResult(ok=False, error=str(exc))
 
 
@@ -386,7 +394,7 @@ class FCMPushAdapter:
 			if resp.status_code == 200:
 				return DeliveryResult(ok=True, provider_id=resp.json().get("name"))
 			return DeliveryResult(ok=False, error=f"FCM HTTP {resp.status_code}: {resp.text[:256]}")
-		except Exception as exc:  # noqa: BLE001
+		except httpx.RequestError as exc:
 			return DeliveryResult(ok=False, error=str(exc))
 
 
@@ -452,7 +460,7 @@ class WebhookAdapter:
 			if resp.status_code < 300:
 				return DeliveryResult(ok=True)
 			return DeliveryResult(ok=False, error=f"Webhook HTTP {resp.status_code}: {resp.text[:256]}")
-		except Exception as exc:  # noqa: BLE001
+		except httpx.RequestError as exc:
 			return DeliveryResult(ok=False, error=str(exc))
 
 
@@ -508,5 +516,48 @@ class SlackAdapter:
 			if resp.status_code == 200 and resp.text == "ok":
 				return DeliveryResult(ok=True)
 			return DeliveryResult(ok=False, error=f"Slack HTTP {resp.status_code}: {resp.text[:256]}")
-		except Exception as exc:  # noqa: BLE001
+		except httpx.RequestError as exc:
 			return DeliveryResult(ok=False, error=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# E-54 / NM-01 — webhook signature verification (constant-time comparison)
+# ---------------------------------------------------------------------------
+
+
+def verify_webhook_signature(
+	payload: bytes,
+	signature: str | None,
+	secret: str | bytes,
+) -> bool:
+	"""Verify a ``X-Flowforge-Signature`` header against *payload*.
+
+	Constant-time comparison via :func:`hmac.compare_digest` so a
+	timing side-channel cannot reveal a partial-match prefix
+	(audit-fix-plan §4.2 NM-01).
+
+	Returns ``True`` for a valid signature, ``False`` for any mismatch
+	or malformed input. Never raises on bad input — callers can pass
+	the raw header value straight in.
+
+	The expected header format matches :meth:`WebhookAdapter._sign`:
+	``"sha256=<64 hex chars>"``.
+	"""
+
+	if not signature or not isinstance(signature, str):
+		return False
+	if not signature.startswith("sha256="):
+		return False
+	provided_hex = signature[len("sha256=") :]
+	if len(provided_hex) != 64:
+		return False
+	try:
+		provided = bytes.fromhex(provided_hex)
+	except ValueError:
+		return False
+	if isinstance(secret, str):
+		secret_b = secret.encode()
+	else:
+		secret_b = secret
+	expected = hmac.new(secret_b, payload, hashlib.sha256).digest()
+	return hmac.compare_digest(expected, provided)

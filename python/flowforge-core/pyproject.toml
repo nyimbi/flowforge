@@ -8,6 +8,7 @@ dependencies = [
     "pydantic>=2.5",
     "jsonschema>=4.20",
     "python-dateutil>=2.8",
+    "uuid6>=2024.7.10",
 ]
 
 [project.optional-dependencies]

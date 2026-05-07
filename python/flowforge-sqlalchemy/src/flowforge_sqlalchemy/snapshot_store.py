@@ -10,9 +10,9 @@ on the table); older states are recoverable from the
 
 from __future__ import annotations
 
-import uuid
 from typing import Any, cast
 
+from flowforge._uuid7 import uuid7str
 from flowforge.engine.fire import Instance
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -72,7 +72,10 @@ class SqlAlchemySnapshotStore:
 			if existing is None:
 				session.add(
 					WorkflowInstanceSnapshot(
-						id=str(uuid.uuid4()),
+						# E-39 / SA-01: time-ordered ids match the engine's
+						# uuid7str() convention and pair well with the
+						# B-tree index on (tenant_id, instance_id).
+						id=uuid7str(),
 						tenant_id=self._tenant_id,
 						instance_id=instance.id,
 						def_key=instance.def_key,

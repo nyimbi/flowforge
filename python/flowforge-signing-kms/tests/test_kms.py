@@ -119,9 +119,16 @@ class TestAwsKmsSigning:
 			signer = AwsKmsSigning(key_id=key_id, region_name="us-east-1")
 			assert signer.current_key_id() == key_id
 
-	def test_verify_returns_false_on_exception(self):
+	def test_verify_unknown_key_id_raises(self):
+		"""SK-03 (E-34): unknown key id is a configuration error, not invalid sig.
+
+		Old behavior swallowed the exception and returned False, conflating
+		"misconfigured" with "tampered".  New contract surfaces ``UnknownKeyId``
+		so callers can audit the difference.
+		"""
 		import boto3
 		from moto import mock_aws
+		from flowforge_signing_kms.errors import UnknownKeyId
 		from flowforge_signing_kms.kms import AwsKmsSigning
 
 		with mock_aws():
@@ -133,9 +140,8 @@ class TestAwsKmsSigning:
 			)
 			key_id = key_resp["KeyMetadata"]["KeyId"]
 			signer = AwsKmsSigning(key_id=key_id, region_name="us-east-1")
-			# pass garbage key_id -> KMS will raise -> verify returns False
-			result = run(signer.verify(b"payload", b"garbage-sig", "non-existent-key"))
-			assert result is False
+			with pytest.raises(UnknownKeyId):
+				run(signer.verify(b"payload", b"garbage-sig", "non-existent-key"))
 
 	def test_satisfies_signing_port_protocol(self):
 		import boto3

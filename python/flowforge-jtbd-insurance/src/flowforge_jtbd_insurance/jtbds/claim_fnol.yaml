@@ -1,14 +1,32 @@
 id: claim_fnol
 title: "File First Notice of Loss"
 version: "1.0.0"
+domain: insurance
 actor:
   role: policyholder
-  external: false
-situation: "Policyholder needs to report a loss event to start the claim process."
-motivation: "Recover insured losses quickly and accurately."
-outcome: "FNOL recorded with loss details and initial reserve set."
+  external: true
+  capacity: submitter
+situation: >-
+  A policyholder, a designated representative, or an authorised third-party
+  reporter (attorney, body shop, public adjuster, witness against the
+  insured) needs to record a loss event so the carrier can open a claim,
+  set an initial reserve, and assign an adjuster within state Unfair Claim
+  Settlement Practices Act (UCSPA) prompt-response windows.
+motivation: >-
+  Get insured losses indemnified quickly and accurately, satisfy state UCSPA
+  prompt-acknowledgement timing (e.g., 15 calendar days in CA per 10 CCR
+  §2695.5), and put the claim into the file-and-suit / statute-of-limitations
+  trail before evidence decays.
+outcome: >-
+  FNOL written to the claims system with a unique claim_number, initial
+  reserve set per the carrier's reserve guidelines, an adjuster assigned,
+  acknowledgement issued to the claimant and any first-party insureds, and
+  reinsurance/CAT routing triggered if the loss meets treaty thresholds.
 success_criteria:
-  - "FNOL processed within 1 hour of receipt"
+  - "FNOL acknowledged to the claimant within 1 business day"
+  - "Adjuster assigned within 1 business day of FNOL"
+  - "Coverage-in-force check completed before reserve booked"
+  - "Statute-of-limitations clock and UCSPA timer started in the diary system"
 stages:
   - name: discover
   - name: execute
@@ -16,11 +34,193 @@ stages:
   - name: report
   - name: audit
 data_capture:
-  - id: reference_id
+  - id: claim_number
     kind: text
-    label: Reference ID
+    label: "Claim Number"
     pii: false
-  - id: notes
+  - id: policy_number
     kind: text
-    label: Notes
+    label: "Policy Number"
+    pii: true
+    sensitivity: financial
+  - id: incident_date
+    kind: datetime
+    label: "Date and Time of Loss"
     pii: false
+  - id: reported_date
+    kind: datetime
+    label: "Date Reported to Carrier"
+    pii: false
+  - id: loss_location
+    kind: address
+    label: "Loss Location (street + city + state + ZIP, or VIN-anchored geocode)"
+    pii: true
+  - id: peril_code
+    kind: enum
+    label: "Cause of Loss / Peril Code (ISO ClaimSearch)"
+    options:
+      - "fire"
+      - "water_non_weather"
+      - "water_weather"
+      - "wind"
+      - "hail"
+      - "theft_burglary"
+      - "vandalism"
+      - "collision"
+      - "comprehensive_other"
+      - "liability_bodily_injury"
+      - "liability_property_damage"
+      - "earthquake"
+      - "flood"
+      - "other"
+    pii: false
+  - id: coverage_form
+    kind: enum
+    label: "Coverage Form / Line of Business"
+    options:
+      - "personal_auto"
+      - "homeowners_ho3"
+      - "homeowners_ho5"
+      - "renters_ho4"
+      - "condo_ho6"
+      - "dwelling_fire"
+      - "commercial_property"
+      - "commercial_auto"
+      - "general_liability"
+      - "workers_compensation"
+      - "umbrella"
+    pii: false
+  - id: estimated_loss_amount
+    kind: money
+    label: "Estimated Gross Loss (pre-deductible)"
+    pii: false
+    sensitivity: financial
+  - id: deductible_amount
+    kind: money
+    label: "Applicable Deductible"
+    pii: false
+    sensitivity: financial
+  - id: claimant_id
+    kind: text
+    label: "Claimant Identifier (insured or third-party)"
+    pii: true
+  - id: claimant_name
+    kind: text
+    label: "Claimant Full Name"
+    pii: true
+  - id: claimant_phone
+    kind: phone
+    label: "Claimant Contact Phone"
+    pii: true
+  - id: description_of_loss
+    kind: textarea
+    label: "Narrative Description of Loss"
+    pii: true
+  - id: bodily_injury_flag
+    kind: boolean
+    label: "Bodily Injury Indicator (drives PHI handling and BI reserve track)"
+    pii: false
+  - id: catastrophe_code
+    kind: text
+    label: "PCS Catastrophe Code (assigned for CAT events)"
+    pii: false
+edge_cases:
+  - id: late_filing_after_sol
+    description: >-
+      FNOL received after the policy's contractual notice clause and/or the
+      state statute of limitations (commonly 1 year for property suit-clause,
+      2-3 years for tort). Coverage counsel reviews; reservation-of-rights
+      letter issued before substantive handling.
+  - id: coverage_lapsed_at_incident
+    description: >-
+      Policy not in force on incident_date (lapse, cancellation, non-pay,
+      effective date in future). Claim opened solely to issue formal denial
+      with policy citation; UCSPA timing still applies.
+  - id: catastrophe_mass_event
+    description: >-
+      PCS-coded catastrophe (hurricane, wildfire, hail swarm). Carrier may
+      invoke state DOI emergency rules suspending standard SLAs; CAT team
+      routing replaces normal queue; reinsurance treaty notification triggers
+      when aggregate retention is breached.
+  - id: third_party_liability_against_insured
+    description: >-
+      FNOL filed by an attorney or claimant against the insured (third-party
+      liability). Routes to liability adjuster track; ISO ClaimSearch index
+      pinged; insured notified of claim filed against them.
+  - id: suspected_fraud_flag
+    description: >-
+      Indicators trigger SIU (Special Investigations Unit) hold: prior-loss
+      pattern, late notice with no police report, beneficial-interest issue,
+      or staged-loss markers. Claim handling continues but EUO (Examination
+      Under Oath) and 30-day fraud-investigation extension may apply.
+documents_required:
+  - id: police_or_fire_report
+    description: "Police report or fire-department incident report (theft, collision, arson)"
+    retention_years: 7
+  - id: photographs_of_loss
+    description: "Photos / video of damage at scene and post-mitigation"
+    retention_years: 7
+  - id: proof_of_loss_sworn
+    description: "Sworn statement in proof of loss (typically due 60 days post-FNOL on first-party property)"
+    retention_years: 7
+  - id: medical_records_authorization
+    description: "HIPAA-compliant medical records release (bodily-injury and workers-comp claims)"
+    retention_years: 10
+approvals:
+  - role: claims_intake_supervisor
+    when: "estimated_loss_amount >= 25000 or catastrophe_code != null or bodily_injury_flag == true"
+    rationale: "Supervisor signoff on reserve booking and assignment for material, CAT, or BI losses"
+  - role: siu_investigator
+    when: "suspected_fraud_flag == true"
+    rationale: "SIU concurrence required before claim leaves intake when fraud indicators fire"
+notifications:
+  - id: claimant_acknowledgement
+    channel: email_or_sms
+    audience: claimant
+    trigger: fnol_recorded
+  - id: insured_acknowledgement
+    channel: email_or_sms
+    audience: named_insured
+    trigger: fnol_recorded
+  - id: mortgagee_lienholder_notice
+    channel: email
+    audience: mortgagee_or_lienholder
+    trigger: fnol_recorded_property_with_lien
+  - id: state_doi_filing
+    channel: regulator_portal
+    audience: state_doi
+    trigger: ucspa_required_filing_event
+  - id: reinsurer_cat_notification
+    channel: bordereaux
+    audience: reinsurer
+    trigger: cat_or_treaty_threshold_breach
+sla:
+  acknowledge_claimant_business_days: 1
+  assign_adjuster_business_days: 1
+  ucspa_prompt_response_calendar_days_default: 15
+  ucspa_prompt_response_calendar_days_note: >-
+    Configurable per state. Examples: CA 10 CCR §2695.5(b) = 15 days;
+    NY 11 NYCRR §216.4 = 15 business days; FL §626.9541 = 14 days.
+  proof_of_loss_due_days: 60
+  reserve_book_business_days: 1
+  statute_of_limitations_property_years_default: 1
+  statute_of_limitations_tort_years_default: 2
+data_sensitivity:
+  - PII
+  - PHI
+  - financial
+compliance:
+  - "NAIC Model Unfair Claim Settlement Practices Act"
+  - "State UCSPA (CA 10 CCR §2695, NY 11 NYCRR §216, FL §626.9541)"
+  - "Fair Credit Reporting Act (consumer reports during claim handling)"
+  - "Gramm-Leach-Bliley Act (financial privacy)"
+  - "HIPAA (PHI on bodily-injury and workers-comp medical records)"
+  - "Driver's Privacy Protection Act (auto loss MVR pulls)"
+  - "GDPR (EU/EEA policyholders)"
+  - "CCPA / CPRA (California residents)"
+  - "ISO ClaimSearch participation agreement"
+signoff:
+  signer: sme-insurance
+  reviewed_at: "2026-05-06T12:00:00Z"
+  reviewer_credentials: "domain-sme(insurance)"
+  reviewed_findings: ["D-01-insurance", "D-02"]

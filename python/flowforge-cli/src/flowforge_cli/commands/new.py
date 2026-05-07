@@ -7,6 +7,7 @@ renders a deterministic backend project skeleton from Jinja2 templates.
 from __future__ import annotations
 
 import json
+import logging
 from importlib.resources import files as _ir_files
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,8 @@ from typing import Any
 import typer
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 from jsonschema import Draft202012Validator
+
+log = logging.getLogger(__name__)
 
 from .._io import load_structured, write_json
 from ..llmtxt import write_llmtxt
@@ -93,20 +96,35 @@ _JTBD_SCHEMA: dict[str, Any] | None = None
 
 
 def _jtbd_schema() -> dict[str, Any]:
+	"""Load the bundled JSON schema via :mod:`importlib.resources`.
+
+	audit-2026 CL-03: the editable-install fallback that resolved the
+	schema via ``flowforge.__file__`` is gone — ``importlib.resources``
+	is the single source of truth and works equally for installed and
+	editable distributions.
+
+	audit-2026 CL-04: failure narrows the catch to specific filesystem /
+	module errors and chains the original exception with the ``raise
+	from`` form, plus a ``log.error`` so operators see the path that
+	was attempted.
+	"""
+
 	global _JTBD_SCHEMA
 	if _JTBD_SCHEMA is not None:
 		return _JTBD_SCHEMA
 	try:
 		res = _ir_files("flowforge.dsl.schema").joinpath("jtbd-1.0.schema.json")
 		schema = json.loads(res.read_text())
-	except Exception:
-		# editable-install fallback
-		import flowforge as _ff
-
-		assert _ff.__file__ is not None
-		ff_path = Path(_ff.__file__).resolve().parent
-		candidate = ff_path / "dsl" / "schema" / "jtbd-1.0.schema.json"
-		schema = json.loads(candidate.read_text())
+	except (FileNotFoundError, ModuleNotFoundError, json.JSONDecodeError, OSError) as exc:
+		log.error(
+			"failed to load bundled JTBD schema via importlib.resources: %s: %s",
+			type(exc).__name__,
+			exc,
+		)
+		raise RuntimeError(
+			"could not load flowforge.dsl.schema/jtbd-1.0.schema.json — "
+			"is flowforge installed in this environment?"
+		) from exc
 	assert isinstance(schema, dict)
 	_JTBD_SCHEMA = schema
 	return schema

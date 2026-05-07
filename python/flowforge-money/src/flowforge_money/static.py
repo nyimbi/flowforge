@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_EVEN, ROUND_HALF_UP
 from typing import Protocol, runtime_checkable
 
 
@@ -49,20 +49,41 @@ class Money:
 	"""Immutable money value with an ISO-4217 currency code.
 
 	Arithmetic uses :class:`decimal.Decimal` throughout; floats are never
-	used internally.
+	used internally. Internal storage is quantised to ``_PREC`` (6 decimal
+	places) so multiplication / FX conversion don't lose sub-cent precision
+	mid-pipeline; call :meth:`rounded` to clip to a desired display scale.
 
 	Examples::
 
 		>>> from decimal import Decimal
 		>>> m = Money(Decimal("12.50"), "USD")
 		>>> m + Money(Decimal("7.50"), "USD")
-		Money('20.00', 'USD')
+		Money('20.000000', 'USD')
 		>>> m * Decimal("2")
-		Money('25.00', 'USD')
+		Money('25.000000', 'USD')
+		>>> m.currency
+		'USD'
 	"""
 
-	# Precision for intermediate arithmetic (28 significant digits)
+	# Precision for intermediate arithmetic (6 decimal places — sub-cent
+	# precision survives FX conversion + rounding pipelines).
 	_PREC = Decimal("0.000001")
+
+	# E-53 / M-01: SOX/IFRS-compliant banker's rounding for division.
+	#
+	# Banker's rounding (ROUND_HALF_EVEN) avoids the systematic upward bias
+	# of ROUND_HALF_UP on tie cases. Over a population of fractional
+	# allocations (interest, FX residuals, tax splits) banker's rounding
+	# is unbiased: ties to .5 round to the nearest even neighbour, so
+	# ~half round up and ~half round down. This is the rule mandated by
+	# IEEE 754 for binary floats and is the default in IFRS / GAAP
+	# accounting standards for currency division.
+	#
+	# Addition / subtraction / multiplication don't introduce new
+	# fractional residue at the _PREC boundary, so they keep
+	# ROUND_HALF_UP (which agrees with HALF_EVEN on every non-tie case).
+	# Division is the one operator where the choice is observable.
+	_DIV_ROUNDING = ROUND_HALF_EVEN
 
 	def __init__(self, amount: Decimal, currency: str) -> None:
 		if not isinstance(amount, Decimal):
@@ -109,11 +130,27 @@ class Money:
 		return self.__mul__(factor)
 
 	def __truediv__(self, divisor: Decimal | int) -> "Money":
+		"""Divide *self* by *divisor*, returning a new :class:`Money`.
+
+		E-53 / M-01: the division result is explicitly quantised with
+		:attr:`_DIV_ROUNDING` (``ROUND_HALF_EVEN`` — banker's rounding)
+		before the new Money is constructed, so a tie at the
+		``_PREC`` boundary rounds to the nearest even neighbour rather
+		than up. This avoids the cumulative upward bias that
+		``ROUND_HALF_UP`` would introduce across many allocations and is
+		the rule mandated by IFRS / GAAP for currency division.
+		"""
+
 		if isinstance(divisor, int):
 			divisor = Decimal(divisor)
 		if not isinstance(divisor, Decimal):
 			raise TypeError(f"divisor must be Decimal or int, got {type(divisor).__name__}")
-		return Money(self._amount / divisor, self._currency)
+		# Pre-quantise with banker's rounding so the result lands on a
+		# _PREC boundary unambiguously; Money.__init__ then re-quantises
+		# (a no-op at this point) without changing the value.
+		raw = self._amount / divisor
+		quantised = raw.quantize(self._PREC, rounding=self._DIV_ROUNDING)
+		return Money(quantised, self._currency)
 
 	def __neg__(self) -> "Money":
 		return Money(-self._amount, self._currency)
@@ -148,10 +185,42 @@ class Money:
 	def __hash__(self) -> int:
 		return hash((self._amount, self._currency))
 
+	@classmethod
+	def _from_quantised(cls, amount: Decimal, currency: str) -> "Money":
+		"""Internal constructor that bypasses :meth:`__init__`'s
+		``_PREC`` re-quantise.
+
+		E-53 / M-01 follow-up (worker-eng-4 caught during E-65 doctest
+		review): the public constructor unconditionally quantises every
+		input back to ``_PREC`` (6 decimals), so ``.rounded(n)`` was a
+		no-op for display purposes. This factory builds Money with the
+		amount already at the caller's intended scale and skips the
+		re-quantise.
+
+		Callers MUST quantise the input before calling this. The factory
+		does not validate the scale; it trusts the caller.
+		"""
+
+		obj = cls.__new__(cls)
+		object.__setattr__(obj, "_amount", amount)
+		object.__setattr__(obj, "_currency", currency.upper())
+		return obj
+
 	def rounded(self, places: int = 2) -> "Money":
-		"""Return a copy quantized to *places* decimal places (ROUND_HALF_UP)."""
+		"""Return a copy quantised to *places* decimal places.
+
+		E-53 / M-01: the rounding mode is :attr:`_DIV_ROUNDING` (banker's
+		rounding) so display-side narrowing matches the SOX/IFRS rule
+		applied by division. The result's Decimal exponent is exactly
+		``-places`` — the public constructor's ``_PREC`` re-quantise is
+		bypassed via :meth:`_from_quantised` so a request for 2-decimal
+		display does not silently re-expand to 6.
+		"""
+
+		assert places >= 0, f"places must be non-negative, got {places}"
 		quant = Decimal(10) ** -places
-		return Money(self._amount.quantize(quant, rounding=ROUND_HALF_UP), self._currency)
+		quantised = self._amount.quantize(quant, rounding=self._DIV_ROUNDING)
+		return type(self)._from_quantised(quantised, self._currency)
 
 
 # ---------------------------------------------------------------------------

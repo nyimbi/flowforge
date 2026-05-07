@@ -2,6 +2,62 @@
 
 ## 0.1.0 — Unreleased
 
+### E-47 — Intelligence quality (audit 2026)
+
+- **J-02** — `lint/conflicts.py::_emit_pair_issues` pre-buckets writers
+  by `(entity, signature)` and iterates only rule-relevant cross
+  products. 10K JTBD lints under 5s on the realistic-distribution
+  benchmark (was ~50s).
+- **J-03** — `BagOfWordsEmbeddingProvider` exposes `fit(corpus)`,
+  `transform(text)`, and `freeze()`. After `freeze()`, `embed(text)`
+  raises `EmbeddingProviderFrozenError` if `text` introduces a new
+  token; `transform(text)` silently drops unknown tokens for
+  replay-deterministic vector basis.
+- **J-04** — `InMemoryEmbeddingStore` emits a one-shot
+  `PerformanceWarning` pointing to the pgvector replacement.
+- **J-05** — direct prompt-injection guard test bank (50 prompts,
+  ≥45 catch threshold). Residual-risk note at
+  `framework/docs/security/nl-injection.md`.
+- **J-06** — dead `"HIPAA, GDPR": ()` placeholder removed from
+  `_COMPLIANCE_KEYWORDS`. Composite regimes still emit via union of
+  single-regime hits.
+- **J-07** — `nl_to_jtbd._extract_json` uses
+  `json.JSONDecoder.raw_decode` instead of hand-rolled brace counting.
+  Strings containing `}` no longer trip the parser.
+- **J-08** — `JtbdLockfile.canonical_body()` uses an explicit
+  `_BODY_KEYS` allow-list. New top-level fields require an entry —
+  silent metadata bleed into `body_hash` is structurally impossible.
+- **J-09** — `dsl/spec.py::_semver` backed by
+  `packaging.version.Version`. Empty pre-release / build suffixes
+  (`"1.0.0-"`, `"1.0.0+"`) and other malformed shapes are rejected.
+
+### [SECURITY] E-38 — Migration RLS DDL hardening (audit 2026)
+
+- **J-01 (P0)** — alembic ``r2_jtbd`` previously spliced module-level
+  table-name constants directly into ``op.execute(f"ALTER TABLE {table}
+  ...")``. Today's tuples are constants, but the f-string splice was a
+  SQL-injection foothold one refactor away. Added:
+  - ``_RLS_ALLOWLIST`` ``frozenset`` enumerating every table the RLS DDL
+    may touch.
+  - ``_assert_known_table()`` validates each spliced name against the
+    allow-list **and** an identifier regex (``^[a-z_][a-z0-9_]*$``),
+    returning a :class:`sqlalchemy.sql.quoted_name` with ``quote=True``
+    so callers see a typed identifier rather than an untrusted ``str``.
+  - Both ``_install_rls_if_postgres()`` and ``_drop_rls_if_postgres()``
+    validate **all** input names before any SQL is emitted, so a
+    monkey-patched malicious tuple (e.g. ``("users; DROP TABLE users; --",)``)
+    raises ``ValueError`` with zero side effects.
+
+Regression tests:
+- `framework/tests/audit_2026/test_E_38_migration_rls_ddl.py` (6 tests)
+- `framework/tests/conformance/test_arch_invariants.py::test_invariant_8_migration_rls_safe`
+
+Existing alembic round-trip tests
+(`framework/python/flowforge-jtbd/tests/ci/test_jtbd_alembic_upgrade.py`)
+still green. F-4 mitigation (online + reversible + dry-run) covered by
+the new ``test_J_01_alembic_dryrun_prod_shape`` test which upgrades and
+then immediately downgrades on a SQLite stand-in for the prod-shape DB.
+
 - E-1: canonical spec, lockfile, storage tables.
   - `flowforge_jtbd.dsl.canonical_json` (RFC-8785 byte-stable encoder)
     + `spec_hash` wrapper that emits `sha256:<64 hex>` strings.

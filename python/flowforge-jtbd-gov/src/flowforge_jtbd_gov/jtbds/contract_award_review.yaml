@@ -1,0 +1,163 @@
+id: contract_award_review
+title: "Review and Award Public-Procurement Contract"
+version: "1.0.0"
+actor:
+  role: contracting_officer
+  external: false
+situation: >-
+  After a competitive solicitation closes, the contracting officer (CO)
+  must evaluate offers under the Federal Acquisition Regulation (48 CFR
+  Subchapter D) or analogous state code, document the source-selection
+  decision, and award the contract subject to GAO / Court-of-Federal-
+  Claims protest exposure under 31 USC 3551 / 28 USC 1491(b).
+motivation: >-
+  Award to the responsible offeror whose proposal represents the best
+  value to the government, on a record that survives bid protest, with
+  proper documentation of price reasonableness, responsibility, and
+  small-business / socio-economic set-aside compliance.
+outcome: >-
+  Contract awarded; unsuccessful-offeror notices issued under FAR 15.503;
+  award synopsis posted on SAM.gov (FAR 5.301); contract file complete
+  per FAR 4.802 with the CO's source-selection memorandum.
+success_criteria:
+  - "100% of awards have a signed price-reasonableness determination (FAR 15.404-1)"
+  - "100% of awards have a CO responsibility determination (FAR 9.103) on file"
+  - "Pre-award debrief offers extended within 3 days of unsuccessful-offeror notice (FAR 15.505)"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: case_number
+    kind: text
+    label: Acquisition / Award Number
+    required: true
+    pii: false
+  - id: solicitation_id
+    kind: text
+    label: "Solicitation ID (PIID)"
+    required: true
+    pii: false
+  - id: jurisdiction
+    kind: text
+    label: Awarding Agency / Component (CGAC)
+    required: true
+    pii: false
+  - id: appropriation_code
+    kind: text
+    label: "Appropriation / Treasury Account Symbol"
+    required: true
+    pii: false
+  - id: naics_code
+    kind: text
+    label: "NAICS Code (FAR 19.102)"
+    required: true
+    pii: false
+    validation:
+      pattern: "^[0-9]{6}$"
+  - id: statutory_basis
+    kind: text
+    label: "Statutory / FAR Authority (e.g. 41 USC 3304, FAR 6.302)"
+    required: true
+    pii: false
+  - id: total_award_value
+    kind: money
+    label: Total Award Value
+    required: true
+  - id: set_aside_type
+    kind: enum
+    label: Set-Aside Designation
+    required: true
+    validation:
+      enum:
+        - none_full_and_open
+        - small_business
+        - 8a
+        - hubzone
+        - sdvosb
+        - wosb
+        - edwosb
+edge_cases:
+  - id: bid_protest_filed
+    condition: "GAO or COFC bid protest filed under 31 USC 3551 / 28 USC 1491(b) — automatic stay of award/performance under CICA (31 USC 3553)"
+    handle: escalate
+  - id: organisational_conflict_of_interest
+    condition: "OCI identified per FAR 9.5 — mitigation plan or set-aside required before award"
+    handle: branch
+    branch_to: execute
+  - id: ig_signoff_for_high_value
+    condition: "award value exceeds agency Inspector General review threshold; pre-award IG concurrence required"
+    handle: branch
+    branch_to: execute
+  - id: classified_information_redaction
+    condition: "solicitation involves classified info under EO 13526 — DD-254 review and DCSA facility-clearance gate"
+    handle: branch
+    branch_to: discover
+  - id: statutory_deadline_missed
+    condition: "EAJA fee-application 30-day deadline (28 USC 2412(d)(1)(B)) post-protest expires"
+    handle: escalate
+documents_required:
+  - kind: source_selection_memorandum
+    min: 1
+    av_required: true
+  - kind: price_reasonableness_determination
+    min: 1
+    av_required: true
+  - kind: responsibility_determination
+    min: 1
+    av_required: true
+  - kind: federal_register_or_sam_gov_notice
+    min: 1
+    av_required: false
+  - kind: certified_copy_of_authorising_statute
+    min: 0
+    max: 1
+    av_required: false
+approvals:
+  - role: contracting_officer
+    policy: "1_of_1"
+    tier: 2
+  - role: source_selection_authority
+    policy: "1_of_1"
+    tier: 3
+  - role: agency_counsel
+    policy: "1_of_1"
+    tier: 2
+  - role: inspector_general
+    policy: "authority_tier"
+    tier: 4
+sla:
+  warn_pct: 75
+  breach_seconds: 7776000   # 90 days — typical solicitation-close to award timeline
+notifications:
+  - trigger: state_enter
+    channel: webhook
+    audience: sam_gov
+  - trigger: sla_warn
+    channel: email
+    audience: contracting_officer
+  - trigger: approved
+    channel: email
+    audience: awardee
+  - trigger: approved
+    channel: webhook
+    audience: federal_register
+  - trigger: rejected
+    channel: email
+    audience: unsuccessful_offerors
+  - trigger: escalated
+    channel: in_app
+    audience: agency_counsel
+metrics:
+  - "median_award_lead_time_days"
+  - "protest_sustain_rate"
+  - "small_business_award_dollars_pct"
+requires: []
+compliance:
+  - "NIST-800-53"
+  - "SOX"
+data_sensitivity:
+  - "PII"
+  - "regulated"

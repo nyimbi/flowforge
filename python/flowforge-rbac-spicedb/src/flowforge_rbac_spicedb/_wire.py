@@ -50,10 +50,25 @@ class RelationshipUpdate:
 
 
 @dataclass(frozen=True)
+class Consistency:
+	"""Mirror of ``authzed.api.v1.Consistency``.
+
+	E-55 / RB-02: ``at_least_as_fresh`` carries the most-recently-observed
+	Zedtoken (``written_at_token`` from a previous ``WriteRelationships``)
+	so SpiceDB serves reads at-or-after that revision. Without this, the
+	default ``minimize_latency`` setting can serve a stale revision and
+	miss a relation that was written nanoseconds earlier.
+	"""
+
+	at_least_as_fresh: str = ""
+
+
+@dataclass(frozen=True)
 class CheckPermissionRequest:
 	resource: ObjectReference
 	permission: str
 	subject: SubjectReference
+	consistency: Consistency | None = None
 
 
 @dataclass(frozen=True)
@@ -76,6 +91,7 @@ class LookupSubjectsRequest:
 	resource: ObjectReference
 	permission: str
 	subject_object_type: str
+	consistency: Consistency | None = None
 
 
 @dataclass(frozen=True)

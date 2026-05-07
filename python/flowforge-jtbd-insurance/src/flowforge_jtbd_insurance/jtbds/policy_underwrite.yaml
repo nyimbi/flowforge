@@ -1,14 +1,32 @@
 id: policy_underwrite
-title: "Underwrite New Policy"
+title: "Underwrite and Bind New Policy"
 version: "1.0.0"
+domain: insurance
 actor:
   role: underwriter
   external: false
-situation: "Underwriter needs to evaluate a risk submission and set terms."
-motivation: "Price risk appropriately to maintain portfolio profitability."
-outcome: "Policy issued with agreed terms and premium."
+  capacity: approver
+situation: >-
+  A producer or direct-channel applicant has submitted a new-business
+  application package (ACORD 125/126/140 for commercial; ACORD 80/81 for
+  personal). The underwriter must evaluate the risk against appetite,
+  pull required reports (MVR, CLUE, ISO PolicyPLUS, D&B, NCCI mod), price
+  the risk, and bind or decline.
+motivation: >-
+  Issue policies that price the risk to portfolio target loss ratio while
+  staying within state filed-rate compliance, fair-trade-practices acts,
+  and the carrier's class plan; avoid adverse selection and accumulate
+  exposure within reinsurance treaty limits.
+outcome: >-
+  Risk classified, premium calculated against the filed rate, terms and
+  exclusions set, policy bound with effective date, declarations page
+  issued, NAIC class code recorded, and downstream feeds (commission,
+  reinsurance bordereau, statistical reporting) primed.
 success_criteria:
-  - "Underwriting decision within 5 business days of complete submission"
+  - "Bind decision within 5 business days of complete submission"
+  - "Premium reconciles to filed rate manual within ±0.5%"
+  - "Adverse-action notice issued within 30 days when decline driven by FCRA-covered report"
+  - "Aggregate exposure check against treaty retention completed before bind"
 stages:
   - name: discover
   - name: execute
@@ -16,11 +34,200 @@ stages:
   - name: report
   - name: audit
 data_capture:
-  - id: reference_id
+  - id: submission_id
     kind: text
-    label: Reference ID
+    label: "Submission Identifier"
     pii: false
-  - id: notes
+  - id: policy_number
     kind: text
-    label: Notes
+    label: "Policy Number (issued at bind)"
+    pii: true
+    sensitivity: financial
+  - id: applicant_id
+    kind: text
+    label: "Applicant Identifier (insured party)"
+    pii: true
+  - id: applicant_dob
+    kind: date
+    label: "Applicant Date of Birth (personal lines)"
+    pii: true
+  - id: ein_or_ssn
+    kind: text
+    label: "Employer Identification Number or SSN"
+    pii: true
+    sensitivity: financial
+  - id: coverage_form
+    kind: enum
+    label: "Coverage Form"
+    options:
+      - "personal_auto"
+      - "homeowners_ho3"
+      - "homeowners_ho5"
+      - "renters_ho4"
+      - "dwelling_fire"
+      - "commercial_property"
+      - "commercial_auto"
+      - "general_liability"
+      - "workers_compensation"
+      - "professional_liability"
+      - "umbrella"
     pii: false
+  - id: effective_date
+    kind: date
+    label: "Policy Effective Date"
+    pii: false
+  - id: expiration_date
+    kind: date
+    label: "Policy Expiration Date"
+    pii: false
+  - id: coverage_limit
+    kind: money
+    label: "Per-Occurrence Coverage Limit"
+    pii: false
+    sensitivity: financial
+  - id: aggregate_limit
+    kind: money
+    label: "Aggregate Coverage Limit"
+    pii: false
+    sensitivity: financial
+  - id: deductible_amount
+    kind: money
+    label: "Deductible"
+    pii: false
+    sensitivity: financial
+  - id: rated_premium
+    kind: money
+    label: "Rated Annual Premium"
+    pii: false
+    sensitivity: financial
+  - id: risk_score
+    kind: number
+    label: "Underwriting Risk Score (carrier model output)"
+    pii: false
+  - id: naic_class_code
+    kind: text
+    label: "NAIC / SIC / NCCI Class Code"
+    pii: false
+  - id: territory_code
+    kind: text
+    label: "Filed Territory / Rating Zone"
+    pii: false
+  - id: prior_carrier_loss_history_clue_id
+    kind: text
+    label: "CLUE / A-PLUS Prior Loss Report Reference"
+    pii: false
+  - id: mvr_pull_id
+    kind: text
+    label: "Motor Vehicle Report Pull Reference (auto)"
+    pii: false
+  - id: bind_decision
+    kind: enum
+    label: "Bind Decision"
+    options:
+      - "bound"
+      - "quoted_not_bound"
+      - "declined"
+      - "referred_to_senior_uw"
+    pii: false
+edge_cases:
+  - id: outside_appetite
+    description: >-
+      Risk attribute (class code, location CAT exposure, prior-loss frequency)
+      falls outside filed appetite. Submission declined or routed to E&S
+      market with broker notification; adverse-action language drafted if
+      FCRA report contributed.
+  - id: cat_aggregation_breach
+    description: >-
+      Adding this risk would breach the carrier's aggregate exposure limit
+      in the rated CAT zone (hurricane, wildfire, earthquake). Bind blocked
+      until CAT desk approves or aggregate is freed by an offsetting
+      cancellation.
+  - id: rate_filing_pending
+    description: >-
+      Filed rate change is pending DOI approval; bind must use the
+      currently-approved manual; if applicant requests a future-effective
+      bind crossing the filing approval, re-rate at issuance.
+  - id: nonadmitted_es_placement
+    description: >-
+      Risk placed on a non-admitted (E&S) carrier. Surplus-lines tax filing
+      and broker affidavit of diligent search required per state surplus
+      lines rules; no state guaranty fund coverage disclosure mandated.
+  - id: agent_binding_authority_overflow
+    description: >-
+      Producer is binding above their delegated authority. Bind held
+      pending senior underwriter ratification within the binder period
+      (commonly 30-60 days) or coverage may revert.
+documents_required:
+  - id: acord_application
+    description: "Signed ACORD application package (ACORD 125/126/140 commercial; ACORD 80/81 personal)"
+    retention_years: 7
+  - id: financial_statements_or_d_b
+    description: "Audited financials or D&B report (commercial)"
+    retention_years: 7
+  - id: loss_runs_clue_or_aplus
+    description: "Loss runs from prior carrier(s) or CLUE/A-PLUS report (≥3 years)"
+    retention_years: 7
+  - id: inspection_report
+    description: "Property inspection report or risk-engineering survey (commercial property and large dwelling)"
+    retention_years: 7
+  - id: ofac_screening_record
+    description: "OFAC SDN screening of named insured and beneficial owners"
+    retention_years: 5
+approvals:
+  - role: underwriter
+    when: "rated_premium < 50000 and risk_score < 70 and bind_decision == 'bound'"
+    rationale: "Standard underwriter authority"
+  - role: senior_underwriter
+    when: "rated_premium >= 50000 or risk_score >= 70"
+    rationale: "Senior signoff for premium or risk-score above standard authority"
+  - role: chief_underwriting_officer
+    when: "rated_premium >= 500000 or naic_class_code in carrier_referral_classes"
+    rationale: "CUO referral for portfolio-level concentration or referred classes"
+  - role: cat_desk
+    when: "territory_code in cat_zone_list"
+    rationale: "CAT desk concurrence required when binding in CAT-aggregated zones"
+notifications:
+  - id: producer_bind_confirmation
+    channel: producer_portal
+    audience: producer
+    trigger: bind_decision_recorded
+  - id: applicant_declarations_page
+    channel: email_or_mail
+    audience: applicant
+    trigger: policy_bound
+  - id: adverse_action_notice
+    channel: certified_mail
+    audience: applicant
+    trigger: declined_with_fcra_report_basis
+  - id: state_filing_stat_feed
+    channel: stat_agent
+    audience: iso_or_aaaa_stat_agent
+    trigger: bind_or_endorsement_recorded
+  - id: reinsurance_bordereau
+    channel: bordereaux_feed
+    audience: reinsurer
+    trigger: cession_eligible_bind
+sla:
+  bind_decision_business_days: 5
+  adverse_action_notice_calendar_days: 30
+  binder_to_policy_issuance_calendar_days: 60
+  cat_aggregate_check_business_days: 1
+  reinsurance_bordereau_cadence: "monthly"
+data_sensitivity:
+  - PII
+  - financial
+compliance:
+  - "State rate filing acts (SERFF; e.g., CA INS §1860, NY ISL §2305)"
+  - "NAIC Producer Licensing Model Act"
+  - "Fair Credit Reporting Act §615 (adverse action notices)"
+  - "Equal Credit Opportunity Act / Reg B (commercial credit)"
+  - "OFAC sanctions screening (31 CFR §501)"
+  - "Surplus-lines / non-admitted placement statutes (state-specific)"
+  - "Gramm-Leach-Bliley Act (financial privacy)"
+  - "GDPR / CCPA"
+  - "Fair Housing Act (disparate-impact in homeowners rating)"
+signoff:
+  signer: sme-insurance
+  reviewed_at: "2026-05-06T12:00:00Z"
+  reviewer_credentials: "domain-sme(insurance)"
+  reviewed_findings: ["D-01-insurance"]

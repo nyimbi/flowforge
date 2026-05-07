@@ -1,0 +1,193 @@
+id: patient_admission
+title: "Admit Patient to Inpatient or Observation"
+version: "1.0.0"
+subdomain: admissions
+actor:
+  role: admitting_clinician
+  external: false
+situation: "Patient arrives at the hospital and an admitting clinician needs to convert the encounter into an inpatient or observation stay with orders, level of care, and payer notification."
+motivation: "Move the patient onto the right level of care, capture admit-time clinical and demographic data, and start the regulatory clock for documentation, payer notification, and discharge planning."
+outcome: "Patient is registered, assigned a bed, an admit order is signed by the attending, the H&P is scheduled, and downstream services (case management, social work, payer) are notified."
+success_criteria:
+  - "Admit order signed by attending within 30 minutes of bed assignment"
+  - "History & Physical (H&P) authored and authenticated within 24 hours of admission"
+  - "Payer notified of admission within 24 hours (48 hours when admit falls on a weekend or holiday)"
+  - "100% of admissions have advance directive status recorded before transfer to the unit"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: patient_id
+    kind: identifier
+    label: "Internal patient identifier"
+    pii: true
+    hipaa_identifier: true
+    description: "Synthetic, system-generated; never the SSN."
+  - id: dob
+    kind: date
+    label: "Date of birth"
+    pii: true
+    hipaa_identifier: true
+  - id: encounter_id
+    kind: identifier
+    label: "Encounter / admission id"
+    pii: true
+    hipaa_identifier: true
+  - id: mrn
+    kind: identifier
+    label: "Medical record number"
+    pii: true
+    hipaa_identifier: true
+  - id: admit_type
+    kind: enum
+    label: "Admission type"
+    pii: false
+    enum: ["inpatient", "observation", "emergency", "elective", "newborn", "trauma"]
+  - id: admit_source
+    kind: enum
+    label: "Admit source (UB-04 source-of-admission)"
+    pii: false
+    enum: ["physician_referral", "transfer_hospital", "transfer_snf", "ed", "court_law", "newborn", "information_not_available"]
+  - id: diagnosis_code_icd10
+    kind: code
+    label: "Admitting diagnosis (ICD-10-CM)"
+    pii: false
+    code_system: "ICD-10-CM"
+  - id: admitting_provider_npi
+    kind: identifier
+    label: "Admitting provider NPI"
+    pii: false
+  - id: attending_provider_npi
+    kind: identifier
+    label: "Attending of record NPI"
+    pii: false
+  - id: payer_id
+    kind: identifier
+    label: "Primary payer id"
+    pii: false
+  - id: prior_auth_id
+    kind: identifier
+    label: "Inpatient prior-authorization number"
+    pii: false
+  - id: advance_directive_status
+    kind: enum
+    label: "Advance-directive status"
+    pii: true
+    enum: ["on_file", "declined", "verbal_only", "not_addressed"]
+  - id: allergy_alerts
+    kind: list
+    label: "Recorded allergy alerts (RxNorm + reaction)"
+    pii: true
+edge_cases:
+  - id: minor_no_consenting_parent
+    condition: "Patient is a minor and no parent or legal guardian is reachable to consent."
+    handle: branch
+    branch_to: emergency_consent_protocol
+    action: "If life- or limb-threatening, proceed under the emergency-consent doctrine and document the clinical justification; otherwise hold non-emergent care, escalate to social work, and contact the legal guardian or court-appointed guardian ad litem before non-emergent procedures."
+    severity: high
+  - id: emtala_unstable_presentation
+    condition: "Patient presents to the ED with an emergency medical condition and admission is required to stabilise."
+    handle: branch
+    branch_to: emtala_stabilisation
+    action: "EMTALA prohibits delaying medical screening or stabilising treatment for insurance verification; admit and stabilise first, capture payer information after the patient is stable."
+    severity: critical
+  - id: behavioural_health_self_harm_risk
+    condition: "Suicide-risk screen (e.g., Columbia Suicide Severity Rating Scale) is positive."
+    handle: branch
+    branch_to: behavioural_health_protocol
+    action: "Apply the behavioural-health admission protocol: 1:1 observation, ligature-risk room, psychiatric consult within 4 hours, secure the unit, document capacity assessment, and apply involuntary-hold paperwork if statutory criteria are met."
+    severity: critical
+  - id: language_barrier
+    condition: "Patient has limited English proficiency and the consenting clinician does not share the patient's preferred language."
+    handle: pause
+    action: "Engage a qualified medical interpreter (in-person, video, or phone) before consent; document interpreter id and modality; do not use family members for medical interpretation except in a true emergency."
+    severity: medium
+abort_conditions:
+  - "Required identity documents are unverifiable and admit_type != 'emergency'"
+  - "EMTALA medical screening exam has not been documented"
+documents_required:
+  - kind: history_and_physical
+    min: 1
+    max: 1
+    av_required: true
+    freshness_days: 30
+    description: "Pre-admit H&P from the past 30 days OR new H&P authored within 24h of admission."
+  - kind: consent_to_treat
+    min: 1
+    av_required: true
+    description: "General consent to treatment signed by the patient or surrogate."
+  - kind: advance_directive
+    min: 0
+    max: 1
+    av_required: false
+    description: "Living will, durable power of attorney for healthcare, or POLST/MOLST when on file."
+  - kind: payer_authorization
+    min: 0
+    description: "Inpatient prior authorization or single-case agreement when required by the plan; not required for true emergencies under EMTALA."
+  - kind: identification
+    min: 1
+    description: "Government-issued identification when available; flag identity-not-verified for unidentified or unconscious patients."
+approvals:
+  - role: attending_physician
+    policy: any_of
+    description: "Attending of record must sign the admission order set."
+  - role: utilisation_review_nurse
+    policy: any_of
+    description: "Concurrent UR review confirms inpatient versus observation status using InterQual or MCG criteria; documents level-of-care rationale."
+  - role: case_manager
+    policy: any_of
+    description: "Case manager confirms anticipated discharge needs and starts discharge planning at admission."
+notifications:
+  - trigger: admission_recorded
+    channel: portal
+    audience: patient_or_surrogate
+    description: "Patient or healthcare surrogate receives a Notice of Privacy Practices and a plain-language statement of patient rights."
+  - trigger: admission_recorded
+    channel: ehr_message
+    audience: primary_care_provider
+    description: "Continuity-of-care notification to the patient's PCP (CMS Conditions of Participation §482.43)."
+  - trigger: admission_recorded
+    channel: payer_api
+    audience: payer
+    description: "Notification of admission via the plan's prior-auth or 278 transaction within 24 hours (48 hours on weekends or holidays)."
+  - trigger: admission_recorded
+    channel: pager
+    audience: bed_management
+    description: "Bed-management team receives bed-assignment and isolation requirements."
+sla:
+  warn_pct: 75
+  breach_seconds: 86400
+  narrative: "Admit order to attending sign-off: 30 minutes; H&P completion: 24 hours; payer notification: 24 hours (48 hours on weekends or holidays)."
+  targets:
+    - event: attending_admit_order_signed
+      deadline: "PT30M"
+    - event: h_and_p_authenticated
+      deadline: "PT24H"
+    - event: payer_notification_transmitted
+      deadline: "PT24H"
+metrics:
+  - "% of admits with attending order signed within 30 minutes"
+  - "% of admits with H&P authenticated within 24 hours"
+  - "Median time from ED arrival to inpatient bed assignment"
+  - "% of behavioural-health admits with psychiatric consult within 4 hours"
+data_sensitivity:
+  - PHI
+compliance:
+  - HIPAA
+regulatory_references:
+  - "HIPAA Privacy Rule (45 CFR 164.500-534)"
+  - "HIPAA Security Rule (45 CFR 164.302-318)"
+  - "HITECH Breach Notification (45 CFR 164.400-414)"
+  - "EMTALA (42 USC 1395dd)"
+  - "CMS Hospital Conditions of Participation (42 CFR 482)"
+  - "42 CFR Part 2 (when SUD treatment information is present)"
+  - "State mental-health admission statutes (e.g., Baker Act FL, LPS CA, MHA NY 9.39/9.41)"
+signoff:
+  signer: sme-healthcare
+  reviewed_at: "2026-05-06T00:00:00Z"
+  reviewer_credentials: "domain-sme(healthcare)"
+  reviewed_findings:
+    - "D-01-healthcare"

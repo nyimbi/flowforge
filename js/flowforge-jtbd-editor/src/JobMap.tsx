@@ -22,7 +22,7 @@
  * E-7 / E-8 follow-ups.
  */
 
-import { useMemo, type JSX } from "react";
+import { useEffect, useMemo, useRef, useState, type JSX } from "react";
 import ReactFlow, {
 	Background,
 	Controls,
@@ -45,6 +45,21 @@ import {
 } from "./layout.js";
 import type { JtbdBundle } from "./types.js";
 
+/**
+ * E-67 / JS-07 — viewport virtualisation threshold.
+ *
+ * Bundles below this node count render every node unconditionally; the
+ * SVG-fallback render path is fast enough that the bookkeeping cost of
+ * filtering by viewport overshadows the saved work. At or above this
+ * count, only nodes whose layout bbox intersects the visible viewport
+ * (plus a one-screen over-render margin) are rendered to the DOM.
+ *
+ * Bumping the threshold lower trades a little memory churn for a
+ * smoother scroll on weaker devices; raising it does the opposite.
+ */
+export const VIRTUALISATION_THRESHOLD = 200;
+const VIRTUALISATION_OVERSCAN = 200; // px around the viewport in every direction
+
 const SAME_LANE_EDGE_COLOR = "#64748b";
 const CROSS_LANE_EDGE_COLOR = "#7c3aed";
 const CYCLE_NODE_BORDER = "#dc2626";
@@ -57,6 +72,56 @@ const LANE_FILL_ODD = "#f8fafc";
 const LANE_FILL_EVEN = "#eef2ff";
 
 export type NodeAnimationState = "default" | "fired" | "active";
+
+/** A rectangular viewport in layout coordinates. */
+export interface JobMapViewport {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+/**
+ * E-67 / JS-07: filter *nodes* down to those whose bounding box
+ * intersects *viewport* (with an overscan margin). Nodes with cycles
+ * are always retained so the user always sees them as warning
+ * indicators even when off-screen.
+ *
+ * Exported for unit-test reach; production code goes through the
+ * `<JobMap>` component.
+ */
+export const nodesInViewport = (
+	nodes: readonly NodeLayout[],
+	viewport: JobMapViewport,
+	overscan: number = VIRTUALISATION_OVERSCAN,
+): NodeLayout[] => {
+	const left = viewport.x - overscan;
+	const right = viewport.x + viewport.width + overscan;
+	const top = viewport.y - overscan;
+	const bottom = viewport.y + viewport.height + overscan;
+	return nodes.filter((n) => {
+		if (n.inCycle) {
+			return true; // always-on indicator
+		}
+		const nLeft = n.x;
+		const nRight = n.x + n.width;
+		const nTop = n.y;
+		const nBottom = n.y + n.height;
+		return nRight >= left && nLeft <= right && nBottom >= top && nTop <= bottom;
+	});
+};
+
+/**
+ * E-67 / JS-07: keep edges whose source AND target are in the visible
+ * node set. Edges spanning out-of-viewport endpoints would render as
+ * dangling arrows, so we drop them; the user pans to the missing end
+ * and the edge re-appears.
+ */
+export const edgesInViewport = (
+	edges: readonly EdgeLayout[],
+	visibleNodeIds: ReadonlySet<string>,
+): EdgeLayout[] =>
+	edges.filter((e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target));
 
 export interface JobMapProps {
 	bundle: JtbdBundle;
@@ -72,6 +137,25 @@ export interface JobMapProps {
 	/** Set of JTBD ids that are currently active in the animation
 	 * (typically just one). Rendered with a highlighted border. */
 	activeIds?: ReadonlySet<string>;
+	/**
+	 * E-67 / JS-07: explicit viewport in layout coordinates. When set,
+	 * the SVG-fallback mode renders only nodes whose bbox intersects
+	 * this rectangle (with an overscan margin). When unset, the
+	 * component reads `clientWidth/Height/scrollLeft/scrollTop` from
+	 * the wrapper div on every scroll event.
+	 *
+	 * Tests pass the viewport directly to bypass the scroll listener
+	 * (happy-dom does not lay out elements; clientWidth is always 0
+	 * so the auto path collapses to "render nothing"). Production code
+	 * leaves this unset.
+	 */
+	viewport?: JobMapViewport;
+	/**
+	 * E-67 / JS-07: opt-out of virtualisation. Defaults to the global
+	 * threshold; set `false` to force-render every node, or a number
+	 * to override the threshold per-instance.
+	 */
+	virtualise?: boolean | number;
 }
 
 const animationStateFor = (
@@ -149,6 +233,8 @@ export const JobMap = ({
 	className,
 	firedIds,
 	activeIds,
+	viewport,
+	virtualise,
 }: JobMapProps): JSX.Element => {
 	const layout = useMemo<JobMapLayout>(() => layoutJobMap(bundle), [bundle]);
 
@@ -161,13 +247,71 @@ export const JobMap = ({
 	);
 	const edges = useMemo(() => layout.edges.map(toReactFlowEdge), [layout.edges]);
 
+	// E-67 / JS-07: viewport-aware filtering for the SVG-fallback mode.
+	const wrapperRef = useRef<HTMLDivElement | null>(null);
+	const [autoViewport, setAutoViewport] = useState<JobMapViewport | null>(null);
+
+	const threshold =
+		virtualise === false
+			? Number.POSITIVE_INFINITY
+			: typeof virtualise === "number"
+				? virtualise
+				: VIRTUALISATION_THRESHOLD;
+	const shouldVirtualise = !withReactFlow && layout.nodes.length >= threshold;
+
+	useEffect(() => {
+		if (!shouldVirtualise || viewport !== undefined) {
+			return;
+		}
+		const el = wrapperRef.current;
+		if (!el) {
+			return;
+		}
+		const measure = (): void => {
+			setAutoViewport({
+				x: el.scrollLeft,
+				y: el.scrollTop,
+				width: el.clientWidth,
+				height: el.clientHeight,
+			});
+		};
+		measure();
+		el.addEventListener("scroll", measure, { passive: true });
+		// Window resize re-measures because the wrapper's clientWidth
+		// follows the parent layout.
+		window.addEventListener("resize", measure);
+		return () => {
+			el.removeEventListener("scroll", measure);
+			window.removeEventListener("resize", measure);
+		};
+	}, [shouldVirtualise, viewport]);
+
+	const effectiveViewport = viewport ?? autoViewport;
+	const { visibleNodes, visibleEdges } = useMemo(() => {
+		if (!shouldVirtualise || !effectiveViewport) {
+			return {
+				visibleNodes: layout.nodes,
+				visibleEdges: layout.edges,
+			};
+		}
+		const filteredNodes = nodesInViewport(layout.nodes, effectiveViewport);
+		const visibleIds = new Set(filteredNodes.map((n) => n.jtbdId));
+		return {
+			visibleNodes: filteredNodes,
+			visibleEdges: edgesInViewport(layout.edges, visibleIds),
+		};
+	}, [shouldVirtualise, effectiveViewport, layout.nodes, layout.edges]);
+
 	if (!withReactFlow) {
 		return (
 			<div
+				ref={wrapperRef}
 				data-testid="ff-jobmap"
 				role="region"
 				aria-label="JTBD job map"
 				className={className}
+				data-virtualised={shouldVirtualise ? "true" : "false"}
+				data-rendered-nodes={String(visibleNodes.length)}
 				style={{ position: "relative", width: layout.width, height: layout.height }}
 			>
 				<svg
@@ -179,11 +323,11 @@ export const JobMap = ({
 					{layout.lanes.map((lane) => (
 						<LaneStrip key={lane.role} lane={lane} totalWidth={layout.width} />
 					))}
-					{layout.edges.map((edge) => (
+					{visibleEdges.map((edge) => (
 						<JobMapEdge key={edge.id} edge={edge} layout={layout} />
 					))}
 				</svg>
-				{layout.nodes.map((node) => (
+				{visibleNodes.map((node) => (
 					<JobMapNode
 						key={node.jtbdId}
 						node={node}

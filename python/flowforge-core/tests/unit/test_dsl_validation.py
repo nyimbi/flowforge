@@ -72,3 +72,57 @@ def test_validator_loads_real_schema_for_workflow_def() -> None:
 	schema_path = SCHEMA_DIR / "workflow_def.schema.json"
 	assert schema_path.exists()
 	json.loads(schema_path.read_text())  # parses
+
+
+# ---- audit-2026 E-35 / C-07 arity --------------------------------------
+
+
+def test_C_07_validator_flags_op_arity_mismatch_in_guard() -> None:
+	"""A guard with the wrong-arity op must surface in the report (audit-2026 C-07)."""
+
+	d = _basic_def()
+	d["transitions"][0]["guards"] = [{"kind": "expr", "expr": {"==": [1, 2, 3]}}]
+	report = validate(d)
+	assert not report.ok, report.errors
+	arity_errs = [e for e in report.errors if "'=='" in e]
+	assert arity_errs, report.errors
+	assert any("got 3" in e for e in arity_errs)
+
+
+def test_C_07_validator_flags_op_arity_mismatch_in_effect() -> None:
+	"""An effect.expr with the wrong-arity op must surface too."""
+
+	d = _basic_def()
+	d["transitions"][0]["effects"] = [
+		{"kind": "set", "target": "context.x", "expr": {"between": [1]}}
+	]
+	report = validate(d)
+	assert not report.ok, report.errors
+	assert any("'between'" in e for e in report.errors), report.errors
+
+
+def test_C_07_validator_strict_raises_on_arity() -> None:
+	"""Strict mode raises ValidationError on the first arity error."""
+
+	from flowforge.compiler import ValidationError
+
+	d = _basic_def()
+	d["transitions"][0]["guards"] = [{"kind": "expr", "expr": {"not_null": []}}]
+	with pytest.raises(ValidationError):
+		validate(d, strict=True)
+
+
+def test_C_07_validator_passes_well_formed_expressions() -> None:
+	d = _basic_def()
+	d["transitions"][0]["guards"] = [
+		{"kind": "expr", "expr": {"and": [{"==": [1, 1]}, {"not_null": {"var": "x"}}]}}
+	]
+	d["transitions"][0]["effects"] = [
+		{
+			"kind": "set",
+			"target": "context.score",
+			"expr": {"+": [1, 2, 3]},  # variadic — fine
+		}
+	]
+	report = validate(d)
+	assert report.ok, report.errors

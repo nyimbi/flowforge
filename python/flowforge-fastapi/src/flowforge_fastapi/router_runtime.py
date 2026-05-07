@@ -16,11 +16,13 @@ the builder.
 
 from __future__ import annotations
 
+import copy
 from typing import Any, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict
 
+from flowforge.dsl import WorkflowDef
 from flowforge.engine import Instance, fire as engine_fire, new_instance
 from flowforge.ports.types import Principal
 
@@ -32,6 +34,53 @@ from .registry import (
 	get_registry,
 )
 from .ws import WorkflowEventsHub, get_events_hub
+
+
+async def _fire_with_unit_of_work(
+	*,
+	wd: WorkflowDef,
+	instance: Instance,
+	event: str,
+	payload: dict[str, Any] | None,
+	principal: Principal,
+	tenant_id: str,
+	store: Any,
+) -> Any:
+	"""Run ``engine_fire`` + ``store.put`` as a single unit of work.
+
+	E-41 / FA-05: pre-fix, ``engine_fire`` mutated *instance* in place and
+	then a separate ``store.put`` ran independently.  If ``store.put``
+	raised (DB down, optimistic-lock conflict, anything), the in-memory
+	object had already advanced — a retry would start from the wrong
+	state.  This helper deep-copies the pre-fire snapshot, runs both
+	calls, and on a put failure rolls *instance* back so the caller's
+	view matches reality.
+
+	The deep-copy is the price of the rollback contract for an in-memory
+	store; production hosts that wrap a real DB will swap this helper for
+	a transactional ``async with store.transaction(): ...`` once the
+	UoW protocol lands (audit-fix-plan §13.7).
+	"""
+	pre_fire_snapshot = copy.deepcopy(instance)
+	result = await engine_fire(
+		wd,
+		instance,
+		event,
+		payload=payload,
+		principal=principal,
+		tenant_id=tenant_id,
+	)
+	try:
+		await store.put(instance)
+	except Exception:
+		# Restore in-memory instance fields from the snapshot so the
+		# caller's reference no longer reflects an advanced state we
+		# could not persist.  ``Instance`` is a dataclass-like object;
+		# copying ``__dict__`` covers state, history, context, saga,
+		# created_entities without naming each field.
+		instance.__dict__.update(pre_fire_snapshot.__dict__)
+		raise
+	return result
 
 
 class CreateInstanceRequest(BaseModel):
@@ -180,15 +229,17 @@ def build_runtime_router(
 			) from exc
 
 		prev_state = instance.state
-		result = await engine_fire(
-			wd,
-			instance,
-			body.event,
+		# E-41 / FA-05: engine_fire + store.put as one unit of work.
+		# A failure in store.put rolls instance back to its pre-fire snapshot.
+		result = await _fire_with_unit_of_work(
+			wd=wd,
+			instance=instance,
+			event=body.event,
 			payload=body.payload,
 			principal=principal,
 			tenant_id=body.tenant_id,
+			store=store,
 		)
-		await store.put(instance)
 
 		if result.matched_transition_id is not None and result.new_state != prev_state:
 			await hub.publish(

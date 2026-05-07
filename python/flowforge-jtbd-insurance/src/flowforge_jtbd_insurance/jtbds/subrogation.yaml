@@ -1,14 +1,32 @@
 id: subrogation
-title: "Pursue Subrogation"
+title: "Pursue Subrogation Recovery from Third Party"
 version: "1.0.0"
+domain: insurance
 actor:
-  role: claims_adjuster
+  role: subrogation_specialist
   external: false
-situation: "Adjuster needs to recover claim costs from the responsible third party."
-motivation: "Reduce net claims cost to the insurer."
-outcome: "Recovery demand issued and tracked to resolution."
+  capacity: operator
+situation: >-
+  A first-party claim has been paid (or partially paid) and the carrier
+  holds equitable or contractual subrogation rights against a responsible
+  third party (at-fault driver, manufacturer, contractor, tortfeasor's
+  insurer). The subrogation team must investigate liability, preserve
+  evidence, demand recovery, and pursue litigation if warranted.
+motivation: >-
+  Recover paid loss to reduce net incurred loss ratio, and exercise
+  contractual or equitable subrogation rights before they are barred by
+  the made-whole doctrine, anti-subrogation rule, or statute of
+  limitations.
+outcome: >-
+  Demand letter issued, recovery received and applied to the loss file
+  pro-rata between insurer and insured (less attorney fees and made-whole
+  reductions where applicable), or matter closed with documented
+  uncollectible status.
 success_criteria:
-  - "Subrogation recovery rate ≥ benchmark for class of business"
+  - "Demand issued within 90 days of indemnity payment for subrogation-flagged claims"
+  - "Recovery cycle time ≤ 12 months on volunteer-pay matters"
+  - "Recovery rate (collected / referred ≥ benchmark for class of business)"
+  - "Statute of limitations diaried before referral closes"
 stages:
   - name: discover
   - name: execute
@@ -16,11 +34,178 @@ stages:
   - name: report
   - name: audit
 data_capture:
-  - id: reference_id
+  - id: subrogation_file_id
     kind: text
-    label: Reference ID
+    label: "Subrogation File Identifier"
     pii: false
-  - id: notes
+  - id: parent_claim_number
     kind: text
-    label: Notes
+    label: "Parent Claim Number (origin first-party claim)"
     pii: false
+  - id: tortfeasor_id
+    kind: text
+    label: "Tortfeasor / Responsible Third Party Identifier"
+    pii: true
+  - id: tortfeasor_carrier
+    kind: text
+    label: "Tortfeasor's Liability Carrier"
+    pii: false
+  - id: tortfeasor_policy_number
+    kind: text
+    label: "Tortfeasor's Liability Policy Number"
+    pii: true
+    sensitivity: financial
+  - id: paid_loss_amount
+    kind: money
+    label: "Paid Loss Amount Eligible for Subrogation"
+    pii: false
+    sensitivity: financial
+  - id: paid_loss_breakdown_indemnity
+    kind: money
+    label: "Indemnity Component of Paid Loss"
+    pii: false
+    sensitivity: financial
+  - id: paid_loss_breakdown_ale
+    kind: money
+    label: "ALAE (allocated loss adjustment expense) Component"
+    pii: false
+    sensitivity: financial
+  - id: deductible_paid_by_insured
+    kind: money
+    label: "Deductible Borne by Insured (recovered pro-rata under made-whole)"
+    pii: false
+    sensitivity: financial
+  - id: liability_basis
+    kind: enum
+    label: "Liability Theory"
+    options:
+      - "negligence"
+      - "strict_products_liability"
+      - "breach_of_contract"
+      - "indemnity_contractual"
+      - "subrogation_to_workers_comp"
+      - "uninsured_motorist_inter_company"
+      - "premises_liability"
+    pii: false
+  - id: recovery_status
+    kind: enum
+    label: "Recovery Status"
+    options:
+      - "investigating"
+      - "demand_issued"
+      - "in_negotiation"
+      - "in_litigation"
+      - "settled"
+      - "closed_uncollectible"
+      - "closed_anti_subrogation_bar"
+    pii: false
+  - id: recovered_amount
+    kind: money
+    label: "Recovered Amount"
+    pii: false
+    sensitivity: financial
+  - id: statute_of_limitations_date
+    kind: date
+    label: "Statute of Limitations Bar Date"
+    pii: false
+  - id: made_whole_assessment
+    kind: enum
+    label: "Made-Whole Assessment"
+    options:
+      - "insured_made_whole"
+      - "insured_not_made_whole"
+      - "made_whole_doctrine_waived_by_policy"
+      - "not_applicable_jurisdiction"
+    pii: false
+edge_cases:
+  - id: anti_subrogation_rule
+    description: >-
+      Tortfeasor is a co-insured under the same carrier (e.g., named insured
+      and additional insured on a CGL). Anti-subrogation rule bars
+      recovery; close file with citation. (Public Service Mut. Ins. Co. v.
+      Goldfarb / North Star Reins. v. Continental.)
+  - id: made_whole_doctrine_priority
+    description: >-
+      Recovery insufficient to make insured whole on uninsured loss
+      components. Made-whole doctrine (in jurisdictions that follow it
+      absent contractual waiver) requires insured be paid first; carrier
+      recovery is residual.
+  - id: tortfeasor_judgment_proof
+    description: >-
+      Tortfeasor uninsured and asset search shows no realistic recovery.
+      Close as uncollectible after asset/credit search and SOL diary;
+      retain documentation for tax write-off support.
+  - id: contractual_waiver_of_subrogation
+    description: >-
+      Underlying contract (lease, construction agreement, vendor MSA)
+      waives subrogation rights. Verify waiver scope; close if waiver
+      applies; pursue if waiver invalid against gross negligence.
+  - id: coordination_with_employer_workers_comp_lien
+    description: >-
+      Workers'-comp carrier asserts statutory lien on third-party
+      recovery. Coordinate apportionment per state WC subrogation statute
+      (e.g., NY WCL §29; CA L.C. §3852-§3859).
+documents_required:
+  - id: liability_evidence_pack
+    description: "Police report, accident reconstruction, expert reports, photos, witness statements"
+    retention_years: 7
+  - id: paid_loss_proof
+    description: "Internal proof of indemnity payment (cleared check, ACH confirmation)"
+    retention_years: 7
+  - id: demand_letter_and_response
+    description: "Carrier demand letter and tortfeasor / their carrier response"
+    retention_years: 7
+  - id: settlement_release_or_judgment
+    description: "Executed release, joint check, or court judgment / satisfaction"
+    retention_years: 10
+approvals:
+  - role: subrogation_specialist
+    when: "paid_loss_amount < 25000 and recovery_status != 'in_litigation'"
+    rationale: "Standard specialist authority for routine recovery handling"
+  - role: subrogation_supervisor
+    when: "paid_loss_amount >= 25000 and paid_loss_amount < 250000"
+    rationale: "Supervisor signoff for material recovery files"
+  - role: claims_manager
+    when: "paid_loss_amount >= 250000 or recovery_status == 'in_litigation'"
+    rationale: "Manager dual-approval for high-dollar or litigated recoveries"
+  - role: outside_counsel
+    when: "recovery_status == 'in_litigation'"
+    rationale: "Counsel of record signoff before suit filing or settlement"
+notifications:
+  - id: insured_pro_rata_check
+    channel: mail
+    audience: insured
+    trigger: recovery_received_with_made_whole_share
+  - id: tortfeasor_carrier_demand
+    channel: certified_mail_or_e_demand
+    audience: tortfeasor_liability_carrier
+    trigger: demand_issued
+  - id: workers_comp_lien_coordination
+    channel: email
+    audience: wc_carrier_lien_holder
+    trigger: third_party_recovery_realised
+  - id: arbitration_forum_filing
+    channel: arbitration_forums
+    audience: arbitration_forums_inc
+    trigger: inter_company_arbitration_filed
+sla:
+  demand_issuance_after_payment_calendar_days: 90
+  routine_recovery_close_calendar_days: 365
+  arbitration_forum_decision_target_calendar_days: 180
+  sol_diary_advance_warning_calendar_days: 90
+data_sensitivity:
+  - PII
+  - financial
+compliance:
+  - "State subrogation statutes (e.g., NY WCL §29; CA L.C. §3852-§3859)"
+  - "Made-whole doctrine (jurisdictional)"
+  - "Anti-subrogation rule (tortfeasor as co-insured)"
+  - "Arbitration Forums Inter-Company agreement (auto, property, special)"
+  - "Fair Debt Collection Practices Act (when consumer obligor)"
+  - "OFAC sanctions screening on payee"
+  - "GDPR / CCPA"
+signoff:
+  signer: sme-insurance
+  reviewed_at: "2026-05-06T12:00:00Z"
+  reviewer_credentials: "domain-sme(insurance)"
+  reviewed_findings: ["D-01-insurance"]

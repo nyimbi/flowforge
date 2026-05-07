@@ -249,19 +249,11 @@ class DependencyGraph:
 			self.topological_order = None
 			return
 
-		in_degree: dict[str, int] = {node: 0 for node in self.edges}
-		for source, targets in self.edges.items():
-			for target in targets:
-				if target in in_degree:
-					in_degree[target] += 1
-
-		# Kahn's, tie-broken alphabetically for determinism. Note: the
-		# graph edge ``a requires b`` means b must come BEFORE a, so we
-		# reverse for the prerequisite-first ordering the editor wants.
-		ready = sorted(
-			node for node, degree in in_degree.items() if degree == 0
-		)
-		# Process in reverse-edge sense: prerequisite-first.
+		# E-59 / J-11: Kahn's algorithm, tie-broken alphabetically for
+		# determinism. The graph edge ``a requires b`` means b must run
+		# BEFORE a, so we sort by out-degree (number of unsatisfied
+		# requires) and consume nodes whose requires are all satisfied.
+		# A "prerequisite" — out_degree == 0 — has no remaining requires.
 		ordered: list[str] = []
 		# Build reverse adjacency: for node b, who requires b?
 		reverse: dict[str, list[str]] = {node: [] for node in self.edges}
@@ -269,11 +261,6 @@ class DependencyGraph:
 			for target in targets:
 				if target in reverse:
 					reverse[target].append(source)
-		# Recompute degrees against the reverse graph. A "prerequisite"
-		# is one with no incoming edges in the reverse graph — which
-		# corresponds to "no node depends on me", i.e., a leaf in the
-		# requires graph. That's NOT what we want. Recompute from the
-		# original adjacency: "can run when all my requires are done".
 		out_degree = {
 			node: len(set(self.edges.get(node, [])))
 			for node in self.edges

@@ -1,0 +1,187 @@
+id: referral_request
+title: "Refer Patient from Primary Care to Specialist"
+version: "1.0.0"
+subdomain: clinical
+actor:
+  role: referring_provider
+  external: false
+situation: "A primary-care or attending provider needs to send a patient to a specialist with the right clinical context, prior-authorisation, and appointment timing for the priority of the request."
+motivation: "Get the patient evaluated by the right specialist within the clinically appropriate window, satisfy payer prior-authorization rules, and close the loop with a specialist note."
+outcome: "A referral packet is sent to the specialist office, prior authorization is on file where required, the patient knows how to schedule, and a closed-loop note returns to the referring provider after the specialist visit."
+success_criteria:
+  - "Routine referral packet transmitted within 2 business days"
+  - "Urgent referrals scheduled within 24 hours"
+  - "Same-day STAT referrals (e.g., suspected oncology, sepsis, retinal-detachment) escalated within 1 hour"
+  - "Closed-loop note received from the specialist within 14 days of the visit"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: patient_id
+    kind: identifier
+    label: "Internal patient identifier"
+    pii: true
+    hipaa_identifier: true
+  - id: dob
+    kind: date
+    label: "Date of birth"
+    pii: true
+    hipaa_identifier: true
+  - id: referring_provider_npi
+    kind: identifier
+    label: "Referring provider NPI"
+    pii: false
+  - id: specialist_specialty_code
+    kind: code
+    label: "Specialist taxonomy code (NUCC)"
+    pii: false
+    code_system: "NUCC"
+  - id: referral_priority
+    kind: enum
+    label: "Clinical priority"
+    pii: false
+    enum: ["routine", "urgent", "stat"]
+  - id: diagnosis_code_icd10
+    kind: code
+    label: "Working diagnosis (ICD-10-CM)"
+    pii: false
+    code_system: "ICD-10-CM"
+  - id: procedure_code_cpt
+    kind: code
+    label: "Requested procedure or evaluation (CPT/HCPCS)"
+    pii: false
+    code_system: "CPT"
+  - id: payer_id
+    kind: identifier
+    label: "Primary payer id"
+    pii: false
+  - id: prior_auth_id
+    kind: identifier
+    label: "Prior-auth determination id"
+    pii: false
+  - id: network_status
+    kind: enum
+    label: "Specialist network status"
+    pii: false
+    enum: ["in_network", "out_of_network", "tier_2", "single_case_agreement"]
+  - id: preferred_appointment_window
+    kind: text
+    label: "Patient-preferred appointment window (e.g., 'weekday afternoons')"
+    pii: false
+edge_cases:
+  - id: out_of_network_no_in_network_specialist
+    condition: "No in-network specialist is available within the plan's network-adequacy distance or wait-time standard."
+    handle: branch
+    branch_to: out_of_network_request
+    action: "Submit a network-adequacy waiver or single-case agreement to the payer; document the absence of an in-network option per state insurance regulations."
+    severity: high
+  - id: prior_auth_denied_peer_to_peer
+    condition: "Payer denies the prior-auth request."
+    handle: branch
+    branch_to: peer_to_peer_review
+    action: "Schedule a peer-to-peer review between the referring provider and the payer's medical director within the plan's appeal window; document the discussion and decision."
+    severity: high
+  - id: urgent_patient_unreachable
+    condition: "Urgent referral and the patient cannot be reached within 48 hours to schedule."
+    handle: branch
+    branch_to: outreach_escalation
+    action: "Engage social work, community health worker, or care manager; if outreach fails after the policy window, document the attempt and notify the referring provider for risk decision."
+    severity: high
+  - id: minor_with_custody_restriction
+    condition: "Patient is a minor and a parent or court has restricted disclosure."
+    handle: pause
+    action: "Verify the legal guardian or custody order on file before transmitting records; do not send PHI to a non-custodial parent absent a release."
+    severity: high
+  - id: reproductive_health_or_42_cfr_part_2
+    condition: "Referral concerns reproductive-health, behavioural-health, or substance-use treatment information."
+    handle: pause
+    action: "Apply the heightened release rules: explicit signed authorization for 42 CFR Part 2 records; check state-specific reproductive-health and minor-confidentiality statutes before disclosing to family or other providers."
+    severity: high
+abort_conditions:
+  - "Patient has not consented to share PHI with the receiving specialist"
+  - "Specialist NPI cannot be validated against NPPES"
+documents_required:
+  - kind: referral_form
+    min: 1
+    max: 1
+    av_required: true
+    description: "Standard referral form including reason for referral, working diagnosis, and requested service."
+  - kind: clinical_history
+    min: 1
+    av_required: true
+    description: "Most-recent relevant H&P, progress note, and problem list."
+  - kind: imaging_or_lab_results
+    min: 0
+    description: "Pertinent imaging and lab results to avoid duplicate testing."
+  - kind: prior_auth_letter
+    min: 0
+    description: "Payer prior-auth determination letter when the requested service is plan-restricted."
+  - kind: custody_or_guardian_documentation
+    min: 0
+    description: "Required for minors when custody arrangements affect consent or disclosure."
+approvals:
+  - role: referring_provider
+    policy: any_of
+    description: "Referring provider e-signs the referral and the records release."
+  - role: payer_prior_auth_reviewer
+    policy: any_of
+    description: "Payer prior-authorization required for plan-restricted services; standard turnaround within 5 business days, urgent within 72 hours under most state prompt-decision statutes."
+  - role: specialist_intake_coordinator
+    policy: any_of
+    description: "Specialist office triages incoming referrals and confirms acceptance and scheduling."
+notifications:
+  - trigger: referral_transmitted
+    channel: ehr_message
+    audience: specialist_office
+    description: "Referral packet transmitted via Direct, eFax, or HL7 referral message."
+  - trigger: referral_transmitted
+    channel: portal
+    audience: patient
+    description: "Patient is told who they were referred to, why, and how to schedule."
+  - trigger: prior_auth_required
+    channel: payer_api
+    audience: payer
+    description: "Prior-authorization request submitted via payer portal or 278 transaction."
+  - trigger: closed_loop_note_received
+    channel: ehr_message
+    audience: referring_provider
+    description: "Specialist consult note returned to the referring provider, completing the closed-loop referral."
+sla:
+  warn_pct: 75
+  breach_seconds: 172800
+  narrative: "Routine: 2 business days. Urgent: 24 hours. STAT: 1 hour. Closed-loop note: within 14 days of completed specialist visit."
+  targets:
+    - event: referral_packet_sent_routine
+      deadline: "P2D"
+    - event: referral_packet_sent_urgent
+      deadline: "PT24H"
+    - event: referral_packet_sent_stat
+      deadline: "PT1H"
+    - event: closed_loop_note_received
+      deadline: "P14D"
+metrics:
+  - "% of referrals transmitted within priority SLA"
+  - "% of referrals with closed-loop note within 14 days"
+  - "% of prior-auth denials overturned at peer-to-peer"
+  - "% of out-of-network referrals with documented network-adequacy justification"
+data_sensitivity:
+  - PHI
+compliance:
+  - HIPAA
+regulatory_references:
+  - "HIPAA Privacy Rule (minimum necessary)"
+  - "HITECH"
+  - "21st Century Cures Act and ONC certified API rules (closed-loop referrals)"
+  - "42 CFR Part 2 (substance-use treatment records)"
+  - "State prompt-decision statutes for prior authorization"
+  - "ERISA for self-funded plans"
+  - "State minor-consent and reproductive-health confidentiality statutes"
+signoff:
+  signer: sme-healthcare
+  reviewed_at: "2026-05-06T00:00:00Z"
+  reviewer_credentials: "domain-sme(healthcare)"
+  reviewed_findings:
+    - "D-01-healthcare"

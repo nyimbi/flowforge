@@ -21,7 +21,7 @@ Layering:
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Annotated, Literal
+from typing import Annotated, ClassVar, Literal
 
 from pydantic import (
 	AfterValidator,
@@ -138,23 +138,39 @@ class JtbdLockfile(BaseModel):
 			seen.add(pin.jtbd_id)
 		return self
 
+	# audit-2026 J-08: explicit allow-list of keys that participate in
+	# ``body_hash``. New top-level fields require an entry here — silent
+	# inclusion of metadata in the body would break replay determinism
+	# (two lockfiles with the same logical content would hash differently
+	# the moment any new dump-only metadata appeared). Anything outside
+	# this set (``generated_at``, ``generated_by``, ``body_hash``) is
+	# treated as metadata.
+	_BODY_KEYS: ClassVar[tuple[str, ...]] = (
+		"schema_version",
+		"composition_id",
+		"project_package",
+		"pins",
+	)
+
 	def canonical_body(self) -> dict[str, object]:
 		"""Return the dict shape used to compute ``body_hash``.
 
 		Pins are sorted by ``jtbd_id`` so two lockfiles whose pin order
-		differs (but whose set is equal) hash to the same value. The
-		``body_hash`` field is excluded — it is computed *over* the
-		body, not part of it.
+		differs (but whose set is equal) hash to the same value. Only
+		the keys in ``_BODY_KEYS`` are part of the body — anything else
+		(``generated_at``, ``generated_by``, ``body_hash``) is metadata.
 		"""
+
 		dumped = self.model_dump(mode="json", exclude_none=False)
-		dumped.pop("body_hash", None)
-		dumped.pop("generated_at", None)  # treated as metadata, not body
-		dumped.pop("generated_by", None)
-		pins = dumped.get("pins") or []
+		out: dict[str, object] = {}
+		for key in self._BODY_KEYS:
+			if key in dumped:
+				out[key] = dumped[key]
+		pins = out.get("pins") or []
 		if isinstance(pins, list):
 			pins.sort(key=lambda p: p.get("jtbd_id", ""))
-			dumped["pins"] = pins
-		return dumped
+			out["pins"] = pins
+		return out
 
 	def compute_body_hash(self) -> str:
 		"""Return the freshly-computed ``sha256:...`` for this lockfile."""

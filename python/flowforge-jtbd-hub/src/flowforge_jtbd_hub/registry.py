@@ -26,7 +26,7 @@ import dataclasses
 import hashlib
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from flowforge_jtbd.registry.manifest import JtbdManifest
@@ -57,9 +57,27 @@ class UnsignedManifestError(HubError):
 	"""Raised when a publish lacks a signature without an allow flag."""
 
 
+class UnsignedPackageRejected(HubError):
+	"""Raised on install when a package was published unsigned and the
+	caller did not pass ``accept_unsigned=True``.
+
+	E-37b / JH-01 (audit-fix-plan §4.1): the trust gate at install time
+	is the explicit second-line defence after the publish-time
+	``allow_unsigned`` flag. The error message is intentionally
+	sanitised — it does NOT leak the internal ``key_id`` (which a
+	cleartext error revealed pre-fix and gave an attacker partial
+	enumeration of the hub's signing-key set).
+	"""
+
+
 class UntrustedSignatureError(HubError):
 	"""Raised when an install would consume a package whose signing
-	key is not in the caller's trust set."""
+	key is not in the caller's trust set.
+
+	E-37b / JH-01: the error message is intentionally sanitised — it
+	identifies the package by ``name@version`` only and does NOT leak
+	the rejected ``key_id``.
+	"""
 
 
 class TamperedPayloadError(HubError):
@@ -93,6 +111,14 @@ class Package:
 
 	All mutations go through :class:`PackageRegistry` so the hub can
 	keep a single audit point for publish / demote / rate events.
+
+	E-37b / JH-01 (audit-fix-plan §4.1): the ``signed_at_publish`` flag
+	captures whether the package carried a verifying signature at
+	publish time. ``allow_unsigned=True`` at publish stores ``False``
+	here; default install rejects ``False`` packages with
+	:class:`UnsignedPackageRejected` unless the caller passes
+	``accept_unsigned=True`` (which then emits the
+	``PACKAGE_INSTALL_UNSIGNED`` audit event).
 	"""
 
 	manifest: JtbdManifest
@@ -101,8 +127,15 @@ class Package:
 	demoted: bool = False
 	demote_reason: str | None = None
 	verified: bool = False
+	signed_at_publish: bool = True
 	downloads: int = 0
 	ratings: list[Rating] = field(default_factory=list)
+	# E-58 / JH-03: verified_at_install caches the timestamp of the most
+	# recent successful manifest re-verify so repeat installs can skip
+	# the verify call within the cache window. A daily background job
+	# (the host's responsibility) drains stale entries by clearing this
+	# field; the next install then re-verifies.
+	verified_at_install: datetime | None = None
 
 	# ------------------------------------------------------------------
 	# convenience
@@ -154,6 +187,13 @@ class Package:
 		}
 
 
+# E-58 / JH-03: how long a cached `verified_at_install` is honoured
+# before the next install re-runs ``verify_manifest``. The audit specs
+# 24h; we treat anything within this window as "first install per
+# version" and skip the reverify.
+VERIFY_CACHE_WINDOW = timedelta(hours=24)
+
+
 @dataclass(frozen=True)
 class PublishResult:
 	package: Package
@@ -188,16 +228,23 @@ class PackageRegistry:
 		*,
 		scorer: ReputationScorer | None = None,
 		clock: "Any | None" = None,
+		audit_hook: "Any | None" = None,
 	) -> None:
 		"""
 		:param signing: Any ``SigningPort`` impl (HMAC dev or KMS).
 		:param scorer: Optional :class:`ReputationScorer`; the default
 		  is the §9.3 ``downloads × stars × age_decay`` policy.
 		:param clock: Optional callable returning ``datetime`` (for tests).
+		:param audit_hook: Optional ``(event_type: str, payload: dict) -> None``
+		  callable invoked for security-relevant registry events.  Used by the
+		  E-37b / JH-01 trust gate to emit ``PACKAGE_INSTALL_UNSIGNED`` whenever
+		  a caller explicitly accepts an unsigned package.  May be a coroutine;
+		  failures are best-effort and never block the install path.
 		"""
 		self._signing = signing
 		self._scorer: ReputationScorer = scorer or DefaultReputationScorer()
 		self._clock = clock or utcnow
+		self._audit_hook = audit_hook
 		self._packages: dict[tuple[str, str], Package] = {}
 		self._lock = asyncio.Lock()
 
@@ -216,6 +263,17 @@ class PackageRegistry:
 
 	def _iter_packages(self) -> Iterable[Package]:
 		return list(self._packages.values())
+
+	def _increment_downloads(self, package: Package) -> None:
+		"""Atomically bump the download counter for *package*.
+
+		E-58 / JH-02: the in-memory implementation mutates the package
+		dataclass in place. Production subclasses override this method
+		to issue an atomic SQL UPDATE so multiple replicas converge to
+		a single shared counter.
+		"""
+
+		package.downloads += 1
 
 	# ------------------------------------------------------------------
 	# publish
@@ -260,6 +318,11 @@ class PackageRegistry:
 			if not signature_ok:
 				raise HubError("manifest signature did not verify")
 
+		# E-37b / JH-01: signed_at_publish captures whether the package
+		# arrived with a verifying signature. Install-time gate uses
+		# this to refuse unsigned packages unless the caller opts in.
+		signed_at_publish = signature_ok and manifest.signature is not None
+
 		async with self._lock:
 			if self._load_package(manifest.name, manifest.version) is not None:
 				raise PackageAlreadyExistsError(
@@ -269,6 +332,7 @@ class PackageRegistry:
 				manifest=manifest,
 				bundle=bundle,
 				published_at=self._clock(),
+				signed_at_publish=signed_at_publish,
 			)
 			self._store_package(package)
 
@@ -286,6 +350,8 @@ class PackageRegistry:
 		*,
 		trust: TrustConfig,
 		allow_untrusted: bool = False,
+		accept_unsigned: bool = False,
+		audit_emit: "Any | None" = None,
 	) -> InstallResult:
 		"""Resolve + verify + return the bundle for ``name@version``.
 
@@ -307,17 +373,66 @@ class PackageRegistry:
 			raise PackageNotFoundError(f"{name}@{version} not found")
 
 		key_id = package.manifest.key_id
+		# E-58 / JH-03: cached verify. If a recent successful verify is
+		# on file (within VERIFY_CACHE_WINDOW), skip the expensive call.
+		# A daily background job is expected to clear stale entries.
+		now = self._clock()
+		cache_hit = (
+			package.manifest.signature is not None
+			and key_id is not None
+			and package.verified_at_install is not None
+			and now - package.verified_at_install < VERIFY_CACHE_WINDOW
+		)
 		signature_ok = False
-		if package.manifest.signature is not None and key_id is not None:
+		if cache_hit:
+			signature_ok = True
+		elif package.manifest.signature is not None and key_id is not None:
 			signature_ok = await verify_manifest(
 				package.manifest, self._signing
 			)
+			if signature_ok:
+				package.verified_at_install = now
 
-		if (not signature_ok or not trust.is_key_trusted(key_id)) and not allow_untrusted:
-			raise UntrustedSignatureError(
-				f"signing key {key_id!r} for {name}@{version} is not trusted"
-				" (pass allow_untrusted=true to override)"
+		# E-37b / JH-01: explicit unsigned-at-publish trust gate. Default
+		# install rejects packages that were published with
+		# allow_unsigned=True; the caller must opt in via
+		# accept_unsigned=True (which then emits the audit event so
+		# operators can attribute the decision).
+		if not package.signed_at_publish and not accept_unsigned:
+			raise UnsignedPackageRejected(
+				f"{name}@{version} was published without a signature; "
+				f"pass accept_unsigned=True to install anyway "
+				f"(install will emit a PACKAGE_INSTALL_UNSIGNED audit event)"
 			)
+		if not package.signed_at_publish and accept_unsigned:
+			# Best-effort emit through both the constructor-level hook (for
+			# host-wide wiring) and the per-call ``audit_emit`` (for
+			# request-scoped overrides).  Failures must not block install —
+			# the install was authorised, the audit trail is observability.
+			await _emit_audit_event(
+				self._audit_hook,
+				audit_emit,
+				event="PACKAGE_INSTALL_UNSIGNED",
+				payload={
+					"name": name,
+					"version": version,
+					"reason": "accept_unsigned=True",
+				},
+			)
+
+		# E-37b / JH-01: sanitised error message — does NOT leak the
+		# rejected key_id (pre-fix the cleartext message gave an
+		# attacker partial enumeration of the hub's trust set).
+		# Skip the signature-trust gate entirely when the package was
+		# published unsigned and the caller accepted that — there is no
+		# signature for the trust set to evaluate against.  The
+		# verified_publishers_only gate below still applies independently.
+		if package.signed_at_publish:
+			if (not signature_ok or not trust.is_key_trusted(key_id)) and not allow_untrusted:
+				raise UntrustedSignatureError(
+					f"signing key for {name}@{version} is not in the trust set"
+					" (pass allow_untrusted=true to override)"
+				)
 
 		if trust.verified_publishers_only and not package.verified:
 			if not allow_untrusted:
@@ -336,14 +451,21 @@ class PackageRegistry:
 					" its manifest's bundle_hash"
 				)
 
-		# Mutate counter under lock so concurrent downloads don't race.
+		# E-58 / JH-02: counter mutation goes through the hookable
+		# ``_increment_downloads``. The default impl mutates in-memory;
+		# subclasses override to perform an atomic UPDATE on a shared
+		# DB row so multiple replicas converge to a single counter
+		# (audit-fix-plan §4.2 JH-02 acceptance: 2 replicas × 100
+		# installs each → DB shows 200).
 		async with self._lock:
-			updated = dataclasses.replace(package, downloads=package.downloads + 1)
-			self._store_package(updated)
+			self._increment_downloads(package)
+			# Persist the verified_at_install bump too (cache-update
+			# path) — store_package is idempotent for in-memory hosts.
+			self._store_package(package)
 
 		return InstallResult(
-			manifest=updated.manifest,
-			bundle=updated.bundle,
+			manifest=package.manifest,
+			bundle=package.bundle,
 			verified_signature=signature_ok,
 		)
 
@@ -474,6 +596,42 @@ def utc_now() -> datetime:
 	return datetime.now(timezone.utc)
 
 
+async def _maybe_await(value: Any) -> Any:
+	"""Await *value* if it is awaitable, otherwise return as-is.
+
+	E-37b / JH-01 helper: audit hooks may be a sync callable
+	(returning None) or an async callable (returning a coroutine).
+	"""
+	import inspect
+
+	if inspect.isawaitable(value):
+		return await value
+	return value
+
+
+async def _emit_audit_event(
+	constructor_hook: Any,
+	per_call_hook: Any,
+	*,
+	event: str,
+	payload: dict,
+) -> None:
+	"""Best-effort dispatch a registry audit event to whichever hook is wired.
+
+	E-37b / JH-01 helper.  Both hooks accept ``(event_type: str, payload: dict)``
+	and may be sync or async.  Exceptions in the hook are swallowed — the audit
+	trail is observability, not a control-flow path; we never block an
+	authorised install on a downed audit sink.
+	"""
+	for hook in (constructor_hook, per_call_hook):
+		if hook is None:
+			continue
+		try:
+			await _maybe_await(hook(event, dict(payload)))
+		except Exception:  # noqa: BLE001 — audit failure must not block install
+			pass
+
+
 __all__ = [
 	"HubError",
 	"InstallResult",
@@ -485,6 +643,7 @@ __all__ = [
 	"Rating",
 	"TamperedPayloadError",
 	"UnsignedManifestError",
+	"UnsignedPackageRejected",
 	"UntrustedSignatureError",
 	"utc_now",
 ]

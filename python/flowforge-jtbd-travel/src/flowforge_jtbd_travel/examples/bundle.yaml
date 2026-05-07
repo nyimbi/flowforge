@@ -1,28 +1,19 @@
-      project:
-        name: "travel-example"
-        package: "travel_example"
-        domain: "travel"
-        version: "1.0.0"
-      shared:
-        roles:
-      - travel_agent
-  - loyalty_manager
-  - concierge
-  - operations_coordinator
-        permissions:
-      - travel.booking.create
-  - travel.itinerary.modify
-  - travel.loyalty.award
-  - travel.refund.process
-  - travel.complaint.handle
-      jtbds:
-    - id: close_request
-  version: "1.0.0"
+project:
+  name: travel-example
+  package: flowforge_jtbd_travel_example
+  domain: travel
+  version: 1.0.0
+shared:
+  roles: []
+  permissions: []
+jtbds:
+- id: close_request
+  version: 1.0.0
 - id: initiate_request
-  version: "1.0.0"
+  version: 1.0.0
 - id: process_request
-  version: "1.0.0"
+  version: 1.0.0
 - id: report_outcomes
-  version: "1.0.0"
+  version: 1.0.0
 - id: review_request
-  version: "1.0.0"
+  version: 1.0.0

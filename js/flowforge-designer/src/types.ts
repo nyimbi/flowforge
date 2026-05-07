@@ -8,13 +8,23 @@
  * `form_spec.py` so they round-trip with the Python compiler.
  */
 
+/**
+ * Workflow state kinds, mirrored from the Python DSL
+ * (`framework/python/flowforge-core/src/flowforge/dsl/workflow_def.py`
+ * `StateKind`). audit-2026 JS-05 aligned this union with the canonical
+ * server-side enumeration; the legacy `start` / `task` / `review` /
+ * `decision` / `wait` / `end` aliases are gone.
+ */
 export type WorkflowStateKind =
-	| "start"
-	| "task"
-	| "review"
-	| "decision"
-	| "wait"
-	| "end";
+	| "manual_review"
+	| "automatic"
+	| "parallel_fork"
+	| "parallel_join"
+	| "timer"
+	| "signal_wait"
+	| "subworkflow"
+	| "terminal_success"
+	| "terminal_fail";
 
 export interface EscalationPolicy {
 	/** ISO 8601 duration (e.g. `PT24H`). */

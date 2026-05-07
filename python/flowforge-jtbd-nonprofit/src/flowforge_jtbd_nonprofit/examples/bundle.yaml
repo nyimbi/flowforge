@@ -1,28 +1,19 @@
-      project:
-        name: "nonprofit-example"
-        package: "nonprofit_example"
-        domain: "nonprofit"
-        version: "1.0.0"
-      shared:
-        roles:
-      - fundraising_coordinator
-  - grant_writer
-  - volunteer_manager
-  - program_director
-        permissions:
-      - np.donor.record
-  - np.grant.apply
-  - np.volunteer.onboard
-  - np.event.create
-  - np.report.generate
-      jtbds:
-    - id: close_request
-  version: "1.0.0"
+project:
+  name: nonprofit-example
+  package: flowforge_jtbd_nonprofit_example
+  domain: nonprofit
+  version: 1.0.0
+shared:
+  roles: []
+  permissions: []
+jtbds:
+- id: close_request
+  version: 1.0.0
 - id: initiate_request
-  version: "1.0.0"
+  version: 1.0.0
 - id: process_request
-  version: "1.0.0"
+  version: 1.0.0
 - id: report_outcomes
-  version: "1.0.0"
+  version: 1.0.0
 - id: review_request
-  version: "1.0.0"
+  version: 1.0.0

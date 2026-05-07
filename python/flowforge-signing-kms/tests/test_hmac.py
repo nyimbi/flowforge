@@ -45,11 +45,18 @@ def test_verify_wrong_payload_fails():
 	assert run(signer.verify(b"tampered", sig, "k1")) is False
 
 
-def test_verify_wrong_key_id_fails():
+def test_verify_unknown_key_id_raises():
+	"""SK-02: verifying with a key_id the signer does not know raises ``UnknownKeyId``.
+
+	Distinct from "wrong signature" so callers can audit the configuration error
+	separately from a tampered payload.
+	"""
+	from flowforge_signing_kms.errors import UnknownKeyId
+
 	signer = HmacDevSigning(secret="s3cr3t", key_id="k1")
 	sig = run(signer.sign_payload(b"payload"))
-	# wrong key_id -> different HMAC input -> fails
-	assert run(signer.verify(b"payload", sig, "k2")) is False
+	with pytest.raises(UnknownKeyId):
+		run(signer.verify(b"payload", sig, "k2"))
 
 
 def test_verify_wrong_secret_fails():
@@ -94,13 +101,18 @@ def test_env_secret_used_when_no_arg(monkeypatch):
 	assert run(signer.verify(b"data", sig, "env-key")) is True
 
 
-def test_default_fallback_when_no_env(monkeypatch):
+def test_no_env_no_arg_raises_runtime_error(monkeypatch):
+	"""SK-01: instantiating without secret material raises ``RuntimeError``.
+
+	The hard-coded legacy fallback was removed in E-34.  Operators must
+	either pass ``secret=``, set ``FLOWFORGE_SIGNING_SECRET``, or opt in to
+	the deprecation flag ``FLOWFORGE_ALLOW_INSECURE_DEFAULT=1``.
+	"""
 	monkeypatch.delenv("FLOWFORGE_SIGNING_SECRET", raising=False)
 	monkeypatch.delenv("FLOWFORGE_SIGNING_KEY_ID", raising=False)
-	signer = HmacDevSigning()
-	assert signer.current_key_id() == "dev-key-1"
-	sig = run(signer.sign_payload(b"test"))
-	assert run(signer.verify(b"test", sig, "dev-key-1")) is True
+	monkeypatch.delenv("FLOWFORGE_ALLOW_INSECURE_DEFAULT", raising=False)
+	with pytest.raises(RuntimeError, match="explicit secret required"):
+		HmacDevSigning()
 
 
 # ---------------------------------------------------------------------------
@@ -108,29 +120,39 @@ def test_default_fallback_when_no_env(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_signature_from_old_key_verifiable_with_stored_key_id():
-	"""Simulate rotation: old signer creates sig; new signer can still verify
-	if the key_id from the original signature is passed."""
-	old = HmacDevSigning(secret="shared-secret", key_id="key-v1")
-	new = HmacDevSigning(secret="shared-secret", key_id="key-v2")
+def test_signature_from_old_key_verifiable_via_key_map():
+	"""SK-02: rotation via key map keeps the old key id valid for verification.
+
+	Sign with v1, rotate to v2 (carrying both keys in the map), verify the v1
+	signature against v1 — succeeds.
+	"""
+	v1 = HmacDevSigning(keys={"key-v1": "secret-v1"}, current_key_id="key-v1")
+	rotated = HmacDevSigning(
+		keys={"key-v1": "secret-v1", "key-v2": "secret-v2"},
+		current_key_id="key-v2",
+	)
 
 	payload = b"important document hash"
-	sig = run(old.sign_payload(payload))
-	old_key_id = old.current_key_id()
+	sig_v1 = run(v1.sign_payload(payload))
 
-	# new signer verifies using old_key_id (same secret, different key_id)
-	assert run(new.verify(payload, sig, old_key_id)) is True
+	assert run(rotated.verify(payload, sig_v1, "key-v1")) is True
 
 
-def test_new_signatures_use_new_key_id():
-	old = HmacDevSigning(secret="shared-secret", key_id="key-v1")
-	new = HmacDevSigning(secret="shared-secret", key_id="key-v2")
+def test_new_signatures_isolated_per_key_id():
+	"""SK-02: each key id has its own secret; cross-key verifies fail correctly.
 
+	A signature produced under ``key-v2`` does not verify under ``key-v1``
+	(both because the key_id is bound into the HMAC input AND because the
+	secrets are distinct entries in the key map).
+	"""
+	signer = HmacDevSigning(
+		keys={"key-v1": "secret-v1", "key-v2": "secret-v2"},
+		current_key_id="key-v2",
+	)
 	payload = b"payload"
-	sig_new = run(new.sign_payload(payload))
-	# old key_id should not verify new signature
-	assert run(old.verify(payload, sig_new, "key-v2")) is True
-	assert run(old.verify(payload, sig_new, "key-v1")) is False
+	sig_v2 = run(signer.sign_payload(payload))
+	assert run(signer.verify(payload, sig_v2, "key-v2")) is True
+	assert run(signer.verify(payload, sig_v2, "key-v1")) is False
 
 
 # ---------------------------------------------------------------------------

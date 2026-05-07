@@ -169,14 +169,38 @@ def _print_step_header(step: dict, total: int = 5) -> None:
 	typer.echo("")
 
 
+def _validated_cwd(cwd: Path) -> Path:
+	"""Resolve *cwd* to an absolute, existing directory.
+
+	audit-2026 CL-02: subprocess invocations previously accepted
+	relative ``Path(".")`` which made the working directory implicit
+	and brittle (e.g., differs between dev shell and uvicorn). The
+	validated path is absolute and exists at call time.
+	"""
+
+	resolved = cwd.expanduser().resolve()
+	if not resolved.is_absolute():
+		raise ValueError(f"cwd must be absolute, got {cwd!r} (resolved={resolved!r})")
+	if not resolved.exists() or not resolved.is_dir():
+		raise FileNotFoundError(f"cwd does not exist or is not a directory: {resolved}")
+	return resolved
+
+
 def _run_cmd(args: list[str], *, cwd: Path, dry_run: bool) -> bool:
-	"""Run a flowforge CLI command. Returns True on success."""
+	"""Run a flowforge CLI command. Returns True on success.
+
+	*cwd* is normalised through :func:`_validated_cwd` so a relative
+	``Path(".")`` cannot reach :func:`subprocess.run` — every dispatch
+	is bound to an absolute, existing directory.
+	"""
+
 	cmd_str = " ".join(args)
 	typer.echo(f"  $ {cmd_str}")
 	if dry_run:
 		typer.echo("  (dry-run: skipped)")
 		return True
-	result = subprocess.run(args, cwd=cwd, capture_output=False)
+	resolved_cwd = _validated_cwd(cwd)
+	result = subprocess.run(args, cwd=resolved_cwd, capture_output=False)
 	return result.returncode == 0
 
 
@@ -254,7 +278,7 @@ def tutorial_cmd(
 		elif n == 2:
 			ok = _run_cmd(
 				["flowforge", "jtbd-generate", "--jtbd", str(bundle_path), "--out", str(generated_dir)],
-				cwd=out.parent if out.parent.exists() else Path("."),
+				cwd=(out.parent if out.parent.exists() else Path.cwd()).resolve(),
 				dry_run=dry_run,
 			)
 			if not ok:
@@ -266,7 +290,7 @@ def tutorial_cmd(
 			if wf_path.exists() or dry_run:
 				ok = _run_cmd(
 					["flowforge", "validate", str(wf_path)],
-					cwd=Path("."),
+					cwd=Path.cwd(),
 					dry_run=dry_run,
 				)
 				if not ok:
@@ -283,7 +307,7 @@ def tutorial_cmd(
 						"--events", "submit:{}",
 						"--events", "approve:{}",
 					],
-					cwd=Path("."),
+					cwd=Path.cwd(),
 					dry_run=dry_run,
 				)
 				if not ok:
@@ -296,7 +320,7 @@ def tutorial_cmd(
 			if bundle_path.exists() or dry_run:
 				ok = _run_cmd(
 					["flowforge", "jtbd", "lint", "--bundle", str(bundle_path), "--warn-only"],
-					cwd=Path("."),
+					cwd=Path.cwd(),
 					dry_run=dry_run,
 				)
 				if not ok:

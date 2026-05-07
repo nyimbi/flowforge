@@ -7,9 +7,46 @@ them.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field as PField
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field as PField
+
+
+# audit-2026 C-11: shape-validate Guard.expr at parse time. The expression
+# evaluator already rejects malformed shapes at runtime (E-35 ArityMismatch)
+# but a dict with two keys is structurally meaningless — caught here it
+# fails fast with a useful error rather than surviving until guard
+# evaluation.
+def _validate_expr_shape(value: Any) -> Any:
+	"""Validate the AST shape of a Guard.expr.
+
+	Allowed shapes:
+	* literals (str, int, float, bool, None)
+	* arrays (recursively validated)
+	* single-key dicts (the op-call form ``{"<op>": <args>}``); the args
+	  payload is recursively validated
+	* the special path-ref string form is permitted as-is
+
+	Multi-key dicts are rejected — they're never valid op calls and
+	never literal expressions in the JTBD/workflow DSL.
+	"""
+
+	if value is None or isinstance(value, (bool, int, float, str)):
+		return value
+	if isinstance(value, list):
+		for child in value:
+			_validate_expr_shape(child)
+		return value
+	if isinstance(value, dict):
+		if len(value) != 1:
+			raise ValueError(
+				f"Guard.expr dict must have exactly one key (op-call form), "
+				f"got {len(value)} keys: {sorted(value)!r}"
+			)
+		(_, raw), = value.items()
+		_validate_expr_shape(raw)
+		return value
+	raise ValueError(f"Guard.expr value of unsupported type {type(value).__name__}")
 
 StateKind = Literal[
 	"manual_review",
@@ -51,7 +88,9 @@ class Guard(BaseModel):
 	model_config = ConfigDict(extra="forbid")
 
 	kind: Literal["expr"] = "expr"
-	expr: Any = True
+	# audit-2026 C-11: shape-validate at parse time so multi-key dict
+	# expressions fail with a useful error before the engine touches them.
+	expr: Annotated[Any, AfterValidator(_validate_expr_shape)] = True
 
 
 class Gate(BaseModel):

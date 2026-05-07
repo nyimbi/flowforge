@@ -31,7 +31,24 @@ Claim strategy (PostgreSQL)::
     RETURNING id, kind, tenant_id, body, retries, created_at
 
 SQLite compat (for tests): a simpler claim without FOR UPDATE SKIP LOCKED.
-Pass ``sqlite_compat=True`` to ``DrainWorker``.
+Pass ``sqlite_compat=True`` to ``DrainWorker``. **The SQLite code path is
+test-only** — single-writer semantics with no connection pool tolerance
+(see audit-2026 E-42 / OB-02). Production deployments MUST run on
+PostgreSQL with ``pool_size > 1`` if multiple drain workers are desired.
+
+Audit-2026 hardening (E-42, findings OB-01..OB-04)
+--------------------------------------------------
+* OB-01: ``table`` is validated at constructor against
+  ``^[a-zA-Z_][a-zA-Z_0-9.]*$``. Raw ``f"... {self._table} ..."`` is safe
+  only because of this whitelist; the security ratchet
+  ``scripts/ci/ratchets/no_string_interp_sql.sh`` documents the exception.
+* OB-02: ``DrainWorker(..., sqlite_compat=True, pool_size>1)`` raises
+  ``RuntimeError``. SQLite is single-writer.
+* OB-03: ``reconnect_factory`` callback fires on connection-lost
+  exceptions inside ``run_loop``; the worker swaps in a fresh connection
+  and resumes draining. ``self.reconnects`` exposes the count for metrics.
+* OB-04: ``last_error`` is truncated by UTF-8 byte budget, never
+  mid-codepoint. See :func:`_truncate_utf8`.
 """
 
 from __future__ import annotations
@@ -40,6 +57,7 @@ import asyncio
 import json
 import logging
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum
@@ -50,6 +68,52 @@ from flowforge.ports.types import OutboxEnvelope
 from .registry import DispatchError, HandlerRegistry
 
 log = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# audit-2026 E-42 / OB-01: table-name whitelist for safe identifier interpolation
+# ---------------------------------------------------------------------------
+
+_TABLE_NAME_RE = re.compile(r"^[a-zA-Z_][a-zA-Z_0-9.]*$")
+
+
+def _validate_table_name(table: str) -> str:
+	"""Whitelist-validate a SQL table identifier (audit-2026 OB-01).
+
+	Outbox SQL interpolates the table name directly because asyncpg/aiosqlite
+	don't bind identifiers as parameters. The regex enforces the standard
+	identifier shape (``schema.table`` accepted via ``.``) so injection
+	payloads like ``"x; DROP TABLE foo"`` raise :class:`ValueError` at
+	construction rather than reaching the database.
+	"""
+
+	if not isinstance(table, str) or not _TABLE_NAME_RE.match(table):
+		raise ValueError(
+			f"invalid outbox table name {table!r}: must match ^[a-zA-Z_][a-zA-Z_0-9.]*$"
+		)
+	return table
+
+
+# ---------------------------------------------------------------------------
+# audit-2026 E-42 / OB-04: UTF-8 safe error-string truncation
+# ---------------------------------------------------------------------------
+
+
+def _truncate_utf8(s: str, max_bytes: int = 2000) -> str:
+	"""Truncate *s* to at most *max_bytes* UTF-8 bytes — never mid-codepoint.
+
+	A naive ``s[:max_bytes]`` cuts at codepoint count, not byte count, so
+	emoji / CJK strings overflow byte-bounded columns. Encoding with
+	``errors='replace'`` then decoding with ``errors='ignore'`` discards
+	any partial trailing bytes left behind by the byte-level slice.
+	"""
+
+	if not isinstance(s, str):
+		s = str(s)
+	encoded = s.encode("utf-8", errors="replace")
+	if len(encoded) <= max_bytes:
+		return s
+	return encoded[:max_bytes].decode("utf-8", errors="ignore")
 
 
 # ---------------------------------------------------------------------------
@@ -164,7 +228,19 @@ class DrainWorker:
         lock_window_seconds: int = 60,
         table: str = "outbox",
         sqlite_compat: bool = False,
+        pool_size: int = 1,
+        reconnect_factory: Callable[[], Awaitable[Any]] | None = None,
     ) -> None:
+        # audit-2026 OB-01: whitelist the table name before it ever reaches SQL.
+        self._table = _validate_table_name(table)
+        # audit-2026 OB-02: SQLite path is test-only; reject pool_size > 1.
+        if sqlite_compat and pool_size > 1:
+            raise RuntimeError(
+                f"sqlite_compat=True is single-writer; refusing pool_size={pool_size} "
+                "(SQLite cannot serialise concurrent writers safely — use PostgreSQL)"
+            )
+        if pool_size < 1:
+            raise ValueError(f"pool_size must be >= 1, got {pool_size}")
         self._conn = conn
         self._registry = registry
         self._backend = backend
@@ -172,8 +248,13 @@ class DrainWorker:
         self._max_retries = max_retries
         self._dlq_after_seconds = dlq_after_seconds
         self._lock_window_seconds = lock_window_seconds
-        self._table = table
         self._sqlite_compat = sqlite_compat
+        self._pool_size = pool_size
+        self._reconnect_factory = reconnect_factory
+        # audit-2026 OB-03: metric counter — increments each time the worker
+        # swaps in a fresh connection from `reconnect_factory`. Read-only for
+        # callers (e.g. exposed via Prometheus collector).
+        self.reconnects: int = 0
 
     # ------------------------------------------------------------------
     # Schema bootstrap (tests)
@@ -290,8 +371,26 @@ class DrainWorker:
                 result = await self.run_once()
                 if result.total > 0:
                     log.debug("drain_once result=%s", result.as_dict())
-            except Exception:  # noqa: BLE001
-                log.exception("drain_once error")
+            except Exception as exc:  # noqa: BLE001
+                # audit-2026 OB-03: connection-loss recovery. If a
+                # reconnect_factory is registered and the failure looks like
+                # a connection-level issue, swap in a fresh connection and
+                # resume the loop. Other failures fall through to log+sleep.
+                if self._reconnect_factory is not None and _is_connection_lost(exc):
+                    log.warning(
+                        "outbox connection lost (%s) — reconnecting",
+                        type(exc).__name__,
+                    )
+                    try:
+                        new_conn = await self._reconnect_factory()
+                    except Exception:  # noqa: BLE001
+                        log.exception("outbox reconnect failed")
+                    else:
+                        self._conn = new_conn
+                        self.reconnects += 1
+                        log.info("outbox reconnected (count=%d)", self.reconnects)
+                else:
+                    log.exception("drain_once error")
             await asyncio.sleep(poll_interval_seconds)
 
     # ------------------------------------------------------------------
@@ -429,7 +528,8 @@ class DrainWorker:
             " SET status = 'pending', retries = ?, locked_until = NULL, last_error = ?"
             " WHERE id = ?"
         )
-        await self._exec(sql, retries, last_error[:2000], row_id)
+        # audit-2026 OB-04: byte-budget UTF-8 truncation; never mid-codepoint.
+        await self._exec(sql, retries, _truncate_utf8(last_error, 2000), row_id)
 
     async def _mark_dead(self, row_id: str, *, last_error: str) -> None:
         sql = (
@@ -437,7 +537,8 @@ class DrainWorker:
             " SET status = 'dead', locked_until = NULL, last_error = ?"
             " WHERE id = ?"
         )
-        await self._exec(sql, last_error[:2000], row_id)
+        # audit-2026 OB-04: byte-budget UTF-8 truncation; never mid-codepoint.
+        await self._exec(sql, _truncate_utf8(last_error, 2000), row_id)
 
     # ------------------------------------------------------------------
     # Internal: DB helpers
@@ -519,6 +620,67 @@ def _parse_dt(value: Any) -> datetime:
 def _pg_to_sqlite(sql: str) -> str:
     """Replace PostgreSQL $N placeholders with SQLite ``?`` markers."""
     return re.sub(r"\$\d+", "?", sql)
+
+
+# ---------------------------------------------------------------------------
+# audit-2026 E-42 / OB-03: connection-lost detection for run_loop reconnect
+# ---------------------------------------------------------------------------
+
+# Pattern-match against type names so we don't import the asyncpg / aiosqlite
+# packages just to inspect their exception trees. This keeps the worker
+# usable in environments where the unused driver isn't installed.
+_RECONNECT_TYPE_NAMES = frozenset(
+    {
+        # asyncpg connection-state errors
+        "ConnectionDoesNotExistError",
+        "ConnectionFailureError",
+        "InterfaceError",
+        "PostgresConnectionError",
+        # generic socket-level
+        "ConnectionResetError",
+        "ConnectionRefusedError",
+        "ConnectionAbortedError",
+        "BrokenPipeError",
+        "TimeoutError",
+        "OSError",
+    }
+)
+
+# Phrases on the exception message that indicate a recoverable connection
+# loss for SQLite / generic DB-API errors. We require the full phrase rather
+# than a bare keyword so unrelated messages that happen to contain the word
+# "connection" don't trigger reconnect (e.g. "not a connection issue").
+_RECONNECT_MESSAGE_HINTS = (
+    "connection reset",
+    "connection refused",
+    "connection closed",
+    "connection lost",
+    "connection aborted",
+    "broken pipe",
+    "server closed",
+    "server disconnected",
+    "database is locked",
+    "no connection",
+    "lost connection",
+    "disconnected",
+)
+
+
+def _is_connection_lost(exc: BaseException) -> bool:
+    """Heuristic: does *exc* look like a recoverable connection-loss?
+
+    The driver-specific exception tree is matched by class name to avoid an
+    import dependency on asyncpg/aiosqlite. Falls back to a phrase match on
+    the exception message for generic DB-API errors. Phrases (not bare words)
+    keep the detector from misfiring on unrelated messages.
+    """
+
+    if isinstance(exc, OSError):
+        return True
+    if type(exc).__name__ in _RECONNECT_TYPE_NAMES:
+        return True
+    msg = str(exc).lower()
+    return any(hint in msg for hint in _RECONNECT_MESSAGE_HINTS)
 
 
 __all__ = [

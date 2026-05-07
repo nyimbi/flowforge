@@ -14,7 +14,7 @@
 
 ```mermaid
 flowchart LR
-  subgraph Editor["JTBDEditor (Next.js, apps/jtbd-editor/)"]
+  subgraph Editor["JTBDEditor (Next.js, framework/js/flowforge-jtbd-editor/)"]
     JM[JobMap canvas]
     SE[Spec editor]
     DBG[Debugger]
@@ -37,7 +37,7 @@ flowchart LR
 
 Two new top-level surfaces:
 
-1. **JTBDEditor** — Next.js app at `apps/jtbd-editor/`.
+1. **JTBDEditor** — Next.js app at `framework/js/flowforge-jtbd-editor/`.
 2. **flowforge-jtbd** — Python library at `framework/python/flowforge-jtbd/`.
 
 A complementary npm package, **`@flowforge/jtbd-ui`**
@@ -906,8 +906,8 @@ tutorial --domain <name>` walks through the domain-specific example.
 
 | App | Path | Stack | Responsibility |
 |---|---|---|---|
-| JTBDEditor | `apps/jtbd-editor/` | Next.js 14 + Tailwind v4 + shadcn/ui + reactflow + zustand | Visual IDE — JobMap canvas, spec editor, debugger, AI assist, recommender, comments, marketplace browser |
-| jtbd-hub | `apps/jtbd-hub/` | Next.js 14 + FastAPI | Public registry — search, install, publish, ratings |
+| JTBDEditor | `framework/js/flowforge-jtbd-editor/` | Next.js 14 + Tailwind v4 + shadcn/ui + reactflow + zustand | Visual IDE — JobMap canvas, spec editor, debugger, AI assist, recommender, comments, marketplace browser |
+| jtbd-hub | `framework/python/flowforge-jtbd-hub/` | Next.js 14 + FastAPI | Public registry — search, install, publish, ratings |
 
 ### 13.2 Python packages
 
@@ -1097,7 +1097,7 @@ WS     /api/jtbd/specs/{id}/stream              # comments + edits + debugger
 
 **Deliverables:**
 
-- JTBDEditor Next.js app (`apps/jtbd-editor/`).
+- JTBDEditor Next.js app (`framework/js/flowforge-jtbd-editor/`).
 - JobMap canvas (reactflow + dagre).
 - Spec editor (per-JTBD form-driven UI).
 - Pre-commit hook + GitHub Action templates.
@@ -1153,7 +1153,7 @@ WS     /api/jtbd/specs/{id}/stream              # comments + edits + debugger
 
 **Deliverables:**
 
-- jtbd-hub registry service (`apps/jtbd-hub/`).
+- jtbd-hub registry service (`framework/python/flowforge-jtbd-hub/`).
 - Signed manifests + KMS signing.
 - ComplianceLinter + 8 regime catalogs.
 - Plugin SDK (`JtbdExporter` Protocol + 2 reference exporters: BPMN, story-map).

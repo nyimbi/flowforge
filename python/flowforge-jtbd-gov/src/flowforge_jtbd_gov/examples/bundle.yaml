@@ -1,28 +1,42 @@
-      project:
-        name: "gov-example"
-        package: "gov_example"
-        domain: "gov"
-        version: "1.0.0"
-      shared:
-        roles:
-      - case_worker
-  - permit_officer
-  - licensing_agent
-  - compliance_officer
-        permissions:
-      - gov.permit.create
-  - gov.case.open
-  - gov.license.issue
-  - gov.inspection.schedule
-  - gov.notice.issue
-      jtbds:
-    - id: close_request
+project:
+  name: "gov-example"
+  package: "gov_example"
+  domain: "gov"
   version: "1.0.0"
-- id: initiate_request
-  version: "1.0.0"
-- id: process_request
-  version: "1.0.0"
-- id: report_outcomes
-  version: "1.0.0"
-- id: review_request
-  version: "1.0.0"
+shared:
+  roles:
+    - permit_officer
+    - planning_board
+    - foia_officer
+    - chief_foia_officer
+    - agency_counsel
+    - benefits_caseworker
+    - eligibility_supervisor
+    - program_integrity_officer
+    - docket_clerk
+    - rulemaking_lead
+    - contracting_officer
+    - source_selection_authority
+    - inspector_general
+  permissions:
+    - gov.permit.application.review
+    - gov.permit.application.decide
+    - gov.foia.request.process
+    - gov.foia.request.exempt
+    - gov.benefit.eligibility.determine
+    - gov.benefit.eligibility.appeal
+    - gov.rulemaking.docket.ingest
+    - gov.rulemaking.docket.publish
+    - gov.procurement.award.review
+    - gov.procurement.award.protest
+jtbds:
+  - id: permit_application
+    version: "1.0.0"
+  - id: foia_request
+    version: "1.0.0"
+  - id: benefit_eligibility
+    version: "1.0.0"
+  - id: public_comment_intake
+    version: "1.0.0"
+  - id: contract_award_review
+    version: "1.0.0"

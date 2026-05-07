@@ -1,11 +1,30 @@
 id: gov
 name: "Government"
-description: "JTBD domain library for Government workflows (Permit, case, license)."
+description: >-
+  Real-content JTBD library for federal, state, and local government
+  workflows: permitting, FOIA / public-records, means-tested benefits,
+  APA notice-and-comment rulemaking, and FAR-style public procurement.
 package: flowforge-jtbd-gov
 version: "1.0.0"
 subdomains:
-  - "Permit"
-  - "case"
-  - "license"
-regulator_hints: []
+  - permitting
+  - public_records
+  - benefits_eligibility
+  - rulemaking
+  - procurement
+regulator_hints:
+  - "FOIA (5 USC 552)"
+  - "Privacy Act (5 USC 552a)"
+  - "ADA Title II (42 USC 12131; 28 CFR Part 35)"
+  - "NEPA (42 USC 4321)"
+  - "APA (5 USC 553)"
+  - "FAR (48 CFR Subchapter D)"
+  - "Federal Records Act (44 USC 3101)"
+  - "NIST SP 800-53"
 phase: E4
+signoff:
+  signer: sme-gov
+  reviewed_at: "2026-05-06T00:00:00Z"
+  reviewer_credentials: "domain-sme(government)"
+  reviewed_findings:
+    - "D-01-gov"

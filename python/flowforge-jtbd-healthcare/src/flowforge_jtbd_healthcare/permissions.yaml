@@ -1,11 +1,49 @@
 permissions:
   - name: hc.admission.create
-    description: "Hc Admission Create"
-  - name: hc.clinical.note.write
-    description: "Hc Clinical Note Write"
-  - name: hc.billing.submit
-    description: "Hc Billing Submit"
+    description: "Create an inpatient or observation admission record."
+  - name: hc.admission.attending_sign
+    description: "Sign an admit order as attending of record."
+  - name: hc.admission.utilisation_review
+    description: "Apply InterQual or MCG level-of-care criteria and document the determination."
   - name: hc.consent.record
-    description: "Hc Consent Record"
+    description: "Record general consent to treat and informed consent for procedures."
+  - name: hc.advance_directive.attach
+    description: "Attach or update an advance directive on the patient record."
+  - name: hc.rx.write
+    description: "Author and transmit a non-controlled e-prescription."
+  - name: hc.rx.epcs_sign
+    description: "Apply the DEA-compliant EPCS two-factor signature for a Schedule II–V e-prescription."
+  - name: hc.rx.pdmp_query
+    description: "Query the state Prescription Drug Monitoring Programme."
+  - name: hc.rx.rems_attestation
+    description: "Capture the patient or prescriber REMS attestation for a restricted drug."
+  - name: hc.rx.dispense_review
+    description: "Pharmacist prospective drug-utilisation review at dispense."
+  - name: hc.lab.order
+    description: "Place a laboratory order with documented medical necessity."
+  - name: hc.lab.result_sign
+    description: "Sign and release a laboratory result to the patient portal."
+  - name: hc.lab.critical_callback
+    description: "Document a critical-value provider notification with read-back."
+  - name: hc.lab.amend_result
+    description: "Issue an amended-result addendum."
+  - name: hc.lab.public_health_report
+    description: "Submit a reportable-condition case to the public-health authority."
+  - name: hc.referral.create
+    description: "Author a referral to a specialist."
+  - name: hc.referral.prior_auth
+    description: "Submit or appeal a payer prior-authorization for a referred service."
+  - name: hc.referral.network_waiver
+    description: "Submit a network-adequacy waiver or single-case agreement."
   - name: hc.discharge.process
-    description: "Hc Discharge Process"
+    description: "Author and authenticate a discharge summary."
+  - name: hc.discharge.medication_reconcile
+    description: "Complete pharmacist medication reconciliation."
+  - name: hc.discharge.ama_consent
+    description: "Capture the AMA capacity assessment and acknowledgement."
+  - name: hc.billing.submit
+    description: "Submit a claim for hospital or professional services."
+  - name: hc.gina.disclose
+    description: "Approve genetic-information disclosure under GINA controls."
+  - name: hc.part2.disclose
+    description: "Approve a 42 CFR Part 2 substance-use record disclosure with explicit signed authorization."

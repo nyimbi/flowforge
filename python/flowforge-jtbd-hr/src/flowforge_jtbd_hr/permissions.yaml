@@ -1,11 +1,15 @@
 permissions:
-  - name: hr.job.post
-    description: "Hr Job Post"
-  - name: hr.offer.extend
-    description: "Hr Offer Extend"
-  - name: hr.onboarding.start
-    description: "Hr Onboarding Start"
-  - name: hr.leave.approve
-    description: "Hr Leave Approve"
+  - name: hr.onboarding.execute
+    description: "Execute new-hire onboarding (I-9, W-4, access provisioning)"
+  - name: hr.leave.fmla.designate
+    description: "Designate FMLA leave and issue WH-381/WH-382 notices"
   - name: hr.review.conduct
-    description: "Hr Review Conduct"
+    description: "Conduct annual performance review and record calibrated rating"
+  - name: hr.review.pip.initiate
+    description: "Initiate Performance Improvement Plan with measurable goals"
+  - name: hr.termination.execute
+    description: "Execute separation, COBRA notice, access deprovisioning"
+  - name: hr.benefits.enrol
+    description: "Process annual benefits open-enrolment elections"
+  - name: hr.benefits.qle.adjudicate
+    description: "Adjudicate Section 125 qualifying-life-event mid-year changes"

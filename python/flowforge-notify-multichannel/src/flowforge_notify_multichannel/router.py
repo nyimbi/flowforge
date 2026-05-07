@@ -100,6 +100,11 @@ class MultiChannelNotifier:
 		# recipient -> channel prefs
 		self._prefs: dict[str, RecipientPreferences] = recipient_prefs or {}
 		self._jinja = _make_jinja_env()
+		# E-54 / NM-03: last timezone fallback breadcrumb for observability.
+		# When a render() call falls back to UTC because the requested zone
+		# is unknown, the originating exception is preserved here so a
+		# tracing consumer can dump it into a structured log line.
+		self.last_tz_fallback: dict[str, Any] | None = None
 
 	# ------------------------------------------------------------------
 	# NotificationPort
@@ -131,8 +136,19 @@ class MultiChannelNotifier:
 		tz_name = ctx.get("_timezone", "UTC")
 		try:
 			tz = ZoneInfo(tz_name)
-		except Exception:  # noqa: BLE001
+		except (KeyError, ValueError, OSError) as exc:
+			# E-54 / NM-03: a misconfigured timezone falls back to UTC
+			# but the original exception is captured via __cause__ on
+			# ``last_tz_fallback`` so tracing consumers can surface it.
+			# ZoneInfoNotFoundError is a KeyError subclass; bad strings
+			# raise ValueError; OS-level read failures raise OSError.
 			tz = ZoneInfo("UTC")
+			self.last_tz_fallback = {
+				"requested": tz_name,
+				"fallback": "UTC",
+				"cause": exc,
+				"message": f"unknown timezone {tz_name!r}; rendering with UTC",
+			}
 		render_ctx = {"_tz": tz, **ctx}
 
 		subject = self._jinja.from_string(spec.subject_template).render(render_ctx)

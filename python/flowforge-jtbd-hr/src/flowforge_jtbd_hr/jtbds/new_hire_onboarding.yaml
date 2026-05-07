@@ -1,0 +1,228 @@
+id: new_hire_onboarding
+title: "Onboard New Hire"
+version: "1.0.0"
+actor:
+  role: hr_business_partner
+  external: false
+situation: >-
+  A signed offer has been accepted and the new hire's first day is approaching.
+  HR must complete federal employment-eligibility verification, capture tax
+  withholding, provision equipment and least-privilege system access, and
+  ensure mandatory policy and harassment-prevention training is acknowledged
+  before or shortly after start.
+motivation: >-
+  Day-one productivity, statutory compliance (I-9 by day 3, W-4 / state W-4,
+  EEO-1 voluntary self-identification, PRWORA new-hire reporting), and
+  least-privilege access provisioning.
+outcome: >-
+  Hire is on payroll, fully provisioned, has acknowledged required policies,
+  and onboarding KPIs (time-to-productivity, day-one readiness) are recorded.
+success_criteria:
+  - "Day-one readiness rate >= 95%"
+  - "Form I-9 Section 2 completed by end of business day 3 (8 CFR §274a.2)"
+  - "Equipment delivered >= 1 business day before start"
+  - "All access requests provisioned per least-privilege baseline"
+  - "State new-hire report filed within 20 days of hire (42 USC §653a)"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: employee_id
+    kind: text
+    label: "Employee ID"
+    pii: true
+  - id: hire_date
+    kind: date
+    label: "Hire date (anchor for I-9 §2 deadline)"
+    pii: false
+  - id: manager_id
+    kind: text
+    label: "Reporting manager"
+    pii: false
+  - id: cost_center
+    kind: text
+    label: "Cost center / GL string"
+    pii: false
+  - id: i9_status
+    kind: enum
+    label: "Form I-9 status"
+    values:
+      - pending
+      - section1_complete
+      - section2_complete
+      - everify_pending
+      - everify_authorized
+      - everify_tnc
+      - rejected
+    pii: false
+  - id: e_verify_case_number
+    kind: text
+    label: "E-Verify case number (federal contractors with FAR clause or in state-mandated jurisdictions)"
+    pii: true
+  - id: w4_status
+    kind: enum
+    label: "Form W-4 / state W-4 status"
+    values:
+      - pending
+      - submitted
+      - default_filing_applied
+    pii: false
+  - id: eeo_classification
+    kind: enum
+    label: "EEO-1 self-identification (voluntary, segregated)"
+    values:
+      - disclosed
+      - declined
+      - not_solicited
+    pii: true
+  - id: work_state
+    kind: text
+    label: "Primary work state (drives state withholding and paid-leave laws)"
+    pii: false
+  - id: exempt_status
+    kind: enum
+    label: "FLSA exempt vs non-exempt"
+    values:
+      - exempt
+      - non_exempt
+    pii: false
+  - id: equipment_request_id
+    kind: text
+    label: "Hardware ticket id (laptop / peripherals)"
+    pii: false
+  - id: access_baseline_id
+    kind: text
+    label: "Role-based access provisioning baseline"
+    pii: false
+  - id: comp_band
+    kind: text
+    label: "Compensation band at hire"
+    pii: true
+edge_cases:
+  - id: i9_section2_deadline_missed
+    description: >-
+      Section 2 was not completed by end of day 3. Per 8 CFR §274a.10,
+      employer is exposed to civil penalties; HR must terminate work
+      authorisation until Section 2 closes.
+    handling: "Suspend work, document corrective-action memorandum, escalate to HR Compliance, do NOT back-date the form."
+  - id: e_verify_tentative_nonconfirmation
+    description: >-
+      E-Verify returns Tentative Nonconfirmation. Employee receives Further
+      Action Notice and elects to contest within 10 federal working days
+      (E-Verify MOU §II.C.5).
+    handling: "Continue employment during contestation; no retaliation; refer to E-Verify SSA/DHS resolution path."
+  - id: visa_status_change
+    description: >-
+      Hire's work-authorisation document expires before start (e.g., OPT EAD
+      windows, H-1B amendment pending).
+    handling: "Reverify (Section 3) on or before expiry; coordinate with immigration counsel; do not extend past one day."
+  - id: remote_state_taxation_nexus
+    description: >-
+      Hire works in a state where the employer is not registered for
+      withholding (no nexus established).
+    handling: "Block payroll until nexus registration; only offer interim contractor classification with Legal sign-off."
+documents_required:
+  - id: form_i9
+    label: "Form I-9 (Employment Eligibility Verification)"
+    statute: "8 USC §1324a; 8 CFR §274a"
+    retention: "3 years after hire OR 1 year after termination, whichever is later"
+  - id: form_w4
+    label: "Form W-4 (federal) and applicable state withholding form"
+    statute: "26 USC §3402; 26 CFR §31.3402"
+    retention: "4 years (IRS)"
+  - id: offer_letter_signed
+    label: "Counter-signed offer letter / employment agreement"
+    retention: "Duration of employment + 7 years"
+  - id: direct_deposit_auth
+    label: "Direct-deposit authorisation (NACHA-compliant)"
+    retention: "2 years post-revocation"
+  - id: handbook_acknowledgement
+    label: "Employee handbook acknowledgement"
+    retention: "Duration of employment + 4 years"
+  - id: confidentiality_agreement
+    label: "Confidentiality / IP-assignment agreement"
+    retention: "Duration of employment + statute-of-limitations period"
+approvals:
+  - id: hrbp_review
+    role: hr_business_partner
+    scope: "Verify packet completeness and EEO data segregation"
+    capacity: approver
+  - id: manager_signoff
+    role: hiring_manager
+    scope: "Confirm equipment baseline, access baseline, and cost center"
+    capacity: approver
+  - id: it_access_approver
+    role: it_security
+    scope: "Approve any access requests beyond the role-based baseline"
+    capacity: approver
+  - id: comp_committee
+    role: comp_committee
+    scope: "Required when offer includes equity or sign-on > comp-band ceiling"
+    capacity: approver
+notifications:
+  - id: notify_employee
+    channel: email
+    audience: employee
+    trigger: "Pre-boarding packet >= 5 business days before start"
+  - id: notify_manager
+    channel: email
+    audience: hiring_manager
+    trigger: "Day-one checklist + first-week 1:1 reminder"
+  - id: notify_payroll
+    channel: hris_event
+    audience: payroll
+    trigger: "On hire-date confirmation + W-4 receipt"
+  - id: notify_it_provisioning
+    channel: ticket
+    audience: it_service_desk
+    trigger: "T-3 business days for equipment, T-1 for accounts"
+  - id: notify_benefits_broker
+    channel: edi_834
+    audience: benefits_broker
+    trigger: "On hire confirmation, with 30-day enrolment window"
+  - id: notify_state_new_hire_reporting
+    channel: state_directory
+    audience: state_new_hire_directory
+    trigger: "Within 20 days of hire (PRWORA / 42 USC §653a; state may shorten)"
+sla:
+  - metric: "I-9 Section 2 completion"
+    target: "<= end of business day 3 from start (8 CFR §274a.2)"
+  - metric: "State new-hire reporting"
+    target: "<= 20 calendar days from hire (42 USC §653a)"
+  - metric: "E-Verify case creation"
+    target: "<= 3 business days from start (E-Verify MOU §II.A)"
+  - metric: "Equipment delivery"
+    target: ">= 1 business day before start"
+  - metric: "Benefits enrolment window"
+    target: "30 calendar days from hire (plan-document driven)"
+data_sensitivity:
+  - PII
+  - SSN
+  - immigration_status
+  - EEO_self_id
+  - banking
+  - salary_comp
+compliance:
+  - "IRCA / 8 USC §1324a (Form I-9)"
+  - "E-Verify MOU (where applicable)"
+  - "FLSA / 29 USC §201"
+  - "Title VII / 42 USC §2000e"
+  - "ADA / 42 USC §12101"
+  - "ADEA / 29 USC §621"
+  - "PWFA / 42 USC §2000gg"
+  - "PUMP Act / 29 USC §218d"
+  - "EEO-1 reporting (29 CFR §1602.7)"
+  - "FCRA / 15 USC §1681 (background-check disclosure and authorisation)"
+  - "PRWORA new-hire reporting / 42 USC §653a"
+  - "USERRA / 38 USC §4301"
+  - "GDPR Art. 6, 9 (where EU/UK applicants are involved)"
+  - "State-specific: CA Labor Code §2810.5 wage notice; NY Labor Law §195"
+signoff:
+  signer: sme-hr
+  reviewed_at: "2026-05-06T00:00:00Z"
+  reviewer_credentials: "domain-sme(human-resources)"
+  reviewed_findings:
+    - D-01-hr

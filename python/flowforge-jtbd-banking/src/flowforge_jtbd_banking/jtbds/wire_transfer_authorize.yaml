@@ -1,0 +1,161 @@
+id: wire_transfer_authorize
+title: "Authorise High-Value or International Wire Transfer"
+version: "1.0.0"
+domain: banking
+actor:
+  role: wire_operations_officer
+  external: false
+  capacity: operator
+situation: >-
+  A customer has instructed an outbound Fedwire or SWIFT MT103 payment that
+  meets the bank's high-value or cross-border review threshold (default
+  USD 250,000 domestic, USD 10,000 cross-border per BSA recordkeeping rule
+  31 CFR §1020.410, or any non-USD FX leg). Operations must authorise the
+  release after dual approval and OFAC screening of all parties.
+motivation: >-
+  Move funds accurately and on time without releasing payments that are
+  fraudulent, structured, or sanctioned, while satisfying BSA Travel Rule
+  recordkeeping obligations.
+outcome: >-
+  Wire released over Fedwire or SWIFT, beneficiary credited within the rail
+  SLA, recipient confirmation sent to originator, and Travel Rule data
+  retained for 5 years.
+success_criteria:
+  - "Domestic Fedwire released same business day if instructed pre-cutoff"
+  - "Cross-border SWIFT MT103 released within 1 business day"
+  - "100% of wires ≥USD 3,000 carry full Travel Rule originator/beneficiary data"
+  - "OFAC screening clears all originator + beneficiary + intermediary parties"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: wire_amount
+    kind: money
+    label: "Wire Amount"
+    pii: false
+    sensitivity: financial
+  - id: wire_currency
+    kind: enum
+    label: "Settlement Currency (ISO 4217)"
+    options: ["USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "OTHER"]
+    pii: false
+  - id: routing_number
+    kind: text
+    label: "ABA Routing Number (domestic)"
+    pii: false
+  - id: swift_bic
+    kind: text
+    label: "SWIFT/BIC (cross-border)"
+    pii: false
+  - id: iban
+    kind: text
+    label: "Beneficiary IBAN (where applicable)"
+    pii: true
+  - id: account_number
+    kind: text
+    label: "Beneficiary Account Number"
+    pii: true
+    sensitivity: financial
+  - id: sanctions_check_id
+    kind: text
+    label: "OFAC Screening Reference (originator + beneficiary + intermediary)"
+    pii: false
+  - id: travel_rule_payload_id
+    kind: text
+    label: "BSA Travel Rule Recordkeeping Reference (31 CFR §1020.410)"
+    pii: false
+  - id: purpose_of_payment
+    kind: text
+    label: "Purpose of Payment Code"
+    pii: false
+edge_cases:
+  - id: ofac_hit_block
+    description: >-
+      OFAC match on beneficiary, intermediary, or any address element. Wire
+      blocked and held; OFAC blocked-property report filed within 10 business
+      days (31 CFR §501.603); customer notified of regulatory hold.
+  - id: structuring_pattern
+    description: >-
+      Multiple sub-CTR wires (<USD 10,000) from same originator within 24 h
+      cumulating ≥USD 10,000 trigger structuring review per 31 CFR §1010.314;
+      escalate to BSA officer for SAR consideration.
+  - id: dual_approval_threshold_breach
+    description: >-
+      Single-approver releases above the dual-approval threshold are blocked
+      at posting; payment held in pending queue until second authorised
+      approver acts; daily exception report to internal audit.
+  - id: non_usd_fx_leg
+    description: >-
+      Non-USD wire requires FX desk to fix the rate within tolerance band;
+      if rate stale (>15 min), re-quote and re-confirm with customer before
+      release.
+  - id: cover_payment_serial_routing
+    description: >-
+      Cross-border SWIFT MT202 cover payment must include MT103 originator
+      data per Wolfsberg payment transparency principles; reject if
+      originator fields stripped.
+documents_required:
+  - id: customer_payment_instruction
+    description: "Signed customer wire instruction (paper, secure-message, or DocuSign)"
+    retention_years: 5
+  - id: source_of_funds_evidence
+    description: "Source-of-funds documentation for amounts ≥USD 250,000 or high-risk corridors"
+    retention_years: 5
+  - id: travel_rule_record
+    description: "BSA Travel Rule originator + beneficiary recordkeeping bundle"
+    retention_years: 5
+approvals:
+  - role: wire_operations_officer
+    when: "wire_amount < dual_approval_threshold"
+    rationale: "Standard release authority"
+  - role: senior_operations_officer
+    when: "wire_amount >= dual_approval_threshold"
+    rationale: "Dual approval required for high-value and cross-border wires"
+  - role: bsa_compliance_officer
+    when: "sanctions_check_id_status == 'potential_match' or structuring_flag == true"
+    rationale: "BSA/OFAC adjudication"
+notifications:
+  - id: payee_credit_advice
+    channel: swift_or_fedwire
+    audience: beneficiary_bank
+    trigger: wire_released
+  - id: customer_release_confirmation
+    channel: secure_message
+    audience: customer
+    trigger: wire_released
+  - id: ofac_block_notice
+    channel: case_queue
+    audience: bsa_team
+    trigger: sanctions_match
+  - id: fincen_sar_filing
+    channel: bsa_efile
+    audience: fincen
+    trigger: sar_eligible_event
+sla:
+  domestic_release_business_days: 0
+  cross_border_release_business_days: 1
+  ofac_blocked_property_report_business_days: 10
+  ctr_filing_calendar_days: 15
+  sar_filing_calendar_days_from_initial_detection: 30
+  travel_rule_retention_years: 5
+data_sensitivity:
+  - PII
+  - financial
+  - regulatory
+compliance:
+  - BSA
+  - AML
+  - "OFAC (31 CFR §501)"
+  - "BSA Travel Rule (31 CFR §1020.410)"
+  - "Reg J (Fedwire, 12 CFR §210)"
+  - "UCC Article 4A"
+  - "Wolfsberg Payment Transparency Principles"
+  - SOX
+signoff:
+  signer: sme-banking
+  reviewed_at: "2026-05-06T00:00:00Z"
+  reviewer_credentials: "domain-sme(banking)"
+  reviewed_findings: ["D-01-banking"]

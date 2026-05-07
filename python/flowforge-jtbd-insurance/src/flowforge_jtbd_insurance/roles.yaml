@@ -1,9 +1,69 @@
 roles:
   - name: policyholder
     default_tier: 1
+    capacities: ["submitter"]
+    external: true
+  - name: third_party_reporter
+    default_tier: 1
+    capacities: ["submitter"]
+    external: true
+  - name: claims_intake_specialist
+    default_tier: 1
+    capacities: ["operator"]
+  - name: claims_intake_supervisor
+    default_tier: 2
+    capacities: ["approver"]
   - name: claims_adjuster
+    default_tier: 2
+    capacities: ["approver", "operator"]
+  - name: claims_supervisor
+    default_tier: 3
+    capacities: ["approver"]
+  - name: claims_manager
+    default_tier: 4
+    capacities: ["approver"]
+  - name: coverage_counsel
+    default_tier: 3
+    capacities: ["approver", "reviewer"]
+  - name: siu_investigator
+    default_tier: 2
+    capacities: ["reviewer", "approver"]
+  - name: subrogation_specialist
     default_tier: 1
+    capacities: ["operator"]
+  - name: subrogation_supervisor
+    default_tier: 2
+    capacities: ["approver"]
+  - name: outside_counsel
+    default_tier: 3
+    capacities: ["approver", "reviewer"]
   - name: underwriter
-    default_tier: 1
+    default_tier: 2
+    capacities: ["approver", "operator"]
+  - name: senior_underwriter
+    default_tier: 3
+    capacities: ["approver"]
+  - name: chief_underwriting_officer
+    default_tier: 4
+    capacities: ["approver"]
+  - name: cat_desk
+    default_tier: 3
+    capacities: ["approver", "reviewer"]
+  - name: compliance_officer
+    default_tier: 3
+    capacities: ["approver", "reviewer"]
   - name: reinsurance_analyst
-    default_tier: 1
+    default_tier: 2
+    capacities: ["operator"]
+  - name: chief_reinsurance_officer
+    default_tier: 4
+    capacities: ["approver"]
+  - name: chief_actuary
+    default_tier: 4
+    capacities: ["approver", "reviewer"]
+  - name: chief_financial_officer
+    default_tier: 4
+    capacities: ["approver"]
+external_role_ids:
+  - policyholder
+  - third_party_reporter

@@ -195,7 +195,16 @@ class NewReviewRequest(BaseModel):
 
 import re as _re
 
-_MENTION_RE = _re.compile(r"@([\w.-]+)")
+# E-59 / J-12: mention regex restricted to the host's actual user-id format.
+# UMS user_ids are either a UUID7 (digits + hyphens, 36 chars) or a username
+# of 1–64 chars. Both forms must:
+#   * begin with an alphanumeric or underscore (no leading dot/hyphen),
+#   * end with an alphanumeric or underscore (no trailing punctuation),
+#   * use only alphanumeric, underscore, dot, or hyphen in between.
+# Single-char usernames are accepted (the second alternation).
+_MENTION_RE = _re.compile(
+	r"@(?:([A-Za-z0-9_][\w.-]{0,62}[A-Za-z0-9_])|([A-Za-z0-9_]))(?!\w)"
+)
 
 
 def extract_mentions(body: str) -> list[str]:
@@ -203,7 +212,10 @@ def extract_mentions(body: str) -> list[str]:
 	seen: set[str] = set()
 	out: list[str] = []
 	for m in _MENTION_RE.finditer(body):
-		uid = m.group(1)
+		# Group 1 = multi-char id; group 2 = single-char id; one is always set.
+		uid = m.group(1) or m.group(2)
+		if uid is None:
+			continue
 		if uid not in seen:
 			seen.add(uid)
 			out.append(uid)

@@ -27,11 +27,13 @@ GUC equality.
 """
 from __future__ import annotations
 
+import re
 from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
 from flowforge_sqlalchemy.base import JsonB, UuidStr
+from sqlalchemy.sql import quoted_name
 
 # Alembic identifiers
 revision: str = "r2_jtbd"
@@ -222,6 +224,40 @@ _RLS_TABLES_TENANT_REQUIRED: tuple[str, ...] = (
 	"jtbd_lockfiles",
 )
 
+# E-38 / J-01: explicit allow-list of every table the RLS DDL is permitted
+# to touch. Anything outside this set raises ValueError before SQL is
+# emitted, even if a future refactor pulls names from a non-constant source.
+_RLS_ALLOWLIST: frozenset[str] = frozenset(
+	{
+		"jtbd_libraries",
+		"jtbd_specs",
+		"jtbd_compositions",
+		"jtbd_compositions_pins",
+		"jtbd_lockfiles",
+		"jtbd_domains",
+	}
+)
+
+# Identifier shape Postgres + the audit accept (letters, digits, underscore;
+# leading non-digit). The allow-list is the authoritative gate; the regex
+# is defence-in-depth so a future allow-list typo can't sneak through.
+_IDENT_RE: "re.Pattern[str]" = re.compile(r"^[a-z_][a-z0-9_]*$")
+
+
+def _assert_known_table(name: str) -> "quoted_name":
+	"""Validate *name* against the allow-list and return a ``quoted_name``.
+
+	The returned ``quoted_name`` carries SQLAlchemy's identifier-shape
+	contract — splicing it into a string still produces just the bare
+	identifier, so callers see a typed identifier rather than an untrusted
+	``str``.
+	"""
+	if not isinstance(name, str) or not _IDENT_RE.match(name) or name not in _RLS_ALLOWLIST:
+		raise ValueError(
+			f"refusing to splice unknown / malformed table name into RLS DDL: {name!r}"
+		)
+	return quoted_name(name, quote=True)
+
 
 def _is_postgres() -> bool:
 	bind = op.get_bind()
@@ -229,9 +265,14 @@ def _is_postgres() -> bool:
 
 
 def _install_rls_if_postgres() -> None:
+	# Validate every table name first so a malicious tuple raises before
+	# any SQL is emitted (audit J-01 acceptance criterion).
+	tier_a = [_assert_known_table(t) for t in _RLS_TABLES_TENANT_NULLABLE]
+	tier_b = [_assert_known_table(t) for t in _RLS_TABLES_TENANT_REQUIRED]
+	domains = _assert_known_table("jtbd_domains")
 	if not _is_postgres():
 		return
-	for table in _RLS_TABLES_TENANT_NULLABLE:
+	for table in tier_a:
 		op.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;")
 		op.execute(
 			f"CREATE POLICY {table}_read ON {table} FOR SELECT USING ("
@@ -249,7 +290,7 @@ def _install_rls_if_postgres() -> None:
 			" OR current_setting('app.elevated', true) = 'true'"
 			");"
 		)
-	for table in _RLS_TABLES_TENANT_REQUIRED:
+	for table in tier_b:
 		op.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;")
 		op.execute(
 			f"CREATE POLICY {table}_tenant_iso ON {table} FOR ALL USING ("
@@ -263,12 +304,12 @@ def _install_rls_if_postgres() -> None:
 	# jtbd_domains is hub-only catalogue (no tenant_id column at all);
 	# RLS is enabled with read-open / write-elevated to keep the contract
 	# uniform.
-	op.execute("ALTER TABLE jtbd_domains ENABLE ROW LEVEL SECURITY;")
+	op.execute(f"ALTER TABLE {domains} ENABLE ROW LEVEL SECURITY;")
 	op.execute(
-		"CREATE POLICY jtbd_domains_read ON jtbd_domains FOR SELECT USING (true);"
+		f"CREATE POLICY {domains}_read ON {domains} FOR SELECT USING (true);"
 	)
 	op.execute(
-		"CREATE POLICY jtbd_domains_write ON jtbd_domains FOR ALL USING ("
+		f"CREATE POLICY {domains}_write ON {domains} FOR ALL USING ("
 		" current_setting('app.elevated', true) = 'true'"
 		") WITH CHECK ("
 		" current_setting('app.elevated', true) = 'true'"
@@ -277,15 +318,18 @@ def _install_rls_if_postgres() -> None:
 
 
 def _drop_rls_if_postgres() -> None:
+	tier_a = [_assert_known_table(t) for t in _RLS_TABLES_TENANT_NULLABLE]
+	tier_b = [_assert_known_table(t) for t in _RLS_TABLES_TENANT_REQUIRED]
+	domains = _assert_known_table("jtbd_domains")
 	if not _is_postgres():
 		return
-	op.execute("DROP POLICY IF EXISTS jtbd_domains_write ON jtbd_domains;")
-	op.execute("DROP POLICY IF EXISTS jtbd_domains_read ON jtbd_domains;")
-	op.execute("ALTER TABLE jtbd_domains DISABLE ROW LEVEL SECURITY;")
-	for table in _RLS_TABLES_TENANT_REQUIRED:
+	op.execute(f"DROP POLICY IF EXISTS {domains}_write ON {domains};")
+	op.execute(f"DROP POLICY IF EXISTS {domains}_read ON {domains};")
+	op.execute(f"ALTER TABLE {domains} DISABLE ROW LEVEL SECURITY;")
+	for table in tier_b:
 		op.execute(f"DROP POLICY IF EXISTS {table}_tenant_iso ON {table};")
 		op.execute(f"ALTER TABLE {table} DISABLE ROW LEVEL SECURITY;")
-	for table in _RLS_TABLES_TENANT_NULLABLE:
+	for table in tier_a:
 		op.execute(f"DROP POLICY IF EXISTS {table}_write ON {table};")
 		op.execute(f"DROP POLICY IF EXISTS {table}_read ON {table};")
 		op.execute(f"ALTER TABLE {table} DISABLE ROW LEVEL SECURITY;")

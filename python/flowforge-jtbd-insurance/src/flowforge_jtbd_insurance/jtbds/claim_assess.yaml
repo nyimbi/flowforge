@@ -1,14 +1,31 @@
 id: claim_assess
-title: "Assess and Settle Claim"
+title: "Adjudicate and Settle Claim"
 version: "1.0.0"
+domain: insurance
 actor:
   role: claims_adjuster
   external: false
-situation: "Adjuster needs to investigate, quantify, and settle an FNOL."
-motivation: "Pay valid claims promptly and fairly."
-outcome: "Claim settled or denied with documented rationale."
+  capacity: approver
+situation: >-
+  An assigned adjuster has an open claim from FNOL and must investigate
+  coverage, quantify damages, evaluate liability, negotiate, and settle or
+  deny the claim while complying with state UCSPA fair-claim handling rules
+  and the carrier's reserve-and-payment authorities.
+motivation: >-
+  Pay every covered dollar that is owed, deny what is not owed with
+  citation, close out reserves cleanly, and avoid bad-faith exposure under
+  state common law (e.g., Royal Globe / Comunale doctrine) and statutory
+  unfair-practice acts.
+outcome: >-
+  Coverage analysis written, liability and damages evaluated, reserves
+  finalised, settlement payment issued (or denial letter sent with
+  reservation-of-rights and policy citations), Form 1099-MISC triggered for
+  taxable settlements ≥USD 600, and ISO ClaimSearch closing posted.
 success_criteria:
-  - "Settlement decision within 30 days of FNOL for standard claims"
+  - "Coverage decision issued within 30 days of FNOL for routine first-party claims"
+  - "Settlement or denial within 40 days of receipt of complete proof of loss"
+  - "All payments cleared against the correct coverage limit and deductible"
+  - "ISO ClaimSearch closing record posted within 5 business days of settlement"
 stages:
   - name: discover
   - name: execute
@@ -16,11 +33,197 @@ stages:
   - name: report
   - name: audit
 data_capture:
-  - id: reference_id
+  - id: claim_number
     kind: text
-    label: Reference ID
+    label: "Claim Number"
     pii: false
-  - id: notes
+  - id: policy_number
     kind: text
-    label: Notes
+    label: "Policy Number"
+    pii: true
+    sensitivity: financial
+  - id: coverage_form
+    kind: enum
+    label: "Coverage Form / Line of Business"
+    options:
+      - "personal_auto"
+      - "homeowners_ho3"
+      - "homeowners_ho5"
+      - "commercial_property"
+      - "commercial_auto"
+      - "general_liability"
+      - "workers_compensation"
+      - "umbrella"
     pii: false
+  - id: peril_code
+    kind: text
+    label: "Cause of Loss / Peril Code"
+    pii: false
+  - id: coverage_decision
+    kind: enum
+    label: "Coverage Decision"
+    options:
+      - "covered_in_full"
+      - "covered_with_reservation"
+      - "partial_denial"
+      - "denied"
+      - "tendered_to_excess_or_other_carrier"
+    pii: false
+  - id: liability_assessment
+    kind: enum
+    label: "Liability Assessment (third-party / auto BI/PD)"
+    options:
+      - "insured_100_pct"
+      - "insured_majority"
+      - "comparative_split"
+      - "claimant_majority"
+      - "claimant_100_pct"
+      - "not_applicable_first_party"
+    pii: false
+  - id: indemnity_reserve
+    kind: money
+    label: "Indemnity Reserve (case reserve, not bulk)"
+    pii: false
+    sensitivity: financial
+  - id: ale_reserve
+    kind: money
+    label: "Allocated Loss Adjustment Expense Reserve"
+    pii: false
+    sensitivity: financial
+  - id: deductible_amount
+    kind: money
+    label: "Applicable Deductible"
+    pii: false
+    sensitivity: financial
+  - id: payable_amount
+    kind: money
+    label: "Net Settlement Payable (post-deductible, post-coinsurance, post-salvage)"
+    pii: false
+    sensitivity: financial
+  - id: total_loss_indicator
+    kind: boolean
+    label: "Total Loss Indicator (drives ACV / RCV branch and salvage rights)"
+    pii: false
+  - id: salvage_value
+    kind: money
+    label: "Estimated Salvage Recovery Value"
+    pii: false
+    sensitivity: financial
+  - id: subrogation_potential_flag
+    kind: boolean
+    label: "Subrogation Potential Flag (routes to subrogation JTBD on close)"
+    pii: false
+  - id: form_1099_misc_required
+    kind: boolean
+    label: "Form 1099-MISC Filing Required (taxable settlement ≥USD 600)"
+    pii: false
+edge_cases:
+  - id: total_loss_acv_dispute
+    description: >-
+      Insured disputes Actual Cash Value on a total loss; appraisal clause
+      triggered (each party names appraiser, third umpire, two-of-three
+      binding award). Reserve held at higher of carrier ACV or appraisal
+      midpoint pending resolution.
+  - id: partial_vs_total_threshold
+    description: >-
+      Repair estimate within 75-100% of pre-loss ACV puts the claim at the
+      total-loss threshold per state regulation (varies, e.g., TX 75%,
+      NY 75%); branch to total-loss workflow with title-branding obligations.
+  - id: bad_faith_exposure_excess_demand
+    description: >-
+      Third-party demand at policy limits with credible exposure above
+      limits. Carrier must communicate the demand to the insured, obtain
+      written authority, and respond within the demand window or face
+      Stowers / Comunale extracontractual exposure.
+  - id: dual_or_multi_party_coverage
+    description: >-
+      Multiple potentially-applicable policies (excess, umbrella, other
+      carrier on same loss). Tender to other carrier with full file;
+      contribution analysis under "other insurance" clause; reserve adjusted
+      to net retained exposure.
+  - id: fraud_referral_to_siu
+    description: >-
+      Examination Under Oath (EUO) reveals material misrepresentation; claim
+      paused, SIU adjudication, 30-day fraud-investigation extension under
+      state UCSPA, potential rescission and DOI fraud-bureau referral.
+  - id: payment_to_minor_or_estate
+    description: >-
+      Settlement payable to a minor or decedent's estate requires court
+      approval (minor's compromise) or letters testamentary; payment held
+      until proper authority is on file.
+documents_required:
+  - id: coverage_analysis_memo
+    description: "Adjuster coverage analysis memo with policy citations and ROR (if any)"
+    retention_years: 7
+  - id: damage_estimate_or_appraisal
+    description: "Repair estimate (Xactimate / CCC), independent appraisal, or contractor bid"
+    retention_years: 7
+  - id: medical_bills_and_records
+    description: "Itemised medical bills (UB-04 / CMS-1500) and treating provider records (PHI)"
+    retention_years: 10
+  - id: signed_release
+    description: "Full and final release of all claims, signed by claimant"
+    retention_years: 10
+  - id: form_w9_for_settlement
+    description: "Form W-9 from payee (settlements ≥USD 600 trigger 1099-MISC)"
+    retention_years: 7
+approvals:
+  - role: claims_adjuster
+    when: "payable_amount < 25000 and bad_faith_exposure_excess_demand_flag == false"
+    rationale: "Standard adjuster authority"
+  - role: claims_supervisor
+    when: "payable_amount >= 25000 and payable_amount < 250000"
+    rationale: "Supervisor authority for mid-tier settlements"
+  - role: claims_manager
+    when: "payable_amount >= 250000 or coverage_decision == 'denied'"
+    rationale: "Manager dual-approval for large settlements and full denials"
+  - role: coverage_counsel
+    when: "coverage_decision == 'covered_with_reservation' or bad_faith_exposure_excess_demand_flag == true"
+    rationale: "Coverage counsel signoff on ROR letters and excess-of-limits demands"
+notifications:
+  - id: claimant_settlement_offer
+    channel: email_or_letter
+    audience: claimant
+    trigger: settlement_offer_extended
+  - id: insured_denial_or_ror
+    channel: certified_mail
+    audience: named_insured
+    trigger: denial_or_reservation_of_rights_issued
+  - id: irs_1099_misc
+    channel: irs_filing
+    audience: irs
+    trigger: settlement_paid_taxable_threshold
+  - id: iso_claimsearch_close
+    channel: iso_feed
+    audience: iso_claimsearch
+    trigger: claim_closed
+  - id: state_doi_complaint_response
+    channel: regulator_portal
+    audience: state_doi
+    trigger: doi_complaint_received
+sla:
+  coverage_decision_calendar_days: 30
+  settlement_or_denial_after_proof_of_loss_calendar_days: 40
+  bad_faith_demand_response_calendar_days: 30
+  iso_close_post_business_days: 5
+  ror_letter_issuance_after_doubt_calendar_days: 30
+  fraud_investigation_extension_calendar_days: 30
+data_sensitivity:
+  - PII
+  - PHI
+  - financial
+compliance:
+  - "NAIC Model Unfair Claim Settlement Practices Act"
+  - "State UCSPA (CA 10 CCR §2695, NY 11 NYCRR §216, FL §626.9541, TX §542)"
+  - "Stowers / Comunale bad-faith doctrines"
+  - "HIPAA (medical records on BI and WC claims)"
+  - "Fair Credit Reporting Act"
+  - "IRS §6041 / Form 1099-MISC filing"
+  - "OFAC sanctions screening on payee"
+  - "ISO ClaimSearch participation agreement"
+  - "GDPR / CCPA"
+signoff:
+  signer: sme-insurance
+  reviewed_at: "2026-05-06T12:00:00Z"
+  reviewer_credentials: "domain-sme(insurance)"
+  reviewed_findings: ["D-01-insurance"]

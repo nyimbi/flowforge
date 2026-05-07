@@ -89,7 +89,7 @@ describe("designer authoring → runtime-client round-trip", () => {
 		store.getState().addState({
 			id: "extra",
 			name: "Extra step",
-			kind: "review",
+			kind: "manual_review",
 		});
 		expect(store.getState().workflow.states).toHaveLength(before + 1);
 	});

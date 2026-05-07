@@ -53,6 +53,11 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
 
+# audit-2026 J-04: warning category for default-store performance hints.
+class PerformanceWarning(UserWarning):
+	"""Emitted when a low-throughput default is used in a production-shaped path."""
+
+
 # ---------------------------------------------------------------------------
 # Protocols (ports)
 # ---------------------------------------------------------------------------
@@ -151,52 +156,169 @@ def _tokenise(text: str) -> list[str]:
 class BagOfWordsEmbeddingProvider:
 	"""Offline TF-IDF-like bag-of-words embedder.
 
-	Produces sparse unit vectors suitable for cosine similarity.  The
-	vocabulary is built lazily from all texts embedded so far.  Vectors
-	are not stored — callers must persist them via an
-	:class:`EmbeddingStore`.
+	Produces sparse unit vectors suitable for cosine similarity. The
+	vocabulary and document-frequency model can be built once via
+	:meth:`fit`, then frozen so subsequent :meth:`transform` calls return
+	deterministic vectors against a stable basis.
 
-	This is intentionally simple: it gives reasonable rankings for the
-	test suite and for host environments without real embedding access.
+	Workflow (audit-2026 J-03)
+	--------------------------
+	* :meth:`fit` accepts a corpus and computes vocab + IDF in one pass.
+	* :meth:`freeze` seals the model. Post-freeze, :meth:`embed` raises
+	  :class:`EmbeddingProviderFrozenError` if the input introduces a
+	  token not present in the frozen vocabulary; :meth:`transform`
+	  silently drops unknown tokens (the deterministic-replay path).
+	* Pre-freeze, :meth:`embed` lazily updates the model — backwards
+	  compatible with E-7 callers that didn't separate fit / transform.
+
+	Replay determinism: under the frozen model two ``embed("x")`` calls
+	return byte-identical vectors. Under the legacy lazy mode they did
+	not, because each call mutated ``_df`` and shifted the basis.
+
 	The pgvector provider (E-15) is a drop-in replacement.
 	"""
 
 	def __init__(self) -> None:
-		# Global IDF over all embedded texts.
 		self._doc_count: int = 0
 		self._df: Counter[str] = Counter()
-		# Raw token counts per doc — for idf update.
+		# Raw token counts per doc — kept for legacy lazy mode only.
 		self._docs: list[set[str]] = []
+		# audit-2026 J-03: stable vocab + freeze flag.
+		self._vocab: list[str] = []
+		self._frozen: bool = False
 
-	async def embed(self, text: str) -> list[float]:
-		"""Return a tf-idf unit vector over a shared vocabulary."""
+	# ------------------------------------------------------------------
+	# fit / transform / freeze (audit-2026 J-03)
+	# ------------------------------------------------------------------
+
+	def fit(self, corpus: list[str]) -> "BagOfWordsEmbeddingProvider":
+		"""Build vocabulary + document frequencies from *corpus* in one pass.
+
+		Subsequent :meth:`transform` calls produce vectors over the
+		fitted basis. Returns ``self`` to support chaining (
+		``provider.fit(docs).freeze()``).
+		"""
+
+		assert isinstance(corpus, list)
+		if self._frozen:
+			raise EmbeddingProviderFrozenError(
+				"BagOfWordsEmbeddingProvider is frozen — call .unfreeze() before .fit()"
+			)
+		self._doc_count = 0
+		self._df = Counter()
+		self._docs = []
+		for text in corpus:
+			tokens = _tokenise(text)
+			if not tokens:
+				continue
+			self._doc_count += 1
+			terms = set(tokens)
+			self._docs.append(terms)
+			for t in terms:
+				self._df[t] += 1
+		self._vocab = sorted(self._df)
+		return self
+
+	def freeze(self) -> "BagOfWordsEmbeddingProvider":
+		"""Seal the vocabulary + IDF so the basis is stable for replay."""
+
+		if not self._vocab and self._df:
+			# Caller used legacy embed() to populate state — capture the
+			# current vocab as the frozen basis.
+			self._vocab = sorted(self._df)
+		self._frozen = True
+		return self
+
+	def unfreeze(self) -> None:
+		"""Test-only: lift the freeze so :meth:`fit` can rebuild the basis."""
+
+		self._frozen = False
+
+	def is_frozen(self) -> bool:
+		return self._frozen
+
+	def transform(self, text: str) -> list[float]:
+		"""Return the TF-IDF unit vector for *text* over the fitted vocab.
+
+		Tokens not present in the fitted vocabulary are silently
+		dropped — :meth:`transform` never mutates state. If no vocab has
+		been fit yet, the empty vector is returned.
+		"""
+
+		if not self._vocab:
+			# Fallback: behave like the legacy lazy path on first text.
+			vocab = sorted(self._df) or []
+		else:
+			vocab = self._vocab
+		if not vocab:
+			return []
 		tokens = _tokenise(text)
 		if not tokens:
+			return [0.0] * len(vocab)
+		tf = Counter(t for t in tokens if t in self._df)
+		total = sum(Counter(tokens).values()) or 1
+		vec: list[float] = []
+		for term in vocab:
+			tf_val = tf.get(term, 0) / total
+			idf = math.log((1 + self._doc_count) / (1 + self._df.get(term, 0))) + 1
+			vec.append(tf_val * idf)
+		norm = math.sqrt(sum(v * v for v in vec))
+		if norm == 0:
+			return [0.0] * len(vocab)
+		return [v / norm for v in vec]
+
+	# ------------------------------------------------------------------
+	# embed (back-compat surface)
+	# ------------------------------------------------------------------
+
+	async def embed(self, text: str) -> list[float]:
+		"""Return a TF-IDF unit vector.
+
+		Pre-freeze: lazily updates the vocabulary + IDF (legacy E-7
+		behaviour). Post-freeze: equivalent to :meth:`transform`, except
+		that introducing a never-seen token raises
+		:class:`EmbeddingProviderFrozenError` so a silent vector-basis
+		shift cannot occur in production replay paths.
+		"""
+
+		tokens = _tokenise(text)
+		if self._frozen:
+			# audit-2026 J-03: any token outside the frozen vocab → raise.
+			unknown = [t for t in tokens if t not in self._df]
+			if unknown:
+				raise EmbeddingProviderFrozenError(
+					f"embed() received {len(unknown)} unknown token(s) under a "
+					f"frozen vocabulary: {sorted(set(unknown))[:5]!r}"
+					"; call transform() to drop unknown tokens silently."
+				)
+			return self.transform(text)
+		if not tokens:
 			return []
+		# Legacy lazy path — kept for backwards compatibility with E-7.
 		tf = Counter(tokens)
 		total = sum(tf.values())
-		# Build a vocab from the union of seen terms + this doc.
 		self._doc_count += 1
 		terms_in_doc = set(tokens)
 		for t in terms_in_doc:
 			self._df[t] += 1
 		self._docs.append(terms_in_doc)
-
 		vocab = list(self._df)
 		vec: list[float] = []
 		for term in vocab:
 			tf_val = tf.get(term, 0) / total
 			idf = math.log((1 + self._doc_count) / (1 + self._df[term])) + 1
 			vec.append(tf_val * idf)
-
-		# Normalise to unit vector.
 		norm = math.sqrt(sum(v * v for v in vec))
 		if norm == 0:
 			return [0.0] * len(vocab)
 		return [v / norm for v in vec]
 
 	def vocab_size(self) -> int:
-		return len(self._df)
+		return len(self._vocab) if self._frozen else len(self._df)
+
+
+class EmbeddingProviderFrozenError(RuntimeError):
+	"""Raised when ``embed()`` would mutate a frozen vocabulary (audit-2026 J-03)."""
 
 
 # ---------------------------------------------------------------------------
@@ -207,10 +329,33 @@ class InMemoryEmbeddingStore:
 	"""Pure-Python in-memory embedding store using cosine similarity.
 
 	Suitable for tests and small catalogs (< 10 000 JTBDs).  The
-	pgvector store (E-15) is the production replacement.
+	pgvector store (E-15) is the production replacement — see
+	`framework/python/flowforge-jtbd/README.md` § "Vector store
+	selection".
+
+	audit-2026 J-04: instantiation emits a one-shot
+	:class:`PerformanceWarning` so production deploys that mistakenly
+	wire this in get a flag in their logs / test suite. Set
+	``InMemoryEmbeddingStore._warned = True`` (or filter the warning)
+	to silence subsequent instantiations within a process.
 	"""
 
+	# audit-2026 J-04: process-wide latch so the warning fires once.
+	_warned: bool = False
+
 	def __init__(self) -> None:
+		import warnings as _warnings
+
+		if not type(self)._warned:
+			_warnings.warn(
+				"InMemoryEmbeddingStore is intended for tests and small "
+				"catalogs (< 10K JTBDs). Use the pgvector store for "
+				"production — see flowforge-jtbd/README.md § 'Vector store "
+				"selection'.",
+				category=PerformanceWarning,
+				stacklevel=2,
+			)
+			type(self)._warned = True
 		self._vectors: dict[str, list[float]] = {}
 		self._meta: dict[str, dict[str, Any]] = {}
 

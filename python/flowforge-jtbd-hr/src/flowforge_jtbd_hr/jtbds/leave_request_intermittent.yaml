@@ -1,0 +1,232 @@
+id: leave_request_intermittent
+title: "Process Intermittent FMLA Leave Request"
+version: "1.0.0"
+actor:
+  role: hr_business_partner
+  external: false
+situation: >-
+  An eligible employee has requested intermittent leave under the Family and
+  Medical Leave Act for a serious health condition (own or qualifying family
+  member), or for a qualifying military exigency / servicemember care reason.
+  HR must designate the leave, request medical certification within statutory
+  windows, track hours used against the 12-week (or 26-week military caregiver)
+  entitlement, coordinate with concurrent state PFML / disability benefits,
+  and protect the employee from interference and retaliation.
+motivation: >-
+  Comply with FMLA designation and notice timing (29 CFR §825.300, §825.305),
+  protect job and benefits during leave, and maintain a defensible audit trail
+  in the event of a DOL Wage and Hour Division complaint or §2615 retaliation
+  claim.
+outcome: >-
+  Leave is correctly designated, hours used are tracked at the smallest
+  increment used by the employer for absences (29 CFR §825.205), benefits
+  continue, and the employee is restored to the same or equivalent position
+  on return (29 CFR §825.214).
+success_criteria:
+  - "Designation notice issued within 5 business days of receiving sufficient information (29 CFR §825.300(d))"
+  - "Eligibility & Rights and Responsibilities notices issued within 5 business days of leave request"
+  - "Medical certification request issued within 5 business days; 15-calendar-day employee return window enforced (29 CFR §825.305)"
+  - "Zero retaliation findings in DOL audit window"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: employee_id
+    kind: text
+    label: "Employee ID"
+    pii: true
+  - id: manager_id
+    kind: text
+    label: "Direct manager"
+    pii: false
+  - id: fmla_eligibility
+    kind: enum
+    label: "FMLA eligibility (12 months service AND >= 1,250 hours AND 50/75 worksite)"
+    values:
+      - eligible
+      - ineligible_service
+      - ineligible_hours
+      - ineligible_worksite
+    pii: false
+  - id: fmla_reason
+    kind: enum
+    label: "Qualifying reason (29 USC §2612)"
+    values:
+      - employee_serious_health_condition
+      - family_serious_health_condition
+      - parental_bonding
+      - military_qualifying_exigency
+      - military_caregiver
+    pii: true
+  - id: leave_year_method
+    kind: enum
+    label: "Leave year method (29 CFR §825.200(b))"
+    values:
+      - calendar_year
+      - fixed_12_month
+      - 12_month_from_first_use
+      - rolling_12_month_lookback
+    pii: false
+  - id: fmla_hours_used
+    kind: number
+    label: "Hours used in current leave year"
+    pii: false
+  - id: fmla_hours_balance
+    kind: number
+    label: "Hours remaining in 480-hour (or 1040-hour military caregiver) entitlement"
+    pii: false
+  - id: medical_cert_status
+    kind: enum
+    label: "Medical certification status"
+    values:
+      - not_requested
+      - requested
+      - received_sufficient
+      - received_insufficient
+      - received_incomplete
+      - second_opinion_pending
+      - third_opinion_final
+      - not_returned
+    pii: true
+  - id: state_pfml_program
+    kind: text
+    label: "Concurrent state PFML / TDI program (e.g., CA-PFL, NY-PFL, WA-PFML, MA-PFML)"
+    pii: false
+  - id: ada_overlap_flag
+    kind: bool
+    label: "Whether ADA reasonable-accommodation interactive process runs in parallel"
+    pii: false
+  - id: union_local
+    kind: text
+    label: "CBA local (if applicable, may add notice or accrual rules)"
+    pii: false
+edge_cases:
+  - id: fmla_exhaustion
+    description: >-
+      Employee exhausts the 12-week entitlement (or 26-week military caregiver)
+      and still cannot return. FMLA job-protection ends, but ADA may impose a
+      separate interactive-process duty (Severson v. Heartland, 7th Cir. 2017).
+    handling: "Trigger ADA interactive process; offer unpaid LOA only if undue-hardship analysis is documented; do NOT auto-terminate."
+  - id: ada_accommodation_overlay
+    description: >-
+      Underlying condition is also an ADA disability and the requested
+      schedule is itself an accommodation request.
+    handling: "Run interactive process in parallel; document essential functions; assess undue-hardship before denial."
+  - id: medical_cert_insufficient
+    description: >-
+      Cert returned but is incomplete or insufficient under 29 CFR §825.305(c).
+    handling: "Issue written notice specifying deficiencies; allow 7 calendar days to cure; designate provisionally if cure pending."
+  - id: pregnancy_pwfa_overlay
+    description: >-
+      Request relates to pregnancy, childbirth, or related medical
+      conditions; PWFA reasonable-accommodation analysis applies in addition
+      to FMLA.
+    handling: "Apply PWFA accommodation framework (29 CFR §1636); do not require medical cert beyond PWFA limits."
+  - id: garnishment_during_leave
+    description: >-
+      Wage garnishment order received while employee is on unpaid intermittent
+      leave with reduced pay.
+    handling: "Apply 15 USC §1673 disposable-earnings cap to actual paid hours; coordinate with payroll; do not deduct against zero pay."
+  - id: workers_comp_overlap
+    description: >-
+      Leave is for an on-the-job injury also covered by workers' compensation.
+    handling: "Designate as FMLA concurrently (29 CFR §825.207(e)); honour state WC light-duty offer rules."
+documents_required:
+  - id: fmla_eligibility_notice
+    label: "FMLA Eligibility Notice (WH-381)"
+    statute: "29 CFR §825.300(b)"
+    retention: "3 years (29 CFR §825.500)"
+  - id: fmla_rights_responsibilities_notice
+    label: "Rights and Responsibilities Notice (WH-381)"
+    statute: "29 CFR §825.300(c)"
+    retention: "3 years"
+  - id: fmla_designation_notice
+    label: "Designation Notice (WH-382)"
+    statute: "29 CFR §825.300(d)"
+    retention: "3 years"
+  - id: medical_certification
+    label: "Medical Certification (WH-380-E or WH-380-F)"
+    statute: "29 USC §2613; 29 CFR §825.305-825.308"
+    retention: "3 years; segregated per GINA Title II"
+  - id: military_certification
+    label: "Certification of Qualifying Exigency (WH-384) or Servicemember Care (WH-385)"
+    statute: "29 CFR §825.309-310"
+    retention: "3 years"
+  - id: fitness_for_duty_certification
+    label: "Fitness-for-duty certification at return (if required and noted in designation)"
+    statute: "29 CFR §825.312"
+    retention: "Duration of employment + 4 years"
+approvals:
+  - id: hrbp_designation
+    role: hr_business_partner
+    scope: "Designate leave, issue notices, validate cert sufficiency"
+    capacity: approver
+  - id: manager_schedule_review
+    role: line_manager
+    scope: "Validate intermittent schedule against essential functions; cannot deny qualifying leave"
+    capacity: reviewer
+  - id: legal_review
+    role: legal
+    scope: "Required on cert disputes, second/third opinion, denial, termination interaction"
+    capacity: approver
+  - id: eeo_officer
+    role: eeo_officer
+    scope: "Required where ADA / PWFA / Title VII concern arises"
+    capacity: reviewer
+notifications:
+  - id: notify_employee
+    channel: email
+    audience: employee
+    trigger: "On receipt; eligibility within 5 business days; designation within 5 business days of sufficient info"
+  - id: notify_manager
+    channel: hris_event
+    audience: line_manager
+    trigger: "Schedule confirmation; status changes; return-to-work planning"
+  - id: notify_payroll
+    channel: hris_event
+    audience: payroll
+    trigger: "On schedule change; integration with PTO/sick balance per policy"
+  - id: notify_benefits
+    channel: edi_834
+    audience: benefits_admin
+    trigger: "Maintain group health coverage at employee's normal share (29 CFR §825.209)"
+  - id: notify_state_pfml_carrier
+    channel: state_filing
+    audience: state_pfml_program
+    trigger: "Concurrent claim filing per state program timing"
+sla:
+  - metric: "Eligibility & Rights and Responsibilities notices"
+    target: "<= 5 business days from leave request (29 CFR §825.300(b)(c))"
+  - metric: "Designation notice"
+    target: "<= 5 business days from receiving sufficient info (29 CFR §825.300(d))"
+  - metric: "Medical certification deadline for employee"
+    target: "15 calendar days from request, with cure period for insufficient cert (29 CFR §825.305(b))"
+  - metric: "FMLA poster posted"
+    target: "Continuously at all worksites (29 CFR §825.300(a))"
+data_sensitivity:
+  - PII
+  - medical
+  - GINA_protected
+  - mental_health
+  - genetic_information
+compliance:
+  - "FMLA / 29 USC §2601; 29 CFR §825"
+  - "ADA / 42 USC §12101"
+  - "ADAAA / 2008 amendments"
+  - "PWFA / 42 USC §2000gg"
+  - "PUMP Act / 29 USC §218d"
+  - "GINA Title II / 42 USC §2000ff (cert segregation)"
+  - "USERRA / 38 USC §4301 (military reasons)"
+  - "Title VII / 42 USC §2000e (pregnancy & retaliation)"
+  - "State PFML: CA Unemployment Ins. Code §3300 (PFL); NY Workers' Comp. Law §201 (PFL); MA Gen. Laws ch. 175M; WA RCW 50A; CT, OR, CO, MD, DE programs"
+  - "ERISA continuation of benefits / 29 USC §1161 (where benefits affected)"
+  - "HIPAA-adjacent: medical files segregated from personnel file (29 CFR §1630.14(b))"
+signoff:
+  signer: sme-hr
+  reviewed_at: "2026-05-06T00:00:00Z"
+  reviewer_credentials: "domain-sme(human-resources)"
+  reviewed_findings:
+    - D-01-hr

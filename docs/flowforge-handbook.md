@@ -44,7 +44,7 @@ Runtime — over the same underlying spec.
 ```mermaid
 flowchart TB
   subgraph Editing["Editing surfaces"]
-    JE[JTBDEditor<br/>(apps/jtbd-editor/)]
+    JE[JTBDEditor<br/>(framework/js/flowforge-jtbd-editor/)]
     DG[Designer<br/>(@flowforge/designer)]
   end
   JE -->|JTBD bundle| GEN[Generator<br/>(flowforge-cli)]
@@ -510,7 +510,7 @@ seed doesn't match the catalog.
 | **Z3** | The SMT solver used by default in the conflict solver; alternative is a simple-pairs incompatibility table. |
 | **pgvector** | Postgres extension for vector similarity; powers JTBD recommender. |
 | **NL→JTBD** | Natural-language input → drafted JTBD → validator-gated ingestion. |
-| **JTBD hub** | Public registry (`apps/jtbd-hub/`) for publishing + installing JTBD packages. |
+| **JTBD hub** | Public registry (`framework/python/flowforge-jtbd-hub/`) for publishing + installing JTBD packages. |
 
 ---
 

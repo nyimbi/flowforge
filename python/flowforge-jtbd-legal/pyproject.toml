@@ -1,7 +1,17 @@
 [project]
-name = "flowforge-jtbd-legal"
-version = "1.0.0"
+name = "flowforge-jtbd-legal-starter"
+version = "0.0.1"
 description = "flowforge JTBD domain library — Legal (Contract management, IP, litigation)"
+keywords = ["flowforge", "jtbd", "scaffold-only", "starter"]
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 requires-python = ">=3.11"
 dependencies = [
     "flowforge-jtbd>=0.1.0",
@@ -14,3 +24,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/flowforge_jtbd_legal"]
+
+[tool.uv]
+# E-46 / F-5: domain library not yet reviewed/rebranded. Workspace registers
+# this dir for build discovery, but uv treats it as a virtual member (no
+# wheel is built or installed) until E-48a/E-48b flips this flag back to
+# true after security + product review.
+package = false

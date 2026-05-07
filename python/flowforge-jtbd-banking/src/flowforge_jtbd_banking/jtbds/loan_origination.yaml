@@ -1,0 +1,175 @@
+id: loan_origination
+title: "Originate Mortgage or Commercial Loan"
+version: "1.0.0"
+domain: banking
+actor:
+  role: credit_underwriter
+  external: false
+  capacity: approver
+situation: >-
+  An applicant has filed a loan application (1003 URLA for residential
+  mortgage, or commercial credit memo) and credit underwriting must verify
+  ability to repay (Reg Z §1026.43), price within usury limits, ensure ECOA
+  fair-lending compliance, and clear collateral and lien checks before the
+  loan is committed to closing.
+motivation: >-
+  Extend credit only where ATR/QM and credit-policy thresholds are met,
+  pricing reflects risk, and disclosures (LE/CD timelines under TRID) are
+  delivered on time without ECOA Reg B violations.
+outcome: >-
+  Loan approved at committed rate and term, lien recorded at the agreed
+  position, closing disclosure delivered ≥3 business days before
+  consummation (TRID), HMDA LAR record posted, and funds disbursed on
+  closing day.
+success_criteria:
+  - "Underwriting decision within 10 business days of complete file"
+  - "Loan Estimate delivered within 3 business days of application (TRID)"
+  - "Closing Disclosure delivered ≥3 business days before consummation (TRID)"
+  - "Adverse-action notice within 30 days of complete application if denied (Reg B §1002.9)"
+  - "HMDA LAR record posted within reporting cycle for covered loans"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: loan_amount
+    kind: money
+    label: "Loan Amount Requested"
+    pii: false
+    sensitivity: financial
+  - id: apr
+    kind: number
+    label: "Annual Percentage Rate (Reg Z)"
+    pii: false
+  - id: dti_ratio
+    kind: number
+    label: "Back-end Debt-to-Income Ratio"
+    pii: true
+    sensitivity: financial
+  - id: ltv_ratio
+    kind: number
+    label: "Loan-to-Value Ratio"
+    pii: false
+  - id: lien_position
+    kind: enum
+    label: "Lien Position"
+    options: ["first", "second", "junior", "unsecured"]
+    pii: false
+  - id: credit_score
+    kind: number
+    label: "Tri-bureau Credit Score (FICO/VantageScore)"
+    pii: true
+    sensitivity: financial
+  - id: collateral_type
+    kind: enum
+    label: "Collateral Type"
+    options: ["residential_real_estate", "commercial_real_estate", "equipment", "inventory", "ar", "unsecured"]
+    pii: false
+  - id: hmda_loan_purpose
+    kind: enum
+    label: "HMDA Loan Purpose Code"
+    options: ["home_purchase", "home_improvement", "refinancing", "cash_out_refi", "other"]
+    pii: false
+edge_cases:
+  - id: atr_qm_marginal
+    description: >-
+      DTI between 43% and 50% with no Appendix Q compensating factors (Reg Z
+      §1026.43(e)). Loan must be underwritten as non-QM with documented
+      ability-to-repay rationale or declined.
+  - id: ecoa_protected_class_indicator
+    description: >-
+      Application carries Reg B HMDA monitoring data; underwriter must not
+      rely on prohibited factors. Decision rationale must be auditable to
+      pricing-and-pricing-exception monitoring.
+  - id: appraisal_below_contract
+    description: >-
+      Appraisal comes in below contract price by >5%. Renegotiate price,
+      reduce loan amount, or require additional borrower equity; trigger
+      reconsideration of value (ROV) per appraisal independence rules
+      (Reg Z §1026.42).
+  - id: title_defect_lien_priority
+    description: >-
+      Title commitment shows existing lien that compromises target lien
+      position; require subordination agreement or payoff prior to closing.
+  - id: hpml_higher_priced_threshold
+    description: >-
+      Loan APR exceeds APOR by §1026.35 thresholds → Higher-Priced Mortgage
+      Loan rules apply (escrow, appraisal review).
+documents_required:
+  - id: urla_1003
+    description: "Uniform Residential Loan Application (Form 1003) or commercial credit memo"
+    retention_years: 5
+  - id: credit_report
+    description: "Tri-bureau credit report (Reg V §1022 FCRA)"
+    retention_years: 5
+  - id: appraisal_report
+    description: "USPAP-compliant appraisal (residential AIR rules; commercial as applicable)"
+    retention_years: 5
+  - id: title_insurance_commitment
+    description: "Title commitment / preliminary title report from licensed title insurer"
+    retention_years: 5
+  - id: income_verification
+    description: "W-2s, paystubs, 1040 transcripts (4506-C), or business financials for self-employed"
+    retention_years: 5
+  - id: articles_of_incorporation
+    description: "Entity organisational documents (commercial loans)"
+    retention_years: 5
+  - id: insurance_binder
+    description: "Hazard insurance binder; flood insurance where SFHA applies"
+    retention_years: 5
+approvals:
+  - role: credit_underwriter
+    when: "loan_amount <= underwriter_limit"
+    rationale: "Delegated underwriting authority within credit policy matrix"
+  - role: senior_credit_officer
+    when: "loan_amount > underwriter_limit and loan_amount <= committee_threshold"
+    rationale: "Senior officer second signature for above-line exposures"
+  - role: loan_committee
+    when: "loan_amount > committee_threshold or policy_exception == true"
+    rationale: "Committee quorum required for jumbo / non-QM / policy exceptions"
+notifications:
+  - id: applicant_loan_estimate
+    channel: email_or_secure_portal
+    audience: applicant
+    trigger: application_complete
+  - id: applicant_closing_disclosure
+    channel: email_or_secure_portal
+    audience: applicant
+    trigger: clear_to_close
+  - id: applicant_adverse_action
+    channel: postal_mail
+    audience: applicant
+    trigger: application_denied
+  - id: hmda_lar_post
+    channel: hmda_lar_pipeline
+    audience: cfpb
+    trigger: action_taken
+sla:
+  underwriting_business_days: 10
+  loan_estimate_business_days_from_application: 3
+  closing_disclosure_business_days_before_consummation: 3
+  adverse_action_calendar_days: 30
+  ecoa_appraisal_copy_business_days_after_completion: 3
+  rescission_business_days_post_closing: 3
+data_sensitivity:
+  - PII
+  - financial
+  - regulatory
+compliance:
+  - "Reg Z (TILA, 12 CFR §1026)"
+  - "Reg B (ECOA, 12 CFR §1002)"
+  - "Reg X (RESPA, 12 CFR §1024)"
+  - "TRID (Reg Z §1026.19)"
+  - "HMDA (Reg C, 12 CFR §1003)"
+  - "Reg V (FCRA, 12 CFR §1022)"
+  - "ATR/QM (Reg Z §1026.43)"
+  - "AIR / Appraiser Independence (Reg Z §1026.42)"
+  - "Flood Disaster Protection Act"
+  - SOX
+signoff:
+  signer: sme-banking
+  reviewed_at: "2026-05-06T00:00:00Z"
+  reviewer_credentials: "domain-sme(banking)"
+  reviewed_findings: ["D-01-banking"]

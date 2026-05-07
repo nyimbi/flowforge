@@ -1,0 +1,210 @@
+id: policy_renewal
+title: "Renew Policy with Rate Action"
+version: "1.0.0"
+domain: insurance
+actor:
+  role: underwriter
+  external: false
+  capacity: approver
+situation: >-
+  A policy is approaching expiration and the renewal-underwriting cycle
+  must decide between offer-to-renew, conditional renewal (rate-up,
+  coverage-down), or non-renewal. State law dictates advance written
+  notice (typically 30-60 days) and the carrier must produce a renewal
+  package, file any rate change, and re-screen the insured.
+motivation: >-
+  Retain profitable business at adequate rate, shed unprofitable business
+  with proper notice to avoid post-loss bad-faith exposure, and stay
+  inside the carrier's filed rate flex band and class-plan rules.
+outcome: >-
+  Renewal decision recorded, rate-action factor applied, renewal
+  declarations issued, statutory notice timing met, and book-roll signals
+  (premium audit, exposure rebase, NAIC class movement) propagated to
+  reinsurance and statistical reporting.
+success_criteria:
+  - "Renewal package issued at least 45 days before expiration (state default)"
+  - "Non-renewal notice mailed within state-mandated advance window with reason citation"
+  - "Rate change within filed flex band or routed to manual override approval"
+  - "Premium audit rebase applied where exposure base (payroll, sales, vehicles) changed"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: policy_number
+    kind: text
+    label: "Renewing Policy Number"
+    pii: true
+    sensitivity: financial
+  - id: renewal_term_effective_date
+    kind: date
+    label: "Renewal Term Effective Date"
+    pii: false
+  - id: renewal_term_expiration_date
+    kind: date
+    label: "Renewal Term Expiration Date"
+    pii: false
+  - id: prior_term_premium
+    kind: money
+    label: "Expiring Term Annual Premium"
+    pii: false
+    sensitivity: financial
+  - id: rated_renewal_premium
+    kind: money
+    label: "Rated Renewal Annual Premium"
+    pii: false
+    sensitivity: financial
+  - id: rate_change_pct
+    kind: number
+    label: "Rate Change Percentage (signed; positive = increase)"
+    pii: false
+  - id: loss_ratio_3yr
+    kind: number
+    label: "Trailing 3-Year Account Loss Ratio"
+    pii: false
+  - id: loss_count_3yr
+    kind: number
+    label: "Trailing 3-Year Loss Count"
+    pii: false
+  - id: renewal_decision
+    kind: enum
+    label: "Renewal Decision"
+    options:
+      - "offer_to_renew"
+      - "conditional_renewal"
+      - "non_renewal"
+      - "cancellation_mid_term"
+    pii: false
+  - id: non_renewal_reason_code
+    kind: enum
+    label: "Non-Renewal Reason Code (state-prescribed)"
+    options:
+      - "loss_history_frequency"
+      - "loss_history_severity"
+      - "non_payment_pattern"
+      - "material_misrepresentation"
+      - "moral_hazard"
+      - "withdrawal_from_class_or_state"
+      - "underwriting_appetite_change"
+      - "not_applicable_renewing"
+    pii: false
+  - id: rate_filing_id
+    kind: text
+    label: "Effective Rate Filing Identifier (SERFF)"
+    pii: false
+  - id: notice_mailed_date
+    kind: date
+    label: "Date Renewal / Non-Renewal Notice Mailed"
+    pii: false
+  - id: notice_method
+    kind: enum
+    label: "Notice Delivery Method"
+    options:
+      - "first_class_mail"
+      - "certified_mail_return_receipt"
+      - "electronic_with_consent"
+    pii: false
+edge_cases:
+  - id: insufficient_advance_notice
+    description: >-
+      System detects fewer than the state-mandated days remaining before
+      expiration (commonly 30-60). Carrier must auto-renew on expiring
+      terms and re-cycle non-renewal for the following term, citing the
+      timing failure in the file.
+  - id: prohibited_non_renewal_reason
+    description: >-
+      Non-renewal reason maps to a state-prohibited basis (e.g., a single
+      not-at-fault auto loss in many states; pregnancy status; victim of
+      domestic violence). Decision blocked; routed to compliance review.
+  - id: post_cat_moratorium
+    description: >-
+      Hurricane, wildfire, or earthquake declared; state DOI emergency
+      order suspends non-renewals and rate increases on impacted
+      policyholders for the moratorium window (e.g., CA INS §675.1 wildfire
+      one-year moratorium).
+  - id: rate_above_flex_band
+    description: >-
+      Indicated renewal rate exceeds the filed flex-band cap; capped at
+      band ceiling for this term, residual indication routed to next
+      filing; document the cap in the file.
+  - id: assumption_or_book_roll
+    description: >-
+      Block of business being assumed from another carrier or rolled to a
+      different paper. Notice content includes carrier-of-record change
+      disclosure; producer ratification and any required policyholder
+      consent collected.
+documents_required:
+  - id: renewal_offer_or_non_renewal_notice
+    description: "Signed renewal package or statutory non-renewal notice with reason citation"
+    retention_years: 7
+  - id: loss_run_3yr
+    description: "3-year loss run for the policy"
+    retention_years: 7
+  - id: premium_audit_worksheet
+    description: "Premium-audit worksheet for exposure-base rebase (workers-comp, GL audit-rated lines)"
+    retention_years: 7
+  - id: ofac_re_screening_record
+    description: "OFAC SDN re-screening of named insured at renewal"
+    retention_years: 5
+approvals:
+  - role: underwriter
+    when: "abs(rate_change_pct) <= 5 and renewal_decision == 'offer_to_renew'"
+    rationale: "Standard underwriter authority for in-band renewal"
+  - role: senior_underwriter
+    when: "abs(rate_change_pct) > 5 and abs(rate_change_pct) <= 15"
+    rationale: "Senior signoff for mid-band rate change"
+  - role: chief_underwriting_officer
+    when: "abs(rate_change_pct) > 15 or renewal_decision == 'non_renewal'"
+    rationale: "CUO signoff for material rate moves and non-renewals"
+  - role: compliance_officer
+    when: "renewal_decision == 'non_renewal' or non_renewal_reason_code != 'not_applicable_renewing'"
+    rationale: "Compliance review of non-renewal reason against state-prohibited bases"
+notifications:
+  - id: insured_renewal_offer
+    channel: mail_or_email_with_consent
+    audience: named_insured
+    trigger: renewal_decision_offer
+  - id: insured_non_renewal_notice
+    channel: certified_mail_return_receipt
+    audience: named_insured
+    trigger: non_renewal_decision
+  - id: producer_book_movement
+    channel: producer_portal
+    audience: producer
+    trigger: renewal_decision_recorded
+  - id: state_doi_filing_if_required
+    channel: regulator_portal
+    audience: state_doi
+    trigger: market_conduct_filing_required
+  - id: stat_agent_renewal_record
+    channel: stat_feed
+    audience: iso_or_aaaa_stat_agent
+    trigger: renewal_recorded
+sla:
+  renewal_offer_advance_calendar_days_default: 45
+  non_renewal_notice_advance_calendar_days_state_default: 60
+  non_renewal_notice_advance_calendar_days_note: >-
+    State-specific. Examples: NY 11 NYCRR §216 = 60 days for personal lines;
+    CA INS §678 = 45-60 days; FL §627.4133 = 45-90 days. Configure per
+    state.
+  premium_audit_finalisation_after_expiration_calendar_days: 90
+  cat_moratorium_window_days_default: 365
+data_sensitivity:
+  - PII
+  - financial
+compliance:
+  - "State rate filing acts (SERFF)"
+  - "NAIC Model Cancellation and Non-Renewal Act"
+  - "State non-renewal notice statutes (NY 11 NYCRR §216, CA INS §678, FL §627.4133)"
+  - "State CAT moratorium orders (e.g., CA INS §675.1 wildfire moratorium)"
+  - "Fair Credit Reporting Act (renewal underwriting on FCRA reports)"
+  - "OFAC sanctions screening (31 CFR §501)"
+  - "Gramm-Leach-Bliley Act"
+  - "GDPR / CCPA"
+signoff:
+  signer: sme-insurance
+  reviewed_at: "2026-05-06T12:00:00Z"
+  reviewer_credentials: "domain-sme(insurance)"
+  reviewed_findings: ["D-01-insurance"]

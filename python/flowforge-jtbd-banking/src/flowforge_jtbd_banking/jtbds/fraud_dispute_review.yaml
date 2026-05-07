@@ -1,0 +1,160 @@
+id: fraud_dispute_review
+title: "Investigate Reg E Unauthorised Transaction Dispute"
+version: "1.0.0"
+domain: banking
+actor:
+  role: fraud_investigator
+  external: false
+  capacity: operator
+situation: >-
+  A consumer has notified the bank of an unauthorised electronic fund
+  transfer (debit-card, ACH, or P2P) on their consumer account. Reg E
+  (12 CFR §1005.11) governs investigation timing, provisional credit, and
+  liability allocation. The bank must investigate, decision, and document
+  the outcome within statutory windows.
+motivation: >-
+  Make the consumer whole where the bank is liable, contain fraud loss
+  where it is not, and avoid Reg E violations that trigger CFPB enforcement
+  or class-action exposure.
+outcome: >-
+  Provisional credit issued where required, investigation completed within
+  10 (standard) or 45 (extended) business days, written decision letter
+  delivered, recovered funds reversed against fraudster, and SAR filed if
+  loss meets BSA thresholds.
+success_criteria:
+  - "Investigation acknowledgement to consumer within 10 business days"
+  - "Provisional credit within 10 business days where extended period invoked"
+  - "Final resolution within 45 business days (90 for new accounts / POS / foreign)"
+  - "Written explanation of denial within 3 business days of decision (Reg E §1005.11(d))"
+  - "SAR filed within 30 days of initial detection if BSA thresholds met"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: account_number
+    kind: text
+    label: "Affected Consumer Account Number"
+    pii: true
+    sensitivity: financial
+  - id: dispute_amount
+    kind: money
+    label: "Disputed Amount"
+    pii: false
+    sensitivity: financial
+  - id: dispute_reason_code
+    kind: enum
+    label: "Dispute Reason"
+    options: ["lost_or_stolen_card", "card_not_present_fraud", "atm_fraud", "ach_unauthorised", "p2p_unauthorised", "merchant_error", "duplicate", "other"]
+    pii: false
+  - id: notification_date
+    kind: date
+    label: "Date Consumer Notified Bank"
+    pii: false
+  - id: provisional_credit_status
+    kind: enum
+    label: "Provisional Credit Status"
+    options: ["not_required", "issued", "reversed", "pending"]
+    pii: false
+  - id: liability_decision
+    kind: enum
+    label: "Reg E Liability Determination"
+    options: ["bank_liable_full", "consumer_liable_50", "consumer_liable_500", "consumer_liable_unlimited", "no_liability_authorised", "pending"]
+    pii: false
+  - id: chargeback_case_id
+    kind: text
+    label: "Visa/MC Chargeback Case ID (where applicable)"
+    pii: false
+edge_cases:
+  - id: provisional_credit_timeline_breach
+    description: >-
+      Investigation will exceed 10 business days. Bank must issue
+      provisional credit within 10 business days to extend the window to 45
+      business days per Reg E §1005.11(c)(2).
+  - id: late_consumer_notification
+    description: >-
+      Consumer notified bank >2 business days after learning of loss/theft
+      of access device → liability cap shifts from $50 to $500. After 60
+      days from statement, unlimited consumer liability for subsequent
+      unauthorised transfers (§1005.6(b)).
+  - id: new_account_extended_window
+    description: >-
+      Account opened <30 days ago, POS, or foreign transaction → 20
+      business-day acknowledgement, 90-business-day investigation window
+      applies.
+  - id: friendly_fraud_first_party
+    description: >-
+      Investigation indicates first-party (friendly) fraud — cardholder
+      authorised the transaction. Deny dispute, refer to collections, and
+      document evidence trail (IP, device fingerprint, delivery confirmation).
+  - id: sar_eligible_loss
+    description: >-
+      Suspected fraud with aggregate ≥USD 5,000 and identifiable subject
+      meets SAR filing trigger (12 CFR §21.11). File SAR within 30 days of
+      initial detection.
+documents_required:
+  - id: written_dispute_form
+    description: "Consumer-signed dispute form or recorded oral dispute summary"
+    retention_years: 5
+  - id: transaction_evidence
+    description: "Authorisation log, POS slip, ACH NACHA file, P2P session log"
+    retention_years: 5
+  - id: police_report
+    description: "Police report (where lost/stolen card or identity theft alleged)"
+    retention_years: 5
+  - id: merchant_chargeback_evidence
+    description: "Visa/MC compelling evidence package (signature, AVS, 3DS, delivery)"
+    retention_years: 5
+approvals:
+  - role: fraud_investigator
+    when: "dispute_amount < manager_review_threshold"
+    rationale: "Front-line resolution within delegated authority"
+  - role: fraud_operations_manager
+    when: "dispute_amount >= manager_review_threshold or liability_decision == 'consumer_liable_unlimited'"
+    rationale: "Manager review for high-value disputes and unlimited-liability decisions"
+  - role: bsa_compliance_officer
+    when: "sar_eligible == true"
+    rationale: "BSA officer signoff before SAR filing"
+notifications:
+  - id: consumer_acknowledgement
+    channel: email_or_postal
+    audience: consumer
+    trigger: dispute_received
+  - id: consumer_provisional_credit
+    channel: email_or_postal
+    audience: consumer
+    trigger: provisional_credit_issued
+  - id: consumer_resolution_letter
+    channel: postal_mail
+    audience: consumer
+    trigger: investigation_decisioned
+  - id: fincen_sar_filing
+    channel: bsa_efile
+    audience: fincen
+    trigger: sar_eligible_event
+sla:
+  acknowledgement_business_days: 10
+  provisional_credit_business_days: 10
+  resolution_standard_business_days: 45
+  resolution_new_account_or_pos_business_days: 90
+  denial_explanation_business_days: 3
+  sar_filing_calendar_days_from_initial_detection: 30
+data_sensitivity:
+  - PII
+  - financial
+  - regulatory
+compliance:
+  - "Reg E (EFTA, 12 CFR §1005)"
+  - BSA
+  - AML
+  - "FCRA (12 CFR §1022)"
+  - "Reg Z §1026.12 (credit-card billing-error handling, where applicable)"
+  - GDPR
+  - CCPA
+signoff:
+  signer: sme-banking
+  reviewed_at: "2026-05-06T00:00:00Z"
+  reviewer_credentials: "domain-sme(banking)"
+  reviewed_findings: ["D-01-banking"]

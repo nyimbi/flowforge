@@ -1,28 +1,19 @@
-      project:
-        name: "municipal-example"
-        package: "municipal_example"
-        domain: "municipal"
-        version: "1.0.0"
-      shared:
-        roles:
-      - utility_manager
-  - zoning_officer
-  - parks_coordinator
-  - billing_clerk
-        permissions:
-      - mun.utility.connect
-  - mun.zoning.review
-  - mun.parks.permit
-  - mun.billing.generate
-  - mun.outage.report
-      jtbds:
-    - id: close_request
-  version: "1.0.0"
+project:
+  name: municipal-example
+  package: flowforge_jtbd_municipal_example
+  domain: municipal
+  version: 1.0.0
+shared:
+  roles: []
+  permissions: []
+jtbds:
+- id: close_request
+  version: 1.0.0
 - id: initiate_request
-  version: "1.0.0"
+  version: 1.0.0
 - id: process_request
-  version: "1.0.0"
+  version: 1.0.0
 - id: report_outcomes
-  version: "1.0.0"
+  version: 1.0.0
 - id: review_request
-  version: "1.0.0"
+  version: 1.0.0

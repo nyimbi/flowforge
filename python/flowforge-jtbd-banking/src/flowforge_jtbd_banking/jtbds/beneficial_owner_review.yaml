@@ -1,0 +1,162 @@
+id: beneficial_owner_review
+title: "Periodic CDD/EDD Beneficial-Ownership Refresh"
+version: "1.0.0"
+domain: banking
+actor:
+  role: bsa_compliance_officer
+  external: false
+  capacity: reviewer
+situation: >-
+  A legal-entity customer's CDD profile has aged past the bank's risk-based
+  refresh cycle (annual for high-risk, biennial for medium, triennial for
+  low) or a trigger event (ownership change, adverse media, transaction
+  pattern shift) has fired. FinCEN CDD rule (31 CFR §1010.230) requires
+  beneficial-ownership and risk-rating information to be kept current and
+  accurate.
+motivation: >-
+  Maintain ongoing customer due diligence so the bank's AML monitoring is
+  calibrated to true risk and the bank can satisfy examiners that CDD/EDD
+  expectations are met.
+outcome: >-
+  Beneficial-ownership certification refreshed, customer-risk rating
+  updated, monitoring rules re-tuned, and any escalation (EDD upgrade,
+  account exit, SAR filing) actioned.
+success_criteria:
+  - "Refresh completed before profile_age exceeds policy ceiling"
+  - "Beneficial-owner change reflected in CIP/CDD record within 5 business days of detection"
+  - "Risk rating revalidated against transaction monitoring lookback (≥12 months)"
+  - "EDD packet completed for high-risk before account permitted further activity"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: account_number
+    kind: text
+    label: "Legal Entity Customer Account Number"
+    pii: true
+    sensitivity: financial
+  - id: customer_risk_rating
+    kind: enum
+    label: "Updated AML Customer Risk Rating"
+    options: ["low", "medium", "high"]
+    pii: false
+  - id: kyc_tier
+    kind: enum
+    label: "KYC Tier After Refresh"
+    options: ["tier_1_simplified", "tier_2_standard", "tier_3_enhanced"]
+    pii: false
+  - id: beneficial_owner_change_flag
+    kind: boolean
+    label: "Beneficial Owner ≥25% Change Detected"
+    pii: false
+  - id: pep_flag
+    kind: boolean
+    label: "Politically Exposed Person Among Beneficial Owners"
+    pii: true
+  - id: sanctions_check_id
+    kind: text
+    label: "Refresh OFAC Screening Reference"
+    pii: false
+  - id: adverse_media_flag
+    kind: boolean
+    label: "Adverse Media Hit on Owner / Control Person"
+    pii: true
+  - id: profile_age_days
+    kind: number
+    label: "Days Since Last CDD Refresh"
+    pii: false
+edge_cases:
+  - id: beneficial_owner_change
+    description: >-
+      Ownership stake ≥25% changes hands or the single controlling
+      individual changes. Refresh certification (FinCEN CDD rule) and
+      re-screen new owners through OFAC/PEP/adverse-media before allowing
+      further activity.
+  - id: nested_legal_entity
+    description: >-
+      Beneficial owner is itself an entity (LLC owned by holding company).
+      Drill through to ultimate natural-person beneficial owners; reject
+      certification if chain cannot resolve.
+  - id: high_risk_jurisdiction_exposure
+    description: >-
+      Owner or counterparty exposure to FATF grey/black-list jurisdiction
+      detected in lookback. Upgrade to EDD with documented enhanced
+      monitoring rules and senior-management approval.
+  - id: edd_upgrade_required
+    description: >-
+      Refresh raises rating from medium to high, triggering EDD packet:
+      enhanced source-of-wealth, ongoing transaction-pattern review, and
+      90-day re-review cycle.
+  - id: relationship_exit
+    description: >-
+      Customer refuses to recertify beneficial ownership or refreshed risk
+      exceeds appetite. Initiate de-risking exit per documented exit
+      procedures with CIP-compliant final-disposition documentation.
+documents_required:
+  - id: beneficial_ownership_cert_refresh
+    description: "Refreshed FinCEN beneficial-ownership certification (31 CFR §1010.230)"
+    retention_years: 5
+  - id: source_of_wealth_doc
+    description: "Source-of-wealth and source-of-funds documentation (EDD)"
+    retention_years: 5
+  - id: ownership_org_chart
+    description: "Updated entity ownership / control org chart"
+    retention_years: 5
+  - id: regulatory_filings
+    description: "State/SEC filings, articles, operating agreement, trust deed (as applicable)"
+    retention_years: 5
+approvals:
+  - role: bsa_compliance_officer
+    when: "customer_risk_rating == 'high' or pep_flag == true or beneficial_owner_change_flag == true"
+    rationale: "BSA officer signoff for high-risk, PEP, or ownership-change refreshes"
+  - role: senior_management_designee
+    when: "kyc_tier == 'tier_3_enhanced' and adverse_media_flag == true"
+    rationale: "Senior-management approval required to retain EDD relationship with adverse media"
+notifications:
+  - id: customer_recertification_request
+    channel: secure_message_or_postal
+    audience: customer
+    trigger: refresh_due
+  - id: relationship_manager_alert
+    channel: case_queue
+    audience: relationship_manager
+    trigger: edd_upgrade_or_exit
+  - id: fincen_sar_filing
+    channel: bsa_efile
+    audience: fincen
+    trigger: sar_eligible_event
+  - id: ofac_blocked_property_report
+    channel: ofac_efile
+    audience: ofac
+    trigger: sanctions_match_post_refresh
+sla:
+  high_risk_refresh_max_months: 12
+  medium_risk_refresh_max_months: 24
+  low_risk_refresh_max_months: 36
+  beneficial_owner_change_refresh_business_days: 5
+  sar_filing_calendar_days_from_initial_detection: 30
+  ofac_blocked_property_report_business_days: 10
+data_sensitivity:
+  - PII
+  - financial
+  - regulatory
+  - MNPI
+compliance:
+  - BSA
+  - AML
+  - "FinCEN CDD rule (31 CFR §1010.230)"
+  - "OFAC (31 CFR §501)"
+  - "USA PATRIOT Act §312 (correspondent / private banking EDD)"
+  - FATCA
+  - CRS
+  - GDPR
+  - CCPA
+  - SOX
+signoff:
+  signer: sme-banking
+  reviewed_at: "2026-05-06T00:00:00Z"
+  reviewer_credentials: "domain-sme(banking)"
+  reviewed_findings: ["D-01-banking"]

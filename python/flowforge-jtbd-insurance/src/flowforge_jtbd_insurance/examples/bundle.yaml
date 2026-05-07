@@ -5,24 +5,47 @@ project:
   version: "1.0.0"
 shared:
   roles:
-  - policyholder
-  - claims_adjuster
-  - underwriter
-  - reinsurance_analyst
+    - policyholder
+    - third_party_reporter
+    - claims_intake_specialist
+    - claims_intake_supervisor
+    - claims_adjuster
+    - claims_supervisor
+    - claims_manager
+    - coverage_counsel
+    - siu_investigator
+    - subrogation_specialist
+    - subrogation_supervisor
+    - outside_counsel
+    - underwriter
+    - senior_underwriter
+    - chief_underwriting_officer
+    - cat_desk
+    - compliance_officer
+    - reinsurance_analyst
+    - chief_reinsurance_officer
+    - chief_actuary
+    - chief_financial_officer
   permissions:
-  - ins.claim.create
-  - ins.claim.assess
-  - ins.policy.underwrite
-  - ins.reins.place
-  - ins.subrogation.pursue
+    - ins.claim.create
+    - ins.claim.assess
+    - ins.claim.settle
+    - ins.policy.underwrite
+    - ins.policy.renew
+    - ins.reins.place
+    - ins.subrogation.pursue
+    - ins.fraud.investigate
+    - ins.compliance.review
 jtbds:
-  - id: claim_assess
-    version: "1.0.0"
   - id: claim_fnol
+    version: "1.0.0"
+  - id: claim_assess
     version: "1.0.0"
   - id: policy_underwrite
     version: "1.0.0"
-  - id: reins_place
+  - id: policy_renewal
     version: "1.0.0"
   - id: subrogation
+    version: "1.0.0"
+  - id: reins_place
     version: "1.0.0"

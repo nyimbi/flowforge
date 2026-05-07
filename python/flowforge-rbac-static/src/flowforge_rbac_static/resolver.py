@@ -43,16 +43,52 @@ class StaticRbac:
 
 	# -------------------------------------------------------------- ctors
 
+	@staticmethod
+	def _safe_resolve(path: str | Path, allowed_root: str | Path | None) -> Path:
+		"""Resolve *path* and verify it stays within *allowed_root*.
+
+		E-55 / RB-01: refuses ``../`` style traversal escapes. When
+		``allowed_root`` is ``None`` we keep the legacy behaviour (any
+		path accepted) so existing callers with internal/derived paths
+		are not broken; opting in protects host code that ingests
+		caller-supplied paths.
+		"""
+		resolved = Path(path).expanduser().resolve()
+		if allowed_root is None:
+			return resolved
+		root = Path(allowed_root).expanduser().resolve()
+		try:
+			resolved.relative_to(root)
+		except ValueError as exc:
+			raise ValueError(
+				f"refusing to load RBAC config from {resolved!s}: outside allowed_root {root!s}"
+			) from exc
+		return resolved
+
 	@classmethod
-	def from_yaml(cls, path: str | Path, *, strict: bool = False) -> "StaticRbac":
+	def from_yaml(
+		cls,
+		path: str | Path,
+		*,
+		strict: bool = False,
+		allowed_root: str | Path | None = None,
+	) -> "StaticRbac":
 		import yaml  # type: ignore[import-untyped]
 
-		text = Path(path).read_text()
+		safe_path = cls._safe_resolve(path, allowed_root)
+		text = safe_path.read_text()
 		return cls(yaml.safe_load(text) or {}, strict=strict)
 
 	@classmethod
-	def from_json(cls, path: str | Path, *, strict: bool = False) -> "StaticRbac":
-		text = Path(path).read_text()
+	def from_json(
+		cls,
+		path: str | Path,
+		*,
+		strict: bool = False,
+		allowed_root: str | Path | None = None,
+	) -> "StaticRbac":
+		safe_path = cls._safe_resolve(path, allowed_root)
+		text = safe_path.read_text()
 		return cls(json.loads(text), strict=strict)
 
 	# ----------------------------------------------------- RbacResolver

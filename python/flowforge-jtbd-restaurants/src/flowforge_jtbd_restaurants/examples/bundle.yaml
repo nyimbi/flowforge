@@ -1,28 +1,19 @@
-      project:
-        name: "restaurants-example"
-        package: "restaurants_example"
-        domain: "restaurants"
-        version: "1.0.0"
-      shared:
-        roles:
-      - restaurant_manager
-  - head_chef
-  - inventory_coordinator
-  - service_staff
-        permissions:
-      - rest.order.create
-  - rest.kitchen.ticket.close
-  - rest.inventory.reorder
-  - rest.staff.schedule
-  - rest.waste.record
-      jtbds:
-    - id: close_request
-  version: "1.0.0"
+project:
+  name: restaurants-example
+  package: flowforge_jtbd_restaurants_example
+  domain: restaurants
+  version: 1.0.0
+shared:
+  roles: []
+  permissions: []
+jtbds:
+- id: close_request
+  version: 1.0.0
 - id: initiate_request
-  version: "1.0.0"
+  version: 1.0.0
 - id: process_request
-  version: "1.0.0"
+  version: 1.0.0
 - id: report_outcomes
-  version: "1.0.0"
+  version: 1.0.0
 - id: review_request
-  version: "1.0.0"
+  version: 1.0.0

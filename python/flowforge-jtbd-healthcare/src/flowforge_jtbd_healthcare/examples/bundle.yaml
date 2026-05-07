@@ -1,28 +1,63 @@
-      project:
-        name: "healthcare-example"
-        package: "healthcare_example"
-        domain: "healthcare"
-        version: "1.0.0"
-      shared:
-        roles:
-      - care_coordinator
-  - clinician
-  - billing_specialist
-  - patient_registrar
-        permissions:
-      - hc.admission.create
-  - hc.clinical.note.write
-  - hc.billing.submit
-  - hc.consent.record
-  - hc.discharge.process
-      jtbds:
-    - id: close_request
+project:
+  name: "healthcare-example"
+  package: "healthcare_example"
+  domain: "healthcare"
   version: "1.0.0"
-- id: initiate_request
-  version: "1.0.0"
-- id: process_request
-  version: "1.0.0"
-- id: report_outcomes
-  version: "1.0.0"
-- id: review_request
-  version: "1.0.0"
+  data_sensitivity:
+    - PHI
+  compliance:
+    - HIPAA
+shared:
+  roles:
+    - admitting_clinician
+    - attending_physician
+    - prescribing_provider
+    - ordering_provider
+    - referring_provider
+    - pharmacist
+    - case_manager
+    - utilisation_review_nurse
+    - pathologist
+    - medical_director
+    - care_coordinator
+    - patient_registrar
+    - billing_specialist
+    - payer_prior_auth_reviewer
+    - specialist_intake_coordinator
+    - social_worker
+  permissions:
+    - hc.admission.create
+    - hc.admission.attending_sign
+    - hc.admission.utilisation_review
+    - hc.consent.record
+    - hc.advance_directive.attach
+    - hc.rx.write
+    - hc.rx.epcs_sign
+    - hc.rx.pdmp_query
+    - hc.rx.rems_attestation
+    - hc.rx.dispense_review
+    - hc.lab.order
+    - hc.lab.result_sign
+    - hc.lab.critical_callback
+    - hc.lab.amend_result
+    - hc.lab.public_health_report
+    - hc.referral.create
+    - hc.referral.prior_auth
+    - hc.referral.network_waiver
+    - hc.discharge.process
+    - hc.discharge.medication_reconcile
+    - hc.discharge.ama_consent
+    - hc.billing.submit
+    - hc.gina.disclose
+    - hc.part2.disclose
+jtbds:
+  - id: patient_admission
+    version: "1.0.0"
+  - id: prescription_renewal
+    version: "1.0.0"
+  - id: lab_result_review
+    version: "1.0.0"
+  - id: referral_request
+    version: "1.0.0"
+  - id: discharge_planning
+    version: "1.0.0"

@@ -1,6 +1,6 @@
 [project]
 name = "flowforge-jtbd-hr"
-version = "1.0.0"
+version = "0.0.1"
 description = "flowforge JTBD domain library — Human Resources (Hiring, onboarding, leave, performance)"
 requires-python = ">=3.11"
 dependencies = [
@@ -14,3 +14,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/flowforge_jtbd_hr"]
+
+[tool.uv]
+# E-46 / F-5: domain library not yet reviewed/rebranded. Workspace registers
+# this dir for build discovery, but uv treats it as a virtual member (no
+# wheel is built or installed) until E-48a/E-48b flips this flag back to
+# true after security + product review.
+package = false

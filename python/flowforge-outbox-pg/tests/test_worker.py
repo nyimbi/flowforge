@@ -394,3 +394,163 @@ async def test_run_loop_stops_on_event() -> None:
         await asyncio.wait_for(task, timeout=2.0)
 
     assert "ev" in dispatched
+
+
+# ---------------------------------------------------------------------------
+# audit-2026 E-42 acceptance tests (OB-01..OB-04)
+# ---------------------------------------------------------------------------
+
+
+def test_OB_01_table_name_validated() -> None:
+    """Constructor rejects table names that aren't simple identifiers."""
+
+    reg = HandlerRegistry()
+    bad_names = [
+        "x; DROP TABLE foo",
+        "outbox' OR 1=1 --",
+        "1bad_start",
+        "with space",
+        "with-dash",
+        "with$dollar",
+        "",
+    ]
+    for name in bad_names:
+        with pytest.raises(ValueError, match="invalid outbox table name"):
+            DrainWorker(object(), reg, sqlite_compat=True, table=name)
+
+    # And accepts well-formed names — including schema-qualified.
+    for name in ["outbox", "ff_outbox", "schema.outbox", "_internal.outbox_v2"]:
+        DrainWorker(object(), reg, sqlite_compat=True, table=name)
+
+
+def test_OB_02_sqlite_single_worker() -> None:
+    """sqlite_compat=True + pool_size > 1 → RuntimeError."""
+
+    reg = HandlerRegistry()
+    with pytest.raises(RuntimeError, match="single-writer"):
+        DrainWorker(object(), reg, sqlite_compat=True, pool_size=2)
+    with pytest.raises(RuntimeError, match="single-writer"):
+        DrainWorker(object(), reg, sqlite_compat=True, pool_size=10)
+    # Single-writer SQLite is OK; PG + pool_size > 1 is OK.
+    DrainWorker(object(), reg, sqlite_compat=True, pool_size=1)
+    DrainWorker(object(), reg, sqlite_compat=False, pool_size=8)
+    # pool_size < 1 is invalid.
+    with pytest.raises(ValueError, match="pool_size must be"):
+        DrainWorker(object(), reg, sqlite_compat=False, pool_size=0)
+
+
+async def test_OB_03_db_reconnect() -> None:
+    """run_loop swaps in a fresh connection on connection-loss; counter increments."""
+
+    from flowforge_outbox_pg.worker import _is_connection_lost
+
+    reg = HandlerRegistry()
+    handled: list[str] = []
+
+    async def h(env: OutboxEnvelope) -> None:
+        handled.append(env.kind)
+
+    reg.register("ev", h)
+
+    # First connection: configured to raise once on the very next claim.
+    first_conn = await aiosqlite.connect(":memory:")
+
+    async def reconnect_factory() -> aiosqlite.Connection:
+        new = await aiosqlite.connect(":memory:")
+        worker_setup = DrainWorker(new, reg, sqlite_compat=True)
+        await worker_setup.setup()
+        await worker_setup.enqueue(_env("ev"))
+        return new
+
+    worker = DrainWorker(
+        first_conn,
+        reg,
+        sqlite_compat=True,
+        reconnect_factory=reconnect_factory,
+    )
+    await worker.setup()
+
+    # Inject a connection-lost on the next call.
+    original_execute = first_conn.execute
+    raised = {"count": 0}
+
+    async def bomb(*args: object, **kwargs: object):
+        if raised["count"] == 0:
+            raised["count"] += 1
+            raise OSError("connection reset by peer")
+        return await original_execute(*args, **kwargs)
+
+    first_conn.execute = bomb  # type: ignore[method-assign]
+
+    stop = asyncio.Event()
+    task = asyncio.create_task(
+        worker.run_loop(poll_interval_seconds=0.05, stop_event=stop)
+    )
+    # Give it time to bomb, reconnect, drain.
+    for _ in range(30):
+        await asyncio.sleep(0.05)
+        if worker.reconnects >= 1 and handled:
+            break
+    stop.set()
+    await asyncio.wait_for(task, timeout=2.0)
+
+    assert worker.reconnects == 1, worker.reconnects
+    assert handled == ["ev"], handled
+    # The detector recognises representative connection-lost shapes.
+    assert _is_connection_lost(OSError("connection reset"))
+    assert _is_connection_lost(ConnectionResetError())
+    assert not _is_connection_lost(ValueError("not a connection issue"))
+
+    await first_conn.close()
+
+
+async def test_OB_04_utf8_truncation_never_mid_codepoint() -> None:
+    """last_error truncated by UTF-8 byte budget — multi-byte chars survive."""
+
+    from flowforge_outbox_pg.worker import _truncate_utf8
+
+    # CJK character is 3 bytes UTF-8. 800 chars → 2400 bytes, must truncate.
+    big = "あ" * 800
+    out = _truncate_utf8(big, 2000)
+    encoded = out.encode("utf-8")
+    assert len(encoded) <= 2000, len(encoded)
+    # Decoding the result must succeed — never mid-codepoint.
+    out.encode("utf-8").decode("utf-8")
+    # Emoji (4-byte UTF-8) — same invariant.
+    emoji = "🎉" * 600
+    out2 = _truncate_utf8(emoji, 2000)
+    enc2 = out2.encode("utf-8")
+    assert len(enc2) <= 2000
+    out2.encode("utf-8").decode("utf-8")
+    # Pure ASCII below the budget passes through unchanged.
+    short = "ok" * 100
+    assert _truncate_utf8(short, 2000) == short
+    # Edge: max_bytes=0 returns empty.
+    assert _truncate_utf8("anything", 0) == ""
+
+
+async def test_OB_04_mark_dead_persists_truncated_error() -> None:
+    """The path through _mark_dead writes a truncated, well-formed string."""
+
+    reg = HandlerRegistry()
+
+    async def boom(env: OutboxEnvelope) -> None:
+        # Fail with a multi-byte UTF-8 message larger than 2000 bytes.
+        raise RuntimeError("失敗" * 1500)  # 3 bytes/char × 2 × 1500 = 9000 bytes
+
+    reg.register("ev.boom", boom)
+
+    async with aiosqlite.connect(":memory:") as conn:
+        worker = await _make_worker(conn, reg, max_retries=0)
+        row_id = await worker.enqueue(_env("ev.boom"))
+        await worker.run_once()
+        info = await _row_status(conn, row_id)
+        assert info["status"] == "dead"
+        last = info["last_error"]
+        assert last is not None
+        # Round-trip-decodable, byte-budget-respected.
+        encoded = last.encode("utf-8")
+        assert len(encoded) <= 2000, len(encoded)
+        last.encode("utf-8").decode("utf-8")
+        # Attribution intact.
+        assert last.startswith("RuntimeError:")

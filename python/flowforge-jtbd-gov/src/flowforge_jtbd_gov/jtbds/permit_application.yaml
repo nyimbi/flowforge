@@ -1,0 +1,149 @@
+id: permit_application
+title: "Process Building / Zoning Permit Application"
+version: "1.0.0"
+actor:
+  role: permit_officer
+  external: false
+situation: >-
+  A property owner or licensed contractor submits an application for a
+  building, zoning, or land-use permit subject to local code review and
+  the statutory public-comment / public-hearing period.
+motivation: >-
+  Issue or deny the permit on the merits, on schedule, on a defensible
+  administrative record that survives appeal under state APA-equivalent
+  procedure (5 USC 706 review standard).
+outcome: >-
+  Permit is issued, conditionally issued, or denied; the decision plus
+  supporting record is published to the docket and any required Federal
+  Register / local-gazette notice; statutory review clock is satisfied.
+success_criteria:
+  - "≥ 95% of complete applications adjudicated within the statutory review window"
+  - "100% of applications subject to a public-comment period observe it"
+  - "All denials cite the specific code section and include written notice of appeal rights"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: case_number
+    kind: text
+    label: Case Number
+    required: true
+    pii: false
+  - id: applicant_id
+    kind: party_ref
+    label: Applicant (Party)
+    required: true
+    pii: true
+  - id: jurisdiction
+    kind: text
+    label: Jurisdiction (FIPS 6-4 state+county code)
+    required: true
+    pii: false
+    validation:
+      pattern: "^[0-9]{5,10}$"
+  - id: parcel_id
+    kind: text
+    label: Parcel / APN
+    required: true
+    pii: false
+  - id: permit_type
+    kind: enum
+    label: Permit Type
+    required: true
+    validation:
+      enum:
+        - building_new
+        - building_alteration
+        - zoning_variance
+        - conditional_use
+        - demolition
+        - land_disturbance
+  - id: statutory_basis
+    kind: text
+    label: "Statutory Basis (USC / state code cite)"
+    required: true
+    pii: false
+  - id: cfr_part
+    kind: text
+    label: "CFR / Code Part"
+    required: false
+    pii: false
+edge_cases:
+  - id: ada_accommodation_request
+    condition: "applicant requests reasonable accommodation under ADA Title II (28 CFR Part 35)"
+    handle: branch
+    branch_to: discover
+  - id: language_access_required
+    condition: "applicant has limited English proficiency; Title VI of the Civil Rights Act (42 USC 2000d) language-access services apply"
+    handle: branch
+    branch_to: discover
+  - id: substantive_comment_objection
+    condition: "credible substantive objection received during the public-comment period"
+    handle: escalate
+  - id: statutory_deadline_missed
+    condition: "review window expires without a final decision and a default-issuance / default-denial rule applies under state code"
+    handle: branch
+    branch_to: report
+documents_required:
+  - kind: site_plan
+    min: 1
+    freshness_days: 365
+    av_required: true
+  - kind: notarised_affidavit_of_ownership
+    min: 1
+    freshness_days: 90
+    av_required: true
+  - kind: nepa_environmental_review
+    min: 0
+    max: 1
+    av_required: true
+  - kind: ada_accessibility_plan
+    min: 0
+    max: 1
+    av_required: true
+  - kind: federal_register_or_gazette_notice
+    min: 0
+    max: 1
+    av_required: false
+approvals:
+  - role: permit_officer
+    policy: "1_of_1"
+    tier: 1
+  - role: planning_board
+    policy: "n_of_m"
+    n: 3
+  - role: inspector_general
+    policy: "authority_tier"
+    tier: 3
+sla:
+  warn_pct: 80
+  breach_seconds: 5184000   # 60 calendar days — local code + categorical-exclusion NEPA path
+notifications:
+  - trigger: state_enter
+    channel: email
+    audience: applicant
+  - trigger: state_enter
+    channel: in_app
+    audience: planning_board
+  - trigger: sla_warn
+    channel: email
+    audience: permit_officer
+  - trigger: approved
+    channel: webhook
+    audience: federal_register_or_gazette
+  - trigger: rejected
+    channel: email
+    audience: applicant
+metrics:
+  - "permit_decisions_per_quarter"
+  - "median_review_days"
+  - "denials_with_appeal_filed_pct"
+requires: []
+compliance:
+  - "NIST-800-53"
+data_sensitivity:
+  - "PII"
+  - "regulated"

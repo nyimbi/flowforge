@@ -1,11 +1,33 @@
 id: insurance
 name: "Insurance"
-description: "JTBD domain library for Insurance workflows (Claims, underwriting, reinsurance)."
+description: >-
+  JTBD domain library for Insurance workflows: claims (FNOL,
+  adjudication, subrogation), underwriting (new business, renewal),
+  and reinsurance placement (treaty + facultative).
 package: flowforge-jtbd-insurance
 version: "1.0.0"
 subdomains:
-  - "Claims"
+  - "claims"
   - "underwriting"
   - "reinsurance"
-regulator_hints: []
+regulator_hints:
+  - "NAIC Model Unfair Claim Settlement Practices Act"
+  - "State UCSPA (CA 10 CCR §2695, NY 11 NYCRR §216, FL §626.9541, TX §542)"
+  - "NAIC Credit for Reinsurance Model Law (#785) and Regulation (#786)"
+  - "Fair Credit Reporting Act"
+  - "HIPAA (PHI on bodily-injury / workers-comp claim files)"
+  - "Gramm-Leach-Bliley Act (financial privacy)"
+  - "OFAC sanctions screening (31 CFR §501)"
+  - "Reg 114 Trust (NY 11 NYCRR §126)"
+  - "GDPR / CCPA"
 phase: E2
+signoff:
+  signer: sme-insurance
+  reviewed_at: "2026-05-06T12:00:00Z"
+  reviewer_credentials: "domain-sme(insurance)"
+  reviewed_findings: ["D-01-insurance", "D-02"]
+  notes: >-
+    Real JTBD content authored across FNOL, claim adjudication, new-policy
+    underwriting, renewal underwriting, subrogation recovery, and
+    reinsurance cession. D-02 fix: claim_fnol.actor (policyholder) marked
+    external: true and listed in roles.external_role_ids allow-list.

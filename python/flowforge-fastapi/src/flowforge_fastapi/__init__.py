@@ -25,9 +25,11 @@ from __future__ import annotations
 from typing import Sequence
 
 from .auth import (
+	ConfigError,
 	CookiePrincipalExtractor,
 	PrincipalExtractor,
 	StaticPrincipalExtractor,
+	WSPrincipalExtractor,
 	csrf_cookie_name,
 	csrf_header_name,
 	csrf_protect,
@@ -85,16 +87,27 @@ def mount_routers(
 	)
 	ws = build_ws_router(principal_extractor=principal_extractor)
 
+	# E-41 / FA-04: hub is request-scoped at the app level.  Each
+	# ``mount_routers`` call attaches a fresh :class:`WorkflowEventsHub`
+	# to ``app.state`` and overrides the ``get_events_hub`` dependency
+	# so two FastAPI apps in the same process never share subscribers.
+	# Cross-test leak is structurally impossible.
+	app_hub = WorkflowEventsHub()
+	app.state.flowforge_events_hub = app_hub
+	app.dependency_overrides[get_events_hub] = lambda: app_hub
+
 	app.include_router(designer, prefix=prefix)
 	app.include_router(runtime, prefix=prefix)
 	app.include_router(ws, prefix=prefix)
 
 
 __all__ = [
+	"ConfigError",
 	"CookiePrincipalExtractor",
 	"InstanceStore",
 	"PrincipalExtractor",
 	"StaticPrincipalExtractor",
+	"WSPrincipalExtractor",
 	"WorkflowDefRegistry",
 	"WorkflowEventsHub",
 	"__version__",

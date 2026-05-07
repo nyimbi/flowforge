@@ -1,0 +1,66 @@
+# framework/tests/observability/promql/audit-2026.yml
+#
+# PromQL alert-rule scaffolding for the audit-2026 observability layer
+# (audit-fix-plan §5.4, §10.1). `promtool test rules` walks this file
+# during `make audit-2026-observability`. As tickets land, they replace
+# the placeholder `expr: vector(0)` rules with real PromQL that exercises
+# the per-fix dashboard signal.
+#
+# Naming: <flowforge_audit_2026>_<ticket_id>_<short_kind>
+# Severity:
+#   ticket_severity=p0  → page on alert
+#   ticket_severity=p1  → ticket on alert
+#   ticket_severity=p2  → log-only
+
+groups:
+  - name: audit-2026-engine
+    rules:
+      - alert: flowforge_audit_2026_E32_outbox_dispatch_slow
+        # E-32 / C-01: outbox dispatch latency spikes when txn rollback storms.
+        # Replaced by E-32 with: histogram_quantile(0.99, rate(flowforge_outbox_dispatch_duration_seconds_bucket[5m])) > 5
+        expr: vector(0)
+        for: 5m
+        labels:
+          severity: warning
+          fix_id: E-32
+        annotations:
+          summary: "audit-2026 placeholder: E-32 outbox latency rule"
+          runbook: "https://grafana.flowforge.local/d/audit-2026/E-32"
+
+      - alert: flowforge_audit_2026_E32_concurrent_fire_rejected
+        # E-32 / C-04: surge of `ConcurrentFireRejected` indicates contention or attack.
+        # Replaced by E-32 with: rate(flowforge_engine_fire_rejected_concurrent_total[5m]) > 1
+        expr: vector(0)
+        for: 5m
+        labels:
+          severity: info
+          fix_id: E-32
+        annotations:
+          summary: "audit-2026 placeholder: E-32 concurrent-fire rejection rate"
+
+  - name: audit-2026-audit-chain
+    rules:
+      - alert: flowforge_audit_2026_E37_chain_break
+        # E-37 / AU-01: a non-zero rate of chain breaks is a P0 SOX/HIPAA event.
+        # Replaced by E-37 with: rate(flowforge_audit_chain_breaks_total[5m]) > 0
+        expr: vector(0)
+        for: 1m
+        labels:
+          severity: critical
+          fix_id: E-37
+        annotations:
+          summary: "audit-2026 placeholder: E-37 audit-chain break"
+          runbook: "https://grafana.flowforge.local/d/audit-2026/E-37"
+
+  - name: audit-2026-signing
+    rules:
+      - alert: flowforge_audit_2026_E34_default_secret_used
+        # E-34 / SK-01: any non-zero count of default-secret use in prod is a P0.
+        # Replaced by E-34 with: rate(flowforge_signing_secret_default_used_total[5m]) > 0
+        expr: vector(0)
+        for: 1m
+        labels:
+          severity: critical
+          fix_id: E-34
+        annotations:
+          summary: "audit-2026 placeholder: E-34 signing default secret used"

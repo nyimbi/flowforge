@@ -120,18 +120,46 @@ def create_app(
 	"""Build a FastAPI instance bound to *registry*.
 
 	* ``admin_token`` — when set, the demote / verified endpoints
-	  require ``Authorization: Bearer <token>``. When ``None``, those
-	  endpoints are open (intended only for development).
+	  require ``Authorization: Bearer <token>``.
+
+	  E-58 / JH-04 (audit-fix-plan §4.3): the value may be a single
+	  token OR a comma-separated list of accepted tokens. Any token in
+	  the list authenticates an admin call. This supports zero-downtime
+	  rotation: deploy with ``"old,new"``, wait for clients to flip,
+	  then drop the old entry. Whitespace around each token is stripped.
+
+	  When ``None``, the admin endpoints are open (intended only for
+	  development).
 	"""
+	# E-58 / JH-04: parse the rotation list once at app build time.
+	allowed_tokens: tuple[str, ...] = ()
+	if admin_token is not None:
+		allowed_tokens = tuple(
+			t.strip() for t in admin_token.split(",") if t.strip()
+		)
+		assert allowed_tokens, "admin_token must contain at least one non-empty value"
+
 	app = FastAPI(title="flowforge-jtbd-hub")
 
 	def _require_admin(
 		authorization: str | None = Header(default=None),
 	) -> None:
-		if admin_token is None:
+		if not allowed_tokens:
 			return
-		expected = f"Bearer {admin_token}"
-		if authorization != expected:
+		if not authorization or not authorization.startswith("Bearer "):
+			raise HTTPException(
+				status_code=status.HTTP_401_UNAUTHORIZED,
+				detail="missing or invalid admin token",
+			)
+		offered = authorization[len("Bearer ") :]
+		# Constant-time comparison against every accepted token. O(n) in
+		# the rotation-list size; n is typically 1-3.
+		import hmac as _hmac
+
+		ok = any(
+			_hmac.compare_digest(offered, valid) for valid in allowed_tokens
+		)
+		if not ok:
 			raise HTTPException(
 				status_code=status.HTTP_401_UNAUTHORIZED,
 				detail="missing or invalid admin token",

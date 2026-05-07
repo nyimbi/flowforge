@@ -148,11 +148,12 @@ def _sanitise_description(description: str) -> str:
 # Keyword → regulatory regime. The lists are intentionally short — the
 # editor surfaces these as hints, not as authoritative classifications.
 _COMPLIANCE_KEYWORDS: dict[str, tuple[str, ...]] = {
+	# audit-2026 J-06: dead `"HIPAA, GDPR": ()` placeholder removed —
+	# composite regimes are emitted by union of single-regime hits.
 	"HIPAA": ("patient", "phi", "diagnosis", "medical record", "clinical"),
 	"PCI-DSS": ("credit card", "card number", "pan", "pci", "cvv"),
 	"GDPR": ("eu citizen", "gdpr", "right to be forgotten", "data subject"),
 	"SOX": ("sarbanes", "sox", "financial control", "general ledger"),
-	"HIPAA, GDPR": (),  # placeholder — never actually emitted
 }
 
 _SENSITIVITY_KEYWORDS: dict[str, tuple[str, ...]] = {
@@ -338,45 +339,34 @@ def _extract_json(raw: str) -> str:
 
 	Tolerates: leading/trailing prose, markdown fences, multiple objects
 	(picks the first balanced one).
+
+	audit-2026 J-07: parses via :meth:`json.JSONDecoder.raw_decode` instead
+	of hand-rolled brace counting. ``raw_decode`` consumes the first
+	well-formed JSON value at a given offset and returns its end index,
+	correctly handling escaped braces / quotes / unicode without an
+	in-house state machine.
 	"""
+
 	stripped = raw.strip()
 	# Markdown fence first.
 	match = _JSON_FENCE_RE.search(stripped)
 	if match:
 		stripped = match.group(1).strip()
-	# Find the first balanced { ... } block.
 	start = stripped.find("{")
 	if start == -1:
 		raise NlToJtbdError(
 			"LLM response contained no JSON object",
 			raw_output=raw,
 		)
-	depth = 0
-	in_string = False
-	escape_next = False
-	for index in range(start, len(stripped)):
-		char = stripped[index]
-		if escape_next:
-			escape_next = False
-			continue
-		if char == "\\" and in_string:
-			escape_next = True
-			continue
-		if char == '"':
-			in_string = not in_string
-			continue
-		if in_string:
-			continue
-		if char == "{":
-			depth += 1
-		elif char == "}":
-			depth -= 1
-			if depth == 0:
-				return stripped[start: index + 1]
-	raise NlToJtbdError(
-		"LLM response contained an unbalanced JSON object",
-		raw_output=raw,
-	)
+	decoder = json.JSONDecoder()
+	try:
+		_, end = decoder.raw_decode(stripped, start)
+	except json.JSONDecodeError as exc:
+		raise NlToJtbdError(
+			f"LLM response contained an unbalanced JSON object: {exc.msg}",
+			raw_output=raw,
+		) from exc
+	return stripped[start:end]
 
 
 # ---------------------------------------------------------------------------

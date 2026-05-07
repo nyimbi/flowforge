@@ -58,6 +58,9 @@ class FakeSpiceDBClient:
 		self.check_calls: int = 0
 		self.write_calls: int = 0
 		self.lookup_calls: int = 0
+		# E-55 / RB-02: last consistency.at_least_as_fresh value seen on a
+		# read RPC. ``None`` means the resolver did not attach a hint.
+		self.last_consistency_token: str | None = None
 
 	# ------------------------------------------------- public test helpers
 
@@ -81,6 +84,12 @@ class FakeSpiceDBClient:
 		request: _wire.CheckPermissionRequest,
 	) -> _wire.CheckPermissionResponse:
 		self.check_calls += 1
+		consistency = getattr(request, "consistency", None)
+		self.last_consistency_token = (
+			consistency.at_least_as_fresh
+			if consistency is not None and getattr(consistency, "at_least_as_fresh", "")
+			else None
+		)
 		key = (
 			f"{request.resource.object_type}:{request.resource.object_id}",
 			request.permission,
@@ -119,6 +128,12 @@ class FakeSpiceDBClient:
 		request: _wire.LookupSubjectsRequest,
 	) -> AsyncIterator[_LookupSubjectsItem]:
 		self.lookup_calls += 1
+		consistency = getattr(request, "consistency", None)
+		self.last_consistency_token = (
+			consistency.at_least_as_fresh
+			if consistency is not None and getattr(consistency, "at_least_as_fresh", "")
+			else None
+		)
 		return self._lookup(request)
 
 	# ---------------------------------------------------------- internals

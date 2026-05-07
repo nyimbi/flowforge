@@ -1,28 +1,19 @@
-      project:
-        name: "utilities-example"
-        package: "utilities_example"
-        domain: "utilities"
-        version: "1.0.0"
-      shared:
-        roles:
-      - meter_reader
-  - outage_coordinator
-  - billing_specialist
-  - field_technician
-        permissions:
-      - util.meter.read
-  - util.outage.report
-  - util.billing.generate
-  - util.connection.create
-  - util.disconnection.process
-      jtbds:
-    - id: close_request
-  version: "1.0.0"
+project:
+  name: utilities-example
+  package: flowforge_jtbd_utilities_example
+  domain: utilities
+  version: 1.0.0
+shared:
+  roles: []
+  permissions: []
+jtbds:
+- id: close_request
+  version: 1.0.0
 - id: initiate_request
-  version: "1.0.0"
+  version: 1.0.0
 - id: process_request
-  version: "1.0.0"
+  version: 1.0.0
 - id: report_outcomes
-  version: "1.0.0"
+  version: 1.0.0
 - id: review_request
-  version: "1.0.0"
+  version: 1.0.0

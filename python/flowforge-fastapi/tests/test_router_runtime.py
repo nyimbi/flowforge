@@ -209,7 +209,10 @@ async def test_csrf_protection_enforced_when_enabled(
 	@app.get("/_bootstrap")
 	async def bootstrap() -> JSONResponse:
 		response = JSONResponse({"token": ""})
-		token = issue_csrf_token(response)
+		# E-41 / FA-02: dev_mode=True is required to opt out of the
+		# Secure cookie default — the ASGI test transport uses plain
+		# http://testserver which would otherwise drop the cookie.
+		token = issue_csrf_token(response, secure=False, dev_mode=True)
 		response.body = JSONResponse({"token": token}).body
 		# JSONResponse caches Content-Length on render; recompute.
 		response.headers["content-length"] = str(len(response.body))
@@ -240,12 +243,16 @@ async def test_csrf_protection_enforced_when_enabled(
 		assert ok.status_code == 201
 
 
-async def test_state_change_publishes_to_hub(client: httpx.AsyncClient) -> None:
-	"""A successful event publishes a state-change envelope to the hub."""
+async def test_state_change_publishes_to_hub(client: httpx.AsyncClient, app: FastAPI) -> None:
+	"""A successful event publishes a state-change envelope to the hub.
 
-	from flowforge_fastapi import get_events_hub
+	E-41 / FA-04: ``mount_routers`` now wires a per-app hub on
+	``app.state.flowforge_events_hub`` and overrides the
+	``get_events_hub`` dependency, so subscribers must use the
+	app-scoped hub to receive published envelopes.
+	"""
 
-	hub = get_events_hub()
+	hub = app.state.flowforge_events_hub
 	queue = await hub.subscribe()
 
 	create = await client.post(

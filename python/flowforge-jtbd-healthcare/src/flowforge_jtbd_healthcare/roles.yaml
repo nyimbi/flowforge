@@ -1,9 +1,50 @@
 roles:
+  - name: admitting_clinician
+    default_tier: 2
+    description: "Clinician (often hospitalist or ED physician) who writes the admit orders."
+  - name: attending_physician
+    default_tier: 3
+    description: "Attending of record responsible for the inpatient stay; signs admit and discharge orders."
+  - name: prescribing_provider
+    default_tier: 2
+    description: "Provider with active prescriptive authority (and DEA registration for controlled substances)."
+  - name: ordering_provider
+    default_tier: 2
+    description: "Provider who orders diagnostic studies (labs, imaging) and is the recipient of critical-value notifications."
+  - name: referring_provider
+    default_tier: 2
+    description: "Primary-care or attending provider who initiates a referral to a specialist."
+  - name: pharmacist
+    default_tier: 2
+    description: "Licensed pharmacist responsible for prospective DUR and dispensing; reviews medication reconciliation for high-risk patients."
+  - name: case_manager
+    default_tier: 2
+    description: "RN or licensed clinical social worker who coordinates discharge planning and post-acute hand-off."
+  - name: utilisation_review_nurse
+    default_tier: 2
+    description: "RN reviewer who applies InterQual or MCG criteria for level-of-care decisions."
+  - name: pathologist
+    default_tier: 3
+    description: "Board-certified pathologist who signs anatomic-path and complex-molecular results."
+  - name: medical_director
+    default_tier: 4
+    description: "Physician medical director responsible for clinical quality and critical-value escalations."
   - name: care_coordinator
     default_tier: 1
-  - name: clinician
-    default_tier: 1
-  - name: billing_specialist
-    default_tier: 1
+    description: "Coordinates appointments and patient outreach across services."
   - name: patient_registrar
     default_tier: 1
+    description: "Front-desk or admissions registrar responsible for demographic and insurance capture."
+  - name: billing_specialist
+    default_tier: 1
+    description: "Revenue-cycle staff who handle claims, prior-auth follow-up, and patient financial counselling."
+  - name: payer_prior_auth_reviewer
+    default_tier: 2
+    description: "External health-plan reviewer (medical director or nurse) who adjudicates prior-authorization."
+    external: true
+  - name: specialist_intake_coordinator
+    default_tier: 1
+    description: "Specialist office staff who triage and accept incoming referrals."
+  - name: social_worker
+    default_tier: 2
+    description: "Licensed social worker who handles AMA, behavioural-health, and unhoused-patient escalations."

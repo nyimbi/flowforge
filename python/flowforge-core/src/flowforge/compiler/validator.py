@@ -22,6 +22,7 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 from ..dsl import WorkflowDef
+from ..expr import check_arity
 
 
 class ValidationError(Exception):
@@ -113,18 +114,77 @@ def _check_subworkflow_cycle(wd: WorkflowDef, report: ValidationReport) -> None:
 			report.errors.append(f"subworkflow cycle: {s.name!r} -> {wd.key!r}")
 
 
-def _check_lookup_permission(wd: WorkflowDef, report: ValidationReport) -> None:
-	# Heuristic: an effect with kind=http_call hitting "/lookup" or a guard
-	# that uses ``var: lookup.*`` should be paired with a permission gate.
+def _check_expr_arity(wd: WorkflowDef, report: ValidationReport) -> None:
+	"""Compile-time arity check for guard / effect expressions (audit-2026 C-07).
+
+	Walks every ``Guard.expr`` and ``Effect.expr`` and surfaces operator
+	calls with the wrong arity. Pairing this with the frozen registry
+	(C-06) gives us replay determinism and prevents wrong-arity calls
+	from reaching the engine at runtime.
+	"""
+
 	for t in wd.transitions:
-		uses_lookup = False
-		for g in t.guards:
-			if "lookup" in json.dumps(g.expr):
-				uses_lookup = True
-				break
-		for e in t.effects:
-			if e.kind == "http_call" and (e.url or "").startswith("/lookup"):
-				uses_lookup = True
+		for i, g in enumerate(t.guards):
+			path = f"transition {t.id!r}.guards[{i}].expr"
+			report.errors.extend(check_arity(g.expr, path=path))
+		for i, e in enumerate(t.effects):
+			if e.expr is None:
+				continue
+			path = f"transition {t.id!r}.effects[{i}].expr"
+			report.errors.extend(check_arity(e.expr, path=path))
+
+
+def _expr_invokes_lookup(expr: Any) -> bool:
+	"""Walk an expression AST and return True iff any node *invokes* a
+	``lookup`` operator (or a ``var`` reference under ``lookup.*``).
+
+	E-39 / C-10: this replaces the previous ``"lookup" in json.dumps(...)``
+	substring heuristic, which would falsely flag an unrelated string
+	literal like ``"lookup_failed"`` and emit a misleading
+	permission-gate warning.
+
+	The walker only looks at *operator names* (the single-key dict head)
+	and ``var: lookup.*`` paths — string-literal payloads and value
+	positions are ignored.
+	"""
+
+	if isinstance(expr, dict):
+		# Operator dict: single-key {op: args}. The op name is the key.
+		if len(expr) == 1:
+			(op, arg), = expr.items()
+			if op == "lookup":
+				return True
+			if op == "var" and isinstance(arg, str) and arg.startswith("lookup."):
+				return True
+			# Recurse into the args (values, lists, nested dicts).
+			return _expr_invokes_lookup(arg)
+		# Multi-key dict (rare; usually a parsed object literal). Walk values.
+		return any(_expr_invokes_lookup(v) for v in expr.values())
+	if isinstance(expr, list):
+		return any(_expr_invokes_lookup(v) for v in expr)
+	# Bare string / number / bool / None — never an op invocation.
+	return False
+
+
+def _check_lookup_permission(wd: WorkflowDef, report: ValidationReport) -> None:
+	"""A transition that calls a ``lookup`` op (or ``http_call`` to a
+	``/lookup`` URL) must be paired with a permission gate.
+
+	E-39 / C-10: the guard expression walker is AST-aware (see
+	:func:`_expr_invokes_lookup`) so a literal string ``"lookup_failed"``
+	does not trigger a false positive.
+	"""
+
+	for t in wd.transitions:
+		uses_lookup = any(_expr_invokes_lookup(g.expr) for g in t.guards)
+		if not uses_lookup:
+			for e in t.effects:
+				if e.kind == "http_call" and (e.url or "").startswith("/lookup"):
+					uses_lookup = True
+					break
+				if e.expr is not None and _expr_invokes_lookup(e.expr):
+					uses_lookup = True
+					break
 		has_perm_gate = any(g.kind == "permission" for g in t.gates)
 		if uses_lookup and not has_perm_gate:
 			report.warnings.append(
@@ -164,6 +224,7 @@ def validate(data: dict[str, Any] | WorkflowDef, *, strict: bool = False) -> Val
 	_check_state_topology(wd, report)
 	_check_priorities(wd, report)
 	_check_subworkflow_cycle(wd, report)
+	_check_expr_arity(wd, report)
 	_check_lookup_permission(wd, report)
 
 	if strict and report.errors:

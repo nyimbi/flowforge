@@ -1,11 +1,21 @@
 permissions:
-  - name: gov.permit.create
-    description: "Gov Permit Create"
-  - name: gov.case.open
-    description: "Gov Case Open"
-  - name: gov.license.issue
-    description: "Gov License Issue"
-  - name: gov.inspection.schedule
-    description: "Gov Inspection Schedule"
-  - name: gov.notice.issue
-    description: "Gov Notice Issue"
+  - name: gov.permit.application.review
+    description: "Review a building / zoning permit application"
+  - name: gov.permit.application.decide
+    description: "Issue, conditionally issue, or deny a permit"
+  - name: gov.foia.request.process
+    description: "Process a FOIA / public-records request"
+  - name: gov.foia.request.exempt
+    description: "Apply a FOIA exemption / redaction"
+  - name: gov.benefit.eligibility.determine
+    description: "Determine means-tested benefit eligibility"
+  - name: gov.benefit.eligibility.appeal
+    description: "Adjudicate a benefit-eligibility appeal / fair hearing"
+  - name: gov.rulemaking.docket.ingest
+    description: "Ingest and disposition public comments on a rulemaking docket"
+  - name: gov.rulemaking.docket.publish
+    description: "Publish a final rule and Federal Register notice"
+  - name: gov.procurement.award.review
+    description: "Review and award a public-procurement contract"
+  - name: gov.procurement.award.protest
+    description: "Process a bid-protest filing"

@@ -3,14 +3,23 @@
  * `visible_if` / `required_if` / `disabled_if` / `computed.expr` clauses.
  *
  * Mirrors the operator subset declared in flowforge-core's expr/evaluator.py
- * to keep frontend + backend behavior aligned.
+ * to keep frontend + backend behavior aligned. The cross-runtime conformance
+ * fixture at `framework/tests/cross_runtime/fixtures/expr_parity_200.json`
+ * exercises both runtimes with byte-identical expected outputs (audit-2026
+ * E-43, architecture invariant 5).
  *
  * Forms supported:
  *   - bare literals: string, number, boolean, null, array, object
  *   - "$.field.path"     -> read from values
  *   - { op: [arg1, arg2, ...] }
  *
- * Unknown operators throw — never silently return a value.
+ * Unknown operator semantics (audit-2026 JS-01, post-fix):
+ *   - return false. Fail-safe — guards using `evaluateBoolean` collapse
+ *     to false rather than throwing into a UI render path.
+ *
+ * Equality semantics (audit-2026 JS-02, post-fix):
+ *   - strict equality only (`===` / `!==`). Loose null-equality removed
+ *     so JSON-typed inputs compare identically to the Python `_eq` op.
  */
 
 import type { FormValues } from "./types.js";
@@ -46,14 +55,16 @@ const OPS = new Set([
 ]);
 
 function readPath(values: FormValues, path: string): unknown {
-	if (!path.startsWith(PATH_PREFIX)) return undefined;
+	if (!path.startsWith(PATH_PREFIX)) return null;
 	const trimmed = path.slice(PATH_PREFIX.length);
 	if (trimmed === "") return values;
 	const segments = trimmed.split(".");
 	let cur: unknown = values;
 	for (const seg of segments) {
-		if (cur == null || typeof cur !== "object") return undefined;
-		cur = (cur as Record<string, unknown>)[seg];
+		if (cur == null || typeof cur !== "object") return null;
+		const next = (cur as Record<string, unknown>)[seg];
+		if (next === undefined) return null; // audit-2026 E-43: null parity with Python None
+		cur = next;
 	}
 	return cur;
 }
@@ -72,6 +83,26 @@ function toNumber(v: unknown): number {
 	return Number.NaN;
 }
 
+/**
+ * Same-type ordered compare. Strings → lexicographic, numbers → numeric.
+ * Mixed types fall back to numeric coercion (matches the legacy JS surface
+ * but diverges from Python; the cross-runtime fixture avoids mixed types).
+ *
+ * Returns the sign: -1 if a<b, 0 if equal, 1 if a>b.
+ */
+function orderedCompare(a: unknown, b: unknown): number {
+	if (typeof a === "string" && typeof b === "string") {
+		if (a < b) return -1;
+		if (a > b) return 1;
+		return 0;
+	}
+	const na = toNumber(a);
+	const nb = toNumber(b);
+	if (na < nb) return -1;
+	if (na > nb) return 1;
+	return 0;
+}
+
 export function evaluate(expr: unknown, values: FormValues): unknown {
 	if (expr == null) return expr;
 	if (isPathRef(expr)) return readPath(values, expr);
@@ -86,24 +117,31 @@ export function evaluate(expr: unknown, values: FormValues): unknown {
 	}
 	const op = keys[0]!;
 	if (!OPS.has(op)) {
-		throw new Error(`flowforge.expr: unknown operator "${op}"`);
+		// audit-2026 JS-01: unknown ops fall through to false instead of
+		// throwing. Guards (`evaluateBoolean`) collapse to false rather than
+		// crashing the render path; this also avoids a parity divergence
+		// with the Python evaluator's "literal dict" surface (truthy in JS,
+		// truthy in Python).
+		return false;
 	}
 	const raw = obj[op];
 	const args = Array.isArray(raw) ? raw.map((a) => evaluate(a, values)) : [evaluate(raw, values)];
 
 	switch (op) {
 		case "==":
-			return args[0] === args[1] || (args[0] == null && args[1] == null);
+			// audit-2026 JS-02: strict equality only. Loose null-equality
+			// removed so JSON-typed inputs match the Python `_eq` operator.
+			return args[0] === args[1];
 		case "!=":
-			return !(args[0] === args[1] || (args[0] == null && args[1] == null));
+			return args[0] !== args[1];
 		case ">":
-			return toNumber(args[0]) > toNumber(args[1]);
+			return orderedCompare(args[0], args[1]) > 0;
 		case ">=":
-			return toNumber(args[0]) >= toNumber(args[1]);
+			return orderedCompare(args[0], args[1]) >= 0;
 		case "<":
-			return toNumber(args[0]) < toNumber(args[1]);
+			return orderedCompare(args[0], args[1]) < 0;
 		case "<=":
-			return toNumber(args[0]) <= toNumber(args[1]);
+			return orderedCompare(args[0], args[1]) <= 0;
 		case "and":
 			return args.every(Boolean);
 		case "or":

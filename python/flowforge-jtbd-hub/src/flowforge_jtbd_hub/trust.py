@@ -27,8 +27,9 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import platformdirs
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 
 class TrustConfigError(ValueError):
@@ -95,8 +96,18 @@ class TrustResolution:
 # ---------------------------------------------------------------------------
 
 
-_USER_TRUST_PATH = Path.home() / ".flowforge" / "trust.yaml"
-_SYSTEM_TRUST_PATH = Path("/etc/flowforge/trust.yaml")
+# E-58 / JH-05: cross-platform path resolution via platformdirs.
+# On Linux this still maps to ``~/.config/flowforge/trust.yaml`` and
+# ``/etc/xdg/flowforge/trust.yaml``-equivalent locations; on macOS it's
+# ``~/Library/Application Support/flowforge/trust.yaml`` and
+# ``/Library/Application Support/flowforge/trust.yaml``; on Windows it
+# resolves under ``%APPDATA%`` / ``%PROGRAMDATA%`` as expected.
+_USER_TRUST_PATH = (
+	Path(platformdirs.user_config_dir("flowforge", appauthor=False)) / "trust.yaml"
+)
+_SYSTEM_TRUST_PATH = (
+	Path(platformdirs.site_config_dir("flowforge", appauthor=False)) / "trust.yaml"
+)
 
 
 def resolve_trust_config(
@@ -198,7 +209,10 @@ def _load_yaml_trust(path: Path) -> TrustConfig:
 		raise TrustConfigError(f"trust file {path} must be a mapping")
 	try:
 		return TrustConfig.model_validate(raw)
-	except Exception as exc:
+	except ValidationError as exc:
+		# E-58 / JH-06: narrowed from bare ``except Exception`` so that
+		# OOM, KeyboardInterrupt, and unrelated bugs propagate instead
+		# of being re-wrapped as a (misleading) TrustConfigError.
 		raise TrustConfigError(f"invalid trust config in {path}: {exc}") from exc
 
 
@@ -216,7 +230,8 @@ def _load_pyproject_trust(path: Path) -> TrustConfig | None:
 		)
 	try:
 		return TrustConfig.model_validate(trust)
-	except Exception as exc:
+	except ValidationError as exc:
+		# E-58 / JH-06: narrowed from bare ``except Exception``.
 		raise TrustConfigError(
 			f"invalid trust config in {path} [tool.flowforge.trust]: {exc}"
 		) from exc

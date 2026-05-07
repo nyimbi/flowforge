@@ -1,0 +1,139 @@
+id: account_opening_kyc
+title: "Open Deposit Account with KYC + Sanctions Screen"
+version: "1.0.0"
+domain: banking
+actor:
+  role: bsa_compliance_officer
+  external: false
+  capacity: approver
+situation: >-
+  A retail or business prospect has submitted a CIP (Customer Identification
+  Program) application package and operations needs to open a deposit account
+  only after KYC tiering, OFAC/sanctions screening, and beneficial-ownership
+  capture (FinCEN 31 CFR §1010.230) clear.
+motivation: >-
+  Funded relationship within the bank's BSA/AML risk appetite; meet 31 CFR
+  §1020.220 CIP timing (verify identity within a reasonable time of account
+  opening) and avoid onboarding a sanctioned or high-risk party.
+outcome: >-
+  Account opened at the correct KYC tier, OFAC screening logged with a
+  sanctions_check_id, beneficial owners certified, CIP file complete, and a
+  welcome pack issued. Where risk indicators trigger EDD or SAR review, the
+  account is held until BSA officer signoff.
+success_criteria:
+  - "KYC tier and CIP status recorded before first transaction is permitted"
+  - "OFAC/SDN screening hit-rate cleared or escalated within 1 business day"
+  - "Beneficial-ownership certification on file for legal entity customers (FinCEN CDD rule)"
+  - "Account active within 1 business day of all clearances"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: account_number
+    kind: text
+    label: "Account Number"
+    pii: true
+    sensitivity: financial
+  - id: routing_number
+    kind: text
+    label: "ABA Routing Number"
+    pii: false
+  - id: kyc_tier
+    kind: enum
+    label: "KYC Tier"
+    options: ["tier_1_simplified", "tier_2_standard", "tier_3_enhanced"]
+    pii: false
+  - id: sanctions_check_id
+    kind: text
+    label: "OFAC/SDN Screening Reference"
+    pii: false
+  - id: customer_risk_rating
+    kind: enum
+    label: "AML Customer Risk Rating"
+    options: ["low", "medium", "high"]
+    pii: false
+  - id: cip_status
+    kind: enum
+    label: "CIP Status (31 CFR §1020.220)"
+    options: ["pending", "verified", "exception", "failed"]
+    pii: false
+  - id: pep_flag
+    kind: boolean
+    label: "Politically Exposed Person Flag"
+    pii: true
+edge_cases:
+  - id: ofac_sdn_potential_match
+    description: >-
+      Sanctions screening returns a potential SDN/SSI match. Account opening
+      pauses; case routed to BSA officer for adjudication; if confirmed, file
+      OFAC blocked-property report within 10 business days (31 CFR §501.603).
+  - id: missing_beneficial_owner_cert
+    description: >-
+      Legal entity customer fails to certify beneficial owners ≥25% equity or
+      a single controlling individual per FinCEN CDD rule. Application held
+      and customer re-contacted; account not opened.
+  - id: cip_exception_documentary
+    description: >-
+      Documentary CIP fails (e.g., expired ID); fall back to non-documentary
+      verification (credit bureau, public records) and record exception.
+documents_required:
+  - id: government_id
+    description: "Government-issued photo ID (driver licence, passport, state ID)"
+    retention_years: 5
+  - id: beneficial_ownership_cert
+    description: "FinCEN beneficial ownership certification form (legal entities)"
+    retention_years: 5
+  - id: tin_w9_or_w8
+    description: "TIN/SSN documentation: W-9 (US persons) or W-8BEN (non-US)"
+    retention_years: 5
+  - id: source_of_funds_attestation
+    description: "Source-of-funds attestation for tier_3 / high-risk customers"
+    retention_years: 5
+approvals:
+  - role: bsa_compliance_officer
+    when: "customer_risk_rating == 'high' or pep_flag == true or sanctions_check_id_status == 'potential_match'"
+    rationale: "BSA/AML EDD signoff required for high-risk or PEP customers"
+  - role: branch_operations_manager
+    when: "kyc_tier == 'tier_3_enhanced'"
+    rationale: "Dual approval for enhanced due diligence accounts"
+notifications:
+  - id: customer_welcome
+    channel: email
+    audience: customer
+    trigger: account_activated
+  - id: bsa_alert_sanctions
+    channel: case_queue
+    audience: bsa_team
+    trigger: sanctions_potential_match
+  - id: fincen_sar_filing
+    channel: bsa_efile
+    audience: fincen
+    trigger: sar_eligible_event
+sla:
+  open_to_active_business_days: 1
+  sanctions_adjudication_business_days: 1
+  ofac_blocked_property_report_business_days: 10
+  sar_filing_calendar_days_from_initial_detection: 30
+  ctr_filing_calendar_days: 15
+data_sensitivity:
+  - PII
+  - financial
+  - regulatory
+compliance:
+  - BSA
+  - AML
+  - "OFAC (31 CFR §501)"
+  - "USA PATRIOT Act §326 (CIP)"
+  - "FinCEN CDD rule (31 CFR §1010.230)"
+  - "Reg DD (12 CFR §1030)"
+  - FATCA
+  - GDPR
+  - CCPA
+signoff:
+  signer: sme-banking
+  reviewed_at: "2026-05-06T00:00:00Z"
+  reviewer_credentials: "domain-sme(banking)"
+  reviewed_findings: ["D-01-banking"]

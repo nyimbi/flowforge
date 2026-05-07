@@ -8,15 +8,27 @@ Public entry points:
 """
 
 from .fire import Instance, FireResult, fire, new_instance
-from .saga import SagaLedger
+from .saga import (
+	CompensationHandler,
+	CompensationReport,
+	CompensationWorker,
+	SagaLedger,
+	SagaQueriesProtocol,
+	SagaStep,
+)
 from .signals import SignalCorrelator
 from .snapshots import InMemorySnapshotStore
 
 __all__ = [
+	"CompensationHandler",
+	"CompensationReport",
+	"CompensationWorker",
 	"FireResult",
 	"InMemorySnapshotStore",
 	"Instance",
 	"SagaLedger",
+	"SagaQueriesProtocol",
+	"SagaStep",
 	"SignalCorrelator",
 	"fire",
 	"new_instance",

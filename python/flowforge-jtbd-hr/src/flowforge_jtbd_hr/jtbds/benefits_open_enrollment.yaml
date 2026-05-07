@@ -1,0 +1,266 @@
+id: benefits_open_enrollment
+title: "Run Annual Benefits Open Enrolment with Qualifying-Life-Event Handling"
+version: "1.0.0"
+actor:
+  role: benefits_administrator
+  external: false
+situation: >-
+  Annual open enrolment window is open. Employees must elect medical, dental,
+  vision, FSA / HSA, life, disability, voluntary benefits, and confirm
+  dependents and beneficiaries. Outside the window, only Section 125
+  qualifying life events permit mid-year changes (26 CFR §1.125-4).
+motivation: >-
+  Comply with Section 125 cafeteria-plan irrevocability, ACA affordability /
+  minimum-essential-coverage, and ERISA / HIPAA notice obligations; ensure
+  carrier files (EDI 834) and payroll deductions reconcile.
+outcome: >-
+  Elections collected, dependent eligibility verified, EDI 834 files
+  delivered to carriers without exception, payroll deductions configured
+  for the new plan year, and ACA reporting prerequisites captured.
+success_criteria:
+  - "100% of benefits-eligible employees have a recorded election or default applied"
+  - "Section 125 changes outside window have a documented QLE within 30/60-day window"
+  - "ACA Form 1095-C data captured for full plan year (26 USC §6056)"
+  - "Carrier 834 reconciliation discrepancies < 0.5%"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: employee_id
+    kind: text
+    label: "Employee ID"
+    pii: true
+  - id: enrolment_year
+    kind: text
+    label: "Plan year (e.g., 2027)"
+    pii: false
+  - id: enrolment_event_type
+    kind: enum
+    label: "Enrolment event"
+    values:
+      - new_hire
+      - annual_open_enrolment
+      - qle_marriage
+      - qle_divorce
+      - qle_birth_adoption
+      - qle_death_dependent
+      - qle_loss_of_other_coverage
+      - qle_gain_of_other_coverage
+      - qle_medicare_medicaid_chip
+      - qle_dependent_eligibility_change
+      - qle_court_order_qmcso
+      - qle_residence_change
+      - qle_employment_status_change
+    pii: true
+  - id: medical_plan
+    kind: enum
+    label: "Medical plan elected"
+    values:
+      - hdhp_with_hsa
+      - ppo
+      - hmo
+      - epo
+      - waived
+    pii: true
+  - id: hsa_contribution_annual
+    kind: number
+    label: "HSA annual contribution (employee + employer)"
+    pii: true
+  - id: fsa_health_election
+    kind: number
+    label: "Health FSA election (subject to 26 USC §125 limit)"
+    pii: true
+  - id: fsa_dependent_care_election
+    kind: number
+    label: "Dependent-care FSA election (subject to 26 USC §129 limit)"
+    pii: true
+  - id: dependents_enrolled
+    kind: number
+    label: "Count of dependents enrolled (drives eligibility verification)"
+    pii: true
+  - id: beneficiaries_designated
+    kind: number
+    label: "Beneficiary designations on life / 401(k)"
+    pii: true
+  - id: qle_event_date
+    kind: date
+    label: "QLE event date (anchors 30 / 60-day election window)"
+    pii: true
+  - id: qle_documentation_status
+    kind: enum
+    label: "QLE supporting-document status"
+    values:
+      - pending
+      - received
+      - insufficient
+      - approved
+      - rejected
+    pii: true
+  - id: aca_safe_harbor
+    kind: enum
+    label: "ACA affordability safe harbor used (26 CFR §54.4980H-5)"
+    values:
+      - w2_wages
+      - rate_of_pay
+      - federal_poverty_line
+      - none_required
+    pii: false
+  - id: medicare_eligibility
+    kind: bool
+    label: "Employee or dependent Medicare-eligible (drives MSP analysis)"
+    pii: true
+  - id: domestic_partner_imputed_income
+    kind: bool
+    label: "Domestic-partner coverage triggers imputed income (IRC §152)"
+    pii: true
+edge_cases:
+  - id: qle_outside_30_day_window
+    description: >-
+      Employee submits QLE more than 30 days after the event (60 days for
+      birth/adoption/CHIPRA loss-of-coverage). Section 125 irrevocability
+      generally bars the change.
+    handling: "Reject mid-year change; document; remind employee of next open enrolment; assess HIPAA special-enrolment 60-day window where applicable (29 CFR §2590.701-6)."
+  - id: qmcso_received
+    description: >-
+      Court issues a Qualified Medical Child Support Order (29 USC §1169).
+    handling: "Determine QMCSO status within 40 business days; enrol child regardless of plan year; notify plan administrator and parents."
+  - id: ada_accommodation_for_enrolment
+    description: >-
+      Employee with disability needs accessible enrolment alternative
+      (screen-reader, paper form, extended time).
+    handling: "Provide accommodation; do NOT extend window for ineligible employees; document interactive process."
+  - id: imputed_income_dp_coverage
+    description: >-
+      Employee covers a non-tax-dependent domestic partner; fair-market
+      value of employer contribution must be imputed (IRC §61).
+    handling: "Calculate imputed income each pay period; reflect on W-2 box 14 (or per employer policy); coordinate with payroll."
+  - id: hsa_disqualifying_coverage
+    description: >-
+      Employee elects HDHP + HSA but is also covered by a general-purpose
+      health FSA or spouse's non-HDHP plan, breaking HSA eligibility
+      (26 USC §223).
+    handling: "Block HSA contributions; offer limited-purpose FSA alternative; if contributions already made, run excess-contribution correction."
+  - id: cobra_election_into_open_enrolment
+    description: >-
+      COBRA-qualified beneficiary's election window overlaps open enrolment
+      and they want to change plan options offered to active employees.
+    handling: "Honour COBRA right to change at open enrolment (29 CFR §2590.606-4); coordinate carrier and TPA."
+  - id: erisa_5500_threshold_crossed
+    description: >-
+      Plan participant count crossed the 100-participant threshold; Form 5500
+      schedule changes (e.g., audited financials required for funded plans).
+    handling: "Notify external auditor; budget for plan audit; verify SAR distribution."
+documents_required:
+  - id: spd
+    label: "Summary Plan Description"
+    statute: "29 USC §1022; 29 CFR §2520.102-3"
+    retention: "Most recent + all SMMs for 6 years (29 USC §1027)"
+  - id: sbc
+    label: "Summary of Benefits and Coverage"
+    statute: "ACA / 42 USC §300gg-15; 29 CFR §2590.715-2715"
+    retention: "Issued each plan year; 6 years"
+  - id: enrolment_confirmation
+    label: "Per-employee enrolment confirmation"
+    retention: "Duration of employment + 6 years"
+  - id: qle_supporting_docs
+    label: "QLE supporting documents (marriage cert, birth cert, EOB of loss of coverage, court order)"
+    retention: "6 years (ERISA recordkeeping)"
+  - id: form_1095_c
+    label: "ACA Form 1095-C (employer-provided health insurance offer & coverage)"
+    statute: "26 USC §6056"
+    retention: "4 years post-filing (IRS)"
+  - id: erisa_sar
+    label: "ERISA Summary Annual Report (welfare plans subject to Form 5500)"
+    statute: "29 CFR §2520.104b-10"
+    retention: "6 years"
+  - id: hipaa_notice_of_privacy_practices
+    label: "HIPAA Notice of Privacy Practices (group health plan)"
+    statute: "45 CFR §164.520"
+    retention: "6 years"
+approvals:
+  - id: benefits_admin_review
+    role: benefits_administrator
+    scope: "Validate elections and dependent eligibility"
+    capacity: approver
+  - id: hrbp_review
+    role: hr_business_partner
+    scope: "QLE adjudication and exception handling"
+    capacity: approver
+  - id: comp_committee
+    role: comp_committee
+    scope: "Plan-design changes affecting employer subsidy or executive carve-outs"
+    capacity: approver
+  - id: legal_review
+    role: legal
+    scope: "Plan amendments, QMCSO determinations, ERISA fiduciary actions"
+    capacity: approver
+notifications:
+  - id: notify_employee
+    channel: email
+    audience: employee
+    trigger: "Open-enrolment opening, midpoint reminder, T-3 days closing reminder, election confirmation"
+  - id: notify_dependents_at_majority
+    channel: postal
+    audience: dependent_age_26_aging_off
+    trigger: "Birthday + COBRA QE notice (29 USC §1166)"
+  - id: notify_payroll
+    channel: hris_event
+    audience: payroll
+    trigger: "On election finalisation; per-pay imputed-income load"
+  - id: notify_carriers
+    channel: edi_834
+    audience: medical_dental_vision_carriers
+    trigger: "On election finalisation; reconciliation each pay period"
+  - id: notify_cobra_tpa
+    channel: api
+    audience: cobra_administrator
+    trigger: "On QLE that triggers COBRA QE (e.g., loss of dependent eligibility)"
+  - id: notify_irs_aca_filings
+    channel: filing
+    audience: irs
+    trigger: "Form 1094-C / 1095-C by Feb 28 paper / Mar 31 e-file"
+sla:
+  - metric: "QLE election window"
+    target: "30 days from event (60 days for birth/adoption and CHIPRA loss-of-coverage)"
+  - metric: "QMCSO determination"
+    target: "<= 40 business days from receipt (plan-document driven)"
+  - metric: "Carrier 834 delivery"
+    target: "<= 1 business day after election finalisation"
+  - metric: "Form 1095-C delivery to employees"
+    target: "By Mar 02 (or as IRS extends)"
+  - metric: "Form 5500 filing"
+    target: "By last day of seventh month after plan-year end (with Form 5558 extension to 9.5 months)"
+data_sensitivity:
+  - PII
+  - dependent_PII
+  - medical
+  - banking
+  - imputed_income_tax
+  - genetic_information
+compliance:
+  - "ERISA / 29 USC §1001"
+  - "ACA / 26 USC §4980H, §6055-6056; 26 CFR §54.4980H"
+  - "COBRA / 29 USC §1161"
+  - "HIPAA Privacy / 45 CFR §164.500-534"
+  - "HIPAA Special Enrolment / 29 CFR §2590.701-6"
+  - "CHIPRA notice / 29 USC §1181(f)"
+  - "Section 125 cafeteria plan / 26 USC §125; 26 CFR §1.125-4"
+  - "HSA / 26 USC §223"
+  - "DCFSA / 26 USC §129"
+  - "QMCSO / 29 USC §1169"
+  - "GINA Title I / 42 USC §300gg-91 (group health plan rules)"
+  - "Mental Health Parity and Addiction Equity Act / 29 USC §1185a"
+  - "Newborns' & Mothers' Health Protection Act / 29 USC §1185"
+  - "Women's Health & Cancer Rights Act / 29 USC §1185b"
+  - "Medicare Secondary Payer / 42 USC §1395y(b)"
+  - "ARPA / IRA premium-tax-credit interactions (where applicable)"
+  - "State continuation: CA Cal-COBRA Ins. Code §10128.50; NY Mini-COBRA Ins. Law §3221(m); MA Mini-COBRA"
+signoff:
+  signer: sme-hr
+  reviewed_at: "2026-05-06T00:00:00Z"
+  reviewer_credentials: "domain-sme(human-resources)"
+  reviewed_findings:
+    - D-01-hr

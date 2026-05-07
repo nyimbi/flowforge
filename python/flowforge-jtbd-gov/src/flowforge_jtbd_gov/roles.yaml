@@ -1,9 +1,62 @@
 roles:
-  - name: case_worker
-    default_tier: 1
   - name: permit_officer
     default_tier: 1
-  - name: licensing_agent
+    capacities:
+      - reviewer
+      - decision_maker
+  - name: planning_board
+    default_tier: 2
+    capacities:
+      - approver
+  - name: foia_officer
     default_tier: 1
-  - name: compliance_officer
+    capacities:
+      - reviewer
+      - decision_maker
+  - name: chief_foia_officer
+    default_tier: 3
+    capacities:
+      - approver
+      - escalation_authority
+  - name: agency_counsel
+    default_tier: 2
+    capacities:
+      - reviewer
+      - approver
+  - name: benefits_caseworker
     default_tier: 1
+    capacities:
+      - reviewer
+      - decision_maker
+  - name: eligibility_supervisor
+    default_tier: 2
+    capacities:
+      - approver
+  - name: program_integrity_officer
+    default_tier: 3
+    capacities:
+      - approver
+      - audit_authority
+  - name: docket_clerk
+    default_tier: 1
+    capacities:
+      - intake
+      - records_custodian
+  - name: rulemaking_lead
+    default_tier: 2
+    capacities:
+      - decision_maker
+  - name: contracting_officer
+    default_tier: 2
+    capacities:
+      - decision_maker
+      - signature_authority
+  - name: source_selection_authority
+    default_tier: 3
+    capacities:
+      - approver
+  - name: inspector_general
+    default_tier: 4
+    capacities:
+      - audit_authority
+      - escalation_authority

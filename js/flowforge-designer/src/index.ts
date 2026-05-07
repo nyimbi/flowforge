@@ -20,11 +20,15 @@ export { ValidationPanel } from "./ValidationPanel.js";
 export type { ValidationPanelProps } from "./ValidationPanel.js";
 
 export {
+	applyRemotePatch,
 	createDesignerStore,
 	emptyWorkflow,
+	safeRedo,
+	safeUndo,
 	type CreateStoreOptions,
 	type DesignerState,
 	type DesignerStore,
+	type SafeRedoResult,
 	type SelectionKind,
 } from "./store.js";
 

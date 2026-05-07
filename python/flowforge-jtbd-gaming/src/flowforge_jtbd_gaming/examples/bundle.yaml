@@ -1,28 +1,19 @@
-      project:
-        name: "gaming-example"
-        package: "gaming_example"
-        domain: "gaming"
-        version: "1.0.0"
-      shared:
-        roles:
-      - game_designer
-  - economy_manager
-  - trust_safety_agent
-  - community_manager
-        permissions:
-      - gaming.match.create
-  - gaming.economy.adjust
-  - gaming.moderation.action
-  - gaming.event.launch
-  - gaming.reward.issue
-      jtbds:
-    - id: close_request
-  version: "1.0.0"
+project:
+  name: gaming-example
+  package: flowforge_jtbd_gaming_example
+  domain: gaming
+  version: 1.0.0
+shared:
+  roles: []
+  permissions: []
+jtbds:
+- id: close_request
+  version: 1.0.0
 - id: initiate_request
-  version: "1.0.0"
+  version: 1.0.0
 - id: process_request
-  version: "1.0.0"
+  version: 1.0.0
 - id: report_outcomes
-  version: "1.0.0"
+  version: 1.0.0
 - id: review_request
-  version: "1.0.0"
+  version: 1.0.0

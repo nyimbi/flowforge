@@ -10,13 +10,17 @@ import type {
 	WorkflowTransition,
 } from "./types.js";
 
+// audit-2026 JS-05: aligned with the canonical Python DSL kinds.
 const STATE_KINDS: WorkflowStateKind[] = [
-	"start",
-	"task",
-	"review",
-	"decision",
-	"wait",
-	"end",
+	"manual_review",
+	"automatic",
+	"parallel_fork",
+	"parallel_join",
+	"timer",
+	"signal_wait",
+	"subworkflow",
+	"terminal_success",
+	"terminal_fail",
 ];
 
 interface StateEditorProps {

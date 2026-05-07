@@ -1,0 +1,144 @@
+id: foia_request
+title: "Process FOIA / Public-Records Request"
+version: "1.0.0"
+actor:
+  role: foia_officer
+  external: false
+situation: >-
+  A requester submits a public-records request under the Freedom of
+  Information Act (5 USC 552) or a state public-records analogue. The
+  agency must search, review for the nine FOIA exemptions plus three
+  exclusions, redact, and respond within the statutory clock.
+motivation: >-
+  Honour the public's statutory right of access while protecting records
+  shielded by FOIA exemptions (notably (b)(6) personal-privacy and
+  (b)(7) law-enforcement) and Privacy Act records (5 USC 552a).
+outcome: >-
+  Responsive records released in full or in part, or denial issued with
+  exemption cite, redaction key, and 5 USC 552(a)(6)(A)(i) notice of
+  administrative-appeal rights; fee invoice issued where applicable.
+success_criteria:
+  - "≥ 90% of standard requests answered within 20 business days (5 USC 552(a)(6)(A)(i))"
+  - "100% of denials cite the exemption sub-paragraph and provide appeal-rights notice"
+  - "Privacy Act first-party requests routed for verified-identity processing in 100% of cases"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: case_number
+    kind: text
+    label: FOIA Tracking Number
+    required: true
+    pii: false
+  - id: requester_id
+    kind: party_ref
+    label: Requester (Party)
+    required: true
+    pii: true
+  - id: jurisdiction
+    kind: text
+    label: Agency / Component (CGAC code)
+    required: true
+    pii: false
+  - id: statutory_basis
+    kind: text
+    label: "Statutory Basis (5 USC 552 or state PRA cite)"
+    required: true
+    pii: false
+  - id: fee_category
+    kind: enum
+    label: Requester Fee Category
+    required: true
+    validation:
+      enum:
+        - commercial
+        - news_media
+        - educational
+        - non_commercial_scientific
+        - other
+  - id: exemption_codes_applied
+    kind: text
+    label: "FOIA Exemption Codes Applied (e.g. b(6), b(7)(C))"
+    required: false
+    pii: false
+  - id: estimated_search_hours
+    kind: number
+    label: Estimated Search Hours
+    required: false
+edge_cases:
+  - id: foia_exemption_b7_lawenforcement
+    condition: "responsive material is law-enforcement-sensitive under FOIA exemption (b)(7); Glomar response may apply"
+    handle: branch
+    branch_to: execute
+  - id: classified_information_redaction
+    condition: "responsive material contains classified info under EO 13526 §1.1 — referral to originator required before any release"
+    handle: escalate
+  - id: privacy_act_first_party_request
+    condition: "requester is the subject of a Privacy Act system of records (5 USC 552a) — identity verification gate triggers"
+    handle: branch
+    branch_to: discover
+  - id: statutory_deadline_missed
+    condition: "statutory 20-business-day clock (5 USC 552(a)(6)(A)(i)) expires; requester acquires constructive-exhaustion right to sue"
+    handle: escalate
+  - id: indigent_fee_waiver_request
+    condition: "requester invokes 5 USC 552(a)(4)(A)(iii) public-interest fee waiver"
+    handle: branch
+    branch_to: discover
+documents_required:
+  - kind: requester_identity_verification
+    min: 1
+    freshness_days: 30
+    av_required: true
+  - kind: search_certification
+    min: 1
+    av_required: true
+  - kind: redaction_key
+    min: 0
+    max: 1
+    av_required: true
+  - kind: fee_invoice
+    min: 0
+    max: 1
+    av_required: false
+approvals:
+  - role: foia_officer
+    policy: "1_of_1"
+    tier: 1
+  - role: agency_counsel
+    policy: "1_of_1"
+    tier: 2
+  - role: chief_foia_officer
+    policy: "authority_tier"
+    tier: 3
+sla:
+  warn_pct: 75
+  breach_seconds: 1728000   # 20 business days × 24h ≈ 28 calendar days clock cap
+notifications:
+  - trigger: state_enter
+    channel: email
+    audience: requester
+  - trigger: sla_warn
+    channel: email
+    audience: foia_officer
+  - trigger: sla_breach
+    channel: email
+    audience: chief_foia_officer
+  - trigger: approved
+    channel: email
+    audience: requester
+  - trigger: rejected
+    channel: email
+    audience: requester
+metrics:
+  - "median_response_days"
+  - "backlog_age_distribution"
+  - "appeals_overturn_rate"
+requires: []
+compliance:
+  - "NIST-800-53"
+data_sensitivity:
+  - "PII"
+  - "regulated"

@@ -12,13 +12,17 @@ import "reactflow/dist/style.css";
 import type { DesignerStore } from "./store.js";
 import type { WorkflowState, WorkflowTransition } from "./types.js";
 
+// audit-2026 JS-05: kinds aligned with the canonical Python DSL union.
 const STATE_COLORS: Record<WorkflowState["kind"], string> = {
-	start: "#16a34a",
-	task: "#2563eb",
-	review: "#7c3aed",
-	decision: "#f59e0b",
-	wait: "#0891b2",
-	end: "#dc2626",
+	manual_review: "#7c3aed",
+	automatic: "#2563eb",
+	parallel_fork: "#0ea5e9",
+	parallel_join: "#0e7490",
+	timer: "#0891b2",
+	signal_wait: "#a16207",
+	subworkflow: "#475569",
+	terminal_success: "#16a34a",
+	terminal_fail: "#dc2626",
 };
 
 const layoutPosition = (index: number): { x: number; y: number } => ({

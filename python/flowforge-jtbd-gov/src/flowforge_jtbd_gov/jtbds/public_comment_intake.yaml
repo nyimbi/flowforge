@@ -1,0 +1,151 @@
+id: public_comment_intake
+title: "Ingest and Disposition Public Comments (APA Notice-and-Comment)"
+version: "1.0.0"
+actor:
+  role: docket_clerk
+  external: false
+situation: >-
+  An agency has issued a Notice of Proposed Rulemaking (NPRM) under the
+  Administrative Procedure Act (5 USC 553(b)–(c)) and opened a docket
+  for public comments. The clerk must ingest, classify, deduplicate,
+  and disposition comments so the rulemaking record reflects all
+  significant issues raised.
+motivation: >-
+  Build an APA-defensible record that responds to every significant
+  comment, satisfies the "concise general statement of basis and
+  purpose" requirement, and survives arbitrary-and-capricious review
+  under 5 USC 706(2)(A).
+outcome: >-
+  Comments are docketed on regulations.gov / agency docket, indexed,
+  classified into significant-issue categories, and dispositioned in
+  the preamble of the final rule with response paragraphs.
+success_criteria:
+  - "100% of timely comments received before docket closure are docketed within 2 business days"
+  - "Every significant issue raised receives a written response in the final-rule preamble"
+  - "Mass-comment campaigns deduplicated and reported in aggregate rather than individually"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: case_number
+    kind: text
+    label: Docket Number
+    required: true
+    pii: false
+  - id: rin_number
+    kind: text
+    label: "Regulation Identifier Number (RIN)"
+    required: true
+    pii: false
+    validation:
+      pattern: "^[0-9]{4}-[A-Z0-9]{4}$"
+  - id: commenter_id
+    kind: party_ref
+    label: Commenter (Party — anonymous allowed)
+    required: false
+    pii: true
+  - id: jurisdiction
+    kind: text
+    label: Lead Agency (CGAC code)
+    required: true
+    pii: false
+  - id: statutory_basis
+    kind: text
+    label: "Authorising Statute (USC cite)"
+    required: true
+    pii: false
+  - id: cfr_part
+    kind: text
+    label: "CFR Part Affected"
+    required: true
+    pii: false
+  - id: comment_received_at
+    kind: datetime
+    label: Comment Received Timestamp
+    required: true
+  - id: significance_classification
+    kind: enum
+    label: Significant-Issue Classification
+    required: true
+    validation:
+      enum:
+        - significant_unique
+        - significant_duplicate
+        - mass_campaign
+        - non_substantive
+        - out_of_scope
+edge_cases:
+  - id: late_filed_comment
+    condition: "comment received after docket-closure timestamp — agency may accept at discretion (Util. Solid Waste Activities Grp. v. EPA, 236 F.3d 749)"
+    handle: branch
+    branch_to: discover
+  - id: classified_information_redaction
+    condition: "comment contains material classified under EO 13526 — referral to security officer before docketing"
+    handle: escalate
+  - id: ex_parte_communication
+    condition: "comment is an ex parte communication on a docket subject to ex parte limits — must be summarised on the public docket"
+    handle: branch
+    branch_to: report
+  - id: foreign_state_or_lobbying_disclosure
+    condition: "commenter is a registered foreign agent (FARA, 22 USC 611) or lobbyist (LDA, 2 USC 1601) — disclosure must be tagged"
+    handle: branch
+    branch_to: discover
+  - id: statutory_deadline_missed
+    condition: "minimum 30-day comment period (5 USC 553(b)) ends without sufficient docket review capacity — extension or interim rule may be required"
+    handle: escalate
+documents_required:
+  - kind: federal_register_notice
+    min: 1
+    av_required: false
+  - kind: certified_copy_of_authorising_statute
+    min: 1
+    av_required: false
+  - kind: nepa_environmental_review
+    min: 0
+    max: 1
+    av_required: true
+  - kind: docket_index
+    min: 1
+    av_required: true
+approvals:
+  - role: docket_clerk
+    policy: "1_of_1"
+    tier: 1
+  - role: rulemaking_lead
+    policy: "1_of_1"
+    tier: 2
+  - role: agency_counsel
+    policy: "authority_tier"
+    tier: 3
+sla:
+  warn_pct: 80
+  breach_seconds: 2592000   # 30 days — APA minimum comment period
+notifications:
+  - trigger: state_enter
+    channel: webhook
+    audience: regulations_gov_docket
+  - trigger: state_exit
+    channel: webhook
+    audience: federal_register
+  - trigger: sla_warn
+    channel: email
+    audience: rulemaking_lead
+  - trigger: approved
+    channel: in_app
+    audience: docket_clerk
+  - trigger: escalated
+    channel: email
+    audience: agency_counsel
+metrics:
+  - "comments_per_docket"
+  - "mass_campaign_dedup_ratio"
+  - "preamble_response_coverage_pct"
+requires: []
+compliance:
+  - "NIST-800-53"
+data_sensitivity:
+  - "PII"
+  - "regulated"

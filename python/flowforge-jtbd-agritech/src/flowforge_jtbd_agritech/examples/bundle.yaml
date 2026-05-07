@@ -1,28 +1,19 @@
-      project:
-        name: "agritech-example"
-        package: "agritech_example"
-        domain: "agritech"
-        version: "1.0.0"
-      shared:
-        roles:
-      - farm_manager
-  - agronomist
-  - supply_chain_coordinator
-  - harvest_supervisor
-        permissions:
-      - agri.field.plan
-  - agri.harvest.record
-  - agri.supply.order
-  - agri.yield.report
-  - agri.pest.report
-      jtbds:
-    - id: close_request
-  version: "1.0.0"
+project:
+  name: agritech-example
+  package: flowforge_jtbd_agritech_example
+  domain: agritech
+  version: 1.0.0
+shared:
+  roles: []
+  permissions: []
+jtbds:
+- id: close_request
+  version: 1.0.0
 - id: initiate_request
-  version: "1.0.0"
+  version: 1.0.0
 - id: process_request
-  version: "1.0.0"
+  version: 1.0.0
 - id: report_outcomes
-  version: "1.0.0"
+  version: 1.0.0
 - id: review_request
-  version: "1.0.0"
+  version: 1.0.0

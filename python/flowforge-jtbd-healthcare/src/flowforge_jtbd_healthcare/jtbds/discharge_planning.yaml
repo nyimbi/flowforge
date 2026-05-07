@@ -1,0 +1,200 @@
+id: discharge_planning
+title: "Plan and Execute Inpatient Discharge with Post-Acute Coordination"
+version: "1.0.0"
+subdomain: admissions
+actor:
+  role: case_manager
+  external: false
+situation: "An inpatient is medically ready for discharge and the case manager must coordinate disposition (home, home-health, SNF, acute-rehab, hospice, LTACH, or AMA), reconcile medications, schedule follow-up, and notify continuing-care providers under CMS Conditions of Participation."
+motivation: "Discharge the patient safely, on time, to the right level of care, with no avoidable readmission and full statutory documentation."
+outcome: "Patient leaves the facility with a written discharge summary, reconciled medication list, follow-up appointment, post-acute warm hand-off, and signed instructions in their preferred language."
+success_criteria:
+  - "Discharge summary completed and authenticated within 24 hours of discharge"
+  - "Follow-up appointment scheduled within 7 days for high-risk diagnoses (AMI, CHF, COPD, behavioural-health), 14 days otherwise"
+  - "Home-health initial visit occurs within 48 hours of discharge for patients ordered home-health"
+  - "Medication reconciliation reviewed by a pharmacist for high-risk patients"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: patient_id
+    kind: identifier
+    label: "Internal patient identifier"
+    pii: true
+    hipaa_identifier: true
+  - id: encounter_id
+    kind: identifier
+    label: "Encounter / admission id"
+    pii: true
+    hipaa_identifier: true
+  - id: attending_provider_npi
+    kind: identifier
+    label: "Discharging attending NPI"
+    pii: false
+  - id: discharge_disposition
+    kind: enum
+    label: "Discharge disposition (UB-04 patient discharge status)"
+    pii: false
+    enum: ["home_self_care", "home_health", "snf", "acute_rehab", "ltach", "hospice_home", "hospice_facility", "expired", "ama", "transferred"]
+  - id: expected_discharge_datetime
+    kind: datetime
+    label: "Expected discharge timestamp (ISO 8601)"
+    pii: false
+  - id: post_acute_facility_id
+    kind: identifier
+    label: "Receiving SNF/acute-rehab/LTACH facility id"
+    pii: false
+  - id: home_health_agency_npi
+    kind: identifier
+    label: "Home-health agency NPI"
+    pii: false
+  - id: dme_order_id
+    kind: identifier
+    label: "Durable medical equipment order id"
+    pii: false
+  - id: medication_reconciliation_id
+    kind: identifier
+    label: "Medication-reconciliation document id"
+    pii: false
+  - id: follow_up_appointment_datetime
+    kind: datetime
+    label: "First follow-up appointment time"
+    pii: true
+  - id: payer_id
+    kind: identifier
+    label: "Primary payer id"
+    pii: false
+  - id: preferred_language
+    kind: text
+    label: "Patient's preferred language for instructions"
+    pii: true
+edge_cases:
+  - id: against_medical_advice
+    condition: "Patient elects to leave against medical advice."
+    handle: branch
+    branch_to: ama_protocol
+    action: "Capacity assessment by attending; sign AMA form acknowledging risks; document the conversation; offer prescriptions and follow-up regardless of AMA status."
+    severity: high
+  - id: medicare_three_midnight_rule
+    condition: "Disposition is SNF for a Medicare fee-for-service patient and the inpatient stay does not span three midnights (or a Medicare Advantage waiver does not apply)."
+    handle: pause
+    action: "Re-review observation-vs-inpatient status; engage UR; provide written notice of non-coverage if SNF benefit will not pay; consider alternative levels of care."
+    severity: high
+  - id: unhoused_patient
+    condition: "Patient has no safe discharge address."
+    handle: branch
+    branch_to: social_work_homeless_protocol
+    action: "Engage social work, apply state no-discharge-to-street statutes (e.g., CA SB 1152), identify shelter or medical respite, and document outreach attempts; do not discharge to the street."
+    severity: critical
+  - id: opioid_use_disorder_transition
+    condition: "Patient has opioid-use disorder and is leaving the inpatient setting."
+    handle: branch
+    branch_to: mat_warm_handoff
+    action: "Warm hand-off to a MAT clinic, write a buprenorphine bridge prescription where appropriate, dispense or prescribe naloxone, and apply 42 CFR Part 2 disclosure rules to any SUD-treatment information."
+    severity: high
+  - id: involuntary_behavioural_health_hold
+    condition: "Patient is on an involuntary behavioural-health hold."
+    handle: pause
+    action: "Discharge requires probate or judicial release order or expiration of the statutory hold; coordinate with the behavioural-health attending and the attorney of record; do not release without legal authority."
+    severity: critical
+abort_conditions:
+  - "Attending discharge order is not signed"
+  - "Medication reconciliation has not been completed"
+  - "Patient has unmitigated active suicidal ideation"
+documents_required:
+  - kind: discharge_summary
+    min: 1
+    max: 1
+    av_required: true
+    freshness_days: 1
+    description: "Authenticated discharge summary with hospital course, discharge medications, follow-up plan, and pending results."
+  - kind: medication_reconciliation
+    min: 1
+    max: 1
+    av_required: true
+    description: "Reconciled list of pre-admission, inpatient, and discharge medications, including stops, starts, and dose changes."
+  - kind: follow_up_appointment
+    min: 1
+    description: "Confirmed follow-up appointment(s) with date, time, and provider."
+  - kind: ama_form
+    min: 0
+    max: 1
+    description: "Signed AMA form when applicable."
+  - kind: transfer_packet
+    min: 0
+    description: "Receiving-facility transfer packet for SNF, acute rehab, LTACH, or hospice transitions."
+  - kind: advance_directive
+    min: 0
+    description: "Copy of the advance directive accompanies the patient if on file."
+approvals:
+  - role: attending_physician
+    policy: any_of
+    description: "Discharging attending signs the discharge order."
+  - role: case_manager
+    policy: any_of
+    description: "Case manager confirms post-acute disposition, transport, and authorisations."
+  - role: pharmacist
+    policy: any_of
+    description: "Pharmacist completes medication-reconciliation review for high-risk patients (anticoagulants, insulin, opioids, polypharmacy ≥10)."
+  - role: utilisation_review_nurse
+    policy: any_of
+    description: "UR concurs with the level-of-care disposition before notice to the receiving facility."
+notifications:
+  - trigger: discharge_executed
+    channel: portal
+    audience: patient_or_surrogate
+    description: "Discharge instructions in the patient's preferred language with teach-back documented."
+  - trigger: discharge_executed
+    channel: ehr_message
+    audience: primary_care_provider
+    description: "Continuity-of-care notification within 48 hours per CMS Conditions of Participation (42 CFR 482.43)."
+  - trigger: discharge_executed
+    channel: phone
+    audience: receiving_facility
+    description: "Warm hand-off to the receiving facility (SNF, acute rehab, LTACH, hospice, home-health)."
+  - trigger: discharge_executed
+    channel: payer_api
+    audience: payer
+    description: "Notice of discharge submitted to the payer."
+  - trigger: discharge_executed
+    channel: pharmacy_api
+    audience: dispensing_pharmacy
+    description: "Discharge prescriptions transmitted via NCPDP SCRIPT."
+sla:
+  warn_pct: 75
+  breach_seconds: 86400
+  narrative: "Discharge summary: 24 hours after discharge. Follow-up appointment: 7 days for high-risk, 14 days otherwise. Home-health first visit: 48 hours."
+  targets:
+    - event: discharge_summary_authenticated
+      deadline: "PT24H"
+    - event: high_risk_followup_scheduled
+      deadline: "P7D"
+    - event: home_health_initial_visit
+      deadline: "PT48H"
+metrics:
+  - "30-day all-cause readmission rate"
+  - "% of high-risk discharges with follow-up appointment within 7 days"
+  - "% of discharges with medication reconciliation reviewed by pharmacist"
+  - "% of AMA discharges with documented capacity assessment and risk discussion"
+data_sensitivity:
+  - PHI
+compliance:
+  - HIPAA
+regulatory_references:
+  - "HIPAA Privacy and Security Rules"
+  - "HITECH"
+  - "CMS Hospital Conditions of Participation §482.43 (discharge planning)"
+  - "IMPACT Act of 2014 (post-acute quality measure standardisation)"
+  - "42 CFR Part 2 (substance-use disorder records)"
+  - "EMTALA (when transferring an unstable patient)"
+  - "State no-discharge-to-street statutes (e.g., CA SB 1152)"
+  - "State mental-health discharge and involuntary-hold statutes"
+signoff:
+  signer: sme-healthcare
+  reviewed_at: "2026-05-06T00:00:00Z"
+  reviewer_credentials: "domain-sme(healthcare)"
+  reviewed_findings:
+    - "D-01-healthcare"

@@ -1,0 +1,224 @@
+id: performance_review
+title: "Conduct Annual Performance Review with Comp Adjustment and PIP Path"
+version: "1.0.0"
+actor:
+  role: hr_business_partner
+  external: false
+situation: >-
+  Annual performance review cycle is open. Managers calibrate ratings,
+  Compensation issues merit / equity adjustments inside published comp bands,
+  and HR coordinates the Performance Improvement Plan (PIP) path for
+  employees rated below expectations. Documentation must be defensible
+  against future Title VII / ADEA / EPA disparate-impact challenges.
+motivation: >-
+  Tie pay to performance, manage low performers with documented progressive
+  steps, and maintain calibration evidence for adverse-impact analyses.
+outcome: >-
+  Ratings finalised and calibrated, comp adjustments approved within band
+  ceilings and budget envelope, PIPs initiated where warranted with clear
+  measurable goals and review cadence, and a complete record retained for
+  the statutory limitations window.
+success_criteria:
+  - "100% of in-cycle reviews completed within review window"
+  - "Adverse-impact ratio (4/5ths rule, 29 CFR §1607.4(D)) reviewed before finalisation"
+  - "Equal Pay Act audit (29 USC §206(d)) completed for any comp adjustment exceeding band ceiling"
+  - "All PIPs have measurable, time-bound goals and a defined review cadence"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: employee_id
+    kind: text
+    label: "Employee ID"
+    pii: true
+  - id: manager_id
+    kind: text
+    label: "Reviewing manager"
+    pii: false
+  - id: review_cycle
+    kind: text
+    label: "Cycle identifier (e.g., FY26-annual, FY26-mid)"
+    pii: false
+  - id: rating
+    kind: enum
+    label: "Calibrated final rating"
+    values:
+      - exceeds
+      - meets_plus
+      - meets
+      - partial
+      - below
+    pii: true
+  - id: comp_band
+    kind: text
+    label: "Current comp band"
+    pii: true
+  - id: comp_band_position
+    kind: enum
+    label: "Position in band (compa-ratio bucket)"
+    values:
+      - below_min
+      - lower_third
+      - mid
+      - upper_third
+      - above_max
+    pii: true
+  - id: merit_increase_pct
+    kind: number
+    label: "Approved merit increase percent"
+    pii: true
+  - id: equity_grant
+    kind: text
+    label: "Equity grant id (RSUs / options / PSUs) if any"
+    pii: true
+  - id: bonus_payout
+    kind: number
+    label: "Discretionary or formulaic bonus payout"
+    pii: true
+  - id: pip_status
+    kind: enum
+    label: "PIP status"
+    values:
+      - not_applicable
+      - draft
+      - active
+      - succeeded
+      - failed
+      - extended
+      - cancelled
+    pii: true
+  - id: pip_review_cadence_days
+    kind: number
+    label: "Cadence between PIP check-ins (commonly 14 or 30 days)"
+    pii: false
+  - id: protected_class_audit_flag
+    kind: bool
+    label: "Whether HR Compliance ran a disparate-impact audit on this rating"
+    pii: false
+edge_cases:
+  - id: pip_during_protected_leave
+    description: >-
+      Manager wants to issue a PIP while the employee is on FMLA / ADA leave
+      or shortly after return. Risk of interference / retaliation claim
+      under 29 USC §2615 or 42 USC §12203.
+    handling: "Pause PIP issuance until return; document pre-leave performance history; require Legal review before initiation."
+  - id: equal_pay_band_ceiling_breach
+    description: >-
+      Proposed merit pushes salary above band ceiling for the role; potential
+      Equal Pay Act exposure if pay-equity comparators differ.
+    handling: "Trigger pay-equity analysis (29 USC §206(d) and Lilly Ledbetter recordkeeping); require Comp Committee approval."
+  - id: adverse_impact_4_5ths
+    description: >-
+      Ratings or merit distribution fail the 4/5ths rule across a protected
+      class (29 CFR §1607.4(D)).
+    handling: "Halt finalisation; recalibrate or document business necessity defence; involve EEO officer."
+  - id: just_cause_termination_evidentiary_chain
+    description: >-
+      PIP failed and termination is proposed, but documentation has gaps
+      (e.g., goals not measurable, missed check-ins, no improvement
+      acknowledgements).
+    handling: "Reset PIP with measurable goals OR pursue separation agreement with severance; do NOT terminate on weak record."
+  - id: pregnancy_disclosure_during_review
+    description: >-
+      Employee discloses pregnancy or PWFA-protected condition during the
+      review conversation.
+    handling: "Decouple performance assessment from disclosure; document continuity of pre-disclosure performance history; offer accommodations."
+  - id: union_grievance_overlay
+    description: >-
+      Employee in collective-bargaining unit; CBA requires just-cause
+      standard and grievance steps before discipline.
+    handling: "Follow CBA Article on discipline; issue Weingarten rights notice if investigation interview required."
+documents_required:
+  - id: review_form_signed
+    label: "Annual review form, signed by manager and employee (acknowledgement, not agreement)"
+    retention: "Duration of employment + 4 years (Title VII recordkeeping)"
+  - id: calibration_minutes
+    label: "Calibration session minutes with attendees and rating distribution"
+    retention: "5 years (recommended)"
+  - id: comp_change_letter
+    label: "Compensation change letter / total-rewards statement"
+    retention: "Duration of employment + 4 years"
+  - id: pip_document
+    label: "Performance Improvement Plan with measurable goals, success criteria, cadence"
+    retention: "Duration of employment + 4 years"
+  - id: pip_check_in_notes
+    label: "Each PIP check-in (dated, signed)"
+    retention: "Duration of employment + 4 years"
+  - id: equity_grant_agreement
+    label: "Equity grant agreement (board-approved)"
+    retention: "Duration of grant + 7 years post-vest/exercise"
+approvals:
+  - id: skip_level_review
+    role: skip_level_manager
+    scope: "Calibrate manager ratings and identify outliers"
+    capacity: reviewer
+  - id: hrbp_review
+    role: hr_business_partner
+    scope: "Validate documentation completeness, adverse-impact, PIP defensibility"
+    capacity: approver
+  - id: comp_committee
+    role: comp_committee
+    scope: "Approve any adjustment outside band, all equity grants, executive comp"
+    capacity: approver
+  - id: legal_review
+    role: legal
+    scope: "Required for PIPs overlapping protected leave / class membership and termination decisions"
+    capacity: approver
+  - id: eeo_officer
+    role: eeo_officer
+    scope: "Disparate-impact sign-off if 4/5ths flag tripped"
+    capacity: reviewer
+notifications:
+  - id: notify_employee
+    channel: email
+    audience: employee
+    trigger: "Review meeting scheduled; PIP issuance; compensation change"
+  - id: notify_manager
+    channel: email
+    audience: line_manager
+    trigger: "Calibration deadlines; PIP check-in reminders"
+  - id: notify_payroll
+    channel: hris_event
+    audience: payroll
+    trigger: "On comp change effective date"
+  - id: notify_equity_admin
+    channel: ticket
+    audience: equity_administrator
+    trigger: "On grant board-approval to schedule vesting"
+sla:
+  - metric: "Review completion within cycle"
+    target: "100% by cycle close + 5 business days"
+  - metric: "PIP measurable-goals rule"
+    target: "All PIPs include goals with quantifiable success criteria and dated check-ins"
+  - metric: "Compensation change letter delivery"
+    target: "<= effective date - 5 business days"
+  - metric: "Equal Pay audit"
+    target: "Annual, with band-ceiling breach triggering ad-hoc audit"
+data_sensitivity:
+  - PII
+  - salary_comp
+  - equity_grant
+  - rating_protected
+  - performance_history
+compliance:
+  - "Title VII / 42 USC §2000e (disparate impact / treatment)"
+  - "ADEA / 29 USC §621"
+  - "ADA / 42 USC §12101 (PIP-during-accommodation analysis)"
+  - "Equal Pay Act / 29 USC §206(d)"
+  - "Lilly Ledbetter Fair Pay Act of 2009 (recordkeeping for pay-discrim claims)"
+  - "FMLA / 29 USC §2615 (anti-retaliation)"
+  - "PWFA / 42 USC §2000gg"
+  - "OFCCP regulations (federal contractors): 41 CFR §60-1, §60-2 AAP duty"
+  - "EEOC Uniform Guidelines on Employee Selection Procedures / 29 CFR §1607 (4/5ths rule)"
+  - "NLRA / 29 USC §157 (Section 7 protected concerted activity)"
+  - "SEC clawback / 17 CFR §240.10D-1 (executive comp adjustments)"
+  - "State pay-transparency laws (CA Lab. Code §432.3; NY Lab. Law §194-b; CO §8-5-201; WA RCW 49.58)"
+signoff:
+  signer: sme-hr
+  reviewed_at: "2026-05-06T00:00:00Z"
+  reviewer_credentials: "domain-sme(human-resources)"
+  reviewed_findings:
+    - D-01-hr

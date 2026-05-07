@@ -5,24 +5,35 @@ project:
   version: "1.0.0"
 shared:
   roles:
-  - recruiter
-  - hr_manager
-  - line_manager
-  - hr_business_partner
+    - hr_business_partner
+    - line_manager
+    - hiring_manager
+    - skip_level_manager
+    - benefits_administrator
+    - it_security
+    - it_service_desk
+    - payroll
+    - benefits_broker
+    - cobra_administrator
+    - comp_committee
+    - legal
+    - eeo_officer
   permissions:
-  - hr.job.post
-  - hr.offer.extend
-  - hr.onboarding.start
-  - hr.leave.approve
-  - hr.review.conduct
+    - hr.onboarding.execute
+    - hr.leave.fmla.designate
+    - hr.review.conduct
+    - hr.review.pip.initiate
+    - hr.termination.execute
+    - hr.benefits.enrol
+    - hr.benefits.qle.adjudicate
 jtbds:
-  - id: employee_onboard
+  - id: new_hire_onboarding
     version: "1.0.0"
-  - id: job_post
+  - id: leave_request_intermittent
     version: "1.0.0"
-  - id: leave_approve
+  - id: performance_review
     version: "1.0.0"
-  - id: offer_extend
+  - id: termination_offboarding
     version: "1.0.0"
-  - id: perf_review
+  - id: benefits_open_enrollment
     version: "1.0.0"

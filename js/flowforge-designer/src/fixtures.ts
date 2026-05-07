@@ -12,11 +12,12 @@ export const sampleWorkflow = (): WorkflowDef => ({
 	initial_state: "submitted",
 	terminal_states: ["closed"],
 	states: [
-		{ id: "submitted", name: "Submitted", kind: "start" },
+		// audit-2026 JS-05: kinds aligned with the Python DSL union.
+		{ id: "submitted", name: "Submitted", kind: "automatic" },
 		{
 			id: "in_review",
 			name: "In review",
-			kind: "review",
+			kind: "manual_review",
 			assignee_role: "reviewer",
 			form_id: "claim-review",
 			checklist: [{ id: "chk-id", label: "Identity verified", required: true }],
@@ -24,7 +25,7 @@ export const sampleWorkflow = (): WorkflowDef => ({
 			escalation: { after: "PT24H", to: "supervisor" },
 			delegation: { allowed_roles: ["reviewer", "supervisor"], require_reason: true },
 		},
-		{ id: "closed", name: "Closed", kind: "end" },
+		{ id: "closed", name: "Closed", kind: "terminal_success" },
 	],
 	transitions: [
 		{ id: "t1", from: "submitted", to: "in_review", event: "begin_review" },

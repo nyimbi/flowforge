@@ -1,0 +1,199 @@
+id: prescription_renewal
+title: "Renew or Refill an Outpatient Prescription"
+version: "1.0.0"
+subdomain: clinical
+actor:
+  role: prescribing_provider
+  external: false
+situation: "An established patient is out of medication or approaching the last refill on a chronic-therapy prescription, and the prescribing provider needs to evaluate, renew, and transmit a new e-prescription, taking controlled-substance scheduling, prior-authorisation, and REMS rules into account."
+motivation: "Keep the patient on therapeutic continuity, satisfy DEA/state controlled-substance and PDMP rules, and avoid both gaps in care and over-prescribing."
+outcome: "A renewed prescription is signed, transmitted via SureScripts/EPCS to the patient's pharmacy, payer is billed correctly, and the patient is notified."
+success_criteria:
+  - "Routine renewal request acknowledged and resolved within 72 hours"
+  - "Urgent renewals (out-of-supply, hospital-discharge, post-op) resolved within 24 hours"
+  - "100% of Schedule II–V renewals routed through DEA-compliant EPCS"
+  - "PDMP query completed and documented for every controlled-substance renewal"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: patient_id
+    kind: identifier
+    label: "Internal patient identifier"
+    pii: true
+    hipaa_identifier: true
+  - id: dob
+    kind: date
+    label: "Date of birth"
+    pii: true
+    hipaa_identifier: true
+  - id: prescriber_npi
+    kind: identifier
+    label: "Prescriber NPI"
+    pii: false
+  - id: prescriber_dea_number
+    kind: identifier
+    label: "Prescriber DEA number"
+    pii: false
+    description: "Required for all controlled-substance prescriptions; never log unmasked."
+  - id: medication_ndc
+    kind: code
+    label: "Drug National Drug Code"
+    pii: false
+    code_system: "NDC"
+  - id: drug_name
+    kind: text
+    label: "Drug name (RxNorm RxCUI preferred)"
+    pii: false
+    code_system: "RxNorm"
+  - id: dea_schedule
+    kind: enum
+    label: "DEA controlled-substance schedule"
+    pii: false
+    enum: ["non_controlled", "II", "III", "IV", "V"]
+  - id: dosage
+    kind: text
+    label: "Strength, dose, route, and frequency (sig)"
+    pii: false
+  - id: days_supply
+    kind: integer
+    label: "Days supply"
+    pii: false
+  - id: refills_remaining
+    kind: integer
+    label: "Refills authorized on the new Rx"
+    pii: false
+  - id: pharmacy_ncpdp_id
+    kind: identifier
+    label: "Destination pharmacy NCPDP id"
+    pii: false
+  - id: last_dispense_date
+    kind: date
+    label: "Last fill date"
+    pii: true
+  - id: pmp_check_id
+    kind: identifier
+    label: "State PDMP query reference id"
+    pii: false
+    description: "Required for controlled-substance schedules in PDMP-mandate states."
+  - id: prior_auth_id
+    kind: identifier
+    label: "Payer prior-auth reference"
+    pii: false
+edge_cases:
+  - id: schedule_ii_no_refills
+    condition: "Drug is a Schedule II controlled substance."
+    handle: branch
+    branch_to: epcs_new_prescription
+    action: "Schedule II prescriptions cannot be refilled — issue a new e-prescription via DEA EPCS (21 CFR 1311) with a freshly authenticated two-factor signature; phone or fax is not permitted except for the limited DEA emergency-fill carve-out (immediate verbal followed by written within 7 days)."
+    severity: critical
+  - id: rems_restricted_drug
+    condition: "Drug carries an FDA Risk Evaluation and Mitigation Strategy (REMS) requirement (e.g., clozapine, isotretinoin, mifepristone, transmucosal-immediate-release fentanyl)."
+    handle: branch
+    branch_to: rems_attestation_workflow
+    action: "Verify prescriber, patient, and pharmacy are enrolled in the drug's REMS programme; capture the required risk-acknowledgement attestation and dispensing authorization id before transmission."
+    severity: high
+  - id: pdmp_duplicate_or_doctor_shopping
+    condition: "PDMP query returns active overlapping controlled-substance prescriptions from another prescriber."
+    handle: pause
+    action: "Hold the renewal, contact the other prescriber for care coordination, document the conversation, and apply state-specific tapering or referral-to-MAT guidance before deciding to fill, modify, or decline."
+    severity: high
+  - id: drug_interaction_or_allergy
+    condition: "Clinical decision support flags a major drug-drug interaction or a known allergy from the patient's allergy list."
+    handle: pause
+    action: "Acknowledge or override the alert with documented rationale; contact the patient if a substitute therapy is required."
+    severity: medium
+  - id: early_refill_lost_or_stolen_controlled
+    condition: "Patient requests an early refill of a controlled substance citing loss or theft."
+    handle: branch
+    branch_to: early_refill_review
+    action: "Require a contemporaneous police report number, document the patient statement, query PDMP, and apply the practice's early-refill policy; partial fill or denial is acceptable per DEA partial-fill rules."
+    severity: high
+abort_conditions:
+  - "Prescriber's DEA registration is expired or surrendered"
+  - "Patient's identity cannot be verified for a controlled-substance prescription"
+documents_required:
+  - kind: e_prescription_record
+    min: 1
+    max: 1
+    av_required: true
+    description: "EPCS-signed e-prescription transmission record (NCPDP SCRIPT)."
+  - kind: pdmp_query_result
+    min: 0
+    max: 1
+    av_required: true
+    description: "Required for every controlled-substance renewal in PDMP-mandate states; archive the query response id, not the full report."
+  - kind: prior_auth_determination
+    min: 0
+    description: "Payer PA approval letter for non-formulary or step-therapy drugs."
+  - kind: rems_attestation
+    min: 0
+    description: "Risk-acknowledgement form and dispensing authorization for REMS-restricted drugs."
+approvals:
+  - role: prescribing_provider
+    policy: any_of
+    description: "Provider applies a DEA-compliant two-factor electronic signature for controlled substances and a non-controlled e-signature for everything else."
+  - role: pharmacist
+    policy: any_of
+    description: "Dispensing pharmacist completes the prospective drug-utilisation review (DUR) and may decline to dispense for clinical-judgement reasons."
+  - role: payer_prior_auth_reviewer
+    policy: any_of
+    description: "Payer prior-authorization is required for non-formulary, step-therapy, or quantity-limit-exceeding drugs; turnaround is plan-defined (urgent ≤ 24h, standard ≤ 72h in most states)."
+notifications:
+  - trigger: rx_transmitted
+    channel: portal
+    audience: patient
+    description: "Patient is told the prescription was sent to the named pharmacy and given expected pickup timing."
+  - trigger: rx_transmitted
+    channel: pharmacy_api
+    audience: dispensing_pharmacy
+    description: "NCPDP SCRIPT transmission to the pharmacy."
+  - trigger: rx_transmitted
+    channel: ehr_message
+    audience: primary_care_provider
+    description: "PCP receives a continuity-of-care note when the renewing prescriber is not the PCP."
+  - trigger: prior_auth_required
+    channel: payer_api
+    audience: payer
+    description: "Submit prior-auth via the payer's portal or 278 transaction; track determination."
+  - trigger: rx_denied
+    channel: portal
+    audience: patient
+    description: "Patient is informed of the denial reason and the next-best alternative or appeal path."
+sla:
+  warn_pct: 75
+  breach_seconds: 259200
+  narrative: "Routine renewal: 72h. Urgent renewal: 24h. EPCS Schedule-II transmission: immediate after signature."
+  targets:
+    - event: rx_transmitted_routine
+      deadline: "PT72H"
+    - event: rx_transmitted_urgent
+      deadline: "PT24H"
+    - event: epcs_signature_applied
+      deadline: "PT5M"
+metrics:
+  - "% of renewals resolved within SLA"
+  - "% of controlled-substance renewals with PDMP query documented"
+  - "% of REMS drugs with attestation on file"
+  - "% of denied renewals appealed and overturned"
+data_sensitivity:
+  - PHI
+compliance:
+  - HIPAA
+regulatory_references:
+  - "HIPAA Privacy and Security Rules"
+  - "HITECH"
+  - "Controlled Substances Act + DEA EPCS (21 CFR 1311)"
+  - "FDA REMS programmes"
+  - "State PDMP query mandates"
+  - "42 CFR Part 2 (medications used to treat substance-use disorder, e.g., buprenorphine, methadone)"
+  - "Ryan Haight Online Pharmacy Consumer Protection Act (telemedicine controlled-substance prescribing)"
+signoff:
+  signer: sme-healthcare
+  reviewed_at: "2026-05-06T00:00:00Z"
+  reviewer_credentials: "domain-sme(healthcare)"
+  reviewed_findings:
+    - "D-01-healthcare"

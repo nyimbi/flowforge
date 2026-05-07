@@ -1,11 +1,19 @@
 permissions:
   - name: ins.claim.create
-    description: "Ins Claim Create"
+    description: "Record a First Notice of Loss against a policy"
   - name: ins.claim.assess
-    description: "Ins Claim Assess"
+    description: "Adjudicate coverage, liability, and damages on an open claim"
+  - name: ins.claim.settle
+    description: "Authorise indemnity payment or full denial of an adjudicated claim"
   - name: ins.policy.underwrite
-    description: "Ins Policy Underwrite"
+    description: "Bind a new policy after risk evaluation"
+  - name: ins.policy.renew
+    description: "Renew, conditionally renew, or non-renew an in-force policy"
   - name: ins.reins.place
-    description: "Ins Reins Place"
+    description: "Cede risk via treaty or facultative reinsurance"
   - name: ins.subrogation.pursue
-    description: "Ins Subrogation Pursue"
+    description: "Pursue recovery from third parties on paid losses"
+  - name: ins.fraud.investigate
+    description: "SIU investigation hold and EUO authority"
+  - name: ins.compliance.review
+    description: "Compliance review of claim handling, rate filings, and notices"

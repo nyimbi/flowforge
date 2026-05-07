@@ -1,0 +1,286 @@
+id: termination_offboarding
+title: "Terminate and Offboard Employee (Voluntary or Involuntary)"
+version: "1.0.0"
+actor:
+  role: hr_business_partner
+  external: false
+situation: >-
+  An employment relationship is ending — voluntary resignation, involuntary
+  termination for cause, layoff / RIF, or end of fixed-term assignment. HR
+  must coordinate final pay, benefits termination with COBRA election,
+  access deprovisioning, optional severance with release agreement, and
+  state-specific obligations (final-paycheck timing, separation notices,
+  pension / SSA reporting where applicable).
+motivation: >-
+  Comply with final-pay timing, COBRA notice deadlines, severance/release
+  rules under OWBPA, WARN notice on mass layoffs, and prevent post-employment
+  data leakage by deprovisioning access on the effective separation moment.
+outcome: >-
+  Final pay issued per state law, COBRA election notice mailed, access
+  deprovisioned, exit interview completed where appropriate, and a complete
+  separation packet retained for the statutory limitations window.
+success_criteria:
+  - "Final paycheck issued within state deadline (e.g., CA Lab. Code §201/§202; same day for involuntary in CA)"
+  - "COBRA election notice mailed within 14 days of qualifying event (29 CFR §2590.606-4)"
+  - "Access deprovisioning completed at separation effective time +/- 1 hour"
+  - "ADEA waiver (if employee >= 40) honours OWBPA 21/45-day consideration and 7-day revocation"
+stages:
+  - name: discover
+  - name: execute
+  - name: error_handle
+  - name: report
+  - name: audit
+data_capture:
+  - id: employee_id
+    kind: text
+    label: "Employee ID"
+    pii: true
+  - id: manager_id
+    kind: text
+    label: "Reporting manager"
+    pii: false
+  - id: separation_type
+    kind: enum
+    label: "Separation type"
+    values:
+      - voluntary_resignation
+      - retirement
+      - involuntary_for_cause
+      - involuntary_no_cause
+      - layoff_rif
+      - end_of_fixed_term
+      - death_in_service
+    pii: true
+  - id: separation_date
+    kind: date
+    label: "Effective separation date"
+    pii: false
+  - id: last_day_worked
+    kind: date
+    label: "Last day worked (may differ from separation date during garden leave)"
+    pii: false
+  - id: work_state
+    kind: text
+    label: "Work state at separation (drives final-paycheck timing)"
+    pii: false
+  - id: severance_offered
+    kind: bool
+    label: "Severance offered"
+    pii: true
+  - id: severance_amount
+    kind: number
+    label: "Severance amount (gross)"
+    pii: true
+  - id: release_agreement_status
+    kind: enum
+    label: "Release / waiver status"
+    values:
+      - not_offered
+      - offered
+      - signed
+      - revoked
+      - declined
+      - effective
+    pii: true
+  - id: cobra_qe_date
+    kind: date
+    label: "COBRA qualifying event date"
+    pii: false
+  - id: cobra_election_status
+    kind: enum
+    label: "COBRA election status"
+    values:
+      - notice_pending
+      - notice_mailed
+      - elected
+      - declined
+      - waived_then_revoked
+      - lapsed
+    pii: true
+  - id: pension_eligible
+    kind: bool
+    label: "Vested in defined-benefit / qualified retirement plan"
+    pii: true
+  - id: equity_status
+    kind: enum
+    label: "Outstanding equity treatment"
+    values:
+      - none
+      - cancelled_unvested
+      - accelerated_vesting
+      - exercise_window_open
+      - converted_to_cash
+    pii: true
+  - id: warn_act_applies
+    kind: bool
+    label: "WARN Act applies (employer >= 100 FT employees AND mass layoff / plant closing thresholds)"
+    pii: false
+  - id: access_deprovisioning_status
+    kind: enum
+    label: "Access deprovisioning status"
+    values:
+      - pending
+      - in_progress
+      - complete
+      - exception_documented
+    pii: false
+edge_cases:
+  - id: just_cause_evidence_gap
+    description: >-
+      Termination labelled for cause but documentation chain is weak; risks
+      wrongful-termination claim and unemployment-insurance contestation.
+    handling: "Reclassify as no-cause OR delay until documentation cured; involve Legal; consider separation agreement with release."
+  - id: post_termination_garnishment
+    description: >-
+      Garnishment order received after final paycheck has issued.
+    handling: "Apply CCPA cap (15 USC §1673) to any residual final pay; notify creditor with separation date; do not withhold from severance unless order specifies."
+  - id: cobra_late_notice
+    description: >-
+      COBRA election notice missed the 14-day window (29 CFR §2590.606-4(b)(1)).
+    handling: "Issue immediately; document corrective action; expect statutory penalty exposure ($110/day per qualified beneficiary, 29 USC §1132(c)(1))."
+  - id: warn_act_short_notice
+    description: >-
+      Layoff occurs without 60-day WARN notice, no recognised exception (faltering
+      company, unforeseeable business circumstances, natural disaster).
+    handling: "Pay-in-lieu for the 60-day shortfall; file with state Rapid Response unit; notify chief elected official."
+  - id: protected_leave_termination
+    description: >-
+      Termination during or shortly after FMLA / ADA / PWFA / USERRA leave.
+    handling: "Require Legal review; document independent business reason predating leave request; preserve communications."
+  - id: international_termination
+    description: >-
+      Employee located outside US; local statutory notice / severance,
+      works-council consultation, or gardening leave may apply (e.g., EU
+      Acquired Rights, UK ERA 1996).
+    handling: "Engage local counsel; do not apply at-will doctrine outside US."
+  - id: pii_exfiltration_risk
+    description: >-
+      Involuntary separation of employee with privileged data access.
+    handling: "Sequence access revocation BEFORE separation conversation; preserve forensic evidence; involve Security and Legal."
+documents_required:
+  - id: separation_letter
+    label: "Separation letter (cause / no-cause / RIF)"
+    retention: "Duration of employment + 4 years"
+  - id: separation_agreement
+    label: "Severance and release agreement (if offered)"
+    statute: "OWBPA / 29 USC §626(f) for >= 40; ADEA waiver content rules"
+    retention: "Duration of agreement + 7 years"
+  - id: final_paycheck_record
+    label: "Final paycheck record with itemised statement"
+    statute: "State wage-statement laws (CA Lab. Code §226; NY Lab. Law §195)"
+    retention: "4 years (FLSA) / 6 years (NY)"
+  - id: cobra_election_notice
+    label: "COBRA election notice"
+    statute: "29 USC §1166; 29 CFR §2590.606-4"
+    retention: "6 years (29 USC §1027)"
+  - id: hipaa_certificate
+    label: "Certificate of creditable coverage (where applicable)"
+    retention: "6 years"
+  - id: state_separation_notice
+    label: "State-required separation notice (e.g., NY Form IA 12.3, CT UC-61, NJ BC-10)"
+    retention: "Per state schedule"
+  - id: ssa_form_8316
+    label: "SSA-8316 (Pension or other Periodic Benefits, where applicable)"
+    retention: "Per SSA schedule"
+  - id: equipment_return_receipt
+    label: "Equipment return receipt"
+    retention: "Duration of employment + 2 years"
+  - id: access_deprovisioning_log
+    label: "Access deprovisioning log (system, account, timestamp, actor)"
+    retention: "7 years (audit trail)"
+approvals:
+  - id: hrbp_review
+    role: hr_business_partner
+    scope: "Coordinate packet, verify timing compliance"
+    capacity: approver
+  - id: manager_signoff
+    role: line_manager
+    scope: "Confirm last-day logistics, equipment, knowledge transfer"
+    capacity: reviewer
+  - id: legal_review
+    role: legal
+    scope: "Required on involuntary terminations, releases, terminations during protected leave, mass layoffs"
+    capacity: approver
+  - id: comp_committee
+    role: comp_committee
+    scope: "Approve severance > policy threshold and equity acceleration"
+    capacity: approver
+  - id: it_security_deprovisioning
+    role: it_security
+    scope: "Execute and certify access removal at separation effective time"
+    capacity: approver
+notifications:
+  - id: notify_employee
+    channel: email
+    audience: employee
+    trigger: "Separation packet, COBRA notice, equity post-termination instructions"
+  - id: notify_payroll
+    channel: hris_event
+    audience: payroll
+    trigger: "Trigger final paycheck per state deadline"
+  - id: notify_benefits_broker
+    channel: edi_834
+    audience: benefits_broker
+    trigger: "Termination of group coverage"
+  - id: notify_cobra_tpa
+    channel: api
+    audience: cobra_administrator
+    trigger: "Within 14 days of qualifying event"
+  - id: notify_it_provisioning
+    channel: ticket
+    audience: it_service_desk
+    trigger: "T-0 access removal at separation effective time"
+  - id: notify_ssa_pension
+    channel: postal
+    audience: ssa
+    trigger: "On retirement with vested pension benefits (Form SSA-8316)"
+  - id: notify_state_unemployment
+    channel: state_filing
+    audience: state_workforce_agency
+    trigger: "On separation per state UI rules"
+  - id: notify_warn_recipients
+    channel: postal
+    audience: state_dislocated_worker_unit_and_chief_elected_official
+    trigger: "60 days before mass layoff (or pay-in-lieu)"
+sla:
+  - metric: "Final paycheck (involuntary)"
+    target: "Same day in CA (Lab. Code §201); 24 hours in CO; otherwise per state"
+  - metric: "Final paycheck (voluntary)"
+    target: "<= 72 hours in CA when notice < 72 hours given (Lab. Code §202); otherwise per state"
+  - metric: "COBRA election notice"
+    target: "<= 14 days from qualifying event"
+  - metric: "Access deprovisioning"
+    target: "+/- 1 hour of separation effective time"
+  - metric: "WARN notice"
+    target: ">= 60 calendar days before covered layoff (or pay-in-lieu)"
+  - metric: "OWBPA consideration"
+    target: ">= 21 days individual / 45 days group; 7-day revocation post-signing"
+data_sensitivity:
+  - PII
+  - salary_comp
+  - banking
+  - medical (COBRA / FSA balance context)
+  - equity_grant
+  - performance_history
+compliance:
+  - "COBRA / 29 USC §1161; 29 CFR §2590.606-4"
+  - "ERISA / 29 USC §1001 (benefits termination)"
+  - "FLSA / 29 USC §201 (final-pay obligations re: earned wages)"
+  - "ADEA / 29 USC §626(f) (OWBPA waiver)"
+  - "Title VII / 42 USC §2000e (anti-retaliation)"
+  - "ADA / 42 USC §12101"
+  - "FMLA / 29 USC §2615"
+  - "USERRA / 38 USC §4301 (military reinstatement / discharge protection)"
+  - "WARN / 29 USC §2101 (mass layoff / plant closing)"
+  - "State mini-WARN: CA Lab. Code §1400; NY Lab. Law §860; NJ NJWARN; IL WARN"
+  - "State final-paycheck timing: CA §201/§202; CO §8-4-109; MA Gen. Laws ch. 149 §148"
+  - "State separation-notice forms: NY IA 12.3; CT UC-61; NJ BC-10; MI"
+  - "FCRA pre-adverse / adverse-action sequencing where decision based on consumer report"
+  - "GDPR Art. 17 right to erasure timing (where EU)"
+  - "SOX §404 access-controls evidence (deprovisioning log)"
+signoff:
+  signer: sme-hr
+  reviewed_at: "2026-05-06T00:00:00Z"
+  reviewer_credentials: "domain-sme(human-resources)"
+  reviewed_findings:
+    - D-01-hr

@@ -1,9 +1,58 @@
 roles:
-  - name: recruiter
-    default_tier: 1
-  - name: hr_manager
-    default_tier: 1
+  - name: hr_business_partner
+    default_tier: 2
+    capacities:
+      - approver
+      - reviewer
   - name: line_manager
     default_tier: 1
-  - name: hr_business_partner
+    capacities:
+      - reviewer
+      - operator
+  - name: hiring_manager
     default_tier: 1
+    capacities:
+      - approver
+      - operator
+  - name: skip_level_manager
+    default_tier: 2
+    capacities:
+      - reviewer
+  - name: benefits_administrator
+    default_tier: 2
+    capacities:
+      - approver
+      - operator
+  - name: it_security
+    default_tier: 2
+    capacities:
+      - approver
+  - name: it_service_desk
+    default_tier: 1
+    capacities:
+      - operator
+  - name: payroll
+    default_tier: 2
+    capacities:
+      - operator
+  - name: benefits_broker
+    default_tier: 1
+    capacities:
+      - operator
+  - name: cobra_administrator
+    default_tier: 1
+    capacities:
+      - operator
+  - name: comp_committee
+    default_tier: 3
+    capacities:
+      - approver
+  - name: legal
+    default_tier: 3
+    capacities:
+      - approver
+      - reviewer
+  - name: eeo_officer
+    default_tier: 3
+    capacities:
+      - reviewer
