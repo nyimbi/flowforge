@@ -2,6 +2,33 @@
 name = "flowforge-rbac-spicedb"
 version = "0.1.0"
 description = "flowforge-rbac-spicedb — RBAC resolver backed by SpiceDB via authzed-py"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Nyimbi Odero, Datacraft", email = "nyimbi@gmail.com" }]
+maintainers = [{ name = "Nyimbi Odero, Datacraft", email = "nyimbi@gmail.com" }]
+keywords = ["workflow", "rbac", "spicedb", "zanzibar"]
+classifiers = [
+	"Development Status :: 4 - Beta",
+	"Intended Audience :: Developers",
+	"Intended Audience :: Information Technology",
+	"License :: OSI Approved :: Apache Software License",
+	"Operating System :: OS Independent",
+	"Programming Language :: Python",
+	"Programming Language :: Python :: 3",
+	"Programming Language :: Python :: 3.11",
+	"Programming Language :: Python :: 3.12",
+	"Programming Language :: Python :: 3.13",
+	"Topic :: Software Development :: Libraries",
+	"Topic :: Software Development :: Libraries :: Python Modules",
+	"Topic :: System :: Distributed Computing",
+	"Framework :: AsyncIO",
+	"Framework :: FastAPI",
+	"Framework :: Pydantic",
+	"Framework :: Pydantic :: 2",
+	"Typing :: Typed",
+]
+# pypi-metadata-stamped
+
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -11,6 +38,13 @@ dependencies = [
 [project.optional-dependencies]
 spicedb = ["authzed>=0.13"]
 test = ["pytest>=7", "pytest-asyncio>=0.23"]
+
+[project.urls]
+Homepage = "https://github.com/nyimbi/ums"
+Documentation = "https://github.com/nyimbi/ums/tree/main/framework/docs"
+Repository = "https://github.com/nyimbi/ums"
+Issues = "https://github.com/nyimbi/ums/issues"
+Changelog = "https://github.com/nyimbi/ums/blob/main/framework/CHANGELOG.md"
 
 [build-system]
 requires = ["hatchling"]

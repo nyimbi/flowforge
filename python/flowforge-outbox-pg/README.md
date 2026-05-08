@@ -1,63 +1,22 @@
 # flowforge-outbox-pg
 
-Transactional outbox adapter for flowforge.
+Transactional outbox drain worker for PostgreSQL (and SQLite in tests).
 
-Provides two things: a handler registry and a drain worker. The registry maps
-`(backend, kind)` pairs to async handler functions. The worker polls the
-outbox table, claims rows atomically, calls handlers, and manages retries and
-DLQ transitions.
+Part of [flowforge](https://github.com/nyimbi/ums/tree/main/framework) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
 
-## How it works
+## Install
 
-On PostgreSQL the worker issues:
-
-```sql
-UPDATE outbox
-SET status = 'in_flight', locked_until = <now + lock_window>
-WHERE id IN (
-    SELECT id FROM outbox
-    WHERE status = 'pending'
-       OR (status = 'in_flight' AND locked_until < <now>)
-    ORDER BY created_at ASC
-    LIMIT <batch_size>
-    FOR UPDATE SKIP LOCKED
-)
-RETURNING id, kind, tenant_id, body, retries, created_at
+```bash
+uv pip install flowforge-outbox-pg
 ```
 
-`FOR UPDATE SKIP LOCKED` lets multiple workers run in parallel without
-stepping on each other. Each claimed row gets a short lease. A crashed
-worker's rows are reclaimed when their `locked_until` expires.
+## What it does
 
-## Table schema
+Implements the transactional outbox pattern: messages written to an `outbox` table in the same database transaction as business data are picked up by `DrainWorker` and dispatched to registered handlers. This decouples the act of persisting intent from the act of delivering it, so a crashed process never silently drops a message.
 
-```sql
-CREATE TABLE outbox (
-    id             TEXT PRIMARY KEY,
-    kind           TEXT NOT NULL,
-    tenant_id      TEXT NOT NULL DEFAULT '',
-    body           TEXT NOT NULL DEFAULT '{}',
-    status         TEXT NOT NULL DEFAULT 'pending',
-    retries        INTEGER NOT NULL DEFAULT 0,
-    created_at     TIMESTAMPTZ NOT NULL,
-    locked_until   TIMESTAMPTZ,
-    last_error     TEXT,
-    correlation_id TEXT,
-    dedupe_key     TEXT
-);
-```
+On PostgreSQL the worker claims rows with `FOR UPDATE SKIP LOCKED`, which lets multiple workers drain in parallel without coordination overhead. Each claimed row gets a short lease (`locked_until`). A worker that crashes without committing leaves rows with an expired `locked_until`; any other worker reclaims them on the next tick.
 
-For SQLite (tests), `DrainWorker.setup()` creates an equivalent table in
-`:memory:`.
-
-## Lifecycle
-
-```
-pending -> in_flight -> dispatched   (success)
-pending -> in_flight -> pending      (retry, retries < max_retries)
-pending -> in_flight -> dead         (max retries exceeded or row too old)
-pending -> in_flight -> dead         (no handler registered for kind)
-```
+`HandlerRegistry` maps `(backend, kind)` pairs to async handler functions. Multiple messaging backends — `dramatiq`, `temporal`, `inline` — can coexist in one process without namespace collisions. A row with no registered handler moves immediately to `dead` rather than retrying.
 
 ## Quick start
 
@@ -70,17 +29,18 @@ reg = HandlerRegistry()
 
 @reg.handler("order.created")
 async def handle_order(env: OutboxEnvelope) -> None:
-    print("order created:", env.body)
+	print("order created:", env.body)
 
 async with aiosqlite.connect(":memory:") as conn:
-    worker = DrainWorker(conn, reg, sqlite_compat=True)
-    await worker.setup()
+	worker = DrainWorker(conn, reg, sqlite_compat=True)
+	await worker.setup()
 
-    env = OutboxEnvelope(kind="order.created", tenant_id="t1", body={"id": 42})
-    await worker.enqueue(env)
+	env = OutboxEnvelope(kind="order.created", tenant_id="t1", body={"id": 42})
+	await worker.enqueue(env)
 
-    result = await worker.run_once()
-    print(result.as_dict())  # {'dispatched': 1, 'retried': 0, 'dead': 0, 'no_handler': 0}
+	result = await worker.run_once()
+	print(result.as_dict())
+	# {'dispatched': 1, 'retried': 0, 'dead': 0, 'no_handler': 0}
 ```
 
 For PostgreSQL pass an asyncpg connection and omit `sqlite_compat`:
@@ -91,32 +51,66 @@ conn = await asyncpg.connect(dsn)
 worker = DrainWorker(conn, reg, table="ums.outbox")
 ```
 
-## Multi-backend
+Long-running loop with graceful stop:
 
 ```python
-reg.register("email.send", send_email, backend="email")
-reg.register("sms.send",   send_sms,   backend="sms")
-
-email_worker = DrainWorker(conn, reg, backend="email")
-sms_worker   = DrainWorker(conn, reg, backend="sms")
+stop = asyncio.Event()
+task = asyncio.create_task(
+	worker.run_loop(poll_interval_seconds=1.0, stop_event=stop)
+)
+# ... later:
+stop.set()
+await task
 ```
+
+## Public API
+
+- `HandlerRegistry` — register handlers by `(backend, kind)`, dispatch envelopes
+- `DrainWorker` — claim-and-drain loop with retry, DLQ, and reconnect support
+- `OutboxRow` — dataclass for one outbox table row
+- `OutboxStatus` — enum: `PENDING`, `IN_FLIGHT`, `DISPATCHED`, `DEAD`
 
 ## Configuration
 
 | Parameter | Default | Description |
 |---|---|---|
-| `batch_size` | 32 | Max rows per drain tick |
-| `max_retries` | 5 | Retry limit before DLQ |
-| `dlq_after_seconds` | 3600 | Age limit before DLQ |
-| `lock_window_seconds` | 60 | In-flight lease duration |
-| `table` | `"outbox"` | SQL table name |
-| `sqlite_compat` | `False` | Use SQLite-safe claim (tests) |
+| `batch_size` | `32` | Max rows claimed per `run_once` call |
+| `max_retries` | `5` | Retry limit before DLQ transition |
+| `dlq_after_seconds` | `3600` | Age limit before DLQ regardless of retry count |
+| `lock_window_seconds` | `60` | In-flight lease duration |
+| `table` | `"outbox"` | SQL table name; schema-qualified names accepted (`"ums.outbox"`) |
+| `sqlite_compat` | `False` | Use SQLite-safe claim (tests only; rejects `pool_size > 1`) |
+| `reconnect_factory` | `None` | Async callable returning a fresh connection on connection-loss |
 
-## Testing
+Row lifecycle:
 
 ```
-cd framework/python/flowforge-outbox-pg
-uv run pytest -vxs
+pending -> in_flight -> dispatched   (success)
+pending -> in_flight -> pending      (retry, retries < max_retries)
+pending -> in_flight -> dead         (max retries exceeded, or row too old, or no handler)
 ```
 
-Tests run entirely against in-memory SQLite — no PostgreSQL required.
+## Audit-2026 hardening
+
+- **OB-01** (E-42): `table` is validated against `^[a-zA-Z_][a-zA-Z_0-9.]*$` at constructor time; injection payloads like `"x; DROP TABLE foo"` raise `ValueError` before reaching the database
+- **OB-02** (E-42): `DrainWorker(sqlite_compat=True, pool_size>1)` raises `RuntimeError`; SQLite is single-writer and cannot serialise concurrent drain workers
+- **OB-03** (E-42): `reconnect_factory` callback fires on connection-loss exceptions inside `run_loop`; the worker swaps in a fresh connection and resumes; `worker.reconnects` exposes the count for metrics
+- **OB-04** (E-42): `last_error` is truncated to a UTF-8 byte budget, never mid-codepoint, before being written to the database column
+
+## Compatibility
+
+- Python 3.11+
+- `asyncpg` (PostgreSQL production path)
+- `aiosqlite` (SQLite test path)
+- `uuid6` (optional; falls back to `uuid4`)
+
+## License
+
+Apache-2.0 — see `LICENSE`.
+
+## See also
+
+- [`flowforge-core`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-core)
+- [`flowforge-audit-pg`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-audit-pg)
+- [`flowforge-sqlalchemy`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-sqlalchemy)
+- [audit-fix-plan](https://github.com/nyimbi/ums/blob/main/framework/docs/audit-fix-plan.md)
