@@ -1,0 +1,55 @@
+name: flowforge gate (U24)
+
+# Runs the full flowforge quality gate on every PR and on push to main.
+# check_all.sh is the single source of truth; this file is a thin runner.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: flowforge-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: flowforge end-to-end gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: js/pnpm-lock.yaml
+
+      - name: Run flowforge gate
+        run: bash scripts/check_all.sh
+        env:
+          ENV: test
+          DATABASE_URL: "sqlite+aiosqlite:///:memory:"

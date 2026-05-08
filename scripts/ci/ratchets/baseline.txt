@@ -1,0 +1,74 @@
+# scripts/ci/ratchets/baseline.txt
+#
+# Allowed legitimate occurrences of patterns the ratchets would otherwise
+# reject. Format: one record per ratchet, one occurrence per line.
+#
+# Each record opens with `## ratchet=<name>` and ends at the next `## ratchet=`
+# header or EOF. Lines that start with `#` (after any leading whitespace) and
+# blank lines are ignored.
+#
+# Adding a new line to this file requires security-team review (see
+# audit-fix-plan §F-6, R-6). The ratchet checks treat any *new* match outside
+# this baseline as a hard CI failure.
+#
+# Update protocol:
+#   1. Run `bash scripts/ci/ratchets/check.sh` to see new violations.
+#   2. If a new match is genuinely legitimate (test fixture, dev-only path),
+#      append the exact `path:line:matched_text` to the right ratchet record
+#      and request review from the security lead.
+#   3. Land both the code change AND the baseline update in the same PR.
+
+## ratchet=no_default_secret
+# (audit-fix-plan SK-01) Hard-coded HMAC dev secrets are a P0 — none allowed.
+# E-34 removes the framework-shipped default; downstream may opt-in via
+# FLOWFORGE_ALLOW_INSECURE_DEFAULT=1, never via committed strings.
+#
+# Seeded at SCAFFOLD time. Removed when E-34 lands.
+no_default_secret: framework/python/flowforge-signing-kms/src/flowforge_signing_kms/hmac_dev.py:38:_LEGACY_DEFAULT_SECRET: Final = "flowforge-dev-secret-not-for-production"
+
+## ratchet=no_string_interp_sql
+# (audit-fix-plan T-01, J-01, OB-01) f-string / .format() / % SQL is banned in
+# runtime code. Tests that intentionally exercise injection paths must live
+# under tests/audit_2026/test_*_injection*.py and are excluded by path.
+
+## ratchet=no_eq_compare_hmac
+# (audit-fix-plan NM-01) HMAC verification must use hmac.compare_digest.
+# Direct `==` on bytes returned by hmac.new(...).digest() is rejected.
+
+## ratchet=no_except_pass
+# (audit-fix-plan J-10, JH-06, CL-04) `except Exception: pass` swallows real
+# bugs. Allowed: `except (X, Y) as e: log.warning(..., exc_info=e)` patterns.
+# This baseline only records names of files where a current violation exists
+# and is being tracked for cleanup; no new files may be added.
+#
+# Seeded at SCAFFOLD time. Each entry tracked for E-39 / E-47 / E-58 / E-59 / E-72 cleanup.
+no_except_pass: framework/python/flowforge-core/src/flowforge/engine/fire.py:287:except Exception:
+no_except_pass: backend/app/ingestion/service.py:825:except Exception:  # noqa: BLE001 -- broker may be down in tests
+no_except_pass: backend/app/ingestion/format_dispatcher.py:197:except Exception:  # noqa: BLE001 — metrics outage must not break ingest
+no_except_pass: backend/app/ingestion/auto_accept.py:374:except Exception:  # noqa: BLE001 -- broker may be down in tests
+no_except_pass: backend/app/ingestion/auto_accept.py:439:except Exception:  # noqa: BLE001 — projection is advisory
+no_except_pass: backend/app/recovery/dunning.py:94:except Exception:  # noqa: BLE001 — projection is advisory
+no_except_pass: backend/app/recovery/dunning.py:114:except Exception:  # noqa: BLE001
+no_except_pass: backend/app/reinsurance/router.py:1062:except Exception:  # noqa: BLE001 -- pack still renders without AI
+no_except_pass: backend/app/policies/service.py:286:except Exception:  # noqa: BLE001 — diary is advisory, not blocking
+no_except_pass: backend/app/policies/endorsements.py:166:except Exception:  # noqa: BLE001 — projection is advisory
+no_except_pass: backend/app/audit/router.py:712:except Exception:  # noqa: BLE001 — Bucket C may not have landed yet
+no_except_pass: backend/app/applications/service.py:129:except Exception:  # noqa: BLE001 — checklist is advisory at intake
+no_except_pass: backend/app/applications/router.py:566:except Exception:  # noqa: BLE001 -- fail-open, decision pack still renders without AI
+no_except_pass: backend/app/applications/router.py:593:except Exception:  # noqa: BLE001
+no_except_pass: backend/app/workers/tasks.py:1180:except Exception:  # noqa: BLE001 — projection is advisory
+no_except_pass: backend/app/documents/watermark.py:67:except Exception:  # noqa: BLE001
+no_except_pass: backend/app/documents/watermark.py:71:except Exception:  # noqa: BLE001
+no_except_pass: backend/app/documents/av.py:209:except Exception:  # noqa: BLE001
+no_except_pass: backend/app/authority/service.py:250:except Exception:  # noqa: BLE001 — projection is advisory, never block
+no_except_pass: backend/app/underwriting/binding.py:454:except Exception:  # noqa: BLE001 — projection is advisory
+no_except_pass: backend/app/underwriting/referral_explanations.py:71:except Exception:
+no_except_pass: backend/app/claims/service.py:308:except Exception:  # noqa: BLE001 — checklist is advisory at notify
+no_except_pass: backend/app/claims/service.py:862:except Exception:  # noqa: BLE001
+no_except_pass: backend/app/seeds/demo/ops_claims.py:1287:except Exception:  # noqa: BLE001
+no_except_pass: backend/app/seeds/demo/ops_claims.py:1295:except Exception:  # noqa: BLE001
+# E-37b JH-01: ``_emit_audit_event`` swallows audit-hook failures by design —
+# the audit trail is observability, not a control-flow path. Narrowing the
+# except is structurally impossible because the hook is arbitrary host code.
+# Tracked here so the ratchet keeps flagging accidental new swallows.
+no_except_pass: framework/python/flowforge-jtbd-hub/src/flowforge_jtbd_hub/registry.py:631:except Exception:  # noqa: BLE001 — audit failure must not block install

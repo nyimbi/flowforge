@@ -1,0 +1,104 @@
+name: JTBD lint (E-9)
+
+# Runs `flowforge jtbd lint` on every jtbd-bundle.json / jtbd_bundle.json
+# file found in the repository.  Fails the PR if any bundle has lint errors.
+# Warnings are advisory by default; set JTBD_LINT_STRICT=true in repository
+# variables to treat warnings as errors.
+#
+# Opt-in: set `jtbd.linter.enabled=true` in your flowforge project config
+# (feature flag default-off per evolution.md §22.6).
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "**/*jtbd*bundle*.json"
+      - "**/*jtbd*bundle*.yaml"
+      - "python/flowforge-jtbd/**"
+      - "python/flowforge-cli/**"
+  pull_request:
+    paths:
+      - "**/*jtbd*bundle*.json"
+      - "**/*jtbd*bundle*.yaml"
+      - "python/flowforge-jtbd/**"
+      - "python/flowforge-cli/**"
+
+concurrency:
+  group: jtbd-lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: JTBD bundle lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install flowforge-cli + flowforge-jtbd
+        working-directory: .
+        run: uv sync --package flowforge-cli
+
+      - name: Find JTBD bundles
+        id: find-bundles
+        run: |
+          bundles=$(find . \
+            \( -name "jtbd-bundle.json" -o -name "jtbd_bundle.json" \
+               -o -name "jtbd-bundle.yaml" -o -name "jtbd_bundle.yaml" \) \
+            -not -path "*/.venv/*" \
+            -not -path "*/node_modules/*" \
+            -not -path "*/__pycache__/*" \
+            | sort)
+          echo "bundles<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$bundles" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          count=$(echo "$bundles" | grep -c . || true)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "Found $count bundle(s):"
+          echo "$bundles"
+
+      - name: Lint bundles
+        if: steps.find-bundles.outputs.count != '0'
+        working-directory: .
+        run: |
+          strict_flag=""
+          if [ "${JTBD_LINT_STRICT:-false}" = "true" ]; then
+            strict_flag="--strict"
+          fi
+
+          failed=0
+          while IFS= read -r bundle; do
+            [ -z "$bundle" ] && continue
+            echo "::group::lint $bundle"
+            if uv run flowforge jtbd lint --bundle "../$bundle" $strict_flag; then
+              echo "::endgroup::"
+            else
+              echo "::endgroup::"
+              echo "::error file=$bundle::JTBD lint failed for $bundle"
+              failed=$((failed + 1))
+            fi
+          done <<< "${{ steps.find-bundles.outputs.bundles }}"
+
+          if [ "$failed" -gt 0 ]; then
+            echo "::error::$failed bundle(s) failed lint. Fix errors above."
+            exit 1
+          fi
+
+      - name: No bundles found
+        if: steps.find-bundles.outputs.count == '0'
+        run: echo "No JTBD bundles found — nothing to lint."

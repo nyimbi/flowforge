@@ -1,0 +1,111 @@
+name: Audit 2026 (E-32..E-72)
+
+# Runs the make audit-2026 macro target on every push/PR that touches
+# audit-relevant code. Required-green for merge to main.
+#
+# Layered subtargets:
+# - audit-2026-unit          per-finding regression tests
+# - audit-2026-conformance   arch §17 invariants (8/8 must pass)
+# - audit-2026-property      hypothesis property suite
+# - audit-2026-edge          edge-case bank (9 classes)
+# - audit-2026-cross-runtime TS<->Py expr parity (200-tuple fixture)
+# - audit-2026-e2e           3 e2e flows (fire->audit, fire->outbox, fork->migrate)
+#
+# Plus the supporting CI gates that the plan demands:
+# - scripts/ci/ratchets/check.sh  security ratchets, 4/4
+# - scripts/ci/check_signoff.py   signoff checklist gate
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "**"
+      - "scripts/ci/**"
+      - "Makefile"
+      - ".github/workflows/audit-2026.yml"
+  pull_request:
+    paths:
+      - "**"
+      - "scripts/ci/**"
+      - "Makefile"
+      - ".github/workflows/audit-2026.yml"
+
+concurrency:
+  group: audit-2026-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit-2026:
+    name: audit-2026
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - audit-2026-unit
+          - audit-2026-conformance
+          - audit-2026-property
+          - audit-2026-edge
+          - audit-2026-cross-runtime
+          - audit-2026-e2e
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up pnpm
+        if: matrix.target == 'audit-2026-cross-runtime'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install workspace deps
+        working-directory: .
+        run: uv sync --all-packages
+
+      - name: Install JS deps
+        if: matrix.target == 'audit-2026-cross-runtime'
+        working-directory: js
+        run: pnpm install --frozen-lockfile
+
+      - name: Run audit-2026 target
+        env:
+          TARGET: ${{ matrix.target }}
+        run: make "$TARGET"
+
+  ratchets:
+    name: Security ratchets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run ratchets
+        run: bash scripts/ci/ratchets/check.sh
+
+  signoff:
+    name: Signoff checklist gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pyyaml
+        run: pip install pyyaml
+      - name: Run check_signoff.py
+        run: python scripts/ci/check_signoff.py --strict
