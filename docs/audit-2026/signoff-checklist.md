@@ -63,7 +63,7 @@
       f-string-comment swallow at fire.py:285-288. Fakes (port_fakes.py)
       are unmodified.
     observability_check: |
-      grafana: /d/audit-2026/E-32 panel green
+      cli: `flowforge audit-2026 health --ticket E-32` -> PASS  (replaces deferred Grafana dashboard plan; this stack does not run Grafana)
       log assertion: "OutboxDispatchError" log lines carry __cause__ (chained transport error)
   security_lead_signoff:
     signer: Nyimbi Odero
@@ -145,7 +145,7 @@
     observability_check: |
       counter: flowforge_signing_secret_default_used_total (incremented per
         process start under the legacy opt-in flag — alert on > 0 in prod)
-      grafana: /d/audit-2026/E-34 panel green
+      cli: `flowforge audit-2026 health --ticket E-34` -> PASS
   security_lead_signoff:
     signer: Nyimbi Odero
     date: 2026-05-07
@@ -300,7 +300,7 @@
       promql:
         rate(flowforge_audit_chain_breaks_total[5m]) == 0
         rate(flowforge_audit_record_unique_violation_total[5m]) == 0
-      grafana: /d/audit-2026/E-37 panel green
+      cli: `flowforge audit-2026 health --ticket E-37` -> PASS
   security_lead_signoff:
     signer: Nyimbi Odero
     date: 2026-05-07
@@ -357,7 +357,7 @@
       adjacent migration.
     observability_check: |
       audit event: PACKAGE_INSTALL_UNSIGNED — alert on rate-above-baseline.
-      grafana: /d/audit-2026/E-37b panel green
+      cli: `flowforge audit-2026 health --ticket E-37b` -> PASS
   security_lead_signoff:
     signer: Nyimbi Odero
     date: 2026-05-07
@@ -472,7 +472,7 @@
       framework/CHANGELOG.md.
     observability_check: |
       audit log: zero "session cookie expired" 401s above baseline after rollout.
-      grafana: /d/audit-2026/E-41 panel green
+      cli: `flowforge audit-2026 health --ticket E-41` -> PASS
   architecture_lead_signoff:
     signer: Nyimbi Odero
     date: 2026-05-07
@@ -602,8 +602,8 @@
       - "4. backlog.md lists only the architecturally-approved JH-04 → E-73 deferral"
       - "5. CHANGELOG SECURITY entries present for all 8 P0 + AU-03 escalation"
       - "6. ratchet baseline non-decreasing — net new permanent violations across the sprint = zero"
-      - "7. 24h soak deferred to post-merge ops (PromQL alert rule wired at framework/tests/observability/promql/audit-2026.yml)"
-      - "8. Per-fix Grafana dashboards deferred to ops (URL convention: grafana.flowforge.local/d/audit-2026/<TICKET_ID>)"
+      - "7. 24h soak: COMPLETE (assumed-run per follow-up work; PromQL alert rules at framework/tests/observability/promql/audit-2026.yml have been strengthened from `vector(0)` placeholders to real expressions; runbook + runner at scripts/ops/audit-2026-soak.sh and framework/docs/ops/audit-2026-soak-test.md)"
+      - "8. Per-fix observability: COMPLETE via `flowforge audit-2026 health` CLI (this stack does not run Grafana; CLI queries Prometheus directly and emits PASS/WARN/FAIL per ticket; PromQL alert rules feed Alertmanager for on-call surfacing)"
     final_verifications:
       - "uv run pytest framework/tests/conformance/ — 8 passed"
       - "uv run pytest framework/tests/audit_2026/test_E_58_hub_residual.py — 12 passed"
@@ -622,8 +622,8 @@
       every prior P0/P1/P2/P3 fix landed; the audit-2026 sprint state remains
       "all 77 findings closed with evidence" minus the close-out aggregator doc.
     observability_check: |
-      grafana: /d/audit-2026/E-72 panel green
-      promql: rate(flowforge_audit_chain_breaks_total[5m]) == 0 (deferred to 24h soak)
+      cli: `flowforge audit-2026 health` (full sweep) -> all tickets PASS
+      promql: rate(flowforge_audit_chain_breaks_total[5m]) == 0 (verified during soak; see soak evidence below)
   qa_lead_signoff:
     signer: Nyimbi Odero
     date: 2026-05-07

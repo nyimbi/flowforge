@@ -14,6 +14,14 @@ import :func:`create_app` directly; the standalone reference deploy
 from __future__ import annotations
 
 from .app import create_app
+from .rbac import (
+	LEGACY_ADMIN_PRINCIPAL,
+	Permission,
+	Principal,
+	PrincipalExtractor,
+	Role,
+	role_permissions,
+)
 from .registry import (
 	HubError,
 	InstallResult,
@@ -39,15 +47,21 @@ __all__ = [
 	"DefaultReputationScorer",
 	"HubError",
 	"InstallResult",
+	"LEGACY_ADMIN_PRINCIPAL",
 	"Package",
 	"PackageRegistry",
+	"Permission",
+	"Principal",
+	"PrincipalExtractor",
 	"PublishResult",
 	"Rating",
 	"ReputationScorer",
+	"Role",
 	"TrustConfig",
 	"TrustedKey",
 	"UntrustedSignatureError",
 	"__version__",
 	"create_app",
 	"resolve_trust_config",
+	"role_permissions",
 ]

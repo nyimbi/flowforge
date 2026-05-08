@@ -13,6 +13,7 @@ import typer
 from .commands import (
 	add_jtbd,
 	ai_assist,
+	audit_2026_health,
 	audit_verify,
 	diff,
 	generate_llmtxt,
@@ -57,6 +58,7 @@ diff.register(app)
 replay.register(app)
 upgrade_deps.register(app)
 pre_upgrade_check.register(app)
+audit_2026_health.register(app)
 migrate_fork.register(app)
 ai_assist.register(app)
 generate_llmtxt.register(app)

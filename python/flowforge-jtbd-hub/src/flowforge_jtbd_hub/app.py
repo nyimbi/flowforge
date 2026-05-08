@@ -32,6 +32,14 @@ from fastapi.responses import JSONResponse
 from flowforge_jtbd.registry.manifest import JtbdManifest
 from pydantic import BaseModel, ConfigDict, Field
 
+from .rbac import (
+	LEGACY_ADMIN_PRINCIPAL,
+	Permission,
+	Principal,
+	PrincipalExtractor,
+	Role,
+	role_permissions,
+)
 from .registry import (
 	HubError,
 	PackageAlreadyExistsError,
@@ -108,6 +116,33 @@ class VerifiedRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Auth shim
+# ---------------------------------------------------------------------------
+
+
+class _AuthHeaderRequest:
+	"""Thin shim passed to ``PrincipalExtractor`` callables.
+
+	Surfaces the ``Authorization`` header on a `headers`-like attribute
+	without requiring an actual FastAPI ``Request`` object. Extractors
+	that need the full request can ignore this and accept ``Request``
+	directly via FastAPI's dependency injection (the route then routes
+	the real request through ``_resolve_principal``).
+	"""
+
+	__slots__ = ("authorization",)
+
+	def __init__(self, authorization: str | None) -> None:
+		self.authorization = authorization
+
+	@property
+	def headers(self) -> dict[str, str]:
+		if self.authorization is None:
+			return {}
+		return {"Authorization": self.authorization, "authorization": self.authorization}
+
+
+# ---------------------------------------------------------------------------
 # App factory
 # ---------------------------------------------------------------------------
 
@@ -116,20 +151,33 @@ def create_app(
 	registry: PackageRegistry,
 	*,
 	admin_token: str | None = None,
+	principal_extractor: PrincipalExtractor | None = None,
 ) -> FastAPI:
 	"""Build a FastAPI instance bound to *registry*.
 
-	* ``admin_token`` — when set, the demote / verified endpoints
-	  require ``Authorization: Bearer <token>``.
+	Authentication and authorisation:
 
-	  E-58 / JH-04 (audit-fix-plan §4.3): the value may be a single
-	  token OR a comma-separated list of accepted tokens. Any token in
-	  the list authenticates an admin call. This supports zero-downtime
-	  rotation: deploy with ``"old,new"``, wait for clients to flip,
-	  then drop the old entry. Whitespace around each token is stripped.
+	* ``principal_extractor`` (E-73) — Pluggable callable that resolves
+	  ``Authorization`` headers into a :class:`flowforge_jtbd_hub.rbac.Principal`.
+	  When set, every admin route enforces a per-permission gate
+	  (`require_permission(Permission.ADMIN_WRITE)`) and audit events
+	  carry the principal's user_id. Returns ``None`` for unauthenticated
+	  requests; the gate maps that to a 401.
 
-	  When ``None``, the admin endpoints are open (intended only for
-	  development).
+	* ``admin_token`` (E-58 legacy bridge) — Backward-compatible
+	  shared-token mode. Single token OR a comma-separated list (rotation
+	  support: deploy with ``"old,new"``, drop ``old`` after clients flip).
+	  Whitespace stripped per token. Any valid token grants the
+	  synthetic :data:`LEGACY_ADMIN_PRINCIPAL` (`hub_admin` role,
+	  ``principal_kind="legacy_admin"``); audit events record that kind so
+	  ops can monitor migration to per-user RBAC.
+
+	  ``principal_extractor`` and ``admin_token`` MAY be set together —
+	  both are tried in order (extractor first, legacy bridge second).
+	  This supports staged rollout: turn on the extractor while keeping
+	  legacy admins working.
+
+	* When neither is set, admin endpoints are open (dev mode only).
 	"""
 	# E-58 / JH-04: parse the rotation list once at app build time.
 	allowed_tokens: tuple[str, ...] = ()
@@ -141,29 +189,100 @@ def create_app(
 
 	app = FastAPI(title="flowforge-jtbd-hub")
 
-	def _require_admin(
-		authorization: str | None = Header(default=None),
-	) -> None:
+	def _legacy_token_principal(authorization: str | None) -> Principal | None:
+		"""Map ``Authorization: Bearer <legacy-token>`` to the synthetic
+		legacy-admin Principal if the offered token is in the rotation
+		list. Returns None if the legacy bridge is disabled or the
+		header doesn't match. Constant-time comparison via
+		``hmac.compare_digest``.
+		"""
 		if not allowed_tokens:
-			return
+			return None
 		if not authorization or not authorization.startswith("Bearer "):
-			raise HTTPException(
-				status_code=status.HTTP_401_UNAUTHORIZED,
-				detail="missing or invalid admin token",
-			)
+			return None
 		offered = authorization[len("Bearer ") :]
-		# Constant-time comparison against every accepted token. O(n) in
-		# the rotation-list size; n is typically 1-3.
 		import hmac as _hmac
 
-		ok = any(
-			_hmac.compare_digest(offered, valid) for valid in allowed_tokens
-		)
-		if not ok:
+		for valid in allowed_tokens:
+			if _hmac.compare_digest(offered, valid):
+				return LEGACY_ADMIN_PRINCIPAL
+		return None
+
+	def _resolve_principal(
+		authorization: str | None,
+		request: Any | None = None,
+	) -> Principal | None:
+		"""E-73: resolve a Principal from the request.
+
+		Order: ``principal_extractor`` first (per-user RBAC), then the
+		legacy admin-token bridge. Returns None if neither matched.
+		"""
+		# Prefer the per-user extractor when configured. If it raises
+		# (bad token format, KMS error), surface as 401.
+		if principal_extractor is not None:
+			# Some extractors only need the Authorization header; pass
+			# the full request via attribute injection on a thin shim
+			# so legacy callers don't need to migrate at once.
+			extractor_arg = request if request is not None else _AuthHeaderRequest(authorization)
+			try:
+				principal = principal_extractor(extractor_arg)
+			except Exception:
+				principal = None
+			if principal is not None:
+				return principal
+		# Fall through to the legacy bridge.
+		return _legacy_token_principal(authorization)
+
+	def _require_admin(
+		authorization: str | None = Header(default=None),
+	) -> Principal:
+		"""E-73 / E-58 backward-compat: authenticate any admin route.
+
+		Returns a :class:`Principal`. Routes that need finer permission
+		distinctions use :func:`_require_permission` instead. When
+		neither principal_extractor nor admin_token is configured, this
+		dependency returns the legacy admin Principal as a permissive
+		default (dev mode); enabling either tightens the gate.
+		"""
+		if principal_extractor is None and not allowed_tokens:
+			# Dev mode (no auth configured) — match historical open behaviour
+			# but emit a synthetic principal so audit hooks have something
+			# to record.
+			return LEGACY_ADMIN_PRINCIPAL
+		principal = _resolve_principal(authorization)
+		if principal is None:
 			raise HTTPException(
 				status_code=status.HTTP_401_UNAUTHORIZED,
 				detail="missing or invalid admin token",
 			)
+		return principal
+
+	def _require_permission(perm: Permission):
+		"""E-73 dependency factory. Returns a FastAPI dependency that
+		checks the resolved Principal carries ``perm``. 401 if no
+		principal; 403 if authenticated but unauthorised.
+		"""
+
+		def _checker(
+			authorization: str | None = Header(default=None),
+		) -> Principal:
+			# Dev mode: same permissive fallback as _require_admin.
+			if principal_extractor is None and not allowed_tokens:
+				return LEGACY_ADMIN_PRINCIPAL
+			principal = _resolve_principal(authorization)
+			if principal is None:
+				raise HTTPException(
+					status_code=status.HTTP_401_UNAUTHORIZED,
+					detail="authentication required",
+				)
+			if not principal.has(perm):
+				raise HTTPException(
+					status_code=status.HTTP_403_FORBIDDEN,
+					detail=f"principal lacks {perm.value!r}",
+				)
+			return principal
+
+		return _checker
 
 	# ------------------------------------------------------------------
 	# search
@@ -348,7 +467,7 @@ def create_app(
 		name: str,
 		version: str,
 		payload: DemoteRequest,
-		_: None = Depends(_require_admin),
+		principal: Principal = Depends(_require_permission(Permission.ADMIN_WRITE)),
 	) -> PackageDetail:
 		try:
 			pkg = await registry.demote(name, version, reason=payload.reason)
@@ -375,7 +494,7 @@ def create_app(
 		name: str,
 		version: str,
 		payload: VerifiedRequest,
-		_: None = Depends(_require_admin),
+		principal: Principal = Depends(_require_permission(Permission.ADMIN_WRITE)),
 	) -> PackageDetail:
 		try:
 			pkg = await registry.mark_verified(

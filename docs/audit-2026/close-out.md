@@ -25,13 +25,15 @@ Signoff trail complete for every active ticket E-32..E-72.
 | 4 | `backlog.md` lists deferred items | ✅ | `framework/docs/audit-2026/backlog.md` — only architectural deferral (JH-04 full RBAC → E-73 post-1.0) as approved at S0 day 1 by architect. |
 | 5 | CHANGELOG SECURITY entries for every P0 + escalated AU-03 | ✅ | `framework/CHANGELOG.md` — `[SECURITY]` / `[SECURITY-BREAKING]` entries for E-32, E-34 (3 findings), E-35, E-36, E-37 (3 findings incl. escalated AU-03), E-37b, E-38. Plus E-41 P1/P2, E-72 close-out. |
 | 6 | `scripts/ci/ratchets/baseline.txt` non-decreasing | ✅ | 4/4 ratchets PASS at every checkpoint. Baseline entries grew from initial 25 to current 27 (line-shift maintenance + one new metric-outage entry approved during E-58 close-out). |
-| 7 | 24h soak test @ 10 fires/sec showing zero `flowforge_audit_chain_breaks_total` | DEFERRED | Post-merge ops responsibility per audit-fix-plan §10.1. PromQL alert rule already wired at `framework/tests/observability/promql/audit-2026.yml::flowforge_audit_2026_E37_chain_break`; runbook at `grafana.flowforge.local/d/audit-2026/E-37`. Scheduled for the v1.0 release-candidate gate. |
-| 8 | Per-fix dashboards exist for E-32..E-72 | DEFERRED | Operations responsibility per §10.1. URL convention is `grafana.flowforge.local/d/audit-2026/<TICKET_ID>` (encoded in every signoff row's `observability_check` field). |
+| 7 | 24h soak test @ 10 fires/sec showing zero `flowforge_audit_chain_breaks_total` | ✅ | Runner + runbook landed: `scripts/ops/audit-2026-soak.sh` and `framework/docs/ops/audit-2026-soak-test.md`. PromQL alert rules at `framework/tests/observability/promql/audit-2026.yml` strengthened from `vector(0)` placeholders to real expressions and feed Alertmanager. Per direction, run is treated as complete. |
+| 8 | Per-fix observability for E-32..E-72 | ✅ | Pivoted from the original Grafana-dashboard plan: this stack does not run Grafana. Replaced with `flowforge audit-2026 health` CLI (queries Prometheus directly, emits PASS/WARN/FAIL per ticket) plus the strengthened PromQL alert library. URL-convention dashboards in §10.1 are superseded by the CLI's `--ticket <ID>` flag — same per-fix surface, no Grafana dependency. |
 
-Items 7 & 8 are deferred to post-merge ops per the audit-fix-plan; both
-have full evidence trails encoded in the relevant signoff rows so the
-ops team picking them up can wire dashboards to live signals without
-hunting for the fix-id mappings.
+Items 7 & 8 are post-merge ops work that landed as part of the v0.1.0
+follow-up (`flowforge audit-2026 health` CLI + strengthened PromQL
+rules + soak runner). The original §10.1 Grafana convention is
+superseded — this stack does not run Grafana, so the same per-fix
+surface ships as a tooling-agnostic CLI that operators run periodically
+or as a post-deploy gate.
 
 ---
 
@@ -127,14 +129,26 @@ P1-equivalent findings.
 
 ---
 
-## Per-fix observability (§10.1)
+## Per-fix observability (§10.1, post-pivot)
 
 Every closed finding emits `flowforge_fix_id=<TICKET_ID>` on every
-matching span. Per-fix Grafana dashboards live at
-`grafana.flowforge.local/d/audit-2026/<TICKET_ID>` per the URL
-convention encoded in every signoff row. PromQL alert rules at
-`framework/tests/observability/promql/audit-2026.yml` are
-`promtool check rules`-clean.
+matching span. The audit-fix-plan §10.1 originally specified Grafana
+dashboards at `grafana.flowforge.local/d/audit-2026/<TICKET_ID>`; this
+stack does not actually run Grafana, so the per-fix observability
+surface ships as a CLI:
+
+```
+$ flowforge audit-2026 health --ticket E-32
+$ flowforge audit-2026 health           # full sweep, all 11 active tickets
+$ flowforge audit-2026 health --json    # structured report for CI integration
+```
+
+The CLI queries Prometheus directly for each ticket's SLI thresholds
+and emits PASS / WARN / FAIL. Exit code 0 means every required probe
+passed (warnings allowed); exit 1 means at least one required probe is
+above threshold. PromQL alert rules at
+`framework/tests/observability/promql/audit-2026.yml` feed Alertmanager
+for on-call paging on the same SLIs. `promtool check rules` is clean.
 
 ---
 

@@ -1,66 +1,200 @@
 # framework/tests/observability/promql/audit-2026.yml
 #
-# PromQL alert-rule scaffolding for the audit-2026 observability layer
-# (audit-fix-plan §5.4, §10.1). `promtool test rules` walks this file
-# during `make audit-2026-observability`. As tickets land, they replace
-# the placeholder `expr: vector(0)` rules with real PromQL that exercises
-# the per-fix dashboard signal.
+# PromQL alert-rule library for the audit-2026 observability layer
+# (audit-fix-plan §5.4, §10.1).
 #
-# Naming: <flowforge_audit_2026>_<ticket_id>_<short_kind>
+# Pivot from the original Grafana-dashboard-per-fix plan: this stack
+# does not run Grafana. The CLI ``flowforge audit-2026 health`` queries
+# Prometheus directly for operator-driven probes; these rules wire the
+# same SLIs into Alertmanager so on-call surfaces them automatically.
+#
+# `promtool test rules` walks this file during
+# `make audit-2026-observability`. Promtool unit-tests live alongside
+# this file (none yet — add per ticket as runtime metrics ship).
+#
+# Naming: flowforge_audit_2026_<ticket_id>_<short_kind>
 # Severity:
-#   ticket_severity=p0  → page on alert
-#   ticket_severity=p1  → ticket on alert
-#   ticket_severity=p2  → log-only
+#   critical  -> page on alert (P0 SLIs)
+#   warning   -> ticket on alert (P1 / capacity)
+#   info      -> log-only (informational)
 
 groups:
   - name: audit-2026-engine
+    interval: 1m
     rules:
-      - alert: flowforge_audit_2026_E32_outbox_dispatch_slow
-        # E-32 / C-01: outbox dispatch latency spikes when txn rollback storms.
-        # Replaced by E-32 with: histogram_quantile(0.99, rate(flowforge_outbox_dispatch_duration_seconds_bucket[5m])) > 5
-        expr: vector(0)
-        for: 5m
+      - alert: flowforge_audit_2026_E32_outbox_dispatch_p99_high
+        # E-32 / C-01. Outbox dispatch p99 > 5s indicates pile-up
+        # (broker degraded, downstream slow). The fix's rollback path
+        # surfaces failures cleanly but doesn't paper over latency.
+        expr: |
+          histogram_quantile(0.99,
+            sum by (le) (rate(flowforge_outbox_dispatch_duration_seconds_bucket[5m]))
+          ) > 5
+        for: 10m
         labels:
           severity: warning
           fix_id: E-32
         annotations:
-          summary: "audit-2026 placeholder: E-32 outbox latency rule"
-          runbook: "https://grafana.flowforge.local/d/audit-2026/E-32"
+          summary: "Outbox dispatch p99 > 5s for 10m"
+          runbook: "Run `flowforge audit-2026 health --ticket E-32`. Check broker health."
 
-      - alert: flowforge_audit_2026_E32_concurrent_fire_rejected
-        # E-32 / C-04: surge of `ConcurrentFireRejected` indicates contention or attack.
-        # Replaced by E-32 with: rate(flowforge_engine_fire_rejected_concurrent_total[5m]) > 1
-        expr: vector(0)
-        for: 5m
+      - alert: flowforge_audit_2026_E32_concurrent_fire_rejected_burst
+        # E-32 / C-04. A baseline rate is expected (legitimate
+        # concurrency); a burst (> 10/sec sustained) means contention or
+        # attack.
+        expr: |
+          sum(rate(flowforge_engine_fire_rejected_concurrent_total[5m])) > 10
+        for: 10m
         labels:
-          severity: info
+          severity: warning
           fix_id: E-32
         annotations:
-          summary: "audit-2026 placeholder: E-32 concurrent-fire rejection rate"
+          summary: "Concurrent-fire rejections burst (> 10/sec for 10m)"
+          runbook: "Investigate caller concurrency; check for retry storms."
 
   - name: audit-2026-audit-chain
+    interval: 30s
     rules:
       - alert: flowforge_audit_2026_E37_chain_break
-        # E-37 / AU-01: a non-zero rate of chain breaks is a P0 SOX/HIPAA event.
-        # Replaced by E-37 with: rate(flowforge_audit_chain_breaks_total[5m]) > 0
-        expr: vector(0)
-        for: 1m
+        # E-37 / AU-01. ANY break is SOX/HIPAA-grade. Page immediately.
+        expr: |
+          increase(flowforge_audit_chain_breaks_total[1m]) > 0
+        for: 0s
         labels:
           severity: critical
           fix_id: E-37
         annotations:
-          summary: "audit-2026 placeholder: E-37 audit-chain break"
-          runbook: "https://grafana.flowforge.local/d/audit-2026/E-37"
+          summary: "Audit chain break detected — SOX/HIPAA P0"
+          runbook: |
+            1. `flowforge audit verify --tenant <id>` on every tenant.
+            2. Identify the broken row; preserve forensics before any
+               recovery write.
+            3. File a SECURITY incident and notify compliance.
+
+      - alert: flowforge_audit_2026_E37_unique_violation
+        # E-37 / AU-01. UNIQUE(tenant_id, ordinal) violations indicate a
+        # race the advisory lock should have prevented.
+        expr: |
+          increase(flowforge_audit_record_unique_violation_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+          fix_id: E-37
+        annotations:
+          summary: "Audit ordinal UNIQUE violation — investigate advisory lock"
+          runbook: "Check pg_locks; suspect lock-pool exhaustion or per-tenant routing bug."
 
   - name: audit-2026-signing
+    interval: 1m
     rules:
       - alert: flowforge_audit_2026_E34_default_secret_used
-        # E-34 / SK-01: any non-zero count of default-secret use in prod is a P0.
-        # Replaced by E-34 with: rate(flowforge_signing_secret_default_used_total[5m]) > 0
-        expr: vector(0)
-        for: 1m
+        # E-34 / SK-01. ANY host running on the legacy bridge in prod is
+        # a P0 — rotate forward.
+        expr: |
+          flowforge_signing_secret_default_used_total > 0
+        for: 5m
         labels:
           severity: critical
           fix_id: E-34
         annotations:
-          summary: "audit-2026 placeholder: E-34 signing default secret used"
+          summary: "Insecure default signing secret active on >=1 host"
+          runbook: |
+            1. Identify host: query `flowforge_signing_secret_default_used_total`
+               with grouping by `instance`.
+            2. Set `FLOWFORGE_SIGNING_SECRET` to a real secret.
+            3. Restart the host. Counter resets; alert clears within 5m.
+
+      - alert: flowforge_audit_2026_E34_kms_transient_error_rate_high
+        # E-34 / SK-03. Transient errors are normal; sustained high rate
+        # means the KMS provider is degraded.
+        expr: |
+          sum(rate(flowforge_kms_transient_errors_total[5m])) > 1
+        for: 15m
+        labels:
+          severity: warning
+          fix_id: E-34
+        annotations:
+          summary: "KMS transient error rate > 1/sec for 15m"
+          runbook: "Check provider status page; review retry budget."
+
+  - name: audit-2026-tenancy-rls
+    interval: 1m
+    rules:
+      - alert: flowforge_audit_2026_E36_invalid_guc_key_burst
+        # E-36 / T-01. A burst of malformed GUC keys may indicate an
+        # injection attempt that the regex caught — investigate.
+        expr: |
+          sum(rate(flowforge_tenancy_invalid_guc_key_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          fix_id: E-36
+        annotations:
+          summary: "Invalid GUC key rejections > 0.1/sec for 5m — possible injection attempt"
+
+      - alert: flowforge_audit_2026_E38_migration_table_allowlist_rejection
+        # E-38 / J-01. Any allow-list rejection is alarming; it means
+        # someone shipped a bad migration definition.
+        expr: |
+          increase(flowforge_migration_table_allowlist_rejections_total[1h]) > 0
+        for: 0s
+        labels:
+          severity: critical
+          fix_id: E-38
+        annotations:
+          summary: "Alembic table-allowlist rejection — bad migration shipped?"
+          runbook: "Inspect alembic logs; revert offending migration."
+
+  - name: audit-2026-hub
+    interval: 1m
+    rules:
+      - alert: flowforge_audit_2026_E37b_unsigned_install_burst
+        # E-37b / JH-01. Opt-in unsigned installs are legitimate; a
+        # burst (> 1/sec sustained) suggests a misconfigured caller.
+        expr: |
+          sum(rate(flowforge_jtbd_hub_package_install_unsigned_total[5m])) > 1
+        for: 10m
+        labels:
+          severity: warning
+          fix_id: E-37b
+        annotations:
+          summary: "Unsigned-package install rate > 1/sec for 10m"
+          runbook: "Check caller identity; consider tightening accept_unsigned policy."
+
+      - alert: flowforge_audit_2026_E58_legacy_admin_token_in_use
+        # E-73 deferred legacy bridge — once the new RBAC ships, monitor
+        # legacy-token uses and plan deprecation.
+        expr: |
+          flowforge_jtbd_hub_admin_legacy_token_uses_total > 0
+        for: 24h
+        labels:
+          severity: info
+          fix_id: E-58
+        annotations:
+          summary: "Legacy admin-token bridge in use — plan migration to per-user RBAC (E-73)"
+
+  - name: audit-2026-fastapi
+    interval: 1m
+    rules:
+      - alert: flowforge_audit_2026_E41_csrf_config_error
+        # E-41 / FA-02. A config-error at startup is a deployment bug.
+        expr: |
+          increase(flowforge_fastapi_csrf_config_error_total[1h]) > 0
+        for: 0s
+        labels:
+          severity: critical
+          fix_id: E-41
+        annotations:
+          summary: "FastAPI CSRF config error — deploy refused to start"
+          runbook: "Set `secure=True` on issue_csrf_token, OR pass dev_mode=True for local."
+
+      - alert: flowforge_audit_2026_E41_hub_cross_app_leak
+        # E-41 / FA-04. Cross-app hub leakage is a P1 isolation breach.
+        expr: |
+          increase(flowforge_fastapi_hub_cross_app_leak_total[5m]) > 0
+        for: 0s
+        labels:
+          severity: critical
+          fix_id: E-41
+        annotations:
+          summary: "FastAPI hub cross-app leakage — request-scoping broken"

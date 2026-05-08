@@ -665,3 +665,78 @@ def test_invariant_8_migration_rls_safe(monkeypatch) -> None:
 	with pytest.raises(ValueError):
 		r2_jtbd._install_rls_if_postgres()
 	assert executed == [], "DDL leaked past the allow-list gate"
+
+
+# ---------------------------------------------------------------------------
+# Invariant 9 — parallel_fork token primitives are safe (E-74 phase 1)
+# ---------------------------------------------------------------------------
+#
+# E-74 ships token primitives + helper API; full engine wiring through
+# fire() is deferred to a follow-up. The existing host-managed pattern at
+# ``tests/integration/python/tests/test_parallel_regions.py`` uses context
+# flags + a WorkflowInstanceToken table; this invariant covers the
+# complementary in-process token primitives that adapters consume.
+#
+# Pinned by this invariant:
+#   - Token IDs are unique across a single fork allocation.
+#   - all_branches_joined() is True iff zero tokens remain in the region.
+#   - consume_token() raises TokenAlreadyConsumedError on a missing id —
+#     replay-safety contract per E-74 R-3.
+#   - TokenSet survives deepcopy with no shared mutation between clones —
+#     required for engine snapshot/restore and deterministic replay.
+
+
+@pytest.mark.invariant_p1
+def test_invariant_9_parallel_fork_token_primitives_safe() -> None:
+	"""E-74 phase 1: token primitives + helpers behave deterministically."""
+
+	import copy as _copy
+	from dataclasses import dataclass
+
+	from flowforge.engine import _fork
+	from flowforge.engine.tokens import TokenSet
+
+	@dataclass
+	class _StubTransition:
+		to: str
+
+	branches = [
+		_StubTransition(to="branch_a"),
+		_StubTransition(to="branch_b"),
+		_StubTransition(to="branch_c"),
+	]
+	tokens = _fork.make_fork_tokens(region="fork_review", branches=branches)
+
+	# 3 tokens, all unique, all tagged with the fork's region.
+	assert len(tokens) == 3
+	assert len({t.id for t in tokens}) == 3
+	assert all(t.region == "fork_review" for t in tokens)
+
+	tset = TokenSet()
+	for t in tokens:
+		tset.add(t)
+
+	# Region not yet drained.
+	assert not _fork.all_branches_joined(tset, "fork_review")
+	assert tset.count_in_region("fork_review") == 3
+
+	# Drain one token at a time.
+	_fork.consume_token(tset, tokens[0].id)
+	assert tset.count_in_region("fork_review") == 2
+	_fork.consume_token(tset, tokens[1].id)
+	_fork.consume_token(tset, tokens[2].id)
+	assert _fork.all_branches_joined(tset, "fork_review")
+
+	# Re-consuming a previously-consumed id raises (replay-safety).
+	with pytest.raises(_fork.TokenAlreadyConsumedError):
+		_fork.consume_token(tset, tokens[0].id)
+
+	# TokenSet survives deepcopy (engine snapshot/restore + replay).
+	tset2 = TokenSet()
+	for t in tokens:
+		tset2.add(t)
+	cloned = _copy.deepcopy(tset2)
+	assert {x.id for x in cloned.list()} == {x.id for x in tset2.list()}
+	cloned.remove(tokens[0].id)
+	assert tset2.count_in_region("fork_review") == 3
+	assert cloned.count_in_region("fork_review") == 2
