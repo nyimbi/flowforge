@@ -144,6 +144,17 @@ def derive_states(jtbd: dict[str, Any]) -> list[dict[str, Any]]:
 	if any((e.get("handle") == "reject") for e in jtbd.get("edge_cases") or []):
 		states.append({"name": "rejected", "kind": "terminal_fail"})
 
+	# Singleton ``compensated`` terminal_fail — only emitted when at least one
+	# edge_case declares ``handle: "compensate"``. The compensation point is
+	# the existing ``review`` manual_review state (already in the base flow);
+	# the synthesised ``compensate`` transitions fire from there guarded by
+	# ``context.<edge_id>`` so reachability validation stays green.
+	compensate_edges = [
+		e for e in (jtbd.get("edge_cases") or []) if e.get("handle") == "compensate"
+	]
+	if compensate_edges and all(s["name"] != "compensated" for s in states):
+		states.append({"name": "compensated", "kind": "terminal_fail"})
+
 	# Always add the success terminal last.
 	states.append({"name": "done", "kind": "terminal_success"})
 	return states
@@ -259,6 +270,73 @@ def derive_transitions(jtbd: dict[str, Any], states: list[dict[str, Any]]) -> li
 					"guards": [],
 					"gates": [{"kind": "permission", "permission": f"{jt_id}.review"}],
 					"effects": [{"kind": "audit", "template": f"{jt_id}.{eid}_returned"}],
+				}
+			)
+			priority += 1
+
+	# ----------------------------------------------------------------------
+	# Compensation synthesis (item 2 / W0).
+	#
+	# For every edge_case declaring ``handle: "compensate"``, emit a paired
+	# compensation transition that reverses the forward saga in LIFO order.
+	# The pairing rules are deterministic functions of the *already-synthesised*
+	# transitions above, so two regens against the same bundle produce
+	# byte-identical output regardless of dict iteration timing.
+	# ----------------------------------------------------------------------
+	compensate_edges = [
+		e for e in (jtbd.get("edge_cases") or []) if e.get("handle") == "compensate"
+	]
+	if compensate_edges:
+		# Walk the forward transitions in synthesis order, collect the
+		# compensable effects in encounter order, then reverse for LIFO.
+		# create_entity → compensate_delete (same entity field).
+		# notify       → notify_cancellation (template "<jtbd>.<event>.cancelled").
+		# Each compensable forward effect becomes a ``kind=compensate`` effect
+		# with ``compensation_kind`` naming the saga-step kind the host
+		# registers a handler for (matches the engine's fire.py wire-up of
+		# instance.saga.append({"kind": compensation_kind, ...})).
+		paired: list[dict[str, Any]] = []
+		for fwd in tr:
+			fwd_event = fwd.get("event") or ""
+			for eff in fwd.get("effects") or ():
+				kind = eff.get("kind")
+				if kind == "create_entity":
+					paired.append(
+						{
+							"kind": "compensate",
+							"compensation_kind": "compensate_delete",
+							"values": {"entity": eff.get("entity") or jt_id},
+						}
+					)
+				elif kind == "notify":
+					paired.append(
+						{
+							"kind": "compensate",
+							"compensation_kind": "notify_cancellation",
+							"values": {"template": f"{jt_id}.{fwd_event}.cancelled"},
+						}
+					)
+		paired_lifo = list(reversed(paired))
+
+		for edge in compensate_edges:
+			eid = snake_case(edge.get("id") or "edge")
+			# Compensate transitions all fire from ``review`` (the compensation
+			# point) on event ``compensate``, distinguished by guard
+			# ``context.<eid>`` — same expr shape ``branch`` already uses, so
+			# no new operator is introduced into ``flowforge.expr`` (cross-
+			# runtime parity fixture stays untouched).
+			tr.append(
+				{
+					"id": f"{jt_id}_{eid}_compensate",
+					"event": "compensate",
+					"from_state": "review",
+					"to_state": "compensated",
+					"priority": priority,
+					"guards": [
+						{"kind": "expr", "expr": {"var": f"context.{eid}"}}
+					],
+					"gates": [{"kind": "permission", "permission": f"{jt_id}.review"}],
+					"effects": list(paired_lifo),
 				}
 			)
 			priority += 1

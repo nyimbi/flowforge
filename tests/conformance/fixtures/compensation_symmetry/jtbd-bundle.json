@@ -1,0 +1,37 @@
+{
+  "project": {
+    "name": "compensation-conformance",
+    "package": "compensation_conformance",
+    "domain": "test",
+    "tenancy": "single",
+    "languages": ["en"],
+    "currencies": ["USD"]
+  },
+  "shared": {
+    "roles": ["operator"],
+    "permissions": []
+  },
+  "jtbds": [
+    {
+      "id": "saga_demo",
+      "title": "Saga conformance JTBD",
+      "actor": {"role": "operator"},
+      "situation": "fixture-only JTBD that exercises the compensation synthesiser",
+      "motivation": "pin invariant 10 (compensation symmetry) on every PR",
+      "outcome": "every forward create_entity has a paired compensate_delete in LIFO order",
+      "success_criteria": [
+        "compensate transitions emit one compensate_delete per forward create_entity"
+      ],
+      "data_capture": [
+        {"id": "ref", "kind": "text", "label": "Reference", "required": true, "pii": false}
+      ],
+      "edge_cases": [
+        {
+          "id": "external_failure",
+          "condition": "downstream service rejected the operation",
+          "handle": "compensate"
+        }
+      ]
+    }
+  ]
+}

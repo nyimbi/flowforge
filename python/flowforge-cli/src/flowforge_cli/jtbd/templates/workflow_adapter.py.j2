@@ -1,3 +1,4 @@
+{% set _compensate_transitions = jtbd.transitions | selectattr("event", "equalto", "compensate") | list %}
 """Workflow adapter for {{ jtbd.title }}.
 
 Wraps :func:`flowforge.engine.fire.fire` for the ``{{ jtbd.id }}`` workflow.
@@ -14,6 +15,12 @@ from typing import Any
 from flowforge.dsl import WorkflowDef
 from flowforge.engine.fire import FireResult, fire as _fire, new_instance
 from flowforge.ports.types import Principal
+{% if _compensate_transitions %}
+from flowforge.engine.saga import CompensationWorker
+from ..{{ jtbd.module_name }}.compensation_handlers import (
+	register_compensations as _register_jtbd_compensations,
+)
+{% endif %}
 
 
 WORKFLOW_KEY = "{{ jtbd.id }}"
@@ -60,3 +67,18 @@ async def fire_event(
 		principal=principal,
 		tenant_id=tenant_id,
 	)
+{% if _compensate_transitions %}
+
+
+def register_compensations(worker: CompensationWorker) -> None:
+	"""Register the synthesised {{ jtbd.id }} saga compensations on *worker*.
+
+	Mirrors the ``compensate`` transitions in this workflow's
+	``definition.json``. Hosts call this once at boot so
+	:meth:`CompensationWorker.replay_pending` can dispatch the per-kind
+	handlers in LIFO order whenever an instance enters the compensation
+	point.
+	"""
+
+	_register_jtbd_compensations(worker)
+{% endif %}

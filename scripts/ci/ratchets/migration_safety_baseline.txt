@@ -1,0 +1,39 @@
+# scripts/ci/ratchets/migration_safety_baseline.txt
+#
+# Allowed legitimate occurrences of `flowforge migration-safety` findings
+# (item 1 of docs/improvements.md, W0 of docs/v0.3.0-engineering-plan.md).
+#
+# Format mirrors the other ratchet baselines in this directory: each
+# baseline line is the exact `migration_safety: <path>:<line>: <rule>`
+# string the analyzer prints when the finding fires.
+#
+# Adding a new line requires migration-safety review (security-team for
+# CRITICAL or HIGH; ops-lead for WARN). Land the migration change AND
+# this baseline update in the same PR (audit-fix-plan §F-6, R-6 protocol).
+#
+# The CLI consumes this file via `flowforge migration-safety <dir>
+# --baseline scripts/ci/ratchets/migration_safety_baseline.txt`. The
+# CI ratchet wrapper (when added in a follow-up) will call the same
+# path with `--threshold 1000000`.
+#
+# Update protocol:
+#   1. Run `flowforge migration-safety backend/migrations/versions \
+#      --hints table_size_hints.json --baseline scripts/ci/ratchets/migration_safety_baseline.txt`
+#      to surface new violations.
+#   2. If the new finding is genuinely legitimate (test fixture, dev-only
+#      path, or the plan-of-record-rewrite is documented elsewhere),
+#      append the exact `migration_safety: ...` line below the right
+#      severity heading and request review.
+#   3. Land both the migration change AND the baseline update in the
+#      same PR.
+
+## severity=critical
+# (multi-head, irreversible deploy refusal — none allowed by default).
+
+## severity=high
+# (CREATE INDEX without CONCURRENTLY on populated table; type narrowing;
+# column drop without deprecation comment; NOT NULL backfill over the
+# size threshold).
+
+## severity=warn
+# (NOT NULL add when no `table_size_hints.json` is supplied — advisory).

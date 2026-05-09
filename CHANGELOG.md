@@ -1,5 +1,81 @@
 # flowforge changelog
 
+## [0.3.0-engr.0] — Wave 0
+
+> First wave of the v0.3.0 engineering track per
+> `docs/v0.3.0-engineering-plan.md`. W0 lands two reliability
+> enhancements (item 1 migration safety analyzer; item 2 compensation
+> synthesis) plus the matching conformance invariant (10) and a
+> stale-docstring fix in the conformance suite header. The track is
+> orthogonal to the v0.2.0 content track and to the audit-2026
+> follow-ups under `## Unreleased`. Selected as W0 because both items
+> close documented gaps with mostly-existing primitives, share no file
+> surface (item 1 touches `db_migration` + a new per-bundle generator;
+> item 2 touches `transforms.derive_*` + `workflow_adapter` template +
+> a new per-JTBD generator), and together unblock the cross-runtime
+> fixture v2 work in W1.
+
+- **[Reliable]** (v0.3.0 W0 / item 1) Migration safety analyzer.
+  Static rules now run against every emitted alembic migration and
+  emit `backend/migrations/safety/<rev>.md` per migration with
+  severity-graded findings (NOT NULL backfill on a hinted-large table,
+  `CREATE INDEX` without `CONCURRENTLY` on Postgres, type narrowing,
+  column drop with no deprecation window). New per-bundle generator
+  `flowforge_cli.jtbd.generators.migration_safety`, new
+  `flowforge migration-safety` Typer subcommand, new
+  `scripts/ci/ratchets/migration_safety_baseline.txt` so generation-time
+  catches regressions before any deploy decision. Hooked into
+  `flowforge pre-upgrade-check` as a subcheck so the host's CI gate
+  surfaces the same advisories operators would otherwise discover by
+  hand at PR-review time. Generation stays deterministic — the
+  analyzer is a read-only pass over the migration AST.
+- **[Reliable, Capable]** (v0.3.0 W0 / item 2) Compensation synthesis.
+  `EDGE_HANDLE_TO_STATE_KIND["compensate"]` is now wired through to
+  `derive_states` + `derive_transitions`: any JTBD declaring
+  `edge_case.handle == "compensate"` gains a singleton `compensated`
+  terminal_fail state plus per-edge `<jtbd>_<edge_id>_compensate`
+  transitions firing from `review` on event `compensate`, guarded by
+  `context.<edge_id>` (same expr shape `branch` already uses, so the
+  cross-runtime parity fixture stays untouched). Each compensate
+  transition's effects are paired with the *forward* saga in **LIFO**
+  order: every `create_entity` → `compensate_delete` (carries the
+  forward `entity` field), every `notify` →
+  `notify_cancellation` (template `<jtbd>.<event>.cancelled`).
+  Effects use the canonical workflow_def schema
+  `kind: "compensate"` with `compensation_kind` naming the saga-step
+  kind the host registers a handler for (matches engine
+  `fire.py`'s saga ledger append). New per-JTBD generator
+  `compensation_handlers.py` emits a stub registering the synthesised
+  kinds against `flowforge.engine.saga.CompensationWorker`, and
+  `workflow_adapter.py.j2` gates a `register_compensations(worker)`
+  entrypoint behind `_compensate_transitions` so JTBDs that don't
+  opt in regenerate byte-identical.
+- **[Reliable]** (v0.3.0 W0 / invariant 10) Conformance invariant 10
+  — compensation symmetry. New `@invariant_p1`
+  `test_invariant_10_compensation_symmetry` parses
+  `tests/conformance/fixtures/compensation_symmetry/jtbd-bundle.json`,
+  runs the synthesiser via `normalize`, and asserts that for every
+  JTBD with a synthesised `compensate` event the count of
+  `compensate_delete` saga steps matches the count of forward
+  `create_entity` effects and that the relative order is LIFO. Also
+  exercises `_PER_JTBD_GENERATORS[workflow_adapter]` to pin the
+  `CompensationWorker` import gate. `make audit-2026-conformance`
+  now reports 10 invariants pass.
+- **(v0.3.0 W0)** Stale-docstring fix at
+  `tests/conformance/test_arch_invariants.py:9`. The header had said
+  "8 architectural invariants" since audit-2026; with the E-74
+  follow-up adding invariant 9 and W0 adding invariant 10 the count
+  drifted twice. The header now reads "10 architectural invariants"
+  and references the v0.3.0 signoff checklist alongside the
+  audit-2026 one. Bundled with invariant 10 because both edits land
+  in the same file.
+- **(v0.3.0 W0)** Example bundle update: `examples/insurance_claim/`
+  declares a `fraud_detected` edge_case with `handle: "compensate"`
+  so the regen-diff gate exercises the compensation synthesiser
+  going forward. The other two examples (`hiring-pipeline`,
+  `building-permit`) regenerate byte-identical to their checked-in
+  trees because they don't declare compensate.
+
 ## Unreleased
 
 - **(audit-2026 follow-up)** v0.1.0 release-health pivot: Grafana plan replaced with a tooling-agnostic CLI. Removed `infra/grafana/dashboards/audit-2026-*.json` and the generation script (this stack does not run Grafana). Replaced with `flowforge audit-2026 health` CLI command — probes Prometheus directly, emits PASS/WARN/FAIL per ticket, exits non-zero on any required-probe failure; designed as a post-deploy gate or periodic ops cron. PromQL alert rules in `framework/tests/observability/promql/audit-2026.yml` strengthened from `vector(0)` placeholders to real expressions feeding Alertmanager. Soak test runner + runbook landed (`scripts/ops/audit-2026-soak.sh`, `framework/docs/ops/audit-2026-soak-test.md`); per direction, the 24h soak is treated as complete in the close-out report. Signoff-checklist rows updated to reference the CLI instead of Grafana URLs; close-out criteria 7 & 8 promoted from DEFERRED to ✅.

@@ -14,6 +14,10 @@ from typing import Any
 from flowforge.dsl import WorkflowDef
 from flowforge.engine.fire import FireResult, fire as _fire, new_instance
 from flowforge.ports.types import Principal
+from flowforge.engine.saga import CompensationWorker
+from ..claim_intake.compensation_handlers import (
+	register_compensations as _register_jtbd_compensations,
+)
 
 
 WORKFLOW_KEY = "claim_intake"
@@ -60,3 +64,16 @@ async def fire_event(
 		principal=principal,
 		tenant_id=tenant_id,
 	)
+
+
+def register_compensations(worker: CompensationWorker) -> None:
+	"""Register the synthesised claim_intake saga compensations on *worker*.
+
+	Mirrors the ``compensate`` transitions in this workflow's
+	``definition.json``. Hosts call this once at boot so
+	:meth:`CompensationWorker.replay_pending` can dispatch the per-kind
+	handlers in LIFO order whenever an instance enters the compensation
+	point.
+	"""
+
+	_register_jtbd_compensations(worker)

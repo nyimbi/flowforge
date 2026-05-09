@@ -33,6 +33,10 @@
       "name": "rejected"
     },
     {
+      "kind": "terminal_fail",
+      "name": "compensated"
+    },
+    {
       "kind": "terminal_success",
       "name": "done"
     }
@@ -169,6 +173,50 @@
       "id": "claim_intake_lapsed_reject",
       "priority": 6,
       "to_state": "rejected"
+    },
+    {
+      "effects": [
+        {
+          "compensation_kind": "notify_cancellation",
+          "kind": "compensate",
+          "values": {
+            "template": "claim_intake.approve.cancelled"
+          }
+        },
+        {
+          "compensation_kind": "notify_cancellation",
+          "kind": "compensate",
+          "values": {
+            "template": "claim_intake.approve.cancelled"
+          }
+        },
+        {
+          "compensation_kind": "compensate_delete",
+          "kind": "compensate",
+          "values": {
+            "entity": "claim_intake"
+          }
+        }
+      ],
+      "event": "compensate",
+      "from_state": "review",
+      "gates": [
+        {
+          "kind": "permission",
+          "permission": "claim_intake.review"
+        }
+      ],
+      "guards": [
+        {
+          "expr": {
+            "var": "context.fraud_detected"
+          },
+          "kind": "expr"
+        }
+      ],
+      "id": "claim_intake_fraud_detected_compensate",
+      "priority": 7,
+      "to_state": "compensated"
     }
   ],
   "version": "1.0.0"

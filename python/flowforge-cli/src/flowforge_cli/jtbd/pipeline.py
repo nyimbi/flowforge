@@ -15,12 +15,14 @@ from ._types import GeneratedFile
 from .generators import (
 	alembic,
 	audit_taxonomy,
+	compensation_handlers,
 	db_migration,
 	domain_router,
 	domain_service,
 	env_example,
 	form_spec,
 	frontend,
+	migration_safety,
 	notifications,
 	permissions,
 	readme,
@@ -50,6 +52,7 @@ _PER_JTBD_GENERATORS = (
 	domain_router.generate,
 	test_gen.generate,
 	frontend.generate,
+	compensation_handlers.generate,
 )
 
 _PER_BUNDLE_GENERATORS = (
@@ -59,6 +62,7 @@ _PER_BUNDLE_GENERATORS = (
 	alembic.generate,
 	env_example.generate,
 	readme.generate,
+	migration_safety.generate,
 )
 
 

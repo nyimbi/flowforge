@@ -23,6 +23,7 @@ from .commands import (
 	jtbd_lint,
 	jtbd_migrate,
 	migrate_fork,
+	migration_safety,
 	new,
 	pre_upgrade_check,
 	regen_catalog,
@@ -59,6 +60,7 @@ replay.register(app)
 upgrade_deps.register(app)
 pre_upgrade_check.register(app)
 audit_2026_health.register(app)
+migration_safety.register(app)
 migrate_fork.register(app)
 ai_assist.register(app)
 generate_llmtxt.register(app)

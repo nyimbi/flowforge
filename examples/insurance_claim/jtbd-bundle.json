@@ -105,6 +105,11 @@
           "id": "lapsed",
           "condition": "policy status is lapsed at date of loss",
           "handle": "reject"
+        },
+        {
+          "id": "fraud_detected",
+          "condition": "context.fraud_detected",
+          "handle": "compensate"
         }
       ],
       "approvals": [

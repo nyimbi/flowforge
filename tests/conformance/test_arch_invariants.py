@@ -1,22 +1,23 @@
-"""arch §17 architectural invariants — audit-2026 conformance suite.
+"""arch §17 architectural invariants — audit-2026 + v0.3.0-engr conformance suite.
 
-This file is the single point of truth for the 8 architectural invariants the
-framework must hold (audit-fix-plan §3, §4, §5.3, §F-3 / R-3). Each invariant
-maps to:
+This file is the single point of truth for the 10 architectural invariants
+the framework must hold. Invariants 1-8 originate in audit-2026 (audit-fix-plan
+§3, §4, §5.3, §F-3 / R-3); invariant 9 lands as part of the E-74 follow-up
+(parallel_fork tokens); invariant 10 lands in v0.3.0 W0 alongside item 2
+(compensation synthesis). Each invariant maps to:
 
-	* one or more audit findings (E-xx ticket)
+	* one or more audit findings (E-xx ticket) or v0.3.0 wave / item id
 	* a marker (`@invariant_p0` or `@invariant_p1`)
-	* a sprint exit gate (S0 = invariants 1, 2, 3, 7; S1 = 4, 5, 6, 8)
-
-The scaffold here registers eight placeholder tests that each ticket fills
-in with a real assertion. Until then they are `xfail(strict=True)` so a
-ticket that lands without populating its invariant fails CI loudly.
+	* a sprint exit gate (S0 = invariants 1, 2, 3, 7; S1 = 4, 5, 6, 8;
+	  E-74 follow-up = 9; v0.3.0 W0 = 10)
 
 When the owning ticket lands:
 
 	1. Replace the `pytest.xfail(...)` body with a regression-quality test.
 	2. Drop the `@pytest.mark.xfail(strict=True)` decorator.
-	3. Update `framework/docs/audit-2026/signoff-checklist.md` ticket row.
+	3. Update `framework/docs/audit-2026/signoff-checklist.md` ticket row
+	   (audit-2026) or `framework/docs/v0.3.0-engineering/signoff-checklist.md`
+	   row (v0.3.0).
 	4. (P0 only) Add a `[SECURITY]` entry to `CHANGELOG.md`.
 
 Removal of an `@invariant_p0` test requires security-team review (CR-3).
@@ -740,3 +741,135 @@ def test_invariant_9_parallel_fork_token_primitives_safe() -> None:
 	cloned.remove(tokens[0].id)
 	assert tset2.count_in_region("fork_review") == 3
 	assert cloned.count_in_region("fork_review") == 2
+
+
+# ---------------------------------------------------------------------------
+# Invariant 10 — Compensation symmetry (v0.3.0 W0 / item 2)
+# ---------------------------------------------------------------------------
+#
+# v0.3.0 wave 0 lands the compensation synthesiser
+# (`flowforge_cli.jtbd.transforms.derive_transitions` for the synthesis side
+# and `_PER_JTBD_GENERATORS[workflow_adapter]` for the rendered surface).
+# Every JTBD declaring an `edge_case` with `handle: "compensate"` and at
+# least one forward `effects: [{kind: "create_entity"}]` transition MUST
+# emit a paired `compensate_delete` saga step in matching LIFO order.
+#
+# Pinned by this invariant:
+#   - Forward `create_entity` count == compensate `compensate_delete` count.
+#   - LIFO order: the relative order of `compensate_delete` entries inside
+#     the synthesised compensate transition equals the *reverse* of the
+#     forward `create_entity` order — so the most recently-applied forward
+#     create is the first to be undone.
+#   - The corresponding `workflow_adapter` template output emits the
+#     `CompensationWorker` import gate so hosts can wire the synthesised
+#     handlers through the same surface as `fire_event`.
+
+
+@pytest.mark.invariant_p1
+def test_invariant_10_compensation_symmetry() -> None:
+	"""v0.3.0 W0 / item 2 — paired compensate_delete in LIFO order.
+
+	Acceptance criterion (v0.3.0-engineering-plan §8 invariant 10):
+	  * Parse the conformance fixture under
+	    ``tests/conformance/fixtures/compensation_symmetry/jtbd-bundle.json``.
+	  * Run the synthesiser via ``normalize`` (which calls
+	    ``derive_states`` + ``derive_transitions``).
+	  * For every JTBD whose synthesised transitions contain a
+	    ``compensate`` event, assert
+	    ``len(compensate_delete) == len(forward create_entity)`` and that
+	    the ordering is LIFO.
+	  * Also exercise the rendered ``_PER_JTBD_GENERATORS[workflow_adapter]``
+	    output to confirm the gate that imports ``CompensationWorker``
+	    fires whenever compensations are synthesised.
+	"""
+
+	import json
+	from pathlib import Path
+
+	from flowforge_cli.jtbd.generators import workflow_adapter
+	from flowforge_cli.jtbd.normalize import normalize
+	from flowforge_cli.jtbd.parse import parse_bundle
+
+	fixture_path = (
+		Path(__file__).resolve().parent
+		/ "fixtures"
+		/ "compensation_symmetry"
+		/ "jtbd-bundle.json"
+	)
+	assert fixture_path.exists(), f"missing fixture: {fixture_path}"
+	raw = json.loads(fixture_path.read_text(encoding="utf-8"))
+	parse_bundle(raw)
+	bundle = normalize(raw)
+
+	# The fixture must declare at least one JTBD that opted into the
+	# synthesiser; otherwise the invariant is silently vacuous.
+	jtbds_with_compensate = [
+		jt
+		for jt in bundle.jtbds
+		if any(t.get("event") == "compensate" for t in jt.transitions)
+	]
+	assert jtbds_with_compensate, (
+		"fixture must declare at least one JTBD with a compensate edge_case"
+	)
+
+	for jt in jtbds_with_compensate:
+		# Forward create_entity effects in synthesis order — these are
+		# the saga steps the host has already committed when the
+		# compensation point fires.
+		forward_create_entities: list[str] = [
+			eff.get("entity") or jt.id
+			for t in jt.transitions
+			if t.get("event") != "compensate"
+			for eff in (t.get("effects") or ())
+			if eff.get("kind") == "create_entity"
+		]
+		assert forward_create_entities, (
+			f"{jt.id}: fixture must produce at least one forward "
+			f"create_entity effect to exercise the LIFO pairing"
+		)
+
+		compensate_transitions = [
+			t for t in jt.transitions if t.get("event") == "compensate"
+		]
+		assert compensate_transitions, (
+			f"{jt.id}: synthesiser failed to emit a compensate transition"
+		)
+
+		# Each compensate transition pins the same paired LIFO list.
+		for ct in compensate_transitions:
+			compensate_delete_entities: list[str] = [
+				str((eff.get("values") or {}).get("entity") or "")
+				for eff in (ct.get("effects") or ())
+				if eff.get("kind") == "compensate"
+				and eff.get("compensation_kind") == "compensate_delete"
+			]
+			assert len(compensate_delete_entities) == len(
+				forward_create_entities
+			), (
+				f"{jt.id} {ct['id']}: compensate_delete count mismatch — "
+				f"forward create_entity={forward_create_entities!r} "
+				f"paired compensate_delete={compensate_delete_entities!r}"
+			)
+			# LIFO: the relative order of compensate_delete entries inside
+			# ``ct['effects']`` equals the reverse of the forward order.
+			assert compensate_delete_entities == list(
+				reversed(forward_create_entities)
+			), (
+				f"{jt.id} {ct['id']}: LIFO order broken — "
+				f"forward={forward_create_entities!r} "
+				f"compensate_delete_order={compensate_delete_entities!r}"
+			)
+
+		# The rendered workflow_adapter template output emits the
+		# CompensationWorker gate whenever compensations are synthesised.
+		# This is the surface hosts wire — exercising it here pins both
+		# the synthesis (above) and the generator-side coupling.
+		adapter = workflow_adapter.generate(bundle, jt)
+		assert adapter is not None, f"{jt.id}: workflow_adapter returned None"
+		assert "CompensationWorker" in adapter.content, (
+			f"{jt.id}: workflow_adapter missing CompensationWorker import "
+			f"despite synthesised compensate transitions"
+		)
+		assert "register_compensations" in adapter.content, (
+			f"{jt.id}: workflow_adapter missing register_compensations entrypoint"
+		)
