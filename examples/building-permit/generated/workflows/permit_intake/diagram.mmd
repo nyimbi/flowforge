@@ -1,0 +1,22 @@
+---
+title: permit_intake — Submit a Building Permit Application
+---
+stateDiagram-v2
+	direction LR
+
+	classDef swimlane_applicant fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e,stroke-width:1px
+	classDef swimlane_reviewer fill:#fef3c7,stroke:#d97706,color:#78350f,stroke-width:1px
+	classDef terminal_success fill:#dcfce7,stroke:#16a34a,color:#14532d,stroke-width:2px
+
+	[*] --> intake
+	review --> done : ● approve (P0)
+	intake --> review : ● submit (P0)
+	done --> [*]
+
+	note right of review
+		24h SLA
+	end note
+
+	class intake swimlane_applicant
+	class review swimlane_reviewer
+	class done terminal_success

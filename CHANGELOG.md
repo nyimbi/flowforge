@@ -1,5 +1,126 @@
 # flowforge changelog
 
+## [0.3.0-engr.1] — Wave 1
+
+> Second wave of the v0.3.0 engineering track per
+> `docs/v0.3.0-engineering-plan.md` §7. W1 lands three items off
+> `docs/improvements.md`: item 8 (bundle-derived OpenAPI 3.1
+> emission), item 13 (real form generation behind the
+> `bundle.project.frontend.form_renderer` flag), item 19
+> (state-machine mermaid emission). Cross-runtime parity fixture v2
+> (250 cases, 200 base + 50 `conditional`-tagged) lands in the same
+> wave as item 13, anchored by the new
+> `no_unparried_expr_in_step_template` ratchet (architectural
+> mitigation for Pre-mortem Scenario 2). The legacy
+> `expr_parity_200.json` is retained until W3 per the engineering
+> plan §11.1. Three new artifacts (`openapi.yaml`,
+> `workflows/<id>/diagram.mmd`, real-path `Step.tsx`) join the
+> byte-identical regen baseline; default flag value `"skeleton"`
+> keeps every pre-W1 bundle regenerating identically.
+
+- **[Capable]** (v0.3.0 W1 / item 8) Bundle-derived OpenAPI 3.1
+  generator. New per-bundle generator
+  `flowforge_cli.jtbd.generators.openapi` emits `openapi.yaml` at
+  the bundle root, one operation per JTBD's
+  `POST /<url_segment>/events` route. Each operation is tagged by
+  `jtbd_id` and carries two flowforge-specific extensions —
+  `x-audit-topics` (sourced from `transforms.derive_audit_topics`)
+  and `x-permissions` (sourced from `transforms.derive_permissions`)
+  — so downstream tooling can route on them without booting the
+  FastAPI app. Request bodies derive a JSON-schema payload from
+  each JTBD's `data_capture` fields with deterministic `example`
+  values built from each field's kind + `validation` range.
+  Operation-level fields are sorted into a stable key order
+  (`tags` → `summary` → `operationId` → `requestBody` →
+  `responses` → `x-audit-topics` → `x-permissions`) so two regens
+  against the same bundle yield byte-identical YAML. Generation
+  remains I/O-free — no FastAPI introspection — keeping the
+  cross-runtime fixture and audit-2026 invariants untouched.
+- **[Functional, Beautiful]** (v0.3.0 W1 / item 13) Real form
+  generation behind `bundle.project.frontend.form_renderer`.
+  Additive `JtbdFrontend` schema (Pydantic v2 with
+  `extra='forbid'`) introduces a single knob with two values:
+  `"skeleton"` (default — the legacy stub `Step.tsx` that renders
+  field labels with `<dd>—</dd>` placeholders, byte-identical to
+  pre-W1 emission) and `"real"` (working `FormRenderer` invocation
+  against the per-JTBD `form_spec.json` plus client-side validators
+  derived from `data_capture[].validation`, `show_if` conditional
+  visibility via the engine's whitelisted `var` operator,
+  default-masked PII fields with eye-toggle, and inline error
+  linking via `aria-describedby`). The skeleton path is preserved
+  to honour byte-identical regen for every pre-W1 bundle. The real
+  path's `show_if` shape — `{var: "context.<edge_id>"}` — uses the
+  same expression operator `branch` already uses, so no new
+  operator enters the cross-runtime registry. The
+  `examples/insurance_claim/jtbd-bundle.json` sets
+  `project.frontend.form_renderer = "real"` to lock the real-path
+  baseline going forward; `examples/building-permit/jtbd-bundle.json`
+  and `examples/hiring-pipeline/jtbd-bundle.json` retain the
+  default skeleton path to exercise both regen targets in CI.
+- **[Beautiful, Functional]** (v0.3.0 W1 / item 19) State-machine
+  diagram emission. New per-JTBD generator
+  `flowforge_cli.jtbd.generators.diagram` emits
+  `workflows/<jtbd>/diagram.mmd` — a deterministic mermaid
+  `stateDiagram-v2` source for the synthesised state machine.
+  Swimlanes are coloured by actor role from a fixed palette in
+  sorted-unique order; terminal states are distinguished by kind
+  (`terminal_success` green, `terminal_fail` red, the
+  W0-synthesised `compensated` state overridden to a blue-dashed
+  `compensation` class so saga lanes read as separate from
+  rejects); transitions carry priority glyphs (● solid for
+  priority 0, ┄ dashed for 5..9, ┈ dotted for 10+, ⤺ blue saga
+  marker for compensate transitions); SLA budgets render as
+  `note right of review` annotations when
+  `jtbd.sla_breach_seconds` is set. The generator deliberately
+  emits `.mmd` source only — pre-rendering SVG via `mermaid-cli`
+  would break byte-identical regen across mermaid-cli versions
+  (Principle 1 of the engineering plan); hosts run
+  `mmdc -i workflows/<id>/diagram.mmd -o diagram.svg` themselves
+  on the deterministic source. The generated README's mermaid
+  block embeds the diagram inline so doc readers see the state
+  machine without a separate viewer.
+- **(v0.3.0 W1)** Cross-runtime expression parity fixture v2.
+  New `tests/cross_runtime/fixtures/expr_parity_v2.json` ships 250
+  `(expr, ctx, expected)` tuples — the 200 base cases that
+  `expr_parity_200.json` already pinned plus 50 new
+  `conditional`-tagged cases that exercise the `show_if`-shaped
+  fragments the W1 real-form path may emit. Generated
+  deterministically by `tests/cross_runtime/_build_fixture_v2.py`.
+  `tests/cross_runtime/test_expr_parity.py` is repointed at
+  fixture v2 (line 23 `FIXTURE_PATH` constant; lines 33-35 case
+  count assertion bumped to 250; lines 50-63 required-tags set
+  adds `"conditional"`). The legacy `expr_parity_200.json` is
+  retained until W3 per the engineering plan §11.1 — both
+  fixtures co-exist while production hosts migrate. The TS
+  evaluator in `@flowforge/renderer` reads fixture v2 via the
+  vitest sibling and asserts byte-identical agreement; invariant
+  5 (cross-runtime parity) stays green against the new corpus.
+- **(v0.3.0 W1)** New ratchet
+  `scripts/ci/ratchets/no_unparried_expr_in_step_template.sh` —
+  Pre-mortem Scenario 2 mitigation. Greps the W1 real-form
+  `Step.tsx.j2` template for JSON-DSL expression-shaped tokens
+  (`{"var":`, `{"==": [`, `{"!=": [`, `{"and": [`, `{"or": [`,
+  `{"not": [`, `{"if": [`); if any are present, asserts that
+  fixture v2 exists with ≥ 50 `conditional`-tagged cases. Failure
+  is loud and points the contributor at fixture v2 plus the
+  PR-template "Touches expr evaluator?" checkbox. Wired into
+  `scripts/ci/ratchets/check.sh`'s `RATCHETS=()` array so
+  `make audit-2026-ratchets` now reports 5/5 ratchets pass (4
+  audit-2026 ratchets + this new one). Legitimate exceptions go
+  in `no_unparried_expr_in_step_template_baseline.txt` and
+  require security-team review per `scripts/ci/ratchets/README.md`.
+- **(v0.3.0 W1)** Example bundle update:
+  `examples/insurance_claim/jtbd-bundle.json` declares the new
+  `project.frontend = {form_renderer: "real"}` block so the
+  regen-diff gate exercises the real-form path going forward.
+  `examples/building-permit/jtbd-bundle.json` and
+  `examples/hiring-pipeline/jtbd-bundle.json` are unchanged —
+  they default to `"skeleton"` and continue to regenerate
+  byte-identical to their checked-in trees. Three new artifact
+  classes (`openapi.yaml`, `workflows/<id>/diagram.mmd`,
+  real-path `ClaimIntakeStep.tsx`) enter the byte-identical
+  regen baseline at `scripts/check_all.sh` step 8.
+
 ## [0.3.0-engr.0] — Wave 0
 
 > First wave of the v0.3.0 engineering track per

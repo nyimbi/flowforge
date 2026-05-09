@@ -17,6 +17,7 @@ from .generators import (
 	audit_taxonomy,
 	compensation_handlers,
 	db_migration,
+	diagram,
 	domain_router,
 	domain_service,
 	env_example,
@@ -24,6 +25,7 @@ from .generators import (
 	frontend,
 	migration_safety,
 	notifications,
+	openapi,
 	permissions,
 	readme,
 	sa_model,
@@ -53,6 +55,7 @@ _PER_JTBD_GENERATORS = (
 	test_gen.generate,
 	frontend.generate,
 	compensation_handlers.generate,
+	diagram.generate,
 )
 
 _PER_BUNDLE_GENERATORS = (
@@ -63,6 +66,7 @@ _PER_BUNDLE_GENERATORS = (
 	env_example.generate,
 	readme.generate,
 	migration_safety.generate,
+	openapi.generate,
 )
 
 

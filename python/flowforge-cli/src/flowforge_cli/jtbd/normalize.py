@@ -98,6 +98,9 @@ class NormalizedProject:
 	frontend_framework: str
 	languages: tuple[str, ...]
 	currencies: tuple[str, ...]
+	# v0.3.0 W1 (item 13): chooses Step.tsx emission path. Defaults to
+	# "skeleton" so pre-W1 bundles regen byte-identically.
+	form_renderer: str = "skeleton"
 
 
 @dataclass(frozen=True)
@@ -202,6 +205,12 @@ def normalize(bundle: dict[str, Any]) -> NormalizedBundle:
 	shared_perms = list(shared.get("permissions") or [])
 	shared_roles = list(shared.get("roles") or [])
 
+	# v0.3.0 W1 (item 13): bundle.project.frontend.form_renderer is the
+	# additive knob that picks the Step.tsx emission path. Missing field
+	# → "skeleton" so existing bundles regen byte-identically.
+	frontend_block = proj.get("frontend") or {}
+	form_renderer = str(frontend_block.get("form_renderer", "skeleton"))
+
 	project = NormalizedProject(
 		name=proj["name"],
 		package=proj["package"],
@@ -210,6 +219,7 @@ def normalize(bundle: dict[str, Any]) -> NormalizedBundle:
 		frontend_framework=proj.get("frontend_framework", "nextjs"),
 		languages=tuple(proj.get("languages") or ("en",)),
 		currencies=tuple(proj.get("currencies") or ("USD",)),
+		form_renderer=form_renderer,
 	)
 
 	jtbds = tuple(_norm_jtbd(j, shared_perms) for j in bundle["jtbds"])

@@ -6,7 +6,10 @@
     "tenancy": "single",
     "languages": ["en"],
     "currencies": ["USD", "ZAR"],
-    "frontend_framework": "nextjs"
+    "frontend_framework": "nextjs",
+    "frontend": {
+      "form_renderer": "real"
+    }
   },
   "shared": {
     "roles": ["adjuster", "supervisor", "claimant"],

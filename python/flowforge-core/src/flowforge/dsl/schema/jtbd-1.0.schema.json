@@ -55,6 +55,19 @@
             "vite-react"
           ],
           "default": "nextjs"
+        },
+        "frontend": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "form_renderer": {
+              "enum": [
+                "skeleton",
+                "real"
+              ],
+              "default": "skeleton"
+            }
+          }
         }
       }
     },

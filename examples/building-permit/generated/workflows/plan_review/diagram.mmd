@@ -1,0 +1,25 @@
+---
+title: plan_review — Review Building Plans for Code Compliance
+---
+stateDiagram-v2
+	direction LR
+
+	classDef swimlane_plan_reviewer fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e,stroke-width:1px
+	classDef swimlane_reviewer fill:#fef3c7,stroke:#d97706,color:#78350f,stroke-width:1px
+	classDef terminal_success fill:#dcfce7,stroke:#16a34a,color:#14532d,stroke-width:2px
+
+	[*] --> intake
+	review --> done : ● approve (P0)
+	intake --> review : ● submit (P0)
+	review --> intake : ┄ request_more_info (P5)
+	intake --> variance_review : ┄ submit [context.major_variance_required] (P6)
+	done --> [*]
+
+	note right of review
+		240h SLA
+	end note
+
+	class intake swimlane_plan_reviewer
+	class review swimlane_reviewer
+	class variance_review swimlane_reviewer
+	class done terminal_success

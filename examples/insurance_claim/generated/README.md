@@ -24,7 +24,63 @@ backend/                    # Python service
   tests/                    # pytest simulation tests
   migrations/               # Alembic
 frontend/                   # nextjs
-workflows/                  # Workflow DSL JSONs + form specs
+workflows/                  # Workflow DSL JSONs + form specs + diagrams
+```
+
+## State-machine diagrams
+
+Each JTBD's synthesised state machine is rendered below as a mermaid
+`stateDiagram-v2`. The deterministic source lives at
+`workflows/<id>/diagram.mmd` and is the single source of truth — hosts
+that want SVG / PNG output run `mmdc -i workflows/<id>/diagram.mmd -o
+diagram.svg` themselves; pre-rendered SVG isn't checked in because
+mermaid-cli output isn't byte-stable across versions.
+
+Edge styling: solid edges are happy-path (priority 0); dashed edges are
+edge-case branches (priority 5+); dotted edges are escalations (priority
+10+); blue dashed edges are saga compensations.
+
+### File an insurance claim (FNOL) (`claim_intake`)
+
+Source: [`workflows/claim_intake/diagram.mmd`](workflows/claim_intake/diagram.mmd)
+
+```mermaid
+---
+title: claim_intake — File an insurance claim (FNOL)
+---
+stateDiagram-v2
+	direction LR
+
+	classDef swimlane_claimant fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e,stroke-width:1px
+	classDef swimlane_reviewer fill:#fef3c7,stroke:#d97706,color:#78350f,stroke-width:1px
+	classDef swimlane_supervisor fill:#fce7f3,stroke:#be185d,color:#831843,stroke-width:1px
+	classDef terminal_fail fill:#fee2e2,stroke:#dc2626,color:#7f1d1d,stroke-width:2px
+	classDef terminal_success fill:#dcfce7,stroke:#16a34a,color:#14532d,stroke-width:2px
+	classDef compensation fill:#dbeafe,stroke:#2563eb,color:#1e3a8a,stroke-width:2px,stroke-dasharray:4 2
+
+	[*] --> intake
+	review --> done : ● approve (P0)
+	escalated --> done : ● approve (P0)
+	intake --> review : ● submit (P0)
+	intake --> senior_triage : ┄ submit [context.large_loss] (P5)
+	review --> rejected : ┄ reject (P6)
+	review --> compensated : ⤺ compensate [context.fraud_detected] (P7)
+	review --> escalated : ┈ escalate (P10)
+	compensated --> [*]
+	done --> [*]
+	rejected --> [*]
+
+	note right of review
+		24h SLA
+	end note
+
+	class escalated swimlane_supervisor
+	class intake swimlane_claimant
+	class review swimlane_reviewer
+	class senior_triage swimlane_reviewer
+	class compensated compensation
+	class done terminal_success
+	class rejected terminal_fail
 ```
 
 ## Regenerating

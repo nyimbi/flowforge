@@ -23,6 +23,7 @@ RATCHETS=(
 	no_string_interp_sql.sh
 	no_eq_compare_hmac.sh
 	no_except_pass.sh
+	no_unparried_expr_in_step_template.sh
 )
 
 FAILED=()

@@ -40,7 +40,180 @@ backend/                    # Python service
   tests/                    # pytest simulation tests
   migrations/               # Alembic
 frontend/                   # nextjs
-workflows/                  # Workflow DSL JSONs + form specs
+workflows/                  # Workflow DSL JSONs + form specs + diagrams
+```
+
+## State-machine diagrams
+
+Each JTBD's synthesised state machine is rendered below as a mermaid
+`stateDiagram-v2`. The deterministic source lives at
+`workflows/<id>/diagram.mmd` and is the single source of truth — hosts
+that want SVG / PNG output run `mmdc -i workflows/<id>/diagram.mmd -o
+diagram.svg` themselves; pre-rendered SVG isn't checked in because
+mermaid-cli output isn't byte-stable across versions.
+
+Edge styling: solid edges are happy-path (priority 0); dashed edges are
+edge-case branches (priority 5+); dotted edges are escalations (priority
+10+); blue dashed edges are saga compensations.
+
+### Submit a Building Permit Application (`permit_intake`)
+
+Source: [`workflows/permit_intake/diagram.mmd`](workflows/permit_intake/diagram.mmd)
+
+```mermaid
+---
+title: permit_intake — Submit a Building Permit Application
+---
+stateDiagram-v2
+	direction LR
+
+	classDef swimlane_applicant fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e,stroke-width:1px
+	classDef swimlane_reviewer fill:#fef3c7,stroke:#d97706,color:#78350f,stroke-width:1px
+	classDef terminal_success fill:#dcfce7,stroke:#16a34a,color:#14532d,stroke-width:2px
+
+	[*] --> intake
+	review --> done : ● approve (P0)
+	intake --> review : ● submit (P0)
+	done --> [*]
+
+	note right of review
+		24h SLA
+	end note
+
+	class intake swimlane_applicant
+	class review swimlane_reviewer
+	class done terminal_success
+```
+
+### Review Building Plans for Code Compliance (`plan_review`)
+
+Source: [`workflows/plan_review/diagram.mmd`](workflows/plan_review/diagram.mmd)
+
+```mermaid
+---
+title: plan_review — Review Building Plans for Code Compliance
+---
+stateDiagram-v2
+	direction LR
+
+	classDef swimlane_plan_reviewer fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e,stroke-width:1px
+	classDef swimlane_reviewer fill:#fef3c7,stroke:#d97706,color:#78350f,stroke-width:1px
+	classDef terminal_success fill:#dcfce7,stroke:#16a34a,color:#14532d,stroke-width:2px
+
+	[*] --> intake
+	review --> done : ● approve (P0)
+	intake --> review : ● submit (P0)
+	review --> intake : ┄ request_more_info (P5)
+	intake --> variance_review : ┄ submit [context.major_variance_required] (P6)
+	done --> [*]
+
+	note right of review
+		240h SLA
+	end note
+
+	class intake swimlane_plan_reviewer
+	class review swimlane_reviewer
+	class variance_review swimlane_reviewer
+	class done terminal_success
+```
+
+### Conduct Field Inspection (`field_inspection`)
+
+Source: [`workflows/field_inspection/diagram.mmd`](workflows/field_inspection/diagram.mmd)
+
+```mermaid
+---
+title: field_inspection — Conduct Field Inspection
+---
+stateDiagram-v2
+	direction LR
+
+	classDef swimlane_field_inspector fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e,stroke-width:1px
+	classDef swimlane_reviewer fill:#fef3c7,stroke:#d97706,color:#78350f,stroke-width:1px
+	classDef swimlane_supervisor fill:#fce7f3,stroke:#be185d,color:#831843,stroke-width:1px
+	classDef terminal_fail fill:#fee2e2,stroke:#dc2626,color:#7f1d1d,stroke-width:2px
+	classDef terminal_success fill:#dcfce7,stroke:#16a34a,color:#14532d,stroke-width:2px
+
+	[*] --> intake
+	review --> done : ● approve (P0)
+	escalated --> done : ● approve (P0)
+	intake --> review : ● submit (P0)
+	review --> rejected : ┄ reject (P5)
+	review --> escalated : ┈ escalate (P10)
+	done --> [*]
+	rejected --> [*]
+
+	note right of review
+		48h SLA
+	end note
+
+	class escalated swimlane_supervisor
+	class intake swimlane_field_inspector
+	class review swimlane_reviewer
+	class done terminal_success
+	class rejected terminal_fail
+```
+
+### Approve or Deny Building Permit (`permit_decision`)
+
+Source: [`workflows/permit_decision/diagram.mmd`](workflows/permit_decision/diagram.mmd)
+
+```mermaid
+---
+title: permit_decision — Approve or Deny Building Permit
+---
+stateDiagram-v2
+	direction LR
+
+	classDef swimlane_chief_building_official fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e,stroke-width:1px
+	classDef swimlane_reviewer fill:#fef3c7,stroke:#d97706,color:#78350f,stroke-width:1px
+	classDef terminal_fail fill:#fee2e2,stroke:#dc2626,color:#7f1d1d,stroke-width:2px
+	classDef terminal_success fill:#dcfce7,stroke:#16a34a,color:#14532d,stroke-width:2px
+
+	[*] --> intake
+	review --> done : ● approve (P0)
+	intake --> review : ● submit (P0)
+	review --> rejected : ┄ reject (P5)
+	done --> [*]
+	rejected --> [*]
+
+	note right of review
+		120h SLA
+	end note
+
+	class intake swimlane_chief_building_official
+	class review swimlane_reviewer
+	class done terminal_success
+	class rejected terminal_fail
+```
+
+### Issue the Building Permit Certificate (`permit_issuance`)
+
+Source: [`workflows/permit_issuance/diagram.mmd`](workflows/permit_issuance/diagram.mmd)
+
+```mermaid
+---
+title: permit_issuance — Issue the Building Permit Certificate
+---
+stateDiagram-v2
+	direction LR
+
+	classDef swimlane_permit_clerk fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e,stroke-width:1px
+	classDef swimlane_reviewer fill:#fef3c7,stroke:#d97706,color:#78350f,stroke-width:1px
+	classDef terminal_success fill:#dcfce7,stroke:#16a34a,color:#14532d,stroke-width:2px
+
+	[*] --> intake
+	review --> done : ● approve (P0)
+	intake --> review : ● submit (P0)
+	done --> [*]
+
+	note right of review
+		24h SLA
+	end note
+
+	class intake swimlane_permit_clerk
+	class review swimlane_reviewer
+	class done terminal_success
 ```
 
 ## Regenerating

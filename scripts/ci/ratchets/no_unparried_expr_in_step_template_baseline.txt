@@ -1,0 +1,11 @@
+# scripts/ci/ratchets/no_unparried_expr_in_step_template_baseline.txt
+#
+# Allowed legitimate occurrences of expression-shaped JSON-DSL tokens in
+# Step.tsx.j2 that should NOT trigger the cross-runtime parity ratchet.
+#
+# Format: one record per line as `<repo-relative-path>:<line>:<full text>`.
+# Lines that start with `#` and blank lines are ignored.
+#
+# Adding a line requires landing the matching cross-runtime fixture
+# coverage in `tests/cross_runtime/fixtures/expr_parity_v2.json` in the
+# same PR (architecture invariant 5; see audit-2026 E-43 / v0.3.0 W1).

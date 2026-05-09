@@ -26,8 +26,31 @@ backend/                    # Python service
   tests/                    # pytest simulation tests
   migrations/               # Alembic
 frontend/                   # {{ project.frontend_framework }}
-workflows/                  # Workflow DSL JSONs + form specs
+workflows/                  # Workflow DSL JSONs + form specs + diagrams
 ```
+
+## State-machine diagrams
+
+Each JTBD's synthesised state machine is rendered below as a mermaid
+`stateDiagram-v2`. The deterministic source lives at
+`workflows/<id>/diagram.mmd` and is the single source of truth — hosts
+that want SVG / PNG output run `mmdc -i workflows/<id>/diagram.mmd -o
+diagram.svg` themselves; pre-rendered SVG isn't checked in because
+mermaid-cli output isn't byte-stable across versions.
+
+Edge styling: solid edges are happy-path (priority 0); dashed edges are
+edge-case branches (priority 5+); dotted edges are escalations (priority
+10+); blue dashed edges are saga compensations.
+{% for jtbd in bundle.jtbds %}
+
+### {{ jtbd.title }} (`{{ jtbd.id }}`)
+
+Source: [`workflows/{{ jtbd.id }}/diagram.mmd`](workflows/{{ jtbd.id }}/diagram.mmd)
+
+```mermaid
+{{ diagrams[jtbd.id] -}}
+```
+{% endfor %}
 
 ## Regenerating
 

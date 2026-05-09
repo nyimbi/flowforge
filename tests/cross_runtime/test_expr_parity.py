@@ -5,9 +5,16 @@ produces the recorded expected output for every case. The TypeScript side
 runs the same fixture under vitest in
 ``framework/js/flowforge-integration-tests/expr-parity.test.ts``.
 
+The fixture moved from ``expr_parity_200.json`` (200 base cases) to
+``expr_parity_v2.json`` (250 cases) in v0.3.0 W1 / item 13. The 50 new
+``conditional``-tagged cases exercise ``show_if``-shaped expressions
+emitted by the ``form_renderer = "real"`` Step.tsx path. The legacy v1
+file remains in-tree until W3 retires it (per the engineering plan
+§13 follow-ups).
+
 Regenerate the fixture with::
 
-	uv run python framework/tests/cross_runtime/generate_fixture.py
+	uv run python framework/tests/cross_runtime/_build_fixture_v2.py
 """
 
 from __future__ import annotations
@@ -20,7 +27,7 @@ import pytest
 
 from flowforge.expr import evaluate
 
-FIXTURE_PATH = Path(__file__).parent / "fixtures" / "expr_parity_200.json"
+FIXTURE_PATH = Path(__file__).parent / "fixtures" / "expr_parity_v2.json"
 
 
 def _load_fixture() -> list[dict[str, Any]]:
@@ -30,9 +37,9 @@ def _load_fixture() -> list[dict[str, Any]]:
 	return cases
 
 
-def test_fixture_has_200_cases() -> None:
+def test_fixture_has_250_cases() -> None:
 	cases = _load_fixture()
-	assert len(cases) == 200, f"expected 200 cases, got {len(cases)}"
+	assert len(cases) == 250, f"expected 250 cases, got {len(cases)}"
 
 
 def test_fixture_ids_are_unique() -> None:
@@ -60,6 +67,7 @@ def test_fixture_covers_minimum_operator_breadth() -> None:
 		"coalesce",
 		"not_null",
 		"composite",
+		"conditional",
 	}
 	missing = required - tags
 	assert not missing, f"fixture missing tags: {missing}"

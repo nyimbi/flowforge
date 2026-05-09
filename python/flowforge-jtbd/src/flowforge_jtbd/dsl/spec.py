@@ -404,6 +404,39 @@ class JtbdSpec(BaseModel):
 		return self.model_copy(update={"spec_hash": self.compute_hash()})
 
 
+FormRendererMode = Literal["skeleton", "real"]
+
+
+class JtbdFrontend(BaseModel):
+	"""Bundle-level frontend authoring options.
+
+	Additive in v0.3.0 W1 (item 13 of ``docs/improvements.md``). The
+	``form_renderer`` knob picks the Step.tsx emission path:
+
+	* ``"skeleton"`` (default): the legacy stub component that renders
+	  field labels with ``<dd>—</dd>`` placeholders. All pre-W1 bundles
+	  default here, preserving byte-identical regen for existing
+	  examples.
+	* ``"real"``: emit a working ``FormRenderer`` invocation against the
+	  per-JTBD ``form_spec.json`` plus client-side validators derived
+	  from ``data_capture[].validation``. ``show_if`` conditional
+	  visibility, PII visual treatment, and inline ``aria-describedby``
+	  error wiring activate on this path.
+
+	The schema-side mirror lives in
+	``flowforge.dsl.schema.jtbd-1.0.schema.json`` under
+	``project.properties.frontend``.
+	"""
+
+	model_config = ConfigDict(
+		extra="forbid",
+		validate_by_name=True,
+		validate_by_alias=True,
+	)
+
+	form_renderer: FormRendererMode = "skeleton"
+
+
 class JtbdProject(BaseModel):
 	"""Bundle-level project metadata."""
 
@@ -420,6 +453,7 @@ class JtbdProject(BaseModel):
 	languages: list[str] = Field(default_factory=list)
 	currencies: list[str] = Field(default_factory=list)
 	frontend_framework: Literal["nextjs", "remix", "vite-react"] = "nextjs"
+	frontend: JtbdFrontend | None = None
 	compliance: list[ComplianceRegime] = Field(default_factory=list)
 	data_sensitivity: list[DataSensitivity] = Field(default_factory=list)
 
@@ -490,12 +524,14 @@ __all__ = [
 	"DataSensitivity",
 	"EdgeCaseHandle",
 	"FieldKind",
+	"FormRendererMode",
 	"JtbdActor",
 	"JtbdApproval",
 	"JtbdBundle",
 	"JtbdDocReq",
 	"JtbdEdgeCase",
 	"JtbdField",
+	"JtbdFrontend",
 	"JtbdNotification",
 	"JtbdProject",
 	"JtbdShared",
