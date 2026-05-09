@@ -1,0 +1,63 @@
+{
+  "fields": [
+    {
+      "id": "base_salary",
+      "kind": "money",
+      "label": "Base salary",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "bonus_target",
+      "kind": "money",
+      "label": "Bonus target",
+      "pii": false,
+      "required": false
+    },
+    {
+      "id": "start_date",
+      "kind": "date",
+      "label": "Proposed start",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "offer_expiry",
+      "kind": "date",
+      "label": "Offer expires",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "offer_letter",
+      "kind": "file",
+      "label": "Offer letter PDF",
+      "pii": true,
+      "required": true
+    },
+    {
+      "id": "equity_units",
+      "kind": "number",
+      "label": "RSU units",
+      "pii": false,
+      "required": false
+    }
+  ],
+  "id": "extend_offer_intake",
+  "layout": [
+    {
+      "field_ids": [
+        "base_salary",
+        "bonus_target",
+        "start_date",
+        "offer_expiry",
+        "offer_letter",
+        "equity_units"
+      ],
+      "kind": "section",
+      "title": "Details"
+    }
+  ],
+  "title": "Extend an offer \u2014 Intake",
+  "version": "1.0.0"
+}

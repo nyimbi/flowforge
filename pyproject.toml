@@ -46,6 +46,7 @@ dependencies = [
     "flowforge-money",
     "flowforge-signing-kms",
     "flowforge-notify-multichannel",
+    "flowforge-otel",
     "flowforge-cli",
 ]
 
@@ -70,6 +71,7 @@ members = [
     "python/flowforge-money",
     "python/flowforge-signing-kms",
     "python/flowforge-notify-multichannel",
+    "python/flowforge-otel",
     "python/flowforge-cli",
     "python/flowforge-jtbd",
     "python/flowforge-jtbd-hub",
@@ -122,6 +124,7 @@ flowforge-documents-s3 = { workspace = true }
 flowforge-money = { workspace = true }
 flowforge-signing-kms = { workspace = true }
 flowforge-notify-multichannel = { workspace = true }
+flowforge-otel = { workspace = true }
 flowforge-cli = { workspace = true }
 
 [tool.pyright]
@@ -140,4 +143,6 @@ dev = [
     "z3-solver>=4.13",
     # E-44 / IT-01: property-based tests under framework/tests/property/.
     "hypothesis>=6.100",
+    "opentelemetry-api>=1.20",
+    "opentelemetry-sdk>=1.20",
 ]

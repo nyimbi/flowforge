@@ -1,0 +1,55 @@
+{
+  "fields": [
+    {
+      "id": "screen_score",
+      "kind": "number",
+      "label": "Screen score (1-5)",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "screen_notes",
+      "kind": "textarea",
+      "label": "Screen notes",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "years_exp",
+      "kind": "number",
+      "label": "Years experience",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "salary_expect",
+      "kind": "money",
+      "label": "Salary expectation",
+      "pii": false,
+      "required": false
+    },
+    {
+      "id": "availability",
+      "kind": "date",
+      "label": "Available from",
+      "pii": false,
+      "required": false
+    }
+  ],
+  "id": "screen_candidate_intake",
+  "layout": [
+    {
+      "field_ids": [
+        "screen_score",
+        "screen_notes",
+        "years_exp",
+        "salary_expect",
+        "availability"
+      ],
+      "kind": "section",
+      "title": "Details"
+    }
+  ],
+  "title": "Screen a candidate \u2014 Intake",
+  "version": "1.0.0"
+}

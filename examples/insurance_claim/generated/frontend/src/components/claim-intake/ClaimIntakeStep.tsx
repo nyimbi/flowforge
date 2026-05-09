@@ -4,6 +4,18 @@ import * as React from "react";
 import { FormRenderer, type FormErrors, type FormValues, type RendererFormSpec } from "@flowforge/renderer";
 
 import formSpec from "../../../../workflows/claim_intake/form_spec.json";
+import { ANALYTICS_EVENTS, type AnalyticsEvent } from "../../insurance_claim_demo/analytics";
+
+/**
+ * Compatibility-shaped subset of `flowforge.ports.analytics.AnalyticsPort`
+ * that the Step component calls. Hosts wiring Segment / Mixpanel /
+ * Amplitude / a noop sink need only satisfy this surface — the
+ * generated frontend never imports an SDK directly (item 16 of
+ * docs/improvements.md, hexagonal port discipline).
+ */
+export interface AnalyticsTracker {
+	track(eventName: AnalyticsEvent, properties: Record<string, unknown>): void | Promise<void>;
+}
 
 export interface ClaimIntakeStepProps {
 	instanceId: string;
@@ -11,6 +23,8 @@ export interface ClaimIntakeStepProps {
 	onEvent: (event: string, payload?: Record<string, unknown>) => Promise<void> | void;
 	/** Optional context map for show_if conditional fields (reuses the engine's `var` operator). */
 	context?: Record<string, unknown>;
+	/** Optional analytics sink; closed-taxonomy events fire through here when provided. */
+	analytics?: AnalyticsTracker;
 }
 
 interface FieldMeta {
@@ -33,6 +47,17 @@ const FIELDS: ReadonlyArray<FieldMeta> = [
 const SPEC = formSpec as unknown as RendererFormSpec;
 const PII_FIELD_IDS: ReadonlyArray<string> = FIELDS.filter((f) => f.pii).map((f) => f.id);
 
+// Lifecycle event names — closed against the bundle's taxonomy in
+// `insurance_claim_demo/analytics.ts`. Inlining the constants here
+// keeps the Step's analytics surface explicit at a glance and gives
+// the TS compiler a closed set to type-check against.
+const EVT_FIELD_FOCUSED: AnalyticsEvent = ANALYTICS_EVENTS.CLAIM_INTAKE_FIELD_FOCUSED;
+const EVT_FIELD_COMPLETED: AnalyticsEvent = ANALYTICS_EVENTS.CLAIM_INTAKE_FIELD_COMPLETED;
+const EVT_VALIDATION_FAILED: AnalyticsEvent = ANALYTICS_EVENTS.CLAIM_INTAKE_VALIDATION_FAILED;
+const EVT_SUBMISSION_STARTED: AnalyticsEvent = ANALYTICS_EVENTS.CLAIM_INTAKE_SUBMISSION_STARTED;
+const EVT_SUBMISSION_SUCCEEDED: AnalyticsEvent = ANALYTICS_EVENTS.CLAIM_INTAKE_SUBMISSION_SUCCEEDED;
+const EVT_FORM_ABANDONED: AnalyticsEvent = ANALYTICS_EVENTS.CLAIM_INTAKE_FORM_ABANDONED;
+
 /**
  * Real form step for the claim_intake workflow. Wraps `@flowforge/renderer`'s
  * FormRenderer over the generated form_spec.json. Validators are derived from
@@ -42,12 +67,48 @@ const PII_FIELD_IDS: ReadonlyArray<string> = FIELDS.filter((f) => f.pii).map((f)
  * PII fields default to a masked text node with an eye-toggle, keeping screen
  * leaks to a minimum during shoulder-surfing demos. Inline errors link via
  * `aria-describedby` so assistive tech surfaces them next to the offending field.
+ *
+ * Analytics: the Step fires the closed taxonomy events from
+ * `insurance_claim_demo/analytics.ts` through an optional `analytics` prop
+ * (item 16 of docs/improvements.md). When the prop is omitted, no events
+ * fire — the analytics surface is pure observability.
  */
 export function ClaimIntakeStep(props: ClaimIntakeStepProps): React.ReactElement {
 	const [busy, setBusy] = React.useState(false);
 	const [values, setValues] = React.useState<FormValues>({});
 	const [errors, setErrors] = React.useState<FormErrors>({});
 	const [revealedPii, setRevealedPii] = React.useState<ReadonlyArray<string>>([]);
+
+	// Analytics bookkeeping. Refs avoid useEffect re-runs and keep the
+	// `emit` closure stable across renders.
+	const analyticsRef = React.useRef<AnalyticsTracker | undefined>(props.analytics);
+	analyticsRef.current = props.analytics;
+	const valuesRef = React.useRef<FormValues>(values);
+	valuesRef.current = values;
+	const focusedRef = React.useRef<Set<string>>(new Set());
+	const completedRef = React.useRef<Set<string>>(new Set());
+	const submittedRef = React.useRef(false);
+	const instanceIdRef = React.useRef(props.instanceId);
+	instanceIdRef.current = props.instanceId;
+
+	const emit = React.useCallback(
+		(eventName: AnalyticsEvent, properties: Record<string, unknown>) => {
+			const sink = analyticsRef.current;
+			if (sink == null) return;
+			const enriched = { instanceId: instanceIdRef.current, jtbdId: "claim_intake", ...properties };
+			try {
+				const result = sink.track(eventName, enriched);
+				if (result != null && typeof (result as Promise<void>).then === "function") {
+					void (result as Promise<void>).catch(() => {
+						/* analytics MUST NOT block the user; swallow transport errors. */
+					});
+				}
+			} catch {
+				/* synchronous tracker error — swallow for the same reason. */
+			}
+		},
+		[],
+	);
 
 	const togglePii = React.useCallback((id: string) => {
 		setRevealedPii((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -66,15 +127,71 @@ export function ClaimIntakeStep(props: ClaimIntakeStepProps): React.ReactElement
 		[busy, props],
 	);
 
-	const handleSubmit = React.useCallback(
-		async (submitted: FormValues) => {
-			await fire("submit", submitted);
+	const handleChange = React.useCallback(
+		(next: FormValues) => {
+			const prev = valuesRef.current;
+			for (const id of Object.keys(next)) {
+				const before = prev[id];
+				const after = next[id];
+				const wasEmpty = before == null || before === "";
+				const isFilled = after != null && after !== "";
+				if (wasEmpty && isFilled && !completedRef.current.has(id)) {
+					completedRef.current.add(id);
+					emit(EVT_FIELD_COMPLETED, { fieldId: id });
+				}
+			}
+			setValues(next);
 		},
-		[fire],
+		[emit],
 	);
 
+	const handleValidate = React.useCallback(
+		(errs: FormErrors) => {
+			setErrors(errs);
+			const failedIds = Object.keys(errs).filter((k) => Boolean(errs[k]));
+			if (failedIds.length > 0) {
+				emit(EVT_VALIDATION_FAILED, { fieldIds: failedIds });
+			}
+		},
+		[emit],
+	);
+
+	const handleSubmit = React.useCallback(
+		async (submitted: FormValues) => {
+			emit(EVT_SUBMISSION_STARTED, { fieldCount: Object.keys(submitted).length });
+			await fire("submit", submitted);
+			submittedRef.current = true;
+			emit(EVT_SUBMISSION_SUCCEEDED, { fieldCount: Object.keys(submitted).length });
+		},
+		[emit, fire],
+	);
+
+	const handleFocusCapture = React.useCallback(
+		(ev: React.FocusEvent<HTMLElement>) => {
+			const target = ev.target as HTMLElement;
+			const fieldId = target.getAttribute("name") ?? target.getAttribute("data-field-id");
+			if (fieldId == null) return;
+			if (focusedRef.current.has(fieldId)) return;
+			focusedRef.current.add(fieldId);
+			emit(EVT_FIELD_FOCUSED, { fieldId });
+		},
+		[emit],
+	);
+
+	// Emit `form_abandoned` if the component unmounts before a successful submit.
+	React.useEffect(() => {
+		return () => {
+			if (!submittedRef.current) {
+				emit(EVT_FORM_ABANDONED, {
+					focusedCount: focusedRef.current.size,
+					completedCount: completedRef.current.size,
+				});
+			}
+		};
+	}, [emit]);
+
 	return (
-		<section data-testid="claim_intake-step" aria-labelledby="claim_intake-step-title">
+		<section data-testid="claim_intake-step" aria-labelledby="claim_intake-step-title" onFocusCapture={handleFocusCapture}>
 			<header>
 				<h2 id="claim_intake-step-title">File an insurance claim (FNOL)</h2>
 				<p>State: <code>{props.state}</code></p>
@@ -83,9 +200,9 @@ export function ClaimIntakeStep(props: ClaimIntakeStepProps): React.ReactElement
 			<FormRenderer
 				spec={SPEC}
 				values={values}
-				onChange={setValues}
+				onChange={handleChange}
 				onSubmit={handleSubmit}
-				onValidate={setErrors}
+				onValidate={handleValidate}
 				validateOn="blur"
 				disabled={busy}
 				submitLabel={busy ? "Submitting…" : "Submit"}

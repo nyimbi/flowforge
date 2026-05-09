@@ -24,6 +24,7 @@ RATCHETS=(
 	no_eq_compare_hmac.sh
 	no_except_pass.sh
 	no_unparried_expr_in_step_template.sh
+	no_idempotency_bypass.sh
 )
 
 FAILED=()

@@ -1,0 +1,105 @@
+# framework/tests/observability/promql/v0_3_0_w2_item_12_otel.yml
+#
+# PromQL alert-rule library for v0.3.0 W2 / item 12 (OpenTelemetry by
+# construction — see ``docs/v0.3.0-engineering-plan.md`` §7 W2).
+#
+# Generated host code (workflow_adapter.py.j2) records observations into
+# the ``flowforge.fire.duration_seconds`` histogram. The OTel
+# Prometheus exporter rewrites dots to underscores, so PromQL queries
+# this as ``flowforge_fire_duration_seconds_bucket`` etc.
+#
+# Naming: flowforge_v0_3_0_w2_item_12_<short_kind>
+# Severity:
+#   critical  -> page on alert (P0 SLOs)
+#   warning   -> ticket on alert (P1 / capacity)
+#   info      -> log-only (informational)
+#
+# Promtool walks this file alongside ``audit-2026.yml`` during
+# ``make audit-2026-observability``.
+
+groups:
+  - name: v0_3_0_w2_item_12_otel-fire-latency
+    interval: 1m
+    rules:
+      - alert: flowforge_v0_3_0_w2_item_12_fire_p99_above_sla
+        # Fires whose p99 latency exceeds the per-jtbd configured
+        # ``sla_breach_seconds`` for 10m. The bucket layout from
+        # ``flowforge.ports.metrics.default_fire_duration_buckets``
+        # places clean cutoffs at 0.5×, 1×, 2× the SLA so this query
+        # has stable bucket boundaries regardless of jtbd.
+        expr: |
+          histogram_quantile(0.99,
+            sum by (le, jtbd_id) (
+              rate(flowforge_fire_duration_seconds_bucket[5m])
+            )
+          ) > on(jtbd_id) group_left()
+            flowforge_jtbd_sla_breach_seconds
+        for: 10m
+        labels:
+          severity: warning
+          item_id: v0.3.0-w2-item-12
+        annotations:
+          summary: "Engine fire p99 above SLA for 10m on jtbd_id={{ $labels.jtbd_id }}"
+          runbook: |
+            1. Inspect span attributes via OTel — the ``flowforge.fire``
+               span carries ``flowforge.tenant_id`` and
+               ``flowforge.event``; group by event to find the slow
+               transition.
+            2. Check ``flowforge_outbox_dispatch_duration_seconds`` —
+               dispatch lag often dominates fire latency.
+            3. If sustained, raise ``sla_breach_seconds`` after
+               consulting the jtbd owner.
+
+      - alert: flowforge_v0_3_0_w2_item_12_fire_error_rate_high
+        # OTel span status codes propagate via the SDK; the Prometheus
+        # exporter surfaces them as ``otel_span_status_code`` label on
+        # the ``otel_spans_total`` counter. Track engine-fire spans
+        # specifically.
+        expr: |
+          sum by (jtbd_id) (
+            rate(otel_spans_total{
+              span_name="flowforge.fire",
+              otel_span_status_code="ERROR"
+            }[5m])
+          ) /
+          sum by (jtbd_id) (
+            rate(otel_spans_total{span_name="flowforge.fire"}[5m])
+          ) > 0.01
+        for: 10m
+        labels:
+          severity: warning
+          item_id: v0.3.0-w2-item-12
+        annotations:
+          summary: "Engine-fire error rate > 1% for 10m on jtbd_id={{ $labels.jtbd_id }}"
+          runbook: |
+            1. Pull the latest 100 ERROR spans from the OTel backend.
+            2. Group by ``flowforge.event`` — a single failing
+               transition usually dominates.
+            3. If the ERROR is a guard expression failure, check the
+               cross-runtime parity fixture for a regression.
+
+  - name: v0_3_0_w2_item_12_otel-coverage
+    interval: 5m
+    rules:
+      - alert: flowforge_v0_3_0_w2_item_12_fire_histogram_silent
+        # No fire histogram observations for an active jtbd in 1h.
+        # Either the jtbd is genuinely idle (info), the OTel SDK isn't
+        # wired (config bug), or the metrics port doesn't implement
+        # record_histogram (host running on the legacy MetricsPort
+        # without HistogramMetricsPort extension).
+        expr: |
+          absent_over_time(
+            flowforge_fire_duration_seconds_count{jtbd_id!=""}[1h]
+          ) == 1
+        for: 1h
+        labels:
+          severity: info
+          item_id: v0.3.0-w2-item-12
+        annotations:
+          summary: "No engine-fire histogram observations recorded for 1h"
+          runbook: |
+            1. If the host is genuinely idle (e.g. nightly batch), this
+               is expected — silence per-jtbd.
+            2. Otherwise check ``flowforge.config.metrics`` is an
+               instance of ``HistogramMetricsPort`` (e.g. the
+               ``flowforge-otel`` adapter), not the legacy fake.

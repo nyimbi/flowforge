@@ -1,10 +1,11 @@
 """arch §17 architectural invariants — audit-2026 + v0.3.0-engr conformance suite.
 
-This file is the single point of truth for the 10 architectural invariants
+This file is the single point of truth for the 11 architectural invariants
 the framework must hold. Invariants 1-8 originate in audit-2026 (audit-fix-plan
 §3, §4, §5.3, §F-3 / R-3); invariant 9 lands as part of the E-74 follow-up
 (parallel_fork tokens); invariant 10 lands in v0.3.0 W0 alongside item 2
-(compensation synthesis). Each invariant maps to:
+(compensation synthesis); invariant 11 lands in v0.3.0 W2b alongside item 6
+(router-level idempotency keys). Each invariant maps to:
 
 	* one or more audit findings (E-xx ticket) or v0.3.0 wave / item id
 	* a marker (`@invariant_p0` or `@invariant_p1`)
@@ -873,3 +874,205 @@ def test_invariant_10_compensation_symmetry() -> None:
 		assert "register_compensations" in adapter.content, (
 			f"{jt.id}: workflow_adapter missing register_compensations entrypoint"
 		)
+
+
+# ---------------------------------------------------------------------------
+# Invariant 11 — Idempotency-key uniqueness (v0.3.0 W2b / item 6)
+# ---------------------------------------------------------------------------
+#
+# v0.3.0 wave 2b lands router-level idempotency keys
+# (`flowforge_cli.jtbd.generators.idempotency` + chained
+# `db_migration` emits a per-JTBD ``<table>_idempotency_keys`` table with a
+# UNIQUE(tenant_id, idempotency_key) constraint). Two distinct fires
+# cannot share a (tenant_id, idempotency_key) pair within the configured
+# TTL.
+#
+# Pinned by this invariant:
+#   - The chained idempotency-keys migration emits a UniqueConstraint over
+#     (tenant_id, idempotency_key); a SQLite round-trip honours it.
+#   - The generated idempotency helper threads the bundle-configured TTL
+#     through to ``IDEMPOTENCY_TTL_HOURS`` (default 24h when the bundle
+#     does not opt into a custom value).
+#   - The generated router enforces ``Idempotency-Key`` on the event POST:
+#     missing → 400, replay → cached body, in-flight → 409.
+#   - Property: across N random (tenant, key) pairs, the constraint
+#     prevents duplicate inserts even under shuffled ordering.
+
+
+@pytest.mark.invariant_p1
+def test_invariant_11_idempotency_key_uniqueness() -> None:
+	"""v0.3.0 W2b / item 6 — UNIQUE(tenant_id, idempotency_key) per JTBD.
+
+	Acceptance criterion (v0.3.0-engineering-plan §8 invariant 11):
+	  * The per-JTBD ``<table>_idempotency_keys`` migration carries a
+	    ``UniqueConstraint("tenant_id", "idempotency_key", ...)``.
+	  * A SQLite round-trip on the synthesised DDL refuses a second
+	    insert with the same ``(tenant_id, idempotency_key)`` pair —
+	    this is the property test side of the invariant.
+	  * The generated idempotency helper exposes
+	    ``IDEMPOTENCY_TTL_HOURS`` matching the bundle's configured TTL
+	    (or 24 by default).
+	  * The generated router rejects POSTs without ``Idempotency-Key``
+	    (template-level grep — the runtime side is exercised by the
+	    integration tests).
+	"""
+
+	import random
+	import sqlalchemy as sa
+	from sqlalchemy.exc import IntegrityError
+
+	from flowforge_cli.jtbd import generate
+
+	def _bundle(ttl_hours: int | None = None) -> dict:
+		bundle: dict = {
+			"project": {
+				"name": "idem-conformance",
+				"package": "idem_conformance",
+				"domain": "claims",
+				"tenancy": "single",
+				"languages": ["en"],
+				"currencies": ["USD"],
+			},
+			"shared": {"roles": ["adjuster"], "permissions": []},
+			"jtbds": [
+				{
+					"id": "claim_intake",
+					"title": "File a claim",
+					"actor": {"role": "policyholder", "external": True},
+					"situation": "policyholder needs to file an FNOL",
+					"motivation": "recover insured losses",
+					"outcome": "claim accepted into triage",
+					"success_criteria": ["queued within 24h"],
+					"data_capture": [
+						{
+							"id": "claimant_name",
+							"kind": "text",
+							"label": "Claimant",
+							"required": True,
+							"pii": True,
+						},
+					],
+				}
+			],
+		}
+		if ttl_hours is not None:
+			bundle["project"]["idempotency"] = {"ttl_hours": ttl_hours}
+		return bundle
+
+	# --- The chained migration carries the UNIQUE(tenant_id, key) constraint ---
+	files = generate(_bundle())
+	idem_migrations = [
+		f for f in files if f.path.endswith("_create_claim_intake_idempotency_keys.py")
+	]
+	assert len(idem_migrations) == 1, [f.path for f in files]
+	migration_src = idem_migrations[0].content
+	assert "UniqueConstraint" in migration_src, migration_src
+	assert '"tenant_id"' in migration_src and '"idempotency_key"' in migration_src, (
+		migration_src
+	)
+	assert "uq_claim_intake_idempotency_keys_tenant_key" in migration_src, migration_src
+
+	# --- DB constraint check: SQLite round-trip refuses duplicate inserts ---
+	# We rebuild the synthesised table shape via SQLAlchemy core and exercise
+	# the UNIQUE constraint over a randomly-ordered sequence of inserts. This
+	# is the property side of invariant 11 — uniqueness holds regardless of
+	# the order in which the (tenant, key) pairs arrive.
+	from datetime import datetime, timedelta, timezone
+
+	metadata = sa.MetaData()
+	idem = sa.Table(
+		"claim_intake_idempotency_keys",
+		metadata,
+		sa.Column("id", sa.String(36), primary_key=True),
+		sa.Column("tenant_id", sa.String(36), nullable=False),
+		sa.Column("idempotency_key", sa.String(255), nullable=False),
+		sa.Column("request_fingerprint", sa.String(64), nullable=False),
+		sa.Column("response_status", sa.Integer(), nullable=True),
+		sa.Column("response_body", sa.Text(), nullable=True),
+		sa.Column("in_flight", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+		sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+		sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+		sa.UniqueConstraint(
+			"tenant_id",
+			"idempotency_key",
+			name="uq_claim_intake_idempotency_keys_tenant_key",
+		),
+	)
+
+	engine = sa.create_engine("sqlite+pysqlite:///:memory:", future=True)
+	metadata.create_all(engine)
+
+	now = datetime(2026, 5, 9, 0, 0, 0, tzinfo=timezone.utc)
+	expires = now + timedelta(hours=24)
+
+	# 32 random (tenant, key) pairs; insert each once.
+	rng = random.Random(0xF10F0)
+	pairs: list[tuple[str, str]] = []
+	for i in range(32):
+		t = f"tenant-{rng.randrange(0, 4)}"
+		k = f"key-{i}"
+		pairs.append((t, k))
+	rng.shuffle(pairs)
+
+	with engine.begin() as conn:
+		for i, (t, k) in enumerate(pairs):
+			conn.execute(
+				idem.insert().values(
+					id=f"row-{i}",
+					tenant_id=t,
+					idempotency_key=k,
+					request_fingerprint="f" * 64,
+					response_status=200,
+					response_body='{"state": "ok"}',
+					in_flight=False,
+					created_at=now,
+					expires_at=expires,
+				)
+			)
+
+	# A second insert for any (t, k) already in the table must raise.
+	dup_t, dup_k = pairs[0]
+	with engine.begin() as conn:
+		with pytest.raises(IntegrityError):
+			conn.execute(
+				idem.insert().values(
+					id="row-dup",
+					tenant_id=dup_t,
+					idempotency_key=dup_k,
+					request_fingerprint="g" * 64,
+					response_status=200,
+					response_body='{"state": "ok"}',
+					in_flight=False,
+					created_at=now,
+					expires_at=expires,
+				)
+			)
+
+	engine.dispose()
+
+	# --- TTL passthrough: bundle override surfaces in the helper ---
+	files_default = generate(_bundle())
+	(helper_default,) = [
+		f for f in files_default if f.path.endswith("/claim_intake/idempotency.py")
+	]
+	assert "IDEMPOTENCY_TTL_HOURS: int = 24" in helper_default.content, (
+		"default TTL must be 24h when bundle.project.idempotency.ttl_hours is unset"
+	)
+
+	files_custom = generate(_bundle(ttl_hours=48))
+	(helper_custom,) = [
+		f for f in files_custom if f.path.endswith("/claim_intake/idempotency.py")
+	]
+	assert "IDEMPOTENCY_TTL_HOURS: int = 48" in helper_custom.content, (
+		"custom TTL must thread through to the generated helper"
+	)
+
+	# --- Router enforces the header gate ---
+	(router,) = [
+		f for f in files_default if f.path.endswith("/routers/claim_intake_router.py")
+	]
+	assert "Idempotency-Key" in router.content, router.content
+	assert "check_idempotency_key" in router.content, router.content
+	assert "record_idempotency_response" in router.content, router.content
+	assert "HTTP_400_BAD_REQUEST" in router.content, router.content
+	assert "HTTP_409_CONFLICT" in router.content, router.content

@@ -1,5 +1,221 @@
 # flowforge changelog
 
+## [0.3.0-engr.2] — Wave 2
+
+> Third wave of the v0.3.0 engineering track per
+> `docs/v0.3.0-engineering-plan.md` §7. W2 lands the observability
+> backbone (item 12 OTel + `MetricsPort`/`TracingPort` extension) plus
+> reliability artefacts (item 6 router-level idempotency keys, item 7
+> backup/restore drill), the closed analytics-event taxonomy (item 16
+> + `AnalyticsPort`), and the tenant-scoped admin console (item 15).
+> Three new runtime ports land in this wave per Principle 4 of the
+> engineering plan: `TracingPort` (item 12), `AnalyticsPort` (item 16),
+> and a `HistogramMetricsPort` extension on the existing `MetricsPort`
+> (item 12). One new adapter package (`flowforge-otel`) and one new
+> ratchet (`no_idempotency_bypass`) ship alongside. Invariant 11
+> (idempotency-key uniqueness) lands as `@invariant_p1`. Six new
+> generated-artifact classes join the byte-identical regen baseline:
+> per-JTBD `idempotency.py` + `<table>_idempotency_keys` migration
+> (item 6), per-bundle `analytics.py` + `analytics.ts` (item 16),
+> per-bundle `frontend-admin/<package>/` SPA tree (item 15), and
+> per-bundle `docs/ops/<package>/restore-runbook.md` (item 7). OTel
+> spans wrap `fire`, effect dispatch, and audit append in the
+> generated `domain_service`, `domain_router`, and `workflow_adapter`
+> templates; default flag values keep every pre-W2 bundle regenerating
+> identically against its locked baseline (3 examples x 2
+> `form_renderer` values = 6 byte-identical regen targets in CI).
+
+- **[Capable, Reliable]** (v0.3.0 W2 / item 12) OpenTelemetry by
+  construction. New `flowforge.ports.tracing.TracingPort` Protocol
+  defines `start_span(name, attributes)` returning an async context
+  manager. `flowforge.ports.metrics.MetricsPort` is extended with
+  `HistogramMetricsPort` so the standard meter set
+  (`flowforge.fire.duration_seconds` and friends, bucketed at
+  SLA-budget multiples) is type-stable across hosts. Both ports are
+  port-only (no `opentelemetry` import in `flowforge-core`); the
+  in-memory test fakes ship under `flowforge.testing.port_fakes` so
+  generator tests can assert span sequences without an OTel SDK.
+  New adapter package `flowforge-otel` (in the
+  `python/flowforge-otel/` workspace member) wraps
+  `opentelemetry.trace` and `opentelemetry.metrics` to satisfy both
+  ports; `flowforge_otel.install()` is a one-call wiring helper.
+  The `[otel]` extra carries the SDK so hosts that only need the
+  type-stable adapter API don't pay for the SDK install. Generator
+  templates (`domain_service.py.j2`, `domain_router.py.j2`,
+  `workflow_adapter.py.j2`) now wrap `fire`, effect dispatch, and
+  audit-append in spans whose attributes carry
+  `{flowforge.tenant_id, flowforge.jtbd_id, flowforge.state,
+  flowforge.event, flowforge.principal_user_id}`. The constants
+  `STANDARD_SPAN_NAMES` + `STANDARD_SPAN_ATTRIBUTES` are exported
+  from `flowforge.ports.tracing` so renaming a span is a
+  SECURITY-NOTE-grade change. Without OTel installed the generated
+  code falls back to a no-op span via the in-memory fake — no
+  runtime hard-dep on the SDK. New PromQL alert rules at
+  `tests/observability/promql/v0_3_0_w2_item_12_otel.yml` cover the
+  meter set; new integration test
+  `tests/integration/python/tests/test_otel_spans_in_generated_app.py`
+  asserts the span sequence end-to-end against the in-memory fake.
+- **[Reliable]** (v0.3.0 W2 / item 6, invariant 11) Router-level
+  idempotency keys. Generated `POST /<jtbd>/events` routes now
+  require an `Idempotency-Key` header; missing or malformed keys
+  return `400 Bad Request`, in-flight duplicates return `409
+  Conflict`, and successfully-completed requests are cached and
+  re-served on duplicate keys. New per-JTBD generator
+  `flowforge_cli.jtbd.generators.idempotency` emits
+  `backend/src/<pkg>/<jtbd>/idempotency.py` with the SQLAlchemy
+  helpers `check_idempotency_key` + `record_idempotency_response`;
+  the `db_migration` generator emits a chained per-JTBD
+  `<table>_idempotency_keys` table carrying a
+  `UniqueConstraint("tenant_id", "idempotency_key", name="uq_<jtbd>_idempotency_keys_tenant_key")`
+  so duplicate inserts trip at the DB layer. The dedupe TTL
+  defaults to 24 hours; hosts override per-bundle via
+  `bundle.project.idempotency.ttl_hours`. The router and service
+  templates (`domain_router.py.j2`, `domain_service.py.j2`)
+  thread the helpers; the new ratchet
+  `scripts/ci/ratchets/no_idempotency_bypass.sh` greps the router
+  template + every checked-in `examples/*/generated/`
+  `<jtbd>_router.py` for the gate tokens (`Idempotency-Key`
+  header parameter, `check_idempotency_key` import,
+  `record_idempotency_response` call, `HTTP_400_BAD_REQUEST`,
+  `HTTP_409_CONFLICT`) so a regen that drops the wiring fails CI
+  before merge. Conformance invariant 11
+  (`@invariant_p1 test_invariant_11_idempotency_key_uniqueness`)
+  asserts (1) the chained migration carries the unique constraint,
+  (2) two distinct fires sharing a `(tenant_id, idempotency_key)`
+  pair raise an integrity error against an in-memory SQLite
+  round-trip, and (3) the generated helper threads the
+  bundle-configured TTL through to its `IDEMPOTENCY_TTL_HOURS`
+  literal. `make audit-2026-conformance` now reports 11 invariants
+  pass (was 10).
+- **[Functional, Capable]** (v0.3.0 W2 / item 15) Tenant-scoped
+  admin console. New per-bundle generator
+  `flowforge_cli.jtbd.generators.frontend_admin` emits a standalone
+  Vite + React 18 SPA at `frontend-admin/<project.package>/`
+  surveying the bundle from the operator's perspective. Six panels
+  ship: instance browser (filter by JTBD/state/tenant), audit-log
+  viewer (calls `AuditSink.verify_chain()` and surfaces hash-chain
+  integrity status per topic), saga compensation panel (pending
+  compensations + manual trigger guarded by an
+  `admin.<jtbd>.compensate` permission), permission-grant history
+  (sourced from `AccessGrantPort`), deferred outbox queue (sourced
+  from `OutboxRegistry`), and RLS elevation log (sourced from the
+  audit chain's `rls.elevate` topic). The generator synthesises a
+  closed `admin.<jtbd>.{read,compensate,outbox.retry,grant}`
+  permissions catalog without requiring a bundle-schema change.
+  The console assumes Postgres-backed adapters
+  (`flowforge-audit-pg`, `flowforge-outbox-pg`, plus the bundle's
+  own SQLAlchemy models); the generated README spells this out so
+  non-PG hosts wire equivalent adapters before deploying. The SPA
+  is deployed in isolation behind a separate ingress / auth proxy —
+  decoupling the operator console from the customer-facing Next.js
+  app is deliberate (different threat model, different UX brief,
+  different deployment cadence). Two bundles can coexist in the
+  same monorepo without collision because every emitted file lands
+  under `frontend-admin/<project.package>/`.
+- **[Functional, Capable]** (v0.3.0 W2 / item 16) Closed
+  analytics-event taxonomy. New per-bundle generator
+  `flowforge_cli.jtbd.generators.analytics_taxonomy` emits two
+  parallel artifacts that lock the analytics surface to the same
+  closed taxonomy on both sides of the wire:
+  `backend/src/<pkg>/analytics.py` (Python `StrEnum`) and
+  `frontend/src/<pkg>/analytics.ts` (TypeScript string-literal
+  type). For every JTBD the bundle declares, six lifecycle
+  suffixes — `field_focused`, `field_completed`,
+  `validation_failed`, `submission_started`, `submission_succeeded`,
+  `form_abandoned` — emit as `<jtbd_id>.<suffix>` events; closure
+  is enforced at build time so dashboards can be statically
+  validated against the closed enum. New `AnalyticsPort` Protocol
+  at `flowforge.ports.analytics` exposes a non-blocking
+  `track(event_name, properties)` so hosts wire Segment / Mixpanel
+  / Amplitude / a noop sink themselves; the in-memory fake under
+  `flowforge.testing.port_fakes.InMemoryAnalyticsPort` records
+  every track call for tests and simulator runs. Per Principle 4
+  the port carries no I/O dependency — analytics provider SDKs
+  live in host code, never in `flowforge-core`. Per Principle 2
+  the generator emits exactly two files regardless of how many
+  JTBDs the bundle declares (cross-cutting bundle-level
+  aggregation, not per-JTBD slices).
+- **(v0.3.0 W2)** New runtime ports + adapter package: three
+  port additions land in this wave per Principle 4 of the
+  engineering plan. `flowforge.ports.tracing.TracingPort` (item
+  12) defines the distributed-tracing surface;
+  `flowforge.ports.analytics.AnalyticsPort` (item 16) defines the
+  product-analytics emitter; `flowforge.ports.metrics.HistogramMetricsPort`
+  (item 12) extends the existing `MetricsPort` with the standard
+  meter set. All three are port-only Protocols with
+  `runtime_checkable` so structural-typing assertions work without
+  inheritance. In-memory fakes ship under
+  `flowforge.testing.port_fakes` (`InMemoryTracingPort`,
+  `InMemoryAnalyticsPort`, `InMemoryHistogramMetricsPort`) so
+  generator tests can assert span sequences, track calls, and
+  histogram samples without booting a real backend. The OTel
+  adapter package `flowforge-otel` (Python workspace member with
+  the `[otel]` extra) wraps `opentelemetry.trace` /
+  `opentelemetry.metrics` and ships the convenience
+  `flowforge_otel.install()` wiring helper that mounts both
+  adapters onto `flowforge.config`. `flowforge.config` gains the
+  `tracing` / `analytics` slots in the global registry alongside
+  the existing 14 ports.
+- **(v0.3.0 W2)** New ratchet
+  `scripts/ci/ratchets/no_idempotency_bypass.sh` — invariant 11
+  generator-side enforcement. Greps `domain_router.py.j2` and
+  every checked-in `examples/*/generated/<pkg>/routers/<jtbd>_router.py`
+  for the gate tokens (`@router.post("/events")` handler,
+  `Idempotency-Key` header parameter, `check_idempotency_key`
+  import, `record_idempotency_response` call,
+  `HTTP_400_BAD_REQUEST`, `HTTP_409_CONFLICT`); absent any token
+  the ratchet fails loud and points the contributor at item 6's
+  helper module. Wired into `scripts/ci/ratchets/check.sh`'s
+  `RATCHETS=()` array so `make audit-2026-ratchets` now reports
+  6/6 ratchets pass (was 5). Legitimate exceptions go in
+  `no_idempotency_bypass_baseline.txt` with the format
+  `<repo-path>:<line>:<missing-token>` and require
+  v0.3.0-engineering security/architecture review per
+  `scripts/ci/ratchets/README.md`.
+- **(v0.3.0 W2)** Example bundle baselines: every example
+  regenerates the new W2 surface byte-identical against the
+  checked-in tree — per-JTBD `idempotency.py` and
+  `<rev>_create_<jtbd>_idempotency_keys.py` migration (item 6),
+  per-bundle `analytics.py` + `analytics.ts` (item 16),
+  per-bundle `frontend-admin/<pkg>/` SPA tree (item 15),
+  per-bundle `docs/ops/<pkg>/restore-runbook.md` (item 7), OTel
+  span imports in `domain_service`, `domain_router`, and
+  `workflow_adapter` templates (item 12). The
+  `examples/hiring-pipeline/generated/` tree is now committed so
+  all 3 examples participate in step-8 regen-diff (was 2 in
+  W0/W1). The cross-flag self-determinism check
+  (`scripts/ci/regen_flag_flip.sh`, new) regenerates each
+  example × `form_renderer = "skeleton" | "real"` twice and
+  asserts byte-identical output — 6/6 byte-identical, exercised
+  by the W2 closeout protocol per
+  `docs/v0.3.0-engineering-plan.md` §7.
+
+- **[Reliable]** (v0.3.0 W2 / item 7) Backup/restore drill artefact.
+  New per-bundle generator
+  `flowforge_cli.jtbd.generators.restore_runbook` emits
+  `docs/ops/<bundle.project.package>/restore-runbook.md` listing every
+  table the bundle creates in topological FK-dependency order
+  (entity tables sorted by `jtbd.id`, then per-JTBD
+  `<table>_idempotency_keys` tables when item 6 is wired), the
+  required `pg_dump` flags (schema-only + data-only with `--no-owner`,
+  `--disable-triggers`, explicit `--table=…` per bundle table), the
+  audit-chain re-verification step (`flowforge audit verify --tenant
+  <tenant>` for every tenant present in the dump), and the eight-step
+  DR procedure (verify dumps → provision scratch → apply schema →
+  alembic upgrade → load data → audit verify → smoke → decommission).
+  Item 6's idempotency tables are gracefully tolerated — when
+  `project.idempotency_ttl_hours` is absent the runbook still emits
+  cleanly with entity tables only. Paired Makefile target
+  `make restore-drill` (also exposed as
+  `make audit-2026-restore-drill`) runs the procedure end-to-end
+  against testcontainers Postgres via
+  `tests/integration/python/tests/test_restore_drill.py`, asserting
+  every audit chain re-verifies after dump → drop → restore. The
+  integration test skips cleanly when Postgres / testcontainers /
+  docker daemon are unavailable, and runs full end-to-end when CI
+  provides them. Generation remains I/O-free; the new artefact joins
+  the byte-identical regen baseline for all three examples.
+
 ## [0.3.0-engr.1] — Wave 1
 
 > Second wave of the v0.3.0 engineering track per

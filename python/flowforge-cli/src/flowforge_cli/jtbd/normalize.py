@@ -101,6 +101,12 @@ class NormalizedProject:
 	# v0.3.0 W1 (item 13): chooses Step.tsx emission path. Defaults to
 	# "skeleton" so pre-W1 bundles regen byte-identically.
 	form_renderer: str = "skeleton"
+	# v0.3.0 W2 (item 6): per-bundle idempotency-key TTL in hours. ``None``
+	# (default) means use the framework default of 24 hours; the
+	# ``idempotency`` generator threads this through to the lookup helper
+	# and the router-side replay window. Additive — pre-W2 bundles regen
+	# byte-identically.
+	idempotency_ttl_hours: int | None = None
 
 
 @dataclass(frozen=True)
@@ -211,6 +217,14 @@ def normalize(bundle: dict[str, Any]) -> NormalizedBundle:
 	frontend_block = proj.get("frontend") or {}
 	form_renderer = str(frontend_block.get("form_renderer", "skeleton"))
 
+	# v0.3.0 W2 (item 6): bundle.project.idempotency.ttl_hours is the
+	# additive knob that overrides the framework default replay window.
+	# Missing → ``None`` so existing bundles regen byte-identically; the
+	# generated helper falls back to the 24h default.
+	idempotency_block = proj.get("idempotency") or {}
+	raw_ttl = idempotency_block.get("ttl_hours")
+	idempotency_ttl_hours = int(raw_ttl) if raw_ttl is not None else None
+
 	project = NormalizedProject(
 		name=proj["name"],
 		package=proj["package"],
@@ -220,6 +234,7 @@ def normalize(bundle: dict[str, Any]) -> NormalizedBundle:
 		languages=tuple(proj.get("languages") or ("en",)),
 		currencies=tuple(proj.get("currencies") or ("USD",)),
 		form_renderer=form_renderer,
+		idempotency_ttl_hours=idempotency_ttl_hours,
 	)
 
 	jtbds = tuple(_norm_jtbd(j, shared_perms) for j in bundle["jtbds"])

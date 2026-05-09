@@ -1,0 +1,71 @@
+{
+  "fields": [
+    {
+      "id": "candidate_name",
+      "kind": "text",
+      "label": "Full name",
+      "pii": true,
+      "required": true
+    },
+    {
+      "id": "candidate_email",
+      "kind": "email",
+      "label": "Email",
+      "pii": true,
+      "required": true
+    },
+    {
+      "id": "candidate_phone",
+      "kind": "phone",
+      "label": "Phone",
+      "pii": true,
+      "required": false
+    },
+    {
+      "id": "role_title",
+      "kind": "text",
+      "label": "Role applied",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "source_channel",
+      "kind": "enum",
+      "label": "Source channel",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "resume",
+      "kind": "file",
+      "label": "Resume",
+      "pii": true,
+      "required": false
+    },
+    {
+      "id": "notes",
+      "kind": "textarea",
+      "label": "Notes",
+      "pii": false,
+      "required": false
+    }
+  ],
+  "id": "source_candidate_intake",
+  "layout": [
+    {
+      "field_ids": [
+        "candidate_name",
+        "candidate_email",
+        "candidate_phone",
+        "role_title",
+        "source_channel",
+        "resume",
+        "notes"
+      ],
+      "kind": "section",
+      "title": "Details"
+    }
+  ],
+  "title": "Source a candidate \u2014 Intake",
+  "version": "1.0.0"
+}

@@ -14,6 +14,7 @@ from typing import Any
 from ._types import GeneratedFile
 from .generators import (
 	alembic,
+	analytics_taxonomy,
 	audit_taxonomy,
 	compensation_handlers,
 	db_migration,
@@ -23,11 +24,14 @@ from .generators import (
 	env_example,
 	form_spec,
 	frontend,
+	frontend_admin,
+	idempotency,
 	migration_safety,
 	notifications,
 	openapi,
 	permissions,
 	readme,
+	restore_runbook,
 	sa_model,
 	tests as test_gen,
 	workflow_adapter,
@@ -56,17 +60,21 @@ _PER_JTBD_GENERATORS = (
 	frontend.generate,
 	compensation_handlers.generate,
 	diagram.generate,
+	idempotency.generate,
 )
 
 _PER_BUNDLE_GENERATORS = (
 	permissions.generate,
 	audit_taxonomy.generate,
+	analytics_taxonomy.generate,
 	notifications.generate,
 	alembic.generate,
 	env_example.generate,
 	readme.generate,
 	migration_safety.generate,
 	openapi.generate,
+	restore_runbook.generate,
+	frontend_admin.generate,
 )
 
 

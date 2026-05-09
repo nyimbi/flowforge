@@ -68,6 +68,17 @@
               "default": "skeleton"
             }
           }
+        },
+        "idempotency": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "ttl_hours": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 8760
+            }
+          }
         }
       }
     },

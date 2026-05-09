@@ -1,0 +1,106 @@
+{
+  "initial_state": "intake",
+  "key": "screen_candidate",
+  "metadata": {
+    "actor": "recruiter",
+    "generated_from": "jtbd",
+    "sla_breach_seconds": 259200,
+    "title": "Screen a candidate"
+  },
+  "states": [
+    {
+      "kind": "manual_review",
+      "name": "intake",
+      "swimlane": "recruiter"
+    },
+    {
+      "kind": "manual_review",
+      "name": "review",
+      "swimlane": "reviewer"
+    },
+    {
+      "kind": "manual_review",
+      "name": "compensation_review",
+      "swimlane": "reviewer"
+    },
+    {
+      "kind": "terminal_success",
+      "name": "done"
+    }
+  ],
+  "subject_kind": "screen_candidate",
+  "transitions": [
+    {
+      "effects": [
+        {
+          "entity": "screen_candidate",
+          "kind": "create_entity"
+        },
+        {
+          "kind": "audit",
+          "template": "screen_candidate.submitted"
+        }
+      ],
+      "event": "submit",
+      "from_state": "intake",
+      "gates": [
+        {
+          "kind": "permission",
+          "permission": "screen_candidate.submit"
+        }
+      ],
+      "guards": [],
+      "id": "screen_candidate_submit",
+      "priority": 0,
+      "to_state": "review"
+    },
+    {
+      "effects": [
+        {
+          "kind": "notify",
+          "template": "screen_candidate.approved"
+        }
+      ],
+      "event": "approve",
+      "from_state": "review",
+      "gates": [
+        {
+          "kind": "permission",
+          "permission": "screen_candidate.approve"
+        }
+      ],
+      "guards": [],
+      "id": "screen_candidate_approve",
+      "priority": 0,
+      "to_state": "done"
+    },
+    {
+      "effects": [
+        {
+          "kind": "audit",
+          "template": "screen_candidate.salary_above_band"
+        }
+      ],
+      "event": "submit",
+      "from_state": "intake",
+      "gates": [
+        {
+          "kind": "permission",
+          "permission": "screen_candidate.submit"
+        }
+      ],
+      "guards": [
+        {
+          "expr": {
+            "var": "context.salary_above_band"
+          },
+          "kind": "expr"
+        }
+      ],
+      "id": "screen_candidate_salary_above_band",
+      "priority": 5,
+      "to_state": "compensation_review"
+    }
+  ],
+  "version": "1.0.0"
+}

@@ -257,9 +257,74 @@ class NoopRls:
 class InMemoryMetrics:
 	def __init__(self) -> None:
 		self.points: list[tuple[str, float, dict[str, str]]] = []
+		self.histograms: list[tuple[str, float, dict[str, str]]] = []
 
 	def emit(self, name: str, value: float, labels: Mapping[str, str] | None = None) -> None:
 		self.points.append((name, value, dict(labels or {})))
+
+	def record_histogram(
+		self,
+		name: str,
+		value: float,
+		labels: Mapping[str, str] | None = None,
+	) -> None:
+		"""Record a histogram observation. Tests inspect ``histograms``."""
+
+		self.histograms.append((name, value, dict(labels or {})))
+
+
+# ---- tracing ----------------------------------------------------------
+
+
+class _NoopSpan:
+	"""Span fake that captures attributes for test assertions."""
+
+	def __init__(self, name: str, attributes: dict[str, Any]) -> None:
+		self.name = name
+		self.attributes: dict[str, Any] = dict(attributes)
+		self.exceptions: list[BaseException] = []
+
+	def set_attribute(self, key: str, value: Any) -> None:
+		self.attributes[key] = value
+
+	def record_exception(self, exc: BaseException) -> None:
+		self.exceptions.append(exc)
+
+
+class NoopTracing:
+	"""In-memory :class:`flowforge.ports.tracing.TracingPort` fake.
+
+	Records every span started, including its attributes; tests inspect
+	``spans`` to assert on the OTel attribute coverage of generated host
+	code without booting a real OpenTelemetry exporter.
+	"""
+
+	def __init__(self) -> None:
+		self.spans: list[_NoopSpan] = []
+
+	def start_span(
+		self,
+		name: str,
+		attributes: Mapping[str, Any] | None = None,
+	) -> "_NoopSpanCtx":
+		span = _NoopSpan(name, dict(attributes or {}))
+		self.spans.append(span)
+		return _NoopSpanCtx(span)
+
+
+class _NoopSpanCtx:
+	"""Async context manager that yields a :class:`_NoopSpan`."""
+
+	def __init__(self, span: _NoopSpan) -> None:
+		self._span = span
+
+	async def __aenter__(self) -> _NoopSpan:
+		return self._span
+
+	async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+		if exc is not None and isinstance(exc, BaseException):
+			self._span.record_exception(exc)
+		return None
 
 
 # ---- tasks ------------------------------------------------------------
@@ -289,8 +354,33 @@ class InMemoryAccessGrant:
 		self.grants.pop(relation, None)
 
 
+# ---- analytics --------------------------------------------------------
+
+
+class InMemoryAnalytics:
+	"""In-memory :class:`flowforge.ports.analytics.AnalyticsPort` fake.
+
+	Captures every ``track`` invocation in declaration order so tests
+	can assert on the closed taxonomy emitted by the
+	``analytics_taxonomy`` generator (item 16 of
+	:doc:`docs/improvements`). Mirrors :class:`InMemoryAuditSink` and
+	:class:`NoopTracing` in shape — no I/O, no provider SDK.
+	"""
+
+	def __init__(self) -> None:
+		self.events: list[tuple[str, dict[str, Any]]] = []
+
+	async def track(self, event_name: str, properties: dict[str, Any]) -> None:
+		assert isinstance(event_name, str), "event_name must be a string"
+		assert isinstance(properties, dict), "properties must be a dict"
+		# Defensive copy so callers mutating the dict afterwards don't
+		# rewrite history in our captured ledger.
+		self.events.append((event_name, dict(properties)))
+
+
 __all__ = [
 	"InMemoryAccessGrant",
+	"InMemoryAnalytics",
 	"InMemoryAuditSink",
 	"InMemoryDocuments",
 	"InMemoryMetrics",
@@ -303,4 +393,5 @@ __all__ = [
 	"InMemoryTaskTracker",
 	"InMemoryTenancy",
 	"NoopRls",
+	"NoopTracing",
 ]

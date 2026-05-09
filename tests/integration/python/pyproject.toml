@@ -16,6 +16,7 @@ dependencies = [
 	"flowforge-money",
 	"flowforge-signing-kms",
 	"flowforge-notify-multichannel",
+	"flowforge-otel",
 	"flowforge-cli",
 	"flowforge-jtbd",
 	"fastapi>=0.115",
@@ -25,6 +26,8 @@ dependencies = [
 	"pyyaml>=6.0",
 	"pytest>=7",
 	"pytest-asyncio>=0.23",
+	"opentelemetry-api>=1.20",
+	"opentelemetry-sdk>=1.20",
 ]
 
 [tool.uv.sources]
@@ -40,6 +43,7 @@ flowforge-documents-s3 = { path = "../../../python/flowforge-documents-s3", edit
 flowforge-money = { path = "../../../python/flowforge-money", editable = true }
 flowforge-signing-kms = { path = "../../../python/flowforge-signing-kms", editable = true }
 flowforge-notify-multichannel = { path = "../../../python/flowforge-notify-multichannel", editable = true }
+flowforge-otel = { path = "../../../python/flowforge-otel", editable = true }
 flowforge-cli = { path = "../../../python/flowforge-cli", editable = true }
 flowforge-jtbd = { path = "../../../python/flowforge-jtbd", editable = true }
 

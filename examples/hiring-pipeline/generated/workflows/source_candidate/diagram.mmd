@@ -1,0 +1,26 @@
+---
+title: source_candidate — Source a candidate
+---
+stateDiagram-v2
+	direction LR
+
+	classDef swimlane_recruiter fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e,stroke-width:1px
+	classDef swimlane_reviewer fill:#fef3c7,stroke:#d97706,color:#78350f,stroke-width:1px
+	classDef terminal_fail fill:#fee2e2,stroke:#dc2626,color:#7f1d1d,stroke-width:2px
+	classDef terminal_success fill:#dcfce7,stroke:#16a34a,color:#14532d,stroke-width:2px
+
+	[*] --> intake
+	review --> done : ● approve (P0)
+	intake --> review : ● submit (P0)
+	review --> rejected : ┄ reject (P5)
+	done --> [*]
+	rejected --> [*]
+
+	note right of review
+		24h SLA
+	end note
+
+	class intake swimlane_recruiter
+	class review swimlane_reviewer
+	class done terminal_success
+	class rejected terminal_fail

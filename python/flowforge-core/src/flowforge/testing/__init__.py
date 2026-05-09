@@ -19,6 +19,7 @@ from .port_fakes import (
 	InMemoryTaskTracker,
 	InMemoryTenancy,
 	NoopRls,
+	NoopTracing,
 )
 from ..replay.simulator import SimulationResult, simulate
 from .fixtures import load_def
@@ -37,6 +38,7 @@ __all__ = [
 	"InMemoryTaskTracker",
 	"InMemoryTenancy",
 	"NoopRls",
+	"NoopTracing",
 	"SimulationResult",
 	"load_def",
 	"simulate",

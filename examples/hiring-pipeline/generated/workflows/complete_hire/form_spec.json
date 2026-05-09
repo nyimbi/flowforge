@@ -1,0 +1,71 @@
+{
+  "fields": [
+    {
+      "id": "acceptance_date",
+      "kind": "date",
+      "label": "Acceptance date",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "legal_name",
+      "kind": "text",
+      "label": "Legal name",
+      "pii": true,
+      "required": true
+    },
+    {
+      "id": "national_id_ref",
+      "kind": "text",
+      "label": "National ID reference",
+      "pii": true,
+      "required": true
+    },
+    {
+      "id": "home_address",
+      "kind": "address",
+      "label": "Home address",
+      "pii": true,
+      "required": true
+    },
+    {
+      "id": "emergency_contact",
+      "kind": "text",
+      "label": "Emergency contact",
+      "pii": true,
+      "required": true
+    },
+    {
+      "id": "signed_contract",
+      "kind": "signature",
+      "label": "Signed contract",
+      "pii": true,
+      "required": true
+    },
+    {
+      "id": "bank_account_ref",
+      "kind": "text",
+      "label": "Payroll account ref",
+      "pii": true,
+      "required": true
+    }
+  ],
+  "id": "complete_hire_intake",
+  "layout": [
+    {
+      "field_ids": [
+        "acceptance_date",
+        "legal_name",
+        "national_id_ref",
+        "home_address",
+        "emergency_contact",
+        "signed_contract",
+        "bank_account_ref"
+      ],
+      "kind": "section",
+      "title": "Details"
+    }
+  ],
+  "title": "Complete hire and onboard \u2014 Intake",
+  "version": "1.0.0"
+}

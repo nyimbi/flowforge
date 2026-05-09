@@ -1,0 +1,11 @@
+# scripts/ci/ratchets/no_idempotency_bypass_baseline.txt
+#
+# Allowed legitimate occurrences of POST /events handlers that do NOT
+# carry the v0.3.0 W2b idempotency-key gate (invariant 11). Empty
+# baseline as of W2b — every generated router must wire the gate.
+#
+# Format: one record per line as `<repo-relative-path>:<line>:<missing-token>`.
+# Lines that start with `#` and blank lines are ignored.
+#
+# Adding a line requires v0.3.0-engineering security/architecture review
+# and an entry in docs/v0.3.0-engineering/signoff-checklist.md.

@@ -33,9 +33,25 @@ from __future__ import annotations
 # Mapping: generator module name → tuple of dotted bundle/JTBD paths consumed.
 # Sorted for deterministic iteration in the test layer.
 _REGISTRY: dict[str, tuple[str, ...]] = {
+	"analytics_taxonomy": (
+		"jtbds[].id",
+		"project.name",
+		"project.package",
+	),
 	"compensation_handlers": (
 		"jtbds[].edge_cases",
 		"jtbds[].id",
+	),
+	"db_migration": (
+		"jtbds[].fields",
+		"jtbds[].fields[].id",
+		"jtbds[].fields[].required",
+		"jtbds[].fields[].sa_type",
+		"jtbds[].id",
+		"jtbds[].initial_state",
+		"jtbds[].table_name",
+		"jtbds[].title",
+		"project.package",
 	),
 	"diagram": (
 		"jtbds[].id",
@@ -44,6 +60,29 @@ _REGISTRY: dict[str, tuple[str, ...]] = {
 		"jtbds[].states",
 		"jtbds[].title",
 		"jtbds[].transitions",
+	),
+	# v0.3.0 W2 / item 12 — OTel-by-construction templates pulled the
+	# domain_router / domain_service / workflow_adapter generators into
+	# the registry.  Span attributes derive from jtbd.id (tracer name +
+	# attribute), initial_state (engine span attribute), module_name +
+	# class_name + title (generated module identifiers).  The OTel
+	# imports themselves are static template text and don't show up
+	# here.
+	"domain_router": (
+		"jtbds[].class_name",
+		"jtbds[].id",
+		"jtbds[].module_name",
+		"jtbds[].title",
+		"jtbds[].url_segment",
+		"project.package",
+	),
+	"domain_service": (
+		"jtbds[].class_name",
+		"jtbds[].id",
+		"jtbds[].initial_state",
+		"jtbds[].module_name",
+		"jtbds[].title",
+		"project.package",
 	),
 	"frontend": (
 		"jtbds[].class_name",
@@ -59,6 +98,29 @@ _REGISTRY: dict[str, tuple[str, ...]] = {
 		"jtbds[].title",
 		"jtbds[].url_segment",
 		"project.frontend.form_renderer",
+		"project.package",
+	),
+	# v0.3.0 W2 / item 15 — per-bundle tenant-scoped admin console.
+	# Reads project name/package/tenancy plus per-JTBD identifiers to
+	# synthesize the admin permission catalog and label every page.
+	# bundle.all_audit_topics seeds the audit-log viewer's topic list.
+	"frontend_admin": (
+		"all_audit_topics",
+		"jtbds[].class_name",
+		"jtbds[].id",
+		"jtbds[].permissions",
+		"jtbds[].title",
+		"jtbds[].url_segment",
+		"project.name",
+		"project.package",
+		"project.tenancy",
+	),
+	"idempotency": (
+		"jtbds[].class_name",
+		"jtbds[].id",
+		"jtbds[].module_name",
+		"jtbds[].table_name",
+		"project.idempotency.ttl_hours",
 		"project.package",
 	),
 	"migration_safety": (
@@ -86,6 +148,23 @@ _REGISTRY: dict[str, tuple[str, ...]] = {
 		"jtbds[].title",
 		"jtbds[].url_segment",
 		"project.name",
+	),
+	"restore_runbook": (
+		"jtbds[].audit_topics",
+		"jtbds[].id",
+		"jtbds[].table_name",
+		"jtbds[].title",
+		"project.idempotency_ttl_hours",
+		"project.name",
+		"project.package",
+		"project.tenancy",
+	),
+	"workflow_adapter": (
+		"jtbds[].id",
+		"jtbds[].module_name",
+		"jtbds[].title",
+		"jtbds[].transitions",
+		"project.package",
 	),
 }
 

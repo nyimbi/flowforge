@@ -141,6 +141,26 @@ audit-2026-ratchets:
 audit-2026-signoff:
 	uv run --with pyyaml python scripts/ci/check_signoff.py
 
+# v0.3.0 W2 (item 7): backup/restore drill artefact.
+#
+# Runs the generated `docs/ops/<bundle>/restore-runbook.md` procedure
+# end-to-end against testcontainers Postgres for each example bundle:
+# spin up Postgres → load seed → pg_dump → drop schema → pg_restore →
+# `flowforge audit verify` for every tenant in the dump → assert every
+# audit chain re-verifies. The integration test under
+# `tests/integration/python/tests/test_restore_drill.py` carries the
+# assertions; this target is the operator-facing entrypoint.
+#
+# Reference: `docs/v0.3.0-engineering-plan.md` §7 W2,
+# `docs/improvements.md` item 7. Designed for the monthly DR tabletop —
+# CI runs it on every PR via `audit-2026-restore-drill`.
+.PHONY: restore-drill
+restore-drill:
+	$(PYTEST) tests/integration/python/tests/test_restore_drill.py
+
+.PHONY: audit-2026-restore-drill
+audit-2026-restore-drill: restore-drill
+
 # Convenience: run full check_all gate (existing) then audit-2026.
 .PHONY: check-all
 check-all:

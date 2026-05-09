@@ -1,0 +1,55 @@
+{
+  "fields": [
+    {
+      "id": "panel_scorecard",
+      "kind": "textarea",
+      "label": "Panel scorecard summary",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "technical_score",
+      "kind": "number",
+      "label": "Technical score (1-5)",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "culture_score",
+      "kind": "number",
+      "label": "Culture score (1-5)",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "debrief_notes",
+      "kind": "textarea",
+      "label": "Debrief notes",
+      "pii": false,
+      "required": true
+    },
+    {
+      "id": "interview_date",
+      "kind": "datetime",
+      "label": "Interview date/time",
+      "pii": false,
+      "required": true
+    }
+  ],
+  "id": "conduct_interview_intake",
+  "layout": [
+    {
+      "field_ids": [
+        "panel_scorecard",
+        "technical_score",
+        "culture_score",
+        "debrief_notes",
+        "interview_date"
+      ],
+      "kind": "section",
+      "title": "Details"
+    }
+  ],
+  "title": "Conduct interview loop \u2014 Intake",
+  "version": "1.0.0"
+}

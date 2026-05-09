@@ -479,6 +479,416 @@ green before the wave's row(s) here are signed.
 
 ---
 
+## Wave W2 — Observability backbone + reliability artefacts
+
+```yaml
+- item: W2-item-7
+  title: "Backup/restore drill artefact (restore_runbook generator + make restore-drill target)"
+  wave: W2
+  property: Reliable
+  worker: worker-runbook
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/restore_runbook.py (NEW — per-bundle generator)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/templates/restore_runbook.md.j2 (NEW)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/pipeline.py (registered in _PER_BUNDLE_GENERATORS)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/_fixture_registry.py (registered restore_runbook entry)"
+      - "python/flowforge-cli/tests/test_restore_runbook_generator.py (NEW — 16 unit tests)"
+      - "tests/integration/python/tests/test_restore_drill.py (NEW — testcontainers Postgres dump→drop→restore→verify integration test)"
+      - "Makefile (NEW targets: restore-drill, audit-2026-restore-drill)"
+      - "examples/insurance_claim/generated/docs/ops/insurance_claim_demo/restore-runbook.md (NEW — regenerated)"
+      - "examples/building-permit/generated/docs/ops/building_permit/restore-runbook.md (NEW — regenerated)"
+      - "examples/hiring-pipeline/generated/docs/ops/hiring_pipeline/restore-runbook.md (NEW — regenerated)"
+    acceptance_tests:
+      - "python/flowforge-cli/tests/test_restore_runbook_generator.py — green (16 tests covering output shape, FK ordering, idempotency tolerance, determinism, fixture-registry roundtrip, pipeline integration)"
+      - "tests/integration/python/tests/test_restore_drill.py — skips cleanly when Postgres + testcontainers + docker daemon unavailable; green end-to-end against testcontainers Postgres when all three are present"
+    pre_deploy_checks:
+      - "uv run pytest python/flowforge-cli/tests/ — green (283 tests)"
+      - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
+      - "scripts/check_all.sh step 8 (deterministic regen) — byte-identical for all 3 examples (insurance_claim, building-permit, hiring-pipeline) including the new docs/ops/<bundle>/restore-runbook.md output"
+      - "make restore-drill — runs the testcontainers drill (PG required); skips with clear reason otherwise"
+    determinism_proof: |
+      The runbook is a pure-functional render: ``_table_view`` sorts by
+      jtbd.id, ``_audit_topic_view`` defers to bundle.all_audit_topics
+      (already sorted+deduplicated by normalize), and the template
+      receives only those derived views plus the project metadata.
+      Two regens against the same bundle produce byte-identical output;
+      verified per-example in
+      ``test_deterministic_output_{insurance_claim,building_permit,hiring_pipeline}``.
+      Item 6's per-JTBD ``<table>_idempotency_keys`` table is
+      gracefully tolerated: when ``project.idempotency_ttl_hours``
+      is absent on the normalized bundle (sibling worker-idempotency
+      not landed yet) the runbook still emits cleanly with entity
+      tables only — exercised by
+      ``test_idempotency_gracefully_tolerated_when_attr_missing``.
+    rollback_plan: |
+      git revert <sha>; the runbook generator + template + Makefile
+      target + tests all unwire atomically. The generated
+      ``docs/ops/<bundle>/restore-runbook.md`` files in
+      ``examples/*/generated/`` come back out via the next regen.
+      Restore drill is opt-in: hosts that haven't wired it suffer no
+      regression on revert.
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+
+- item: W2-item-12
+  title: "OpenTelemetry by construction (TracingPort + HistogramMetricsPort + flowforge-otel adapter + spans in templates)"
+  wave: W2
+  property: [Capable, Reliable]
+  worker: worker-otel
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "python/flowforge-core/src/flowforge/ports/tracing.py (NEW — TracingPort Protocol + STANDARD_SPAN_NAMES + STANDARD_SPAN_ATTRIBUTES)"
+      - "python/flowforge-core/src/flowforge/ports/metrics.py (HistogramMetricsPort extension)"
+      - "python/flowforge-core/src/flowforge/ports/__init__.py (re-exports)"
+      - "python/flowforge-core/src/flowforge/config.py (tracing slot wired alongside the existing 14 ports)"
+      - "python/flowforge-core/src/flowforge/testing/port_fakes.py (InMemoryTracingPort + InMemoryHistogramMetricsPort)"
+      - "python/flowforge-core/src/flowforge/testing/__init__.py (re-exports)"
+      - "python/flowforge-core/tests/unit/test_ports_protocols.py (TracingPort + HistogramMetricsPort assertions)"
+      - "python/flowforge-otel/ (NEW — workspace member; src/flowforge_otel/{__init__,errors,metrics_adapter,tracing_adapter,wiring}.py)"
+      - "python/flowforge-otel/tests/test_{tracing,metrics}_adapter.py + test_wiring.py (NEW)"
+      - "python/flowforge-otel/pyproject.toml + README.md + CHANGELOG.md + LICENSE (NEW)"
+      - "pyproject.toml (workspace + dependencies + opentelemetry-api/sdk dev-deps; flowforge-otel as workspace member)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/templates/domain_service.py.j2 (OTel span wrap on fire/effect dispatch)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/templates/domain_router.py.j2 (OTel span wrap on event POST)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/templates/workflow_adapter.py.j2 (OTel span wrap on audit-append)"
+      - "examples/{insurance_claim,building-permit}/generated/backend/src/<pkg>/services/*.py + routers/*.py + adapters/*.py (regenerated with span wraps)"
+      - "tests/integration/python/tests/test_otel_spans_in_generated_app.py (NEW — span sequence assertion against the in-memory fake)"
+      - "tests/observability/promql/v0_3_0_w2_item_12_otel.yml (NEW — alert rules for the standard meter set)"
+    acceptance_tests:
+      - "python/flowforge-otel/tests/ — 10 tests green (tracing adapter, metrics adapter, wiring helper)"
+      - "python/flowforge-core/tests/unit/test_ports_protocols.py — green (TracingPort, HistogramMetricsPort, runtime_checkable)"
+      - "tests/integration/python/tests/test_otel_spans_in_generated_app.py — green (end-to-end span sequence)"
+      - "promtool check rules tests/observability/promql/v0_3_0_w2_item_12_otel.yml — green (when promtool installed)"
+    pre_deploy_checks:
+      - "uv run pytest python/flowforge-otel/tests/ -q — green (10 tests)"
+      - "uv run pyright python/flowforge-otel/src --pythonversion 3.11 — 0 errors, 0 warnings"
+      - "scripts/check_all.sh step 8 — byte-identical regen for all 3 examples (insurance_claim + building-permit + hiring-pipeline) including the new OTel span wraps in domain_service/router/workflow_adapter outputs"
+    determinism_proof: |
+      The templates emit literal span-wrap blocks gated by static
+      Jinja conditionals; no clock, no randomness, no environment
+      lookup. Two regens against the same bundle produce
+      byte-identical service/router/adapter Python — pinned by
+      step 8 against examples/insurance_claim/generated/backend/src/
+      insurance_claim_demo/services/claim_intake_service.py and
+      every analogous file in building-permit + hiring-pipeline.
+    cross_runtime_parity_proof: |
+      Generator does not touch the expression evaluator. Span name
+      / attribute constants are Python-only; the TS sibling does
+      not enter the cross-runtime fixture. Invariant 5 stays green
+      against fixture v2 (250 cases).
+    rollback_plan: |
+      git revert <sha>; the TracingPort + HistogramMetricsPort
+      additions are additive (Protocols, no breaking change to the
+      existing 14 ports). The flowforge-otel package can be
+      removed from the workspace independently. Templates fall
+      back to no-op spans when the in-memory fake is wired.
+      Reverting restores pre-W2 service/router/adapter emission.
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+
+- item: W2-item-6
+  title: "Router-level idempotency keys (header enforcement + per-tenant table + invariant 11)"
+  wave: W2
+  property: Reliable
+  worker: worker-idempotency
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/idempotency.py (NEW — per-JTBD generator)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/templates/idempotency.py.j2 (NEW)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/templates/db_migration_idempotency_keys.py.j2 (NEW — chained per-JTBD migration with UniqueConstraint)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/db_migration.py (chains the idempotency-keys migration after the entity migration)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/templates/domain_router.py.j2 (Idempotency-Key header + check_idempotency_key + record_idempotency_response wiring)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/templates/domain_service.py.j2 (dedupe call on the service-side fire path)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/normalize.py (project.idempotency.ttl_hours threading)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/pipeline.py (registered in _PER_JTBD_GENERATORS)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/_fixture_registry.py (CONSUMES paths declared)"
+      - "python/flowforge-cli/tests/test_jtbd_idempotency.py (NEW)"
+      - "scripts/ci/ratchets/no_idempotency_bypass.sh (NEW — generator-side gate enforcement)"
+      - "scripts/ci/ratchets/no_idempotency_bypass_baseline.txt (NEW — empty baseline)"
+      - "scripts/ci/ratchets/check.sh (added to RATCHETS=() — 5 → 6 ratchets)"
+      - "tests/conformance/test_arch_invariants.py (NEW invariant 11 + docstring count fix to 11)"
+      - "examples/insurance_claim/generated/backend/src/insurance_claim_demo/claim_intake/idempotency.py (NEW — regenerated)"
+      - "examples/insurance_claim/generated/backend/migrations/versions/<rev>_create_claim_intake_idempotency_keys.py (NEW)"
+      - "examples/building-permit/generated/backend/migrations/versions/<rev>_create_<jtbd>_idempotency_keys.py × 5 (NEW per JTBD)"
+    acceptance_tests:
+      - "python/flowforge-cli/tests/test_jtbd_idempotency.py — green (helper emission, migration UniqueConstraint, header gate, TTL threading, byte-determinism)"
+      - "tests/conformance/test_arch_invariants.py::test_invariant_11_idempotency_key_uniqueness — green"
+      - "scripts/ci/ratchets/check.sh — 6/6 ratchets PASS (incl. no_idempotency_bypass)"
+    pre_deploy_checks:
+      - "make audit-2026-conformance — 11 invariants pass (was 10)"
+      - "make audit-2026-ratchets — 6 ratchets pass (was 5)"
+      - "scripts/check_all.sh step 8 — byte-identical regen for all 3 examples including the new idempotency helpers + chained migrations"
+      - "uv run pytest python/flowforge-cli/tests/ -q — 300 tests green"
+    determinism_proof: |
+      The per-JTBD idempotency helper renders from a Jinja template
+      with the bundle-supplied TTL hours substituted in. The chained
+      migration emits with a deterministic revision id
+      (`sha256(package + jtbd_id + "_idempotency_keys")[:12]`) so
+      two regens against the same bundle yield byte-identical
+      migrations + helpers. Pinned via
+      `test_idempotency_helper_byte_deterministic` and
+      `test_chained_migration_revision_id_deterministic`.
+    cross_runtime_parity_proof: |
+      The header gate is Python-only; no expression evaluator
+      surface is touched. Invariant 5 stays green without fixture
+      churn.
+    rollback_plan: |
+      git revert <sha>; the idempotency generator is additive (new
+      module + new template + chained migration emission gated on
+      `project.idempotency.ttl_hours` presence). The router /
+      service template gates the helper imports behind the same
+      flag so reverting restores the pre-W2 router shape. The
+      ratchet baseline file remains on disk after revert; nothing
+      references it. Reverting also reverts invariant 11 and the
+      docstring count back to 10.
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+
+- item: W2-invariant-11
+  title: "Conformance invariant 11 — idempotency-key uniqueness"
+  wave: W2
+  property: Reliable
+  marker: "@invariant_p1"
+  worker: worker-idempotency
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "tests/conformance/test_arch_invariants.py (NEW invariant 11 + header docstring fix to 11)"
+    test_path: "tests/conformance/test_arch_invariants.py::test_invariant_11_idempotency_key_uniqueness"
+    acceptance_criterion: |
+      For every JTBD in a bundle that opts into idempotency, the
+      chained migration carries a UniqueConstraint over
+      (tenant_id, idempotency_key); a SQLite round-trip insert with
+      the same (tenant_id, idempotency_key) pair raises
+      IntegrityError; and the generated idempotency helper threads
+      the bundle-configured TTL through to its IDEMPOTENCY_TTL_HOURS
+      literal (default 24h when project.idempotency.ttl_hours is
+      unset). Also asserts the router template wires the
+      check_idempotency_key + record_idempotency_response helpers.
+    pre_deploy_checks:
+      - "uv run pytest tests/conformance/test_arch_invariants.py::test_invariant_11_idempotency_key_uniqueness -v — passed"
+      - "make audit-2026-conformance — 11 invariants passed"
+    rollback_plan: |
+      git revert <sha>; the test is purely additive — it imports
+      the flowforge_cli.jtbd idempotency generator already
+      exercised by the test_jtbd_idempotency unit suite, then
+      asserts on the normalised output. Removing it leaves
+      invariants 1-10 green.
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+
+- item: W2-ratchet-no-idempotency-bypass
+  title: "Ratchet — no_idempotency_bypass (invariant 11 generator-side enforcement)"
+  wave: W2
+  property: Reliable
+  worker: worker-idempotency
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "scripts/ci/ratchets/no_idempotency_bypass.sh (NEW — greps domain_router.py.j2 + every checked-in <jtbd>_router.py)"
+      - "scripts/ci/ratchets/no_idempotency_bypass_baseline.txt (NEW — empty baseline; legitimate exceptions require security/architecture review)"
+      - "scripts/ci/ratchets/check.sh (added to RATCHETS=() — 5 → 6 ratchets)"
+    acceptance_criterion: |
+      `scripts/ci/ratchets/check.sh` reports 6/6 ratchets pass.
+      Removing the Idempotency-Key header parameter, the
+      check_idempotency_key import, the record_idempotency_response
+      call, the HTTP_400_BAD_REQUEST or HTTP_409_CONFLICT status
+      codes from the router template (or any of the regenerated
+      example router files) fails the ratchet loud, with a message
+      pointing the contributor at item 6's helper module.
+    pre_deploy_checks:
+      - "bash scripts/ci/ratchets/check.sh — 6/6 PASS"
+      - "make audit-2026-ratchets — green"
+    rollback_plan: |
+      git revert <sha>; revert removes the new ratchet script + its
+      baseline + the RATCHETS=() entry. Other ratchets unaffected.
+      Reverting also reverts the chained idempotency-keys migration
+      emission so the gate has nothing to enforce.
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+
+- item: W2-item-15
+  title: "Tenant-scoped admin console (frontend_admin generator + per-bundle React app)"
+  wave: W2
+  property: [Functional, Capable]
+  worker: worker-admin
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/frontend_admin.py (NEW — per-bundle generator, 15 file emission)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/templates/frontend_admin/ (NEW directory — package.json, tsconfig, vite.config, index.html, README, src/{main,App,api,permissions}.tsx + src/pages/{InstanceBrowser,AuditLogViewer,SagaPanel,PermissionsHistory,OutboxQueue,RlsLog}.tsx Jinja templates)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/pipeline.py (registered in _PER_BUNDLE_GENERATORS)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/_fixture_registry.py (CONSUMES paths declared)"
+      - "python/flowforge-cli/tests/test_frontend_admin_generator.py (NEW)"
+      - "examples/insurance_claim/generated/frontend-admin/insurance_claim_demo/ (NEW SPA tree)"
+      - "examples/building-permit/generated/frontend-admin/building_permit/ (NEW SPA tree)"
+      - "examples/hiring-pipeline/generated/frontend-admin/hiring_pipeline/ (NEW SPA tree — example tree first checked in this wave)"
+    acceptance_tests:
+      - "python/flowforge-cli/tests/test_frontend_admin_generator.py — green (file set, sorted-jtbd traversal, admin-permissions synthesis, byte-determinism, fixture-registry roundtrip)"
+    pre_deploy_checks:
+      - "scripts/check_all.sh step 8 — byte-identical regen for all 3 examples including the new frontend-admin/<package>/ trees"
+      - "uv run pytest python/flowforge-cli/tests/test_frontend_admin_generator.py -q — green"
+    determinism_proof: |
+      Every emitted file is rendered from a Jinja template with
+      sorted iteration over JTBDs (sorted by jtbd.id) and
+      sorted-unique synthesis of the admin.<jtbd>.{read,compensate,
+      outbox.retry,grant} permission set. Two regens against the
+      same bundle produce byte-identical output — pinned per
+      example via the W2 closeout regen-diff loop.
+    cross_runtime_parity_proof: |
+      Generator does not touch the expression evaluator. The
+      admin SPA's API client uses string keys only (no DSL). No
+      fixture churn required.
+    rollback_plan: |
+      git revert <sha>; the generator is purely additive (new
+      module + new templates directory + registration in
+      _PER_BUNDLE_GENERATORS). The generated frontend-admin/
+      trees regenerate as empty after revert — hosts that adopted
+      the SPA see it disappear on next regen but their existing
+      deployment is unaffected (the SPA is deployed in isolation
+      behind a separate ingress / auth proxy, not coupled to the
+      customer-facing Next.js app).
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+
+- item: W2-item-16
+  title: "Closed analytics-event taxonomy (analytics_taxonomy generator + new AnalyticsPort)"
+  wave: W2
+  property: [Functional, Capable]
+  worker: worker-analytics
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "python/flowforge-core/src/flowforge/ports/analytics.py (NEW — AnalyticsPort Protocol)"
+      - "python/flowforge-core/src/flowforge/ports/__init__.py (re-export)"
+      - "python/flowforge-core/src/flowforge/config.py (analytics slot wired alongside the existing 14 ports)"
+      - "python/flowforge-core/src/flowforge/testing/port_fakes.py (InMemoryAnalyticsPort)"
+      - "python/flowforge-core/src/flowforge/testing/__init__.py (re-export)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/analytics_taxonomy.py (NEW — per-bundle generator emitting two files)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/templates/analytics_taxonomy.py.j2 (NEW)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/templates/analytics_taxonomy.ts.j2 (NEW)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/pipeline.py (registered in _PER_BUNDLE_GENERATORS)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/_fixture_registry.py (CONSUMES paths declared)"
+      - "python/flowforge-cli/tests/test_analytics_taxonomy.py (NEW)"
+      - "examples/insurance_claim/generated/backend/src/insurance_claim_demo/analytics.py (NEW — regenerated)"
+      - "examples/insurance_claim/generated/frontend/src/insurance_claim_demo/analytics.ts (NEW — regenerated)"
+      - "examples/building-permit/generated/backend/src/building_permit/analytics.py (NEW)"
+      - "examples/building-permit/generated/frontend/src/building_permit/analytics.ts (NEW)"
+      - "examples/hiring-pipeline/generated/backend/src/hiring_pipeline/analytics.py (NEW)"
+      - "examples/hiring-pipeline/generated/frontend/src/hiring_pipeline/analytics.ts (NEW)"
+    acceptance_tests:
+      - "python/flowforge-cli/tests/test_analytics_taxonomy.py — green (event enumeration shape, sorted iteration, byte-determinism, parallel Python/TS taxonomy agreement)"
+      - "python/flowforge-core/tests/unit/test_ports_protocols.py — green (AnalyticsPort runtime_checkable + InMemoryAnalyticsPort track behaviour)"
+    pre_deploy_checks:
+      - "scripts/check_all.sh step 8 — byte-identical regen for all 3 examples including the new analytics.py + analytics.ts"
+      - "uv run pytest python/flowforge-cli/tests/test_analytics_taxonomy.py -q — green"
+    determinism_proof: |
+      The generator sorts JTBDs by id and iterates the closed
+      LIFECYCLE_SUFFIXES tuple in fixed order, so two regens
+      against the same bundle yield byte-identical Python StrEnum
+      and TS string-literal type. The Python and TS sides emit
+      the same set of (member, event) pairs — the parallel-output
+      assertion in test_analytics_taxonomy verifies the closure
+      contract holds across runtimes.
+    cross_runtime_parity_proof: |
+      The TS-side closed enum is a string-literal type — no
+      runtime expression evaluator surface is touched. Invariant 5
+      stays green without fixture churn.
+    rollback_plan: |
+      git revert <sha>; the AnalyticsPort + InMemoryAnalyticsPort
+      additions are additive (new Protocol, new fake). The
+      generator is purely additive (new module + 2 templates +
+      registration in _PER_BUNDLE_GENERATORS). Reverting removes
+      the analytics.py + analytics.ts files on next regen; hosts
+      that wired AnalyticsPort fall back to no-op tracking until
+      they wire their own enum.
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-09
+    commit_sha: TBD
+```
+
+---
+
 *This file is the v0.3.0-engineering equivalent of
 `docs/audit-2026/signoff-checklist.md`. Treated as a living doc — wave
 sections are appended as W1..W4b land.*

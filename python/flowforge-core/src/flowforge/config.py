@@ -43,6 +43,10 @@ metrics: Any = None
 tasks: Any = None
 grants: Any = None
 entity_registry: Any = None
+# v0.3.0 W2 / item 12 — TracingPort wiring. Generated host code reads
+# this attribute through ``flowforge.config.tracing`` and falls back to
+# a NoopTracing if the host hasn't wired an OTel-backed adapter.
+tracing: Any = None
 
 # Tunables (see portability §7 customisation table)
 snapshot_interval: int = 100
@@ -58,7 +62,7 @@ def reset_to_fakes() -> None:
 	from .compiler.catalog import EntityRegistry as _Reg
 
 	global tenancy, rbac, audit, outbox, documents, money, settings, signing
-	global notification, rls, metrics, tasks, grants, entity_registry
+	global notification, rls, metrics, tasks, grants, entity_registry, tracing
 
 	tenancy = _f.InMemoryTenancy()
 	rbac = _f.InMemoryRbac()
@@ -74,3 +78,4 @@ def reset_to_fakes() -> None:
 	tasks = _f.InMemoryTaskTracker()
 	grants = _f.InMemoryAccessGrant()
 	entity_registry = _Reg()
+	tracing = _f.NoopTracing()
