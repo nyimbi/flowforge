@@ -1,0 +1,10 @@
+# Baseline allowlist for no_design_token_hardcode.sh.
+#
+# Each line is one approved exception in the format
+# ``<repo-relative path>:<line>:<full grep match text>``. Adding an entry
+# requires a v0.3.0-engineering visual-design review — drop the
+# justification in the PR description and tag the design-system DRI.
+#
+# v0.3.0 W3 baseline starts empty. The canonical hex palette lives in
+# the per-bundle ``design_tokens.css`` files (which the ratchet
+# already excludes from its grep scope), so no exceptions are needed.

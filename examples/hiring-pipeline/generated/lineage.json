@@ -1,0 +1,2631 @@
+{
+  "bundle": {
+    "name": "hiring-pipeline",
+    "package": "hiring_pipeline",
+    "retention_years_override": null
+  },
+  "jtbds": [
+    {
+      "compliance": [],
+      "data_sensitivity": [],
+      "field_count": 7,
+      "fields": [
+        {
+          "id": "acceptance_date",
+          "kind": "date",
+          "label": "Acceptance date",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "acceptance_date",
+              "label": "Acceptance date",
+              "location": "frontend/src/hiring_pipeline/complete_hire/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "CompleteHireService.fire",
+              "location": "backend/src/hiring_pipeline/complete_hire/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "acceptance_date",
+              "location": "backend/src/hiring_pipeline/complete_hire/models.py",
+              "sa_type": "Date()",
+              "stage": "orm_column",
+              "table": "complete_hire"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "complete_hire.approved",
+                "complete_hire.candidate_withdrawal_rejected",
+                "complete_hire.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "hr_partner",
+                  "channel": "in_app",
+                  "trigger": "sla_warn"
+                },
+                {
+                  "audience": "hiring_manager",
+                  "channel": "slack",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "hr_partner",
+                  "channel": "slack",
+                  "trigger": "sla_breach"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "slack",
+                  "trigger": "approved"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "complete_hire.approved",
+                "complete_hire.candidate_withdrawal_rejected",
+                "complete_hire.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "exposure_surfaces": [
+            {
+              "role": "candidate",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "candidate",
+              "surface": "service.read"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "service.read"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "service.read"
+            },
+            {
+              "role": "recruiter",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "recruiter",
+              "surface": "service.read"
+            }
+          ],
+          "id": "bank_account_ref",
+          "kind": "text",
+          "label": "Payroll account ref",
+          "pii": true,
+          "redaction_strategy": {
+            "audit_event_payload": "redacted_mask",
+            "form_input": "visible",
+            "orm_column": "stored_as_is",
+            "outbox_envelope": "redacted_mask",
+            "service_layer": "stored_as_is"
+          },
+          "retention_window_years": 3,
+          "stages": [
+            {
+              "form_field_id": "bank_account_ref",
+              "label": "Payroll account ref",
+              "location": "frontend/src/hiring_pipeline/complete_hire/Step.tsx",
+              "redaction": "visible",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "CompleteHireService.fire",
+              "location": "backend/src/hiring_pipeline/complete_hire/service.py",
+              "redaction": "stored_as_is",
+              "stage": "service_layer"
+            },
+            {
+              "column": "bank_account_ref",
+              "location": "backend/src/hiring_pipeline/complete_hire/models.py",
+              "redaction": "stored_as_is",
+              "sa_type": "String(512)",
+              "stage": "orm_column",
+              "table": "complete_hire"
+            },
+            {
+              "location": "audit_sink",
+              "redaction": "redacted_mask",
+              "stage": "audit_event_payload",
+              "topics": [
+                "complete_hire.approved",
+                "complete_hire.candidate_withdrawal_rejected",
+                "complete_hire.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "hr_partner",
+                  "channel": "in_app",
+                  "trigger": "sla_warn"
+                },
+                {
+                  "audience": "hiring_manager",
+                  "channel": "slack",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "hr_partner",
+                  "channel": "slack",
+                  "trigger": "sla_breach"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "slack",
+                  "trigger": "approved"
+                }
+              ],
+              "redaction": "redacted_mask",
+              "stage": "outbox_envelope",
+              "topics": [
+                "complete_hire.approved",
+                "complete_hire.candidate_withdrawal_rejected",
+                "complete_hire.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "exposure_surfaces": [
+            {
+              "role": "candidate",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "candidate",
+              "surface": "service.read"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "service.read"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "service.read"
+            },
+            {
+              "role": "recruiter",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "recruiter",
+              "surface": "service.read"
+            }
+          ],
+          "id": "emergency_contact",
+          "kind": "text",
+          "label": "Emergency contact",
+          "pii": true,
+          "redaction_strategy": {
+            "audit_event_payload": "redacted_mask",
+            "form_input": "visible",
+            "orm_column": "stored_as_is",
+            "outbox_envelope": "redacted_mask",
+            "service_layer": "stored_as_is"
+          },
+          "retention_window_years": 3,
+          "stages": [
+            {
+              "form_field_id": "emergency_contact",
+              "label": "Emergency contact",
+              "location": "frontend/src/hiring_pipeline/complete_hire/Step.tsx",
+              "redaction": "visible",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "CompleteHireService.fire",
+              "location": "backend/src/hiring_pipeline/complete_hire/service.py",
+              "redaction": "stored_as_is",
+              "stage": "service_layer"
+            },
+            {
+              "column": "emergency_contact",
+              "location": "backend/src/hiring_pipeline/complete_hire/models.py",
+              "redaction": "stored_as_is",
+              "sa_type": "String(512)",
+              "stage": "orm_column",
+              "table": "complete_hire"
+            },
+            {
+              "location": "audit_sink",
+              "redaction": "redacted_mask",
+              "stage": "audit_event_payload",
+              "topics": [
+                "complete_hire.approved",
+                "complete_hire.candidate_withdrawal_rejected",
+                "complete_hire.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "hr_partner",
+                  "channel": "in_app",
+                  "trigger": "sla_warn"
+                },
+                {
+                  "audience": "hiring_manager",
+                  "channel": "slack",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "hr_partner",
+                  "channel": "slack",
+                  "trigger": "sla_breach"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "slack",
+                  "trigger": "approved"
+                }
+              ],
+              "redaction": "redacted_mask",
+              "stage": "outbox_envelope",
+              "topics": [
+                "complete_hire.approved",
+                "complete_hire.candidate_withdrawal_rejected",
+                "complete_hire.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "exposure_surfaces": [
+            {
+              "role": "candidate",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "candidate",
+              "surface": "service.read"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "service.read"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "service.read"
+            },
+            {
+              "role": "recruiter",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "recruiter",
+              "surface": "service.read"
+            }
+          ],
+          "id": "home_address",
+          "kind": "address",
+          "label": "Home address",
+          "pii": true,
+          "redaction_strategy": {
+            "audit_event_payload": "redacted_mask",
+            "form_input": "visible",
+            "orm_column": "stored_as_is",
+            "outbox_envelope": "redacted_mask",
+            "service_layer": "stored_as_is"
+          },
+          "retention_window_years": 3,
+          "stages": [
+            {
+              "form_field_id": "home_address",
+              "label": "Home address",
+              "location": "frontend/src/hiring_pipeline/complete_hire/Step.tsx",
+              "redaction": "visible",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "CompleteHireService.fire",
+              "location": "backend/src/hiring_pipeline/complete_hire/service.py",
+              "redaction": "stored_as_is",
+              "stage": "service_layer"
+            },
+            {
+              "column": "home_address",
+              "location": "backend/src/hiring_pipeline/complete_hire/models.py",
+              "redaction": "stored_as_is",
+              "sa_type": "String(512)",
+              "stage": "orm_column",
+              "table": "complete_hire"
+            },
+            {
+              "location": "audit_sink",
+              "redaction": "redacted_mask",
+              "stage": "audit_event_payload",
+              "topics": [
+                "complete_hire.approved",
+                "complete_hire.candidate_withdrawal_rejected",
+                "complete_hire.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "hr_partner",
+                  "channel": "in_app",
+                  "trigger": "sla_warn"
+                },
+                {
+                  "audience": "hiring_manager",
+                  "channel": "slack",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "hr_partner",
+                  "channel": "slack",
+                  "trigger": "sla_breach"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "slack",
+                  "trigger": "approved"
+                }
+              ],
+              "redaction": "redacted_mask",
+              "stage": "outbox_envelope",
+              "topics": [
+                "complete_hire.approved",
+                "complete_hire.candidate_withdrawal_rejected",
+                "complete_hire.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "exposure_surfaces": [
+            {
+              "role": "candidate",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "candidate",
+              "surface": "service.read"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "service.read"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "service.read"
+            },
+            {
+              "role": "recruiter",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "recruiter",
+              "surface": "service.read"
+            }
+          ],
+          "id": "legal_name",
+          "kind": "text",
+          "label": "Legal name",
+          "pii": true,
+          "redaction_strategy": {
+            "audit_event_payload": "redacted_mask",
+            "form_input": "visible",
+            "orm_column": "stored_as_is",
+            "outbox_envelope": "redacted_mask",
+            "service_layer": "stored_as_is"
+          },
+          "retention_window_years": 3,
+          "stages": [
+            {
+              "form_field_id": "legal_name",
+              "label": "Legal name",
+              "location": "frontend/src/hiring_pipeline/complete_hire/Step.tsx",
+              "redaction": "visible",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "CompleteHireService.fire",
+              "location": "backend/src/hiring_pipeline/complete_hire/service.py",
+              "redaction": "stored_as_is",
+              "stage": "service_layer"
+            },
+            {
+              "column": "legal_name",
+              "location": "backend/src/hiring_pipeline/complete_hire/models.py",
+              "redaction": "stored_as_is",
+              "sa_type": "String(512)",
+              "stage": "orm_column",
+              "table": "complete_hire"
+            },
+            {
+              "location": "audit_sink",
+              "redaction": "redacted_mask",
+              "stage": "audit_event_payload",
+              "topics": [
+                "complete_hire.approved",
+                "complete_hire.candidate_withdrawal_rejected",
+                "complete_hire.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "hr_partner",
+                  "channel": "in_app",
+                  "trigger": "sla_warn"
+                },
+                {
+                  "audience": "hiring_manager",
+                  "channel": "slack",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "hr_partner",
+                  "channel": "slack",
+                  "trigger": "sla_breach"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "slack",
+                  "trigger": "approved"
+                }
+              ],
+              "redaction": "redacted_mask",
+              "stage": "outbox_envelope",
+              "topics": [
+                "complete_hire.approved",
+                "complete_hire.candidate_withdrawal_rejected",
+                "complete_hire.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "exposure_surfaces": [
+            {
+              "role": "candidate",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "candidate",
+              "surface": "service.read"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "service.read"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "service.read"
+            },
+            {
+              "role": "recruiter",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "recruiter",
+              "surface": "service.read"
+            }
+          ],
+          "id": "national_id_ref",
+          "kind": "text",
+          "label": "National ID reference",
+          "pii": true,
+          "redaction_strategy": {
+            "audit_event_payload": "redacted_mask",
+            "form_input": "visible",
+            "orm_column": "stored_as_is",
+            "outbox_envelope": "redacted_mask",
+            "service_layer": "stored_as_is"
+          },
+          "retention_window_years": 3,
+          "stages": [
+            {
+              "form_field_id": "national_id_ref",
+              "label": "National ID reference",
+              "location": "frontend/src/hiring_pipeline/complete_hire/Step.tsx",
+              "redaction": "visible",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "CompleteHireService.fire",
+              "location": "backend/src/hiring_pipeline/complete_hire/service.py",
+              "redaction": "stored_as_is",
+              "stage": "service_layer"
+            },
+            {
+              "column": "national_id_ref",
+              "location": "backend/src/hiring_pipeline/complete_hire/models.py",
+              "redaction": "stored_as_is",
+              "sa_type": "String(512)",
+              "stage": "orm_column",
+              "table": "complete_hire"
+            },
+            {
+              "location": "audit_sink",
+              "redaction": "redacted_mask",
+              "stage": "audit_event_payload",
+              "topics": [
+                "complete_hire.approved",
+                "complete_hire.candidate_withdrawal_rejected",
+                "complete_hire.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "hr_partner",
+                  "channel": "in_app",
+                  "trigger": "sla_warn"
+                },
+                {
+                  "audience": "hiring_manager",
+                  "channel": "slack",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "hr_partner",
+                  "channel": "slack",
+                  "trigger": "sla_breach"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "slack",
+                  "trigger": "approved"
+                }
+              ],
+              "redaction": "redacted_mask",
+              "stage": "outbox_envelope",
+              "topics": [
+                "complete_hire.approved",
+                "complete_hire.candidate_withdrawal_rejected",
+                "complete_hire.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "exposure_surfaces": [
+            {
+              "role": "candidate",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "candidate",
+              "surface": "service.read"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "service.read"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "service.read"
+            },
+            {
+              "role": "recruiter",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "recruiter",
+              "surface": "service.read"
+            }
+          ],
+          "id": "signed_contract",
+          "kind": "signature",
+          "label": "Signed contract",
+          "pii": true,
+          "redaction_strategy": {
+            "audit_event_payload": "redacted_mask",
+            "form_input": "visible",
+            "orm_column": "stored_as_is",
+            "outbox_envelope": "redacted_mask",
+            "service_layer": "stored_as_is"
+          },
+          "retention_window_years": 3,
+          "stages": [
+            {
+              "form_field_id": "signed_contract",
+              "label": "Signed contract",
+              "location": "frontend/src/hiring_pipeline/complete_hire/Step.tsx",
+              "redaction": "visible",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "CompleteHireService.fire",
+              "location": "backend/src/hiring_pipeline/complete_hire/service.py",
+              "redaction": "stored_as_is",
+              "stage": "service_layer"
+            },
+            {
+              "column": "signed_contract",
+              "location": "backend/src/hiring_pipeline/complete_hire/models.py",
+              "redaction": "stored_as_is",
+              "sa_type": "String(128)",
+              "stage": "orm_column",
+              "table": "complete_hire"
+            },
+            {
+              "location": "audit_sink",
+              "redaction": "redacted_mask",
+              "stage": "audit_event_payload",
+              "topics": [
+                "complete_hire.approved",
+                "complete_hire.candidate_withdrawal_rejected",
+                "complete_hire.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "hr_partner",
+                  "channel": "in_app",
+                  "trigger": "sla_warn"
+                },
+                {
+                  "audience": "hiring_manager",
+                  "channel": "slack",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "hr_partner",
+                  "channel": "slack",
+                  "trigger": "sla_breach"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "slack",
+                  "trigger": "approved"
+                }
+              ],
+              "redaction": "redacted_mask",
+              "stage": "outbox_envelope",
+              "topics": [
+                "complete_hire.approved",
+                "complete_hire.candidate_withdrawal_rejected",
+                "complete_hire.submitted"
+              ]
+            }
+          ]
+        }
+      ],
+      "id": "complete_hire",
+      "pii_field_count": 6,
+      "title": "Complete hire and onboard"
+    },
+    {
+      "compliance": [],
+      "data_sensitivity": [],
+      "field_count": 5,
+      "fields": [
+        {
+          "id": "culture_score",
+          "kind": "number",
+          "label": "Culture score (1-5)",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "culture_score",
+              "label": "Culture score (1-5)",
+              "location": "frontend/src/hiring_pipeline/conduct_interview/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ConductInterviewService.fire",
+              "location": "backend/src/hiring_pipeline/conduct_interview/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "culture_score",
+              "location": "backend/src/hiring_pipeline/conduct_interview/models.py",
+              "sa_type": "Numeric()",
+              "stage": "orm_column",
+              "table": "conduct_interview"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "conduct_interview.approved",
+                "conduct_interview.no_show",
+                "conduct_interview.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "hiring_manager",
+                  "channel": "slack",
+                  "trigger": "state_enter"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "conduct_interview.approved",
+                "conduct_interview.no_show",
+                "conduct_interview.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "debrief_notes",
+          "kind": "textarea",
+          "label": "Debrief notes",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "debrief_notes",
+              "label": "Debrief notes",
+              "location": "frontend/src/hiring_pipeline/conduct_interview/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ConductInterviewService.fire",
+              "location": "backend/src/hiring_pipeline/conduct_interview/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "debrief_notes",
+              "location": "backend/src/hiring_pipeline/conduct_interview/models.py",
+              "sa_type": "Text()",
+              "stage": "orm_column",
+              "table": "conduct_interview"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "conduct_interview.approved",
+                "conduct_interview.no_show",
+                "conduct_interview.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "hiring_manager",
+                  "channel": "slack",
+                  "trigger": "state_enter"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "conduct_interview.approved",
+                "conduct_interview.no_show",
+                "conduct_interview.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "interview_date",
+          "kind": "datetime",
+          "label": "Interview date/time",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "interview_date",
+              "label": "Interview date/time",
+              "location": "frontend/src/hiring_pipeline/conduct_interview/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ConductInterviewService.fire",
+              "location": "backend/src/hiring_pipeline/conduct_interview/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "interview_date",
+              "location": "backend/src/hiring_pipeline/conduct_interview/models.py",
+              "sa_type": "DateTime(timezone=True)",
+              "stage": "orm_column",
+              "table": "conduct_interview"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "conduct_interview.approved",
+                "conduct_interview.no_show",
+                "conduct_interview.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "hiring_manager",
+                  "channel": "slack",
+                  "trigger": "state_enter"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "conduct_interview.approved",
+                "conduct_interview.no_show",
+                "conduct_interview.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "panel_scorecard",
+          "kind": "textarea",
+          "label": "Panel scorecard summary",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "panel_scorecard",
+              "label": "Panel scorecard summary",
+              "location": "frontend/src/hiring_pipeline/conduct_interview/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ConductInterviewService.fire",
+              "location": "backend/src/hiring_pipeline/conduct_interview/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "panel_scorecard",
+              "location": "backend/src/hiring_pipeline/conduct_interview/models.py",
+              "sa_type": "Text()",
+              "stage": "orm_column",
+              "table": "conduct_interview"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "conduct_interview.approved",
+                "conduct_interview.no_show",
+                "conduct_interview.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "hiring_manager",
+                  "channel": "slack",
+                  "trigger": "state_enter"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "conduct_interview.approved",
+                "conduct_interview.no_show",
+                "conduct_interview.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "technical_score",
+          "kind": "number",
+          "label": "Technical score (1-5)",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "technical_score",
+              "label": "Technical score (1-5)",
+              "location": "frontend/src/hiring_pipeline/conduct_interview/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ConductInterviewService.fire",
+              "location": "backend/src/hiring_pipeline/conduct_interview/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "technical_score",
+              "location": "backend/src/hiring_pipeline/conduct_interview/models.py",
+              "sa_type": "Numeric()",
+              "stage": "orm_column",
+              "table": "conduct_interview"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "conduct_interview.approved",
+                "conduct_interview.no_show",
+                "conduct_interview.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "hiring_manager",
+                  "channel": "slack",
+                  "trigger": "state_enter"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "conduct_interview.approved",
+                "conduct_interview.no_show",
+                "conduct_interview.submitted"
+              ]
+            }
+          ]
+        }
+      ],
+      "id": "conduct_interview",
+      "pii_field_count": 0,
+      "title": "Conduct interview loop"
+    },
+    {
+      "compliance": [],
+      "data_sensitivity": [],
+      "field_count": 6,
+      "fields": [
+        {
+          "id": "base_salary",
+          "kind": "money",
+          "label": "Base salary",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "base_salary",
+              "label": "Base salary",
+              "location": "frontend/src/hiring_pipeline/extend_offer/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ExtendOfferService.fire",
+              "location": "backend/src/hiring_pipeline/extend_offer/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "base_salary",
+              "location": "backend/src/hiring_pipeline/extend_offer/models.py",
+              "sa_type": "Numeric(18, 2)",
+              "stage": "orm_column",
+              "table": "extend_offer"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "extend_offer.approved",
+                "extend_offer.counter_offer",
+                "extend_offer.escalated",
+                "extend_offer.offer_expired_rejected",
+                "extend_offer.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "hr_partner",
+                  "channel": "in_app",
+                  "trigger": "sla_warn"
+                },
+                {
+                  "audience": "hiring_manager",
+                  "channel": "slack",
+                  "trigger": "sla_breach"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "slack",
+                  "trigger": "approved"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "extend_offer.approved",
+                "extend_offer.counter_offer",
+                "extend_offer.escalated",
+                "extend_offer.offer_expired_rejected",
+                "extend_offer.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "bonus_target",
+          "kind": "money",
+          "label": "Bonus target",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "bonus_target",
+              "label": "Bonus target",
+              "location": "frontend/src/hiring_pipeline/extend_offer/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ExtendOfferService.fire",
+              "location": "backend/src/hiring_pipeline/extend_offer/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "bonus_target",
+              "location": "backend/src/hiring_pipeline/extend_offer/models.py",
+              "sa_type": "Numeric(18, 2)",
+              "stage": "orm_column",
+              "table": "extend_offer"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "extend_offer.approved",
+                "extend_offer.counter_offer",
+                "extend_offer.escalated",
+                "extend_offer.offer_expired_rejected",
+                "extend_offer.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "hr_partner",
+                  "channel": "in_app",
+                  "trigger": "sla_warn"
+                },
+                {
+                  "audience": "hiring_manager",
+                  "channel": "slack",
+                  "trigger": "sla_breach"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "slack",
+                  "trigger": "approved"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "extend_offer.approved",
+                "extend_offer.counter_offer",
+                "extend_offer.escalated",
+                "extend_offer.offer_expired_rejected",
+                "extend_offer.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "equity_units",
+          "kind": "number",
+          "label": "RSU units",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "equity_units",
+              "label": "RSU units",
+              "location": "frontend/src/hiring_pipeline/extend_offer/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ExtendOfferService.fire",
+              "location": "backend/src/hiring_pipeline/extend_offer/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "equity_units",
+              "location": "backend/src/hiring_pipeline/extend_offer/models.py",
+              "sa_type": "Numeric()",
+              "stage": "orm_column",
+              "table": "extend_offer"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "extend_offer.approved",
+                "extend_offer.counter_offer",
+                "extend_offer.escalated",
+                "extend_offer.offer_expired_rejected",
+                "extend_offer.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "hr_partner",
+                  "channel": "in_app",
+                  "trigger": "sla_warn"
+                },
+                {
+                  "audience": "hiring_manager",
+                  "channel": "slack",
+                  "trigger": "sla_breach"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "slack",
+                  "trigger": "approved"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "extend_offer.approved",
+                "extend_offer.counter_offer",
+                "extend_offer.escalated",
+                "extend_offer.offer_expired_rejected",
+                "extend_offer.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "offer_expiry",
+          "kind": "date",
+          "label": "Offer expires",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "offer_expiry",
+              "label": "Offer expires",
+              "location": "frontend/src/hiring_pipeline/extend_offer/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ExtendOfferService.fire",
+              "location": "backend/src/hiring_pipeline/extend_offer/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "offer_expiry",
+              "location": "backend/src/hiring_pipeline/extend_offer/models.py",
+              "sa_type": "Date()",
+              "stage": "orm_column",
+              "table": "extend_offer"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "extend_offer.approved",
+                "extend_offer.counter_offer",
+                "extend_offer.escalated",
+                "extend_offer.offer_expired_rejected",
+                "extend_offer.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "hr_partner",
+                  "channel": "in_app",
+                  "trigger": "sla_warn"
+                },
+                {
+                  "audience": "hiring_manager",
+                  "channel": "slack",
+                  "trigger": "sla_breach"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "slack",
+                  "trigger": "approved"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "extend_offer.approved",
+                "extend_offer.counter_offer",
+                "extend_offer.escalated",
+                "extend_offer.offer_expired_rejected",
+                "extend_offer.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "exposure_surfaces": [
+            {
+              "role": "candidate",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "candidate",
+              "surface": "service.read"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "service.read"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "service.read"
+            },
+            {
+              "role": "recruiter",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "recruiter",
+              "surface": "service.read"
+            }
+          ],
+          "id": "offer_letter",
+          "kind": "file",
+          "label": "Offer letter PDF",
+          "pii": true,
+          "redaction_strategy": {
+            "audit_event_payload": "redacted_mask",
+            "form_input": "visible",
+            "orm_column": "stored_as_is",
+            "outbox_envelope": "redacted_mask",
+            "service_layer": "stored_as_is"
+          },
+          "retention_window_years": 3,
+          "stages": [
+            {
+              "form_field_id": "offer_letter",
+              "label": "Offer letter PDF",
+              "location": "frontend/src/hiring_pipeline/extend_offer/Step.tsx",
+              "redaction": "visible",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ExtendOfferService.fire",
+              "location": "backend/src/hiring_pipeline/extend_offer/service.py",
+              "redaction": "stored_as_is",
+              "stage": "service_layer"
+            },
+            {
+              "column": "offer_letter",
+              "location": "backend/src/hiring_pipeline/extend_offer/models.py",
+              "redaction": "stored_as_is",
+              "sa_type": "String(256)",
+              "stage": "orm_column",
+              "table": "extend_offer"
+            },
+            {
+              "location": "audit_sink",
+              "redaction": "redacted_mask",
+              "stage": "audit_event_payload",
+              "topics": [
+                "extend_offer.approved",
+                "extend_offer.counter_offer",
+                "extend_offer.escalated",
+                "extend_offer.offer_expired_rejected",
+                "extend_offer.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "hr_partner",
+                  "channel": "in_app",
+                  "trigger": "sla_warn"
+                },
+                {
+                  "audience": "hiring_manager",
+                  "channel": "slack",
+                  "trigger": "sla_breach"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "slack",
+                  "trigger": "approved"
+                }
+              ],
+              "redaction": "redacted_mask",
+              "stage": "outbox_envelope",
+              "topics": [
+                "extend_offer.approved",
+                "extend_offer.counter_offer",
+                "extend_offer.escalated",
+                "extend_offer.offer_expired_rejected",
+                "extend_offer.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "start_date",
+          "kind": "date",
+          "label": "Proposed start",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "start_date",
+              "label": "Proposed start",
+              "location": "frontend/src/hiring_pipeline/extend_offer/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ExtendOfferService.fire",
+              "location": "backend/src/hiring_pipeline/extend_offer/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "start_date",
+              "location": "backend/src/hiring_pipeline/extend_offer/models.py",
+              "sa_type": "Date()",
+              "stage": "orm_column",
+              "table": "extend_offer"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "extend_offer.approved",
+                "extend_offer.counter_offer",
+                "extend_offer.escalated",
+                "extend_offer.offer_expired_rejected",
+                "extend_offer.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "hr_partner",
+                  "channel": "in_app",
+                  "trigger": "sla_warn"
+                },
+                {
+                  "audience": "hiring_manager",
+                  "channel": "slack",
+                  "trigger": "sla_breach"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "slack",
+                  "trigger": "approved"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "extend_offer.approved",
+                "extend_offer.counter_offer",
+                "extend_offer.escalated",
+                "extend_offer.offer_expired_rejected",
+                "extend_offer.submitted"
+              ]
+            }
+          ]
+        }
+      ],
+      "id": "extend_offer",
+      "pii_field_count": 1,
+      "title": "Extend an offer"
+    },
+    {
+      "compliance": [],
+      "data_sensitivity": [],
+      "field_count": 5,
+      "fields": [
+        {
+          "id": "availability",
+          "kind": "date",
+          "label": "Available from",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "availability",
+              "label": "Available from",
+              "location": "frontend/src/hiring_pipeline/screen_candidate/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ScreenCandidateService.fire",
+              "location": "backend/src/hiring_pipeline/screen_candidate/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "availability",
+              "location": "backend/src/hiring_pipeline/screen_candidate/models.py",
+              "sa_type": "Date()",
+              "stage": "orm_column",
+              "table": "screen_candidate"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "screen_candidate.approved",
+                "screen_candidate.salary_above_band",
+                "screen_candidate.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "screen_candidate.approved",
+                "screen_candidate.salary_above_band",
+                "screen_candidate.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "salary_expect",
+          "kind": "money",
+          "label": "Salary expectation",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "salary_expect",
+              "label": "Salary expectation",
+              "location": "frontend/src/hiring_pipeline/screen_candidate/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ScreenCandidateService.fire",
+              "location": "backend/src/hiring_pipeline/screen_candidate/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "salary_expect",
+              "location": "backend/src/hiring_pipeline/screen_candidate/models.py",
+              "sa_type": "Numeric(18, 2)",
+              "stage": "orm_column",
+              "table": "screen_candidate"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "screen_candidate.approved",
+                "screen_candidate.salary_above_band",
+                "screen_candidate.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "screen_candidate.approved",
+                "screen_candidate.salary_above_band",
+                "screen_candidate.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "screen_notes",
+          "kind": "textarea",
+          "label": "Screen notes",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "screen_notes",
+              "label": "Screen notes",
+              "location": "frontend/src/hiring_pipeline/screen_candidate/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ScreenCandidateService.fire",
+              "location": "backend/src/hiring_pipeline/screen_candidate/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "screen_notes",
+              "location": "backend/src/hiring_pipeline/screen_candidate/models.py",
+              "sa_type": "Text()",
+              "stage": "orm_column",
+              "table": "screen_candidate"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "screen_candidate.approved",
+                "screen_candidate.salary_above_band",
+                "screen_candidate.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "screen_candidate.approved",
+                "screen_candidate.salary_above_band",
+                "screen_candidate.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "screen_score",
+          "kind": "number",
+          "label": "Screen score (1-5)",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "screen_score",
+              "label": "Screen score (1-5)",
+              "location": "frontend/src/hiring_pipeline/screen_candidate/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ScreenCandidateService.fire",
+              "location": "backend/src/hiring_pipeline/screen_candidate/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "screen_score",
+              "location": "backend/src/hiring_pipeline/screen_candidate/models.py",
+              "sa_type": "Numeric()",
+              "stage": "orm_column",
+              "table": "screen_candidate"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "screen_candidate.approved",
+                "screen_candidate.salary_above_band",
+                "screen_candidate.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "screen_candidate.approved",
+                "screen_candidate.salary_above_band",
+                "screen_candidate.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "years_exp",
+          "kind": "number",
+          "label": "Years experience",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "years_exp",
+              "label": "Years experience",
+              "location": "frontend/src/hiring_pipeline/screen_candidate/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ScreenCandidateService.fire",
+              "location": "backend/src/hiring_pipeline/screen_candidate/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "years_exp",
+              "location": "backend/src/hiring_pipeline/screen_candidate/models.py",
+              "sa_type": "Numeric()",
+              "stage": "orm_column",
+              "table": "screen_candidate"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "screen_candidate.approved",
+                "screen_candidate.salary_above_band",
+                "screen_candidate.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "candidate",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "screen_candidate.approved",
+                "screen_candidate.salary_above_band",
+                "screen_candidate.submitted"
+              ]
+            }
+          ]
+        }
+      ],
+      "id": "screen_candidate",
+      "pii_field_count": 0,
+      "title": "Screen a candidate"
+    },
+    {
+      "compliance": [],
+      "data_sensitivity": [],
+      "field_count": 7,
+      "fields": [
+        {
+          "exposure_surfaces": [
+            {
+              "role": "candidate",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "candidate",
+              "surface": "service.read"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "service.read"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "service.read"
+            },
+            {
+              "role": "recruiter",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "recruiter",
+              "surface": "service.read"
+            }
+          ],
+          "id": "candidate_email",
+          "kind": "email",
+          "label": "Email",
+          "pii": true,
+          "redaction_strategy": {
+            "audit_event_payload": "redacted_mask",
+            "form_input": "visible",
+            "orm_column": "stored_as_is",
+            "outbox_envelope": "redacted_mask",
+            "service_layer": "stored_as_is"
+          },
+          "retention_window_years": 3,
+          "stages": [
+            {
+              "form_field_id": "candidate_email",
+              "label": "Email",
+              "location": "frontend/src/hiring_pipeline/source_candidate/Step.tsx",
+              "redaction": "visible",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "SourceCandidateService.fire",
+              "location": "backend/src/hiring_pipeline/source_candidate/service.py",
+              "redaction": "stored_as_is",
+              "stage": "service_layer"
+            },
+            {
+              "column": "candidate_email",
+              "location": "backend/src/hiring_pipeline/source_candidate/models.py",
+              "redaction": "stored_as_is",
+              "sa_type": "String(320)",
+              "stage": "orm_column",
+              "table": "source_candidate"
+            },
+            {
+              "location": "audit_sink",
+              "redaction": "redacted_mask",
+              "stage": "audit_event_payload",
+              "topics": [
+                "source_candidate.approved",
+                "source_candidate.duplicate_candidate_rejected",
+                "source_candidate.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "recruiter",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "in_app",
+                  "trigger": "state_enter"
+                }
+              ],
+              "redaction": "redacted_mask",
+              "stage": "outbox_envelope",
+              "topics": [
+                "source_candidate.approved",
+                "source_candidate.duplicate_candidate_rejected",
+                "source_candidate.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "exposure_surfaces": [
+            {
+              "role": "candidate",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "candidate",
+              "surface": "service.read"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "service.read"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "service.read"
+            },
+            {
+              "role": "recruiter",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "recruiter",
+              "surface": "service.read"
+            }
+          ],
+          "id": "candidate_name",
+          "kind": "text",
+          "label": "Full name",
+          "pii": true,
+          "redaction_strategy": {
+            "audit_event_payload": "redacted_mask",
+            "form_input": "visible",
+            "orm_column": "stored_as_is",
+            "outbox_envelope": "redacted_mask",
+            "service_layer": "stored_as_is"
+          },
+          "retention_window_years": 3,
+          "stages": [
+            {
+              "form_field_id": "candidate_name",
+              "label": "Full name",
+              "location": "frontend/src/hiring_pipeline/source_candidate/Step.tsx",
+              "redaction": "visible",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "SourceCandidateService.fire",
+              "location": "backend/src/hiring_pipeline/source_candidate/service.py",
+              "redaction": "stored_as_is",
+              "stage": "service_layer"
+            },
+            {
+              "column": "candidate_name",
+              "location": "backend/src/hiring_pipeline/source_candidate/models.py",
+              "redaction": "stored_as_is",
+              "sa_type": "String(512)",
+              "stage": "orm_column",
+              "table": "source_candidate"
+            },
+            {
+              "location": "audit_sink",
+              "redaction": "redacted_mask",
+              "stage": "audit_event_payload",
+              "topics": [
+                "source_candidate.approved",
+                "source_candidate.duplicate_candidate_rejected",
+                "source_candidate.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "recruiter",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "in_app",
+                  "trigger": "state_enter"
+                }
+              ],
+              "redaction": "redacted_mask",
+              "stage": "outbox_envelope",
+              "topics": [
+                "source_candidate.approved",
+                "source_candidate.duplicate_candidate_rejected",
+                "source_candidate.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "exposure_surfaces": [
+            {
+              "role": "candidate",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "candidate",
+              "surface": "service.read"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "service.read"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "service.read"
+            },
+            {
+              "role": "recruiter",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "recruiter",
+              "surface": "service.read"
+            }
+          ],
+          "id": "candidate_phone",
+          "kind": "phone",
+          "label": "Phone",
+          "pii": true,
+          "redaction_strategy": {
+            "audit_event_payload": "redacted_mask",
+            "form_input": "visible",
+            "orm_column": "stored_as_is",
+            "outbox_envelope": "redacted_mask",
+            "service_layer": "stored_as_is"
+          },
+          "retention_window_years": 3,
+          "stages": [
+            {
+              "form_field_id": "candidate_phone",
+              "label": "Phone",
+              "location": "frontend/src/hiring_pipeline/source_candidate/Step.tsx",
+              "redaction": "visible",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "SourceCandidateService.fire",
+              "location": "backend/src/hiring_pipeline/source_candidate/service.py",
+              "redaction": "stored_as_is",
+              "stage": "service_layer"
+            },
+            {
+              "column": "candidate_phone",
+              "location": "backend/src/hiring_pipeline/source_candidate/models.py",
+              "redaction": "stored_as_is",
+              "sa_type": "String(40)",
+              "stage": "orm_column",
+              "table": "source_candidate"
+            },
+            {
+              "location": "audit_sink",
+              "redaction": "redacted_mask",
+              "stage": "audit_event_payload",
+              "topics": [
+                "source_candidate.approved",
+                "source_candidate.duplicate_candidate_rejected",
+                "source_candidate.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "recruiter",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "in_app",
+                  "trigger": "state_enter"
+                }
+              ],
+              "redaction": "redacted_mask",
+              "stage": "outbox_envelope",
+              "topics": [
+                "source_candidate.approved",
+                "source_candidate.duplicate_candidate_rejected",
+                "source_candidate.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "notes",
+          "kind": "textarea",
+          "label": "Notes",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "notes",
+              "label": "Notes",
+              "location": "frontend/src/hiring_pipeline/source_candidate/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "SourceCandidateService.fire",
+              "location": "backend/src/hiring_pipeline/source_candidate/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "notes",
+              "location": "backend/src/hiring_pipeline/source_candidate/models.py",
+              "sa_type": "Text()",
+              "stage": "orm_column",
+              "table": "source_candidate"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "source_candidate.approved",
+                "source_candidate.duplicate_candidate_rejected",
+                "source_candidate.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "recruiter",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "in_app",
+                  "trigger": "state_enter"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "source_candidate.approved",
+                "source_candidate.duplicate_candidate_rejected",
+                "source_candidate.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "exposure_surfaces": [
+            {
+              "role": "candidate",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "candidate",
+              "surface": "service.read"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hiring_manager",
+              "surface": "service.read"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "hr_partner",
+              "surface": "service.read"
+            },
+            {
+              "role": "recruiter",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "recruiter",
+              "surface": "service.read"
+            }
+          ],
+          "id": "resume",
+          "kind": "file",
+          "label": "Resume",
+          "pii": true,
+          "redaction_strategy": {
+            "audit_event_payload": "redacted_mask",
+            "form_input": "visible",
+            "orm_column": "stored_as_is",
+            "outbox_envelope": "redacted_mask",
+            "service_layer": "stored_as_is"
+          },
+          "retention_window_years": 3,
+          "stages": [
+            {
+              "form_field_id": "resume",
+              "label": "Resume",
+              "location": "frontend/src/hiring_pipeline/source_candidate/Step.tsx",
+              "redaction": "visible",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "SourceCandidateService.fire",
+              "location": "backend/src/hiring_pipeline/source_candidate/service.py",
+              "redaction": "stored_as_is",
+              "stage": "service_layer"
+            },
+            {
+              "column": "resume",
+              "location": "backend/src/hiring_pipeline/source_candidate/models.py",
+              "redaction": "stored_as_is",
+              "sa_type": "String(256)",
+              "stage": "orm_column",
+              "table": "source_candidate"
+            },
+            {
+              "location": "audit_sink",
+              "redaction": "redacted_mask",
+              "stage": "audit_event_payload",
+              "topics": [
+                "source_candidate.approved",
+                "source_candidate.duplicate_candidate_rejected",
+                "source_candidate.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "recruiter",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "in_app",
+                  "trigger": "state_enter"
+                }
+              ],
+              "redaction": "redacted_mask",
+              "stage": "outbox_envelope",
+              "topics": [
+                "source_candidate.approved",
+                "source_candidate.duplicate_candidate_rejected",
+                "source_candidate.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "role_title",
+          "kind": "text",
+          "label": "Role applied",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "role_title",
+              "label": "Role applied",
+              "location": "frontend/src/hiring_pipeline/source_candidate/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "SourceCandidateService.fire",
+              "location": "backend/src/hiring_pipeline/source_candidate/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "role_title",
+              "location": "backend/src/hiring_pipeline/source_candidate/models.py",
+              "sa_type": "String(512)",
+              "stage": "orm_column",
+              "table": "source_candidate"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "source_candidate.approved",
+                "source_candidate.duplicate_candidate_rejected",
+                "source_candidate.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "recruiter",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "in_app",
+                  "trigger": "state_enter"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "source_candidate.approved",
+                "source_candidate.duplicate_candidate_rejected",
+                "source_candidate.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "source_channel",
+          "kind": "enum",
+          "label": "Source channel",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "source_channel",
+              "label": "Source channel",
+              "location": "frontend/src/hiring_pipeline/source_candidate/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "SourceCandidateService.fire",
+              "location": "backend/src/hiring_pipeline/source_candidate/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "source_channel",
+              "location": "backend/src/hiring_pipeline/source_candidate/models.py",
+              "sa_type": "String(64)",
+              "stage": "orm_column",
+              "table": "source_candidate"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "source_candidate.approved",
+                "source_candidate.duplicate_candidate_rejected",
+                "source_candidate.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "recruiter",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "recruiter",
+                  "channel": "in_app",
+                  "trigger": "state_enter"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "source_candidate.approved",
+                "source_candidate.duplicate_candidate_rejected",
+                "source_candidate.submitted"
+              ]
+            }
+          ]
+        }
+      ],
+      "id": "source_candidate",
+      "pii_field_count": 4,
+      "title": "Source a candidate"
+    }
+  ],
+  "schema_version": "1.0.0",
+  "sensitive_field_kinds": [
+    "address",
+    "email",
+    "file",
+    "party_ref",
+    "phone",
+    "signature"
+  ],
+  "stages": [
+    "form_input",
+    "service_layer",
+    "orm_column",
+    "audit_event_payload",
+    "outbox_envelope"
+  ]
+}

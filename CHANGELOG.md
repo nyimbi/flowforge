@@ -1,5 +1,192 @@
 # flowforge changelog
 
+## [0.3.0-engr.3] — Wave 3
+
+> Fourth wave of the v0.3.0 engineering track per
+> `docs/v0.3.0-engineering-plan.md` §7. W3 lands generation-time
+> visibility artefacts (item 9 multi-frontend, item 10 bundle-diff,
+> item 11 lineage), design-token theming (item 18), and the visual
+> regression CI gate (item 21). It also retires the legacy
+> `expr_parity_200.json` cross-runtime fixture per the engineering
+> plan's §11.1 follow-up. Per ADR-001 the visual regression suite
+> uses DOM-snapshot byte-equality as its CI-gating artifact and pixel
+> SSIM as a nightly advisory; the runner is structurally complete but
+> skips with a clear reason while `pnpm install` is blocked on the
+> pre-existing pnpm-ignored-builds issue (the gate exits 0 and prints
+> the skip reason; the JS-side cross-runtime parity sibling does the
+> same — Python-side parity is exercised in full at 253/253). Six
+> new generated-artifact classes join the byte-identical regen
+> baseline (`frontend-cli/`, `frontend-slack/`, `frontend-email/`,
+> `lineage.json`, design tokens trio `design_tokens.css` +
+> `tailwind.config.ts` + `theme.ts`, screenshots/ baselines per
+> example). One new ratchet (`no_design_token_hardcode`) joins the
+> existing six. The cumulative regen-diff count is 6/6
+> byte-identical (3 examples × 2 `form_renderer` flag values),
+> verified by `scripts/ci/regen_flag_flip.sh` at closeout time.
+
+- **[Capable]** (v0.3.0 W3 / item 9) Multi-frontend emission.
+  Three new per-bundle generators ship alongside the existing
+  Next.js frontend so a host can pick the surface that matches the
+  operator's environment without forking the generator. New
+  generators
+  `flowforge_cli.jtbd.generators.frontend_cli` (Typer CLI client
+  exposing every JTBD as a `flowforge-app <jtbd> submit` subcommand
+  with shared OpenAPI / runtime-client wiring),
+  `flowforge_cli.jtbd.generators.frontend_slack` (slash-command +
+  interactive-message adapter that maps JTBD events to slash
+  commands and transitions to button blocks), and
+  `flowforge_cli.jtbd.generators.frontend_email` (reply-to-trigger
+  email adapter useful for high-volume manual review queues).
+  All three reuse the per-bundle `openapi.yaml` from W1's item 8 as
+  their wire contract — a single bundle change re-themes every
+  frontend deterministically. Per Principle 2 of the engineering
+  plan each generator emits a per-bundle aggregation
+  (`frontend-cli/<package>/`, `frontend-slack/<package>/`,
+  `frontend-email/<package>/`), not per-JTBD slices, so two bundles
+  in the same monorepo never collide. Each example regenerates the
+  three new trees byte-identical against the checked-in baselines
+  for both `form_renderer` flag values, lifting the per-example
+  regen-diff target from 3 trees (next.js + admin + backend) to 6
+  trees (+ cli + slack + email).
+- **[Reliable]** (v0.3.0 W3 / item 10) Bundle-version diff with
+  deploy-safety classes. New Typer subcommand
+  `flowforge bundle-diff <old.json> <new.json> --html` (also
+  `--json` and default plain-text) categorises every change between
+  two parsed bundles into one of three deploy-safety classes:
+  `additive` (new JTBDs, new optional fields, new info-severity
+  audit topics — safe to ship without coordination),
+  `requires-coordination` (new permissions, new required fields,
+  renamed states — needs RBAC seed update + form invalidation +
+  comms), and `breaking` (column type narrowed, enum value removed,
+  transition with existing instances retargeted — needs migration
+  plan + instance-class compatibility check). Categorisation is
+  mechanical given two parsed bundles; the report is sorted with
+  key `(kind_rank, path, category)` so the most-severe class shows
+  first. JSON / HTML / plain-text renderers are byte-deterministic
+  (parametrised determinism test runs each renderer twice and
+  asserts byte-identical output). 38 unit tests cover every
+  categorisation rule plus the `insurance_claim` W0→W1 integration
+  shape; CI consumers can pipe the JSON output directly into
+  migration-coordination workflows.
+- **[Capable, Reliable]** (v0.3.0 W3 / item 11) Data lineage /
+  provenance graph. New per-bundle generator
+  `flowforge_cli.jtbd.generators.lineage` emits `lineage.json` at
+  the bundle root tracing every `data_capture` field from form
+  input → service → ORM column → audit-event payload → outbox
+  envelope. For PII fields (`data_sensitivity: "pii"`) the entry
+  carries the retention window, redaction strategy at each stage,
+  and exposure surfaces (which roles can read, which audit events
+  leak it, which notification channels carry it). The graph is the
+  closure under transformation of the bundle-declared
+  `data_sensitivity` and `pii` fields, computed at generation time
+  rather than reverse-engineered by static-analysis tools. GDPR /
+  HIPAA / CCPA reviewers can answer "where does this PII live?"
+  structurally from a generated artefact instead of grepping
+  hand-written code. JSON keys are sorted; field traversal sorts
+  by `(jtbd_id, field_id)`; two regens against the same bundle
+  yield byte-identical JSON, pinned by the regen-diff gate against
+  `examples/<example>/generated/lineage.json` for all three
+  examples.
+- **[Beautiful]** (v0.3.0 W3 / item 18) Design-token-driven theming.
+  Additive `bundle.project.design` block (Pydantic v2 with
+  `extra='forbid'`) declares primary / accent colours, font family,
+  density (`compact|comfortable`), and radius scale. New per-bundle
+  generator `flowforge_cli.jtbd.generators.design_tokens` emits
+  three parallel files into every frontend tree the bundle owns —
+  `design_tokens.css` (CSS custom-property palette),
+  `tailwind.config.ts` (Tailwind theme extension reading the same
+  tokens), and `theme.ts` (TypeScript `Theme` module typed against
+  the closed token surface). Step component, layouts, admin
+  console, and screenshot baselines all read the same tokens; a
+  single bundle change re-themes the whole generated app
+  deterministically, including the W2 admin SPA's `main.tsx` (now
+  imports the per-bundle `design_tokens.css`). Defaults match the
+  pre-W3 visual identity so every existing example regenerates
+  byte-identical. Per Principle 2 the generator is a per-bundle
+  aggregation; per-JTBD slices stay per-JTBD.
+- **(v0.3.0 W3)** New ratchet
+  `scripts/ci/ratchets/no_design_token_hardcode.sh` — item 18
+  generator-side enforcement against frontend templates regressing
+  to hard-coded colours / fonts / radii in place of design-token
+  references. Greps `frontend/Step.tsx.j2`,
+  `frontend_admin/src/main.tsx.j2`, the new
+  `design_tokens/*.j2` templates, and every checked-in
+  `examples/*/generated/frontend*/` tree for naked hex colours
+  (`#[0-9a-fA-F]{3,8}`), bare `rgb(`/`rgba(`/`hsl(` calls, and the
+  legacy hard-coded font-family / radius literals; if any are
+  present outside the design-tokens helper module, the ratchet
+  fails loud and points the contributor at the design-tokens
+  generator. Wired into `scripts/ci/ratchets/check.sh`'s
+  `RATCHETS=()` array so `make audit-2026-ratchets` now reports
+  7/7 ratchets pass (was 6). Legitimate exceptions go in
+  `no_design_token_hardcode_baseline.txt` and require security/UX
+  review per `scripts/ci/ratchets/README.md`.
+- **(v0.3.0 W3)** Example bundle update: every example regenerates
+  the new W3 surface byte-identical against the checked-in tree —
+  per-bundle `lineage.json` (item 11), per-bundle `frontend-cli/`
+  + `frontend-slack/` + `frontend-email/` trees (item 9), per-bundle
+  design-tokens trio `design_tokens.css` + `tailwind.config.ts`
+  + `theme.ts` (item 18) emitted into both the customer-facing
+  `frontend/` tree and the operator `frontend-admin/` tree, and
+  per-example `screenshots/` baselines (item 21, populated when
+  the pnpm-install blocker clears). The cross-flag self-determinism
+  check (`scripts/ci/regen_flag_flip.sh`) reports 6/6
+  byte-identical (3 examples × 2 `form_renderer` values) at
+  closeout time.
+
+- **[Beautiful, Reliable]** (v0.3.0 W3 / item 21, ADR-001)
+  Visual regression CI gate for generated frontends. New project-level
+  Playwright runner under `tests/visual_regression/` mounts every
+  generated page (real-path Step.tsx + admin SPA pages) at three
+  viewports (mobile 375x667, tablet 768x1024, desktop 1440x900) and
+  emits two artifacts per (example, flavor, page, viewport) tuple: a
+  normalised DOM snapshot under
+  `examples/<example>/screenshots/<flavor>/<page>.<viewport>.dom.html`
+  and a pixel screenshot under
+  `examples/<example>/screenshots/<flavor>/<page>.<viewport>.png`.
+  The DOM snapshot is the **CI-gating** artifact (byte-equality
+  required). The pixel screenshot is **advisory only** with an
+  SSIM ≥ 0.98 threshold and runs nightly, never per-PR. ADR-001 at
+  `docs/v0.3.0-engineering/adr/ADR-001-visual-regression-invariants.md`
+  is the binding contract; DOM bytes are deterministic across
+  Chromium minor versions because the four normalisation rules
+  (strip `data-react-*`, collapse whitespace, sort `class` tokens
+  alphabetically, sort attributes alphabetically) cancel every known
+  drift source. New Make targets `audit-2026-visual-regression-dom`
+  (CI-gating, smoke per-PR / full nightly) and
+  `audit-2026-visual-regression-ssim` (advisory, nightly only).
+  `scripts/check_all.sh` gains step 9 (DOM-snapshot gate) between the
+  regen-diff (step 8) and UMS parity (step 10), renumbering the
+  remaining steps. Per-PR cadence runs only the canonical
+  `insurance_claim` example; the full suite runs nightly. The
+  Playwright runner is structurally complete (config, helpers,
+  specs, baseline catalog, ADR-001 normaliser with 5/5 rule unit
+  tests passing) but **skips with a clear reason** until `pnpm
+  install` is unblocked — both wrappers
+  (`scripts/visual_regression/run_dom_snapshots.sh` and
+  `run_ssim.sh`) detect missing prerequisites and exit 0 with a
+  human-readable skip line. Once pnpm is unblocked, baseline files
+  land in a follow-up PR with no further changes to the runner.
+- **[Reliable]** (v0.3.0 W3) Cross-runtime fixture retirement.
+  Legacy `tests/cross_runtime/fixtures/expr_parity_200.json` is
+  deleted per the engineering plan §11.1: it has stayed
+  byte-identical with `expr_parity_v2.json`'s 200-case base layer
+  across the W1 + W2 windows, so the duplication is no longer
+  earning its keep. The canonical fixture is now
+  `expr_parity_v2.json` (250 cases: 200 base + 50
+  `conditional`-tagged show_if cases). `generate_fixture.py` is
+  rewritten to be the self-contained v2 builder (no v1 dependency);
+  the bridging `_build_fixture_v2.py` is deleted. Test specs
+  (`tests/cross_runtime/test_expr_parity.py`,
+  `js/flowforge-integration-tests/expr-parity.test.ts`) and
+  conformance invariant 5
+  (`tests/conformance/test_arch_invariants.py`) are updated to
+  reference the v2 fixture and the 250-case count. The
+  `js/flowforge-renderer/src/expr.ts` header comment is updated to
+  match. `make audit-2026-cross-runtime` reports 253 tests
+  green against the v2 fixture (was 253 against the v2-but-dual-tracked
+  pair); architecture invariant 5 stays green.
+
 ## [0.3.0-engr.2] — Wave 2
 
 > Third wave of the v0.3.0 engineering track per

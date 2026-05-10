@@ -5,16 +5,16 @@ produces the recorded expected output for every case. The TypeScript side
 runs the same fixture under vitest in
 ``framework/js/flowforge-integration-tests/expr-parity.test.ts``.
 
-The fixture moved from ``expr_parity_200.json`` (200 base cases) to
-``expr_parity_v2.json`` (250 cases) in v0.3.0 W1 / item 13. The 50 new
-``conditional``-tagged cases exercise ``show_if``-shaped expressions
-emitted by the ``form_renderer = "real"`` Step.tsx path. The legacy v1
-file remains in-tree until W3 retires it (per the engineering plan
-§13 follow-ups).
+The canonical fixture is ``expr_parity_v2.json`` (250 cases). The legacy
+``expr_parity_200.json`` was retired in v0.3.0 W3 after fixture v2 stayed
+green across W1 + W2 (per ``docs/v0.3.0-engineering-plan.md`` §11.1 /
+§13 follow-ups). The 50 ``conditional``-tagged cases exercise
+``show_if``-shaped expressions emitted by the ``form_renderer = "real"``
+Step.tsx path.
 
 Regenerate the fixture with::
 
-	uv run python framework/tests/cross_runtime/_build_fixture_v2.py
+	uv run python framework/tests/cross_runtime/generate_fixture.py
 """
 
 from __future__ import annotations

@@ -889,6 +889,457 @@ green before the wave's row(s) here are signed.
 
 ---
 
+## Wave W3 — Multi-frontend, diff, lineage, theming, visual regression
+
+```yaml
+- item: W3-item-10
+  title: "Bundle-diff CLI with deploy-safety classes (additive / requires-coordination / breaking)"
+  wave: W3
+  property: Reliable
+  worker: worker-bundlediff
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "python/flowforge-cli/src/flowforge_cli/commands/bundle_diff.py (NEW — Typer subcommand + categorisation engine + JSON/HTML/text renderers)"
+      - "python/flowforge-cli/src/flowforge_cli/main.py (wired bundle-diff subcommand)"
+      - "python/flowforge-cli/tests/test_bundle_diff.py (NEW — 38 tests covering every categorisation rule + CLI wiring + insurance_claim W0→W1 integration)"
+    acceptance_tests:
+      - "python/flowforge-cli/tests/test_bundle_diff.py — green (38 passed)"
+    pre_deploy_checks:
+      - "uv run pyright python/flowforge-cli/src/flowforge_cli/commands/bundle_diff.py python/flowforge-cli/src/flowforge_cli/main.py — 0 errors"
+      - "uv run pyright python/flowforge-cli/tests/test_bundle_diff.py — 0 errors"
+      - "uv run pytest tests/conformance/ -q — 11/11 passed"
+      - "bash scripts/ci/ratchets/check.sh — 6/6 passed"
+      - "uv run pytest python/flowforge-cli/tests/test_bundle_diff.py -q — 38/38 passed"
+      - "git diff --stat examples/ — empty (CLI is operational, doesn't emit into examples; regen-diff stays byte-identical by construction)"
+    determinism_proof: |
+      The categorisation engine sorts JTBDs / fields / edge_cases by id,
+      sorts shared.permissions and shared.roles before comparing as
+      sets, and the report is sorted with key (kind_rank, path,
+      category) — kind_rank pins the most-severe class first.
+      `render_json` calls `json.dumps(..., sort_keys=True, indent=2)`;
+      `render_html` iterates the sorted change list and embeds JSON
+      detail with the same `sort_keys=True`. A parametrised determinism
+      test (`test_renderers_are_deterministic`) runs each renderer twice
+      and asserts byte-identical output.
+    rollback_plan: |
+      git revert <sha>; the CLI is purely additive — new module + new
+      Typer subcommand + new test file + one-line wire-up in
+      flowforge_cli/main.py. No schema migration, no public API change
+      to flowforge-core, no example files emitted. Reverting removes the
+      `flowforge bundle-diff` command from the CLI surface; nothing else
+      depends on it.
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+
+- item: W3-item-9
+  title: "Multi-frontend emission (CLI + Slack + email per-bundle generators)"
+  wave: W3
+  property: Capable
+  worker: worker-multifrontend
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/frontend_cli.py (NEW — Typer CLI client per-bundle generator)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/frontend_slack.py (NEW — slash-command + interactive-message adapter generator)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/frontend_email.py (NEW — reply-to-trigger email adapter generator)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/templates/frontend_cli/ (NEW directory — package skeleton + per-JTBD command templates)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/templates/frontend_slack/ (NEW directory — Bolt-style adapter skeleton)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/templates/frontend_email/ (NEW directory — IMAP-trigger adapter skeleton)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/pipeline.py (registered in _PER_BUNDLE_GENERATORS)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/_fixture_registry.py (CONSUMES paths declared)"
+      - "python/flowforge-cli/tests/test_frontend_cli_generator.py (NEW)"
+      - "python/flowforge-cli/tests/test_frontend_slack_generator.py (NEW)"
+      - "python/flowforge-cli/tests/test_frontend_email_generator.py (NEW)"
+      - "examples/insurance_claim/generated/frontend-cli/ (NEW per-bundle tree)"
+      - "examples/insurance_claim/generated/frontend-slack/ (NEW per-bundle tree)"
+      - "examples/insurance_claim/generated/frontend-email/ (NEW per-bundle tree)"
+      - "examples/building-permit/generated/frontend-cli/ (NEW per-bundle tree)"
+      - "examples/building-permit/generated/frontend-slack/ (NEW per-bundle tree)"
+      - "examples/building-permit/generated/frontend-email/ (NEW per-bundle tree)"
+      - "examples/hiring-pipeline/generated/frontend-cli/ (NEW per-bundle tree)"
+      - "examples/hiring-pipeline/generated/frontend-slack/ (NEW per-bundle tree)"
+      - "examples/hiring-pipeline/generated/frontend-email/ (NEW per-bundle tree)"
+    acceptance_tests:
+      - "python/flowforge-cli/tests/test_frontend_cli_generator.py — green"
+      - "python/flowforge-cli/tests/test_frontend_slack_generator.py — green"
+      - "python/flowforge-cli/tests/test_frontend_email_generator.py — green"
+    pre_deploy_checks:
+      - "uv run pytest python/flowforge-cli/tests/ -q — 443/443 green"
+      - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
+      - "scripts/check_all.sh step 8 — byte-identical regen for all 3 examples × 2 form_renderer values (6/6 via scripts/ci/regen_flag_flip.sh) including the new frontend-cli/, frontend-slack/, frontend-email/ trees"
+    determinism_proof: |
+      Every emitted file is rendered from a Jinja template with sorted
+      iteration over JTBDs (`sorted(bundle.jtbds, key=lambda j: j.id)`).
+      Per-JTBD command / handler files iterate the same canonical key
+      order used by the existing frontend generator. The CLI client's
+      Typer subcommand registration is a sorted-by-id loop; the Slack
+      adapter's slash-command registration is sorted by JTBD id; the
+      email adapter's IMAP routing table is sorted by JTBD id. Two
+      regens against the same bundle produce byte-identical output —
+      pinned per example via the W3 closeout regen-diff loop.
+    cross_runtime_parity_proof: |
+      Generators do not touch the expression evaluator. The CLI uses
+      Typer; the Slack adapter uses Slack Block Kit; the email adapter
+      uses the Python IMAP client — none consume the JSON-DSL. No
+      fixture churn required.
+    rollback_plan: |
+      git revert <sha>; the three generators are purely additive (new
+      modules + new templates + 3 _PER_BUNDLE_GENERATORS registrations).
+      The generated frontend-cli/, frontend-slack/, frontend-email/
+      trees regenerate as empty after revert — hosts that adopted any
+      of them see the tree disappear on next regen but their existing
+      deployment is unaffected (each adapter is deployed in isolation
+      behind its own ingress / process boundary).
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+
+- item: W3-item-11
+  title: "Data lineage / provenance graph (lineage.json per-bundle generator)"
+  wave: W3
+  property: [Capable, Reliable]
+  worker: worker-lineage
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/lineage.py (NEW — per-bundle generator)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/pipeline.py (registered in _PER_BUNDLE_GENERATORS)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/_fixture_registry.py (CONSUMES paths declared)"
+      - "python/flowforge-cli/tests/test_lineage_generator.py (NEW)"
+      - "examples/insurance_claim/generated/lineage.json (NEW)"
+      - "examples/building-permit/generated/lineage.json (NEW)"
+      - "examples/hiring-pipeline/generated/lineage.json (NEW)"
+    acceptance_tests:
+      - "python/flowforge-cli/tests/test_lineage_generator.py — green (field traversal, PII redaction-strategy synthesis, role-exposure closure, sorted JSON keys, byte-identical regen)"
+    pre_deploy_checks:
+      - "uv run pytest python/flowforge-cli/tests/test_lineage_generator.py -q — green"
+      - "scripts/check_all.sh step 8 — byte-identical regen for all 3 examples including the new lineage.json"
+      - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
+    determinism_proof: |
+      The generator walks `data_capture` fields per JTBD in
+      `(jtbd_id, field_id)` sorted order, computes the closure of
+      `(field → service → orm_column → audit_topic → outbox_envelope)`
+      stages, and emits `json.dumps(..., sort_keys=True, indent=2)`.
+      Two regens against the same bundle produce byte-identical
+      lineage.json — pinned by scripts/check_all.sh step 8 against
+      examples/insurance_claim/generated/lineage.json,
+      examples/building-permit/generated/lineage.json, and
+      examples/hiring-pipeline/generated/lineage.json.
+    cross_runtime_parity_proof: |
+      Generator does not touch the expression evaluator. lineage.json
+      is consumed by external compliance tooling; no DSL surface.
+      No fixture churn required.
+    rollback_plan: |
+      git revert <sha>; the generator is purely additive (new module
+      + registration in _PER_BUNDLE_GENERATORS). The generated
+      lineage.json files regenerate as empty after revert; downstream
+      compliance tooling that consumes lineage.json gracefully handles
+      its absence (degrades to "no provenance graph available").
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+
+- item: W3-item-18
+  title: "Design-token-driven theming (bundle.project.design + design_tokens generator)"
+  wave: W3
+  property: Beautiful
+  worker: worker-tokens
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "python/flowforge-jtbd/src/flowforge_jtbd/dsl/spec.py (NEW JtbdProjectDesign model; JtbdProject.design optional field)"
+      - "python/flowforge-core/src/flowforge/dsl/schema/jtbd-1.0.schema.json (project.properties.design block added — additive)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/normalize.py (design tokens thread from bundle.project.design through NormalizedBundle)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/design_tokens.py (NEW — per-bundle generator emitting CSS + Tailwind config + TS theme)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/templates/design_tokens/ (NEW directory — design_tokens.css.j2 + tailwind.config.ts.j2 + theme.ts.j2)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/templates/frontend/Step.tsx.j2 (real-path imports design_tokens.css)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/templates/frontend_admin/src/main.tsx.j2 (imports design_tokens.css)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/pipeline.py (registered in _PER_BUNDLE_GENERATORS)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/_fixture_registry.py (project.design.* declared)"
+      - "python/flowforge-cli/tests/test_design_tokens.py (NEW)"
+      - "python/flowforge-cli/tests/test_frontend_admin_generator.py (extended for design-tokens import assertion)"
+      - "examples/insurance_claim/generated/frontend/src/insurance_claim_demo/{design_tokens.css,theme.ts} (NEW)"
+      - "examples/insurance_claim/generated/frontend-admin/insurance_claim_demo/{src/design_tokens.css,src/theme.ts,tailwind.config.ts} (NEW)"
+      - "examples/building-permit/generated/frontend/src/building_permit/{design_tokens.css,theme.ts} (NEW)"
+      - "examples/building-permit/generated/frontend-admin/building_permit/{src/design_tokens.css,src/theme.ts,tailwind.config.ts} (NEW)"
+      - "examples/hiring-pipeline/generated/frontend/src/hiring_pipeline/{design_tokens.css,theme.ts} (NEW)"
+      - "examples/hiring-pipeline/generated/frontend-admin/hiring_pipeline/{src/design_tokens.css,src/theme.ts,tailwind.config.ts} (NEW)"
+    acceptance_tests:
+      - "python/flowforge-cli/tests/test_design_tokens.py — green (CSS variable emission, Tailwind extension shape, TS Theme typing, sorted token order, byte-determinism)"
+      - "python/flowforge-cli/tests/test_frontend_admin_generator.py — green (admin SPA main.tsx imports design_tokens.css)"
+    pre_deploy_checks:
+      - "uv run pytest python/flowforge-cli/tests/ -q — 443/443 green"
+      - "scripts/check_all.sh step 8 — byte-identical regen for all 3 examples × 2 form_renderer values (6/6 via scripts/ci/regen_flag_flip.sh) including the new design_tokens.css + tailwind.config.ts + theme.ts trio in both frontend/ and frontend-admin/ trees"
+      - "bash scripts/ci/ratchets/check.sh — 7/7 PASS (incl. no_design_token_hardcode)"
+    determinism_proof: |
+      The generator iterates the closed token surface
+      (primary, accent, neutral, font_family, density, radius_scale)
+      in fixed order; tokens that the bundle does not override fall
+      back to the canonical default constant (matched against the
+      pre-W3 visual identity so existing examples regenerate
+      byte-identical). CSS variable emission is sorted alphabetically;
+      Tailwind extension keys are sorted; the TS Theme type is
+      structurally typed against the closed token surface. Two regens
+      against the same bundle yield byte-identical output for all
+      three target files.
+    cross_runtime_parity_proof: |
+      Generator does not touch the expression evaluator. Tokens are
+      static metadata rendered into CSS / TypeScript; no DSL surface.
+      No fixture churn required.
+    rollback_plan: |
+      git revert <sha>; the JtbdProjectDesign block is optional
+      (`design: JtbdProjectDesign | None = None`), the schema addition
+      is additive, the generator is gated on the bundle declaring at
+      least one design field. Reverting removes the design-tokens
+      trio from both frontend/ and frontend-admin/ trees on next
+      regen; templates fall back to the legacy hard-coded tokens. The
+      `no_design_token_hardcode` ratchet would also need reverting in
+      lockstep (the legacy hard-coded tokens trip the ratchet
+      otherwise).
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+
+- item: W3-item-21
+  title: "Visual regression CI gate (DOM-snapshot primary, SSIM advisory) per ADR-001"
+  wave: W3
+  property: [Beautiful, Reliable]
+  worker: worker-visregression
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "tests/visual_regression/ (NEW directory — Playwright config, helpers, specs, ADR-001 normaliser)"
+      - "tests/visual_regression/README.md (NEW — pnpm-install blocker + unblock procedure)"
+      - "scripts/visual_regression/run_dom_snapshots.sh (NEW — DOM-snapshot CI-gating runner; smoke per-PR / full nightly)"
+      - "scripts/visual_regression/run_ssim.sh (NEW — pixel SSIM advisory runner; nightly only)"
+      - "scripts/check_all.sh (step 9 added between regen-diff step 8 and UMS parity, renumbering subsequent steps)"
+      - "Makefile (audit-2026-visual-regression-dom + audit-2026-visual-regression-ssim targets)"
+      - "examples/insurance_claim/screenshots/ (NEW directory — baseline catalog stub)"
+      - "examples/building-permit/screenshots/ (NEW directory — baseline catalog stub)"
+      - "examples/hiring-pipeline/screenshots/ (NEW directory — baseline catalog stub)"
+    acceptance_tests:
+      - "tests/visual_regression/ ADR-001 normaliser — 5/5 unit tests pass (strip data-react-*, collapse whitespace, sort class tokens, sort attributes, idempotence)"
+    pre_deploy_checks:
+      - "make audit-2026-visual-regression-dom — exits 0 with [SKIP] reason: tests/visual_regression/node_modules missing — pnpm install blocked on the pre-existing pnpm-ignored-builds issue (the wrapper detects missing prerequisites and skips with a human-readable reason)"
+      - "make audit-2026-visual-regression-ssim — exits 0 with [SKIP] reason (same blocker)"
+      - "scripts/check_all.sh step 9 — exits 0 with [SKIP] reason"
+    determinism_proof: |
+      DOM-snapshot byte-equality is the CI-gating contract per ADR-001.
+      The four normalisation rules (strip `data-react-*`, collapse
+      whitespace, sort `class` tokens alphabetically, sort attributes
+      alphabetically) cancel every known drift source across Chromium
+      minor versions. The SSIM-pixel runner is advisory-only with an
+      SSIM ≥ 0.98 threshold per ADR-001; runs nightly via
+      `audit-2026-visual-regression-ssim`, never per-PR.
+    cross_runtime_parity_proof: |
+      Visual regression runs against generated frontend output, not
+      the expression evaluator. No fixture churn.
+    rollback_plan: |
+      git revert <sha>; the runner + Make targets + check_all.sh
+      step 9 + screenshots/ baselines are purely additive. Reverting
+      removes the gate; nothing depends on it. Hosts that started
+      using the runner fall back to no per-PR visual-regression CI
+      until they re-adopt.
+  follow_ups:
+    - "pnpm-install blocker: once `pnpm approve-builds` is run for the workspace, baseline files land in a follow-up PR with no further changes to the runner."
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header). DOM-snapshot CI gate green-by-skip-with-clear-reason; baselines and full per-page assertions land in follow-up once pnpm-install is unblocked."
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+
+- item: W3-ratchet-no-design-token-hardcode
+  title: "Ratchet — no_design_token_hardcode (item 18 generator-side enforcement)"
+  wave: W3
+  property: Beautiful
+  worker: worker-tokens
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "scripts/ci/ratchets/no_design_token_hardcode.sh (NEW — greps frontend templates + every checked-in examples/*/generated/frontend*/ tree for naked hex / rgb()/rgba()/hsl() / hard-coded font-family / radius literals outside the design-tokens helper module)"
+      - "scripts/ci/ratchets/no_design_token_hardcode_baseline.txt (NEW — empty baseline; legitimate exceptions require security/UX review)"
+      - "scripts/ci/ratchets/check.sh (added to RATCHETS=() — 6 → 7 ratchets)"
+    acceptance_criterion: |
+      `scripts/ci/ratchets/check.sh` reports 7/7 ratchets pass.
+      Reintroducing a naked `#3b82f6`-style hex into Step.tsx.j2 or
+      a regenerated example file (without listing it in the baseline)
+      fails the ratchet loud and points the contributor at the
+      design-tokens helper module.
+    pre_deploy_checks:
+      - "bash scripts/ci/ratchets/check.sh — 7/7 PASS"
+      - "make audit-2026-ratchets — green"
+    rollback_plan: |
+      git revert <sha>; revert removes the new ratchet script + its
+      baseline + the RATCHETS=() entry. Other ratchets unaffected.
+      Reverting also implicitly accepts re-introducing hard-coded
+      tokens; the design-tokens generator (item 18) would then need
+      to be reverted in lockstep to keep the visual identity coherent.
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+
+- item: W3-fixture-retirement
+  title: "Cross-runtime fixture v1 retirement (expr_parity_200.json deleted; v2 canonical)"
+  wave: W3
+  property: Reliable
+  worker: worker-visregression
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "tests/cross_runtime/fixtures/expr_parity_200.json (DELETED — superseded by expr_parity_v2.json's 200-case base layer)"
+      - "tests/cross_runtime/_build_fixture_v2.py (DELETED — bridging builder no longer needed)"
+      - "tests/cross_runtime/generate_fixture.py (rewritten — self-contained v2 builder)"
+      - "tests/cross_runtime/test_expr_parity.py (FIXTURE_PATH + count assertion + required-tags set updated to v2-only)"
+      - "tests/conformance/test_arch_invariants.py (invariant 5 references v2 fixture and 250-case count)"
+      - "js/flowforge-integration-tests/expr-parity.test.ts (repointed at v2 fixture)"
+      - "js/flowforge-renderer/src/expr.ts (header comment updated)"
+    test_path: "tests/cross_runtime/test_expr_parity.py"
+    acceptance_criterion: |
+      The legacy `expr_parity_200.json` is deleted; the canonical
+      cross-runtime fixture is `expr_parity_v2.json` (250 cases). Both
+      runtimes (Python `flowforge.expr` and TS
+      `@flowforge/renderer`) agree byte-for-byte on every case.
+      Architecture invariant 5 stays green; conformance suite
+      reports 11/11 invariants pass.
+    pre_deploy_checks:
+      - "uv run pytest tests/cross_runtime/test_expr_parity.py -q — 253/253 passed"
+      - "make audit-2026-cross-runtime — Python-side green (253 passed); JS-side gracefully skips on the pre-existing pnpm-ignored-builds blocker"
+      - "make audit-2026-conformance — 11/11 invariants pass"
+    rollback_plan: |
+      git revert <sha>; restoring expr_parity_200.json + the bridging
+      builder is mechanical (it's a pure delete with a re-pointing of
+      test files). Reverting after the W3 commit is safe because no
+      production runtime consumes the fixture — it's a CI-only
+      determinism harness. The W1 ratchet
+      `no_unparried_expr_in_step_template` keeps the template ↔
+      fixture interlock intact regardless of which fixture name is
+      canonical.
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+
+- item: W3-closeout
+  title: "W3 closeout — regen-diff verification, CHANGELOG, signoff rows, gate runs, plan status"
+  wave: W3
+  property: Quality
+  worker: worker-w3-closeout
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "CHANGELOG.md (## [0.3.0-engr.3] — Wave 3 entries for items 9, 10, 11, 18, 21, new ratchet, fixture retirement)"
+      - "docs/v0.3.0-engineering/signoff-checklist.md (W3 rows appended for items 9, 10, 11, 18, 21, ratchet, retirement, closeout)"
+      - "docs/v0.3.0-engineering-plan.md (§7 status table — W3 marked completed)"
+    acceptance_tests:
+      - "scripts/ci/regen_flag_flip.sh — 6/6 byte-identical (3 examples × 2 form_renderer values)"
+    pre_deploy_checks:
+      - "bash scripts/ci/ratchets/check.sh — 7/7 PASS"
+      - "make audit-2026-conformance — 11/11 invariants pass"
+      - "make audit-2026-cross-runtime — Python-side 253/253 green; JS-side skip-with-reason on pnpm-install blocker"
+      - "make audit-2026-visual-regression-dom — exits 0 with [SKIP] reason (pnpm-install blocker)"
+      - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
+      - "uv run pytest python/flowforge-cli/tests/ -q — 443/443 green"
+      - "scripts/ci/regen_flag_flip.sh — 6/6 byte-identical"
+    determinism_proof: |
+      Closeout artefacts are pure-functional documentation: CHANGELOG
+      entries, signoff rows, and a status-table flip. The signoff
+      rows mirror the pattern of W0/W1/W2 rows already in this file;
+      no schema or runtime change.
+    rollback_plan: |
+      git revert <sha>; closeout is purely additive. Reverting
+      restores the pre-W3 CHANGELOG / signoff / plan-status state
+      without touching any of the implementation rows already
+      landed in this checklist (W3 implementation rows for items 9,
+      10, 11, 18, 21, ratchet, retirement live above and survive
+      a closeout-only revert).
+  follow_ups:
+    - "pnpm-install unblock: once `pnpm approve-builds` runs for the workspace, the visual-regression baseline catalogs land in a follow-up PR alongside the JS-side cross-runtime parity green run."
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header). All 8 W3 verification gates collected at closeout time; one residual follow-up tracked above (pnpm-install unblock)."
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+```
+
+---
+
 *This file is the v0.3.0-engineering equivalent of
 `docs/audit-2026/signoff-checklist.md`. Treated as a living doc — wave
 sections are appended as W1..W4b land.*

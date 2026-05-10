@@ -87,6 +87,49 @@ class NormalizedJTBD:
 	metrics: tuple[str, ...]
 	sla_warn_pct: int | None
 	sla_breach_seconds: int | None
+	# v0.3.0 W3 (item 11): per-JTBD compliance regimes (e.g. ``HIPAA``,
+	# ``GDPR``, ``CCPA``) and data-sensitivity tags. The lineage generator
+	# reads these to compute PII retention windows. Empty tuples when the
+	# bundle does not declare them so existing fixtures regen identically.
+	compliance: tuple[str, ...] = ()
+	data_sensitivity: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class NormalizedDesign:
+	"""Bundle-level design-token view model.
+
+	v0.3.0 W3 (item 18). Mirrors :class:`flowforge_jtbd.dsl.spec.JtbdDesign`
+	but lives here so the normalize layer is the only place generators
+	read tokens from. The ``design_tokens`` per-bundle generator emits a
+	CSS variable palette + Tailwind theme config + TS theme module from
+	this view model into both the customer-facing ``frontend/`` tree and
+	the admin ``frontend-admin/`` tree, so a single bundle change re-themes
+	the entire generated app on regen.
+
+	Defaults match :data:`DEFAULT_DESIGN`; bundles that omit
+	``project.design`` regen byte-identically because the generator
+	reads the same default tokens whether the block is missing or
+	declared with the canonical defaults.
+	"""
+
+	primary: str
+	accent: str
+	font_family: str
+	density: str
+	radius_scale: float
+
+
+# Canonical defaults applied when ``project.design`` is omitted. Any
+# change here is a visual-regression event for every bundle on the
+# default theme; raise it through W3 sign-off + visual baselines.
+DEFAULT_DESIGN: NormalizedDesign = NormalizedDesign(
+	primary="#2563eb",
+	accent="#10b981",
+	font_family="Inter, system-ui, sans-serif",
+	density="comfortable",
+	radius_scale=1.0,
+)
 
 
 @dataclass(frozen=True)
@@ -107,6 +150,17 @@ class NormalizedProject:
 	# and the router-side replay window. Additive — pre-W2 bundles regen
 	# byte-identically.
 	idempotency_ttl_hours: int | None = None
+	# v0.3.0 W3 (item 11): bundle-level override for the lineage generator's
+	# PII retention window (in years). ``None`` (default) means derive per
+	# JTBD from compliance flags (HIPAA / SOX → 7y, else 3y). Additive —
+	# pre-W3 bundles regen byte-identically.
+	lineage_retention_years: int | None = None
+	# v0.3.0 W3 (item 18): design-token block. Always populated — bundles
+	# that omit ``project.design`` get :data:`DEFAULT_DESIGN` so the
+	# ``design_tokens`` generator can emit token files unconditionally.
+	# Pre-W3 bundles regen byte-identically because the default token set
+	# is the same regardless of declaration shape.
+	design: NormalizedDesign = DEFAULT_DESIGN
 
 
 @dataclass(frozen=True)
@@ -198,6 +252,8 @@ def _norm_jtbd(raw: dict[str, Any], shared_perms: list[str]) -> NormalizedJTBD:
 		metrics=tuple(raw.get("metrics") or ()),
 		sla_warn_pct=sla.get("warn_pct"),
 		sla_breach_seconds=sla.get("breach_seconds"),
+		compliance=tuple(raw.get("compliance") or ()),
+		data_sensitivity=tuple(raw.get("data_sensitivity") or ()),
 	)
 
 
@@ -225,6 +281,29 @@ def normalize(bundle: dict[str, Any]) -> NormalizedBundle:
 	raw_ttl = idempotency_block.get("ttl_hours")
 	idempotency_ttl_hours = int(raw_ttl) if raw_ttl is not None else None
 
+	# v0.3.0 W3 (item 11): bundle.project.lineage.retention_years overrides
+	# the per-JTBD compliance-derived PII retention window. Missing → ``None``
+	# so existing bundles regen byte-identically; the lineage generator
+	# falls back to compliance-driven defaults (HIPAA / SOX → 7y, else 3y).
+	lineage_block = proj.get("lineage") or {}
+	raw_retention = lineage_block.get("retention_years")
+	lineage_retention_years = int(raw_retention) if raw_retention is not None else None
+
+	# v0.3.0 W3 (item 18): bundle.project.design carries the design-token
+	# overrides. Missing block → :data:`DEFAULT_DESIGN`; declared block
+	# fills only the keys the author overrides, the rest carry the
+	# default token. Hex colours are normalized to lowercase here so two
+	# bundles that differ only in hex case still produce byte-identical
+	# regen output.
+	design_block = proj.get("design") or {}
+	design = NormalizedDesign(
+		primary=str(design_block.get("primary", DEFAULT_DESIGN.primary)).lower(),
+		accent=str(design_block.get("accent", DEFAULT_DESIGN.accent)).lower(),
+		font_family=str(design_block.get("font_family", DEFAULT_DESIGN.font_family)),
+		density=str(design_block.get("density", DEFAULT_DESIGN.density)),
+		radius_scale=float(design_block.get("radius_scale", DEFAULT_DESIGN.radius_scale)),
+	)
+
 	project = NormalizedProject(
 		name=proj["name"],
 		package=proj["package"],
@@ -235,6 +314,8 @@ def normalize(bundle: dict[str, Any]) -> NormalizedBundle:
 		currencies=tuple(proj.get("currencies") or ("USD",)),
 		form_renderer=form_renderer,
 		idempotency_ttl_hours=idempotency_ttl_hours,
+		lineage_retention_years=lineage_retention_years,
+		design=design,
 	)
 
 	jtbds = tuple(_norm_jtbd(j, shared_perms) for j in bundle["jtbds"])

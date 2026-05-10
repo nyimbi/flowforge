@@ -1,6 +1,6 @@
-"""Generate the TS↔Python expression-parity conformance fixture.
+"""Generate the TS↔Python expression-parity conformance fixture (v2).
 
-audit-2026 E-43, architecture invariant 5: 200 (expr, ctx, expected) tuples
+audit-2026 E-43, architecture invariant 5: 250 (expr, ctx, expected) tuples
 that both evaluators must produce byte-identical outputs for. The Python
 evaluator is the source of truth — we materialise expected outputs by
 running it, serialise to JSON, and the JS test loads the same file.
@@ -11,6 +11,15 @@ JSON-input parity between flowforge-core (Python) and flowforge-renderer
 `length` on non-strings, `lower`/`upper` on non-strings, JS-only
 `concat` / `is_null`, Python-only `between` / `starts_with` /
 `ends_with` / `is_empty`) are excluded.
+
+The 200-case base layer mirrors what was the legacy ``expr_parity_200.json``
+fixture (retired in v0.3.0 W3 per ``docs/v0.3.0-engineering-plan.md``
+§11.1). The 50 ``conditional``-tagged cases were added in v0.3.0 W1
+(item 13) to cover ``show_if``-shaped expressions emitted by the
+``form_renderer = "real"`` Step.tsx path. No new operators are exercised
+by the conditional layer — ``var``, ``and``, ``or``, ``not``, ``if``,
+``==``, ``!=``, ``>``, ``>=``, ``<``, ``<=``, ``in``, ``not_null``,
+``coalesce`` only.
 
 Run::
 
@@ -27,7 +36,7 @@ from typing import Any
 
 from flowforge.expr import evaluate
 
-FIXTURE_PATH = Path(__file__).parent / "fixtures" / "expr_parity_200.json"
+FIXTURE_PATH = Path(__file__).parent / "fixtures" / "expr_parity_v2.json"
 
 
 def _id(prefix: str, n: int) -> str:
@@ -545,7 +554,119 @@ def _filler_cases(target: int) -> list[dict[str, Any]]:
 	return out
 
 
-def build_cases(target: int = 200) -> list[dict[str, Any]]:
+def _cond_id(n: int) -> str:
+	return f"cond-{n:03d}"
+
+
+def _conditional_cases() -> list[dict[str, Any]]:
+	"""``show_if``-shaped expressions for the W1 ``form_renderer = "real"`` path.
+
+	No new operators; only ``var``, ``and``, ``or``, ``not``, ``if``,
+	``==``, ``!=``, ``>``, ``>=``, ``<``, ``<=``, ``in``, ``not_null``,
+	``coalesce`` are exercised. Originally introduced in v0.3.0 W1
+	(item 13) via ``_build_fixture_v2.py`` — folded into this builder
+	when v1 was retired in W3.
+	"""
+
+	specs: list[tuple[Any, dict[str, Any]]] = []
+
+	# --- truthy / falsy boolean reads (12) ---
+	specs += [
+		({"var": "active"}, {"active": True}),
+		({"var": "active"}, {"active": False}),
+		({"var": "context.active"}, {"context": {"active": True}}),
+		({"var": "context.active"}, {"context": {"active": False}}),
+		({"not": [{"var": "context.disabled"}]}, {"context": {"disabled": False}}),
+		({"not": [{"var": "context.disabled"}]}, {"context": {"disabled": True}}),
+		({"and": [{"var": "context.a"}, {"var": "context.b"}]}, {"context": {"a": True, "b": True}}),
+		({"and": [{"var": "context.a"}, {"var": "context.b"}]}, {"context": {"a": True, "b": False}}),
+		({"or": [{"var": "context.a"}, {"var": "context.b"}]}, {"context": {"a": False, "b": True}}),
+		({"or": [{"var": "context.a"}, {"var": "context.b"}]}, {"context": {"a": False, "b": False}}),
+		({"if": [{"var": "context.flag"}, "on", "off"]}, {"context": {"flag": True}}),
+		({"if": [{"var": "context.flag"}, "on", "off"]}, {"context": {"flag": False}}),
+	]
+	# --- number comparisons (13) ---
+	specs += [
+		({">": [{"var": "context.amount"}, 100]}, {"context": {"amount": 200}}),
+		({">": [{"var": "context.amount"}, 100]}, {"context": {"amount": 50}}),
+		({">=": [{"var": "context.amount"}, 100]}, {"context": {"amount": 100}}),
+		({"<": [{"var": "context.amount"}, 100]}, {"context": {"amount": 50}}),
+		({"<=": [{"var": "context.amount"}, 100]}, {"context": {"amount": 100}}),
+		({"==": [{"var": "context.amount"}, 100]}, {"context": {"amount": 100}}),
+		({"==": [{"var": "context.amount"}, 100]}, {"context": {"amount": 99}}),
+		({"!=": [{"var": "context.amount"}, 100]}, {"context": {"amount": 99}}),
+		({">": [{"var": "context.large_loss"}, 100000]}, {"context": {"large_loss": 150000}}),
+		({">": [{"var": "context.large_loss"}, 100000]}, {"context": {"large_loss": 50000}}),
+		({"<": [{"var": "context.score"}, 0]}, {"context": {"score": -5}}),
+		({">": [{"var": "context.score"}, 0]}, {"context": {"score": 0}}),
+		({"==": [{"var": "context.tier"}, 2]}, {"context": {"tier": 2}}),
+	]
+	# --- string equality (12) ---
+	specs += [
+		({"==": [{"var": "context.status"}, "approved"]}, {"context": {"status": "approved"}}),
+		({"==": [{"var": "context.status"}, "approved"]}, {"context": {"status": "pending"}}),
+		({"!=": [{"var": "context.status"}, "rejected"]}, {"context": {"status": "approved"}}),
+		({"==": [{"var": "context.role"}, "supervisor"]}, {"context": {"role": "supervisor"}}),
+		({"==": [{"var": "context.role"}, "supervisor"]}, {"context": {"role": "adjuster"}}),
+		({"==": [{"var": "context.country"}, "US"]}, {"context": {"country": "US"}}),
+		({"==": [{"var": "context.country"}, "US"]}, {"context": {"country": "CA"}}),
+		({"==": [{"var": "context.lane"}, "fast"]}, {"context": {"lane": "fast"}}),
+		({"in": [{"var": "context.role"}, ["adjuster", "supervisor"]]}, {"context": {"role": "supervisor"}}),
+		({"in": [{"var": "context.role"}, ["adjuster", "supervisor"]]}, {"context": {"role": "claimant"}}),
+		({"==": [{"var": "context.empty_string"}, ""]}, {"context": {"empty_string": ""}}),
+		({"!=": [{"var": "context.empty_string"}, "x"]}, {"context": {"empty_string": ""}}),
+	]
+	# --- missing-var → null fallback (13) ---
+	specs += [
+		({"var": "missing"}, {}),
+		({"var": "context.missing"}, {"context": {}}),
+		({"var": "context.deeply.nested.missing"}, {"context": {}}),
+		({"var": "context.missing"}, {}),
+		({"==": [{"var": "context.missing"}, None]}, {"context": {}}),
+		({"!=": [{"var": "context.missing"}, "x"]}, {"context": {}}),
+		({"!=": [{"var": "context.missing"}, None]}, {"context": {}}),
+		({"not_null": [{"var": "context.missing"}]}, {"context": {}}),
+		({"not_null": [{"var": "context.present"}]}, {"context": {"present": "x"}}),
+		({"coalesce": [{"var": "context.missing"}, "fallback"]}, {"context": {}}),
+		({"coalesce": [{"var": "context.present"}, "fallback"]}, {"context": {"present": "value"}}),
+		(
+			{
+				"and": [
+					{"not_null": [{"var": "context.x"}]},
+					{">": [{"var": "context.x"}, 0]},
+				]
+			},
+			{"context": {"x": 5}},
+		),
+		(
+			{
+				"or": [
+					{"not_null": [{"var": "context.missing"}]},
+					{"==": [{"var": "context.fallback"}, "yes"]},
+				]
+			},
+			{"context": {"fallback": "yes"}},
+		),
+	]
+
+	assert len(specs) == 50, f"expected 50 conditional specs, got {len(specs)}"
+
+	out: list[dict[str, Any]] = []
+	for i, (expr, ctx) in enumerate(specs, start=1):
+		expected = evaluate(expr, ctx)
+		out.append(
+			{
+				"id": _cond_id(i),
+				"tag": "conditional",
+				"expr": expr,
+				"ctx": ctx,
+				"expected": expected,
+			}
+		)
+	return out
+
+
+def build_cases(target: int = 250) -> list[dict[str, Any]]:
 	cases: list[dict[str, Any]] = []
 	cases.extend(_eq_cases())
 	cases.extend(_ne_cases())
@@ -560,10 +681,13 @@ def build_cases(target: int = 200) -> list[dict[str, Any]]:
 	cases.extend(_coalesce_cases())
 	cases.extend(_not_null_cases())
 	cases.extend(_composite_cases())
-	if len(cases) < target:
-		cases.extend(_filler_cases(target - len(cases)))
-	# truncate if we went over (we expect exact 200)
-	cases = cases[:target]
+	# Top up the 200-case base layer with mechanical filler if needed,
+	# then append the 50 conditional cases on top.
+	base_target = target - 50
+	if len(cases) < base_target:
+		cases.extend(_filler_cases(base_target - len(cases)))
+	cases = cases[:base_target]
+	cases.extend(_conditional_cases())
 
 	# Recompute expected via the Python evaluator — single source of truth.
 	# This catches authoring drift between the hand-written expected and what
@@ -579,20 +703,29 @@ def build_cases(target: int = 200) -> list[dict[str, Any]]:
 
 
 def main() -> None:
-	cases = build_cases(200)
-	assert len(cases) == 200, len(cases)
+	cases = build_cases(250)
+	assert len(cases) == 250, len(cases)
 	FIXTURE_PATH.parent.mkdir(parents=True, exist_ok=True)
 	# Stable sort by id so diffs are readable.
 	cases.sort(key=lambda c: c["id"])
+	# Verify all ids unique.
+	ids = [c["id"] for c in cases]
+	assert len(set(ids)) == len(ids), "duplicate ids"
+	# Verify exactly 50 conditional cases.
+	cond = [c for c in cases if c["tag"] == "conditional"]
+	assert len(cond) == 50, f"expected 50 conditional cases, got {len(cond)}"
 	FIXTURE_PATH.write_text(
 		json.dumps(
 			{
-				"schema_version": "1.0",
+				"schema_version": "2.0",
 				"description": (
-					"audit-2026 E-43 cross-runtime expression conformance fixture; "
-					"200 (expr, ctx, expected) tuples that flowforge.expr (Python) "
-					"and @flowforge/renderer (TS) must agree on byte-for-byte. "
-					"Regenerate via `uv run python framework/tests/cross_runtime/generate_fixture.py`."
+					"audit-2026 E-43 / v0.3.0 W1 (item 13) cross-runtime expression conformance fixture; "
+					"250 (expr, ctx, expected) tuples that flowforge.expr (Python) and "
+					"@flowforge/renderer (TS) must agree on byte-for-byte. The 200 base cases "
+					"mirror the legacy `expr_parity_200.json` (retired in v0.3.0 W3); the 50 "
+					"`conditional`-tagged cases exercise show_if-shaped expressions emitted by "
+					"the W1 form_renderer='real' path. Regenerate via "
+					"`uv run python framework/tests/cross_runtime/generate_fixture.py`."
 				),
 				"cases": cases,
 			},

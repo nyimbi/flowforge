@@ -4,9 +4,10 @@
  *
  * Mirrors the operator subset declared in flowforge-core's expr/evaluator.py
  * to keep frontend + backend behavior aligned. The cross-runtime conformance
- * fixture at `framework/tests/cross_runtime/fixtures/expr_parity_200.json`
- * exercises both runtimes with byte-identical expected outputs (audit-2026
- * E-43, architecture invariant 5).
+ * fixture at `framework/tests/cross_runtime/fixtures/expr_parity_v2.json`
+ * (250 cases) exercises both runtimes with byte-identical expected outputs
+ * (audit-2026 E-43, architecture invariant 5). The legacy 200-case
+ * `expr_parity_200.json` was retired in v0.3.0 W3.
  *
  * Forms supported:
  *   - bare literals: string, number, boolean, null, array, object

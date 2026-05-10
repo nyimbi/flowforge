@@ -34,6 +34,8 @@ help:
 	@echo "  audit-2026-chaos          fault-injection (crash mid-fire/mid-outbox)"
 	@echo "  audit-2026-observability  PromQL alert-rule self-tests"
 	@echo "  audit-2026-ratchets       grep ratchet gates (no_default_secret etc.)"
+	@echo "  audit-2026-visual-regression-dom   DOM-snapshot byte-equality (CI-gating, ADR-001)"
+	@echo "  audit-2026-visual-regression-ssim  pixel SSIM (advisory; nightly only, ADR-001)"
 	@echo "  audit-2026-signoff        signoff-checklist gate (P0/P1 rows)"
 
 .PHONY: audit-2026
@@ -48,9 +50,10 @@ audit-2026: \
 		audit-2026-edge \
 		audit-2026-chaos \
 		audit-2026-observability \
+		audit-2026-visual-regression-dom \
 		audit-2026-signoff
 	@echo ""
-	@echo "audit-2026: all 77 audit-2026 layered suites passed."
+	@echo "audit-2026: all audit-2026 layered suites passed."
 
 .PHONY: audit-2026-unit
 audit-2026-unit:
@@ -160,6 +163,35 @@ restore-drill:
 
 .PHONY: audit-2026-restore-drill
 audit-2026-restore-drill: restore-drill
+
+# v0.3.0 W3 (item 21): visual regression — DOM-snapshot CI gate.
+#
+# Per ADR-001 (docs/v0.3.0-engineering/adr/ADR-001-visual-regression-invariants.md)
+# the DOM snapshot is the *CI-gating* artifact; the pixel SSIM is
+# advisory only. The DOM gate runs the smoke subset (canonical example
+# only) per-PR and the full suite nightly. The wrapper script
+# `scripts/visual_regression/run_dom_snapshots.sh` skips with a clear
+# reason if `pnpm install` is blocked or the dev-server harness has
+# not yet landed; in that mode it exits 0 (the W3 brief authorises
+# skip-with-reason while the pnpm cleanup PR is in flight).
+#
+# Cadence selection:
+#   make audit-2026-visual-regression-dom            -> smoke (per-PR)
+#   VISREG_CADENCE=full make audit-2026-visual-regression-dom  -> full (nightly)
+.PHONY: audit-2026-visual-regression-dom
+audit-2026-visual-regression-dom:
+	bash scripts/visual_regression/run_dom_snapshots.sh $${VISREG_CADENCE:-smoke}
+
+# v0.3.0 W3 (item 21): visual regression — pixel SSIM (advisory).
+#
+# Runs nightly only per ADR-001 §"Decision". Pixel bytes are not
+# deterministic across Chromium minor versions, so the SSIM gate
+# cannot block PR merge. The wrapper script always exits 0; failures
+# surface as annotations in the nightly summary and as a PR comment
+# per ADR-001 §"Decision".
+.PHONY: audit-2026-visual-regression-ssim
+audit-2026-visual-regression-ssim:
+	bash scripts/visual_regression/run_ssim.sh
 
 # Convenience: run full check_all gate (existing) then audit-2026.
 .PHONY: check-all

@@ -88,3 +88,9 @@ Every test runs against **real adapters** — no mocks of the thing under test:
 To enable in CI: add a `docker-compose.yml` under `framework/tests/integration/` that spins up `postgres:16`, runs Alembic migrations, starts the FastAPI backend, and starts the Next.js frontend. Then set `SKIP_E2E=0` in the CI environment.
 
 Placeholder spec location: `framework/tests/integration/js/e2e-full-stack.spec.ts` (not yet created — tracked as a follow-up).
+
+### Project-level Playwright runner (resolved in v0.3.0 W3)
+
+The Playwright runner is now wired up under `tests/visual_regression/` per ADR-001 (`docs/v0.3.0-engineering/adr/ADR-001-visual-regression-invariants.md`). It serves the visual regression CI gate (item 21) — DOM-snapshot byte-equality as the CI-blocking artifact and pixel SSIM as a nightly advisory.
+
+The runner is structurally complete but skip-with-clear-reason while `pnpm install` is blocked on the pre-existing pnpm-ignored-builds issue. Once that lands, baseline files seed via `pnpm --filter @flowforge/visual-regression update-baselines`. See `tests/visual_regression/README.md` for the full status.

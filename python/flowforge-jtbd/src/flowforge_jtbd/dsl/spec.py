@@ -405,6 +405,66 @@ class JtbdSpec(BaseModel):
 
 
 FormRendererMode = Literal["skeleton", "real"]
+DesignDensity = Literal["compact", "comfortable"]
+
+
+def _hex_color(value: str) -> str:
+	"""Validator for ``#RGB``, ``#RRGGBB``, or ``#RRGGBBAA`` hex colours.
+
+	v0.3.0 W3 / item 18: ``JtbdDesign`` colour fields accept the three
+	standard CSS hex shapes. Returned in lowercase so two bundles that
+	differ only in case still hash the same. Empty strings, missing
+	leading hash, non-hex characters, and out-of-spec lengths all raise.
+	"""
+	if not isinstance(value, str) or not value.startswith("#"):
+		raise ValueError(
+			"design colour must be a hex literal of the form '#RGB',"
+			f" '#RRGGBB', or '#RRGGBBAA'; got {value!r}"
+		)
+	digits = value[1:]
+	if len(digits) not in (3, 6, 8):
+		raise ValueError(
+			"design colour hex digits must be 3, 6, or 8 characters;"
+			f" got {len(digits)} in {value!r}"
+		)
+	for ch in digits:
+		if not (("0" <= ch <= "9") or ("a" <= ch.lower() <= "f")):
+			raise ValueError(
+				f"design colour {value!r} contains non-hex digit {ch!r}"
+			)
+	return "#" + digits.lower()
+
+
+HexColorStr = Annotated[str, AfterValidator(_hex_color)]
+
+
+class JtbdDesign(BaseModel):
+	"""Bundle-level design-token block.
+
+	Additive in v0.3.0 W3 (item 18 of ``docs/improvements.md``). Drives
+	the per-bundle ``design_tokens`` generator that emits a CSS variable
+	palette, Tailwind theme config, and TypeScript theme module into both
+	the customer-facing ``frontend/`` tree and the admin console
+	``frontend-admin/`` tree so a single bundle change re-themes the
+	whole generated app on regen.
+
+	Defaults are deliberately conservative — pre-W3 bundles that omit
+	``project.design`` regen byte-identically because the generator
+	emits the same default token set on a missing block as on a
+	``JtbdDesign()`` literal.
+	"""
+
+	model_config = ConfigDict(
+		extra="forbid",
+		validate_by_name=True,
+		validate_by_alias=True,
+	)
+
+	primary: HexColorStr = "#2563eb"
+	accent: HexColorStr = "#10b981"
+	font_family: str = "Inter, system-ui, sans-serif"
+	density: DesignDensity = "comfortable"
+	radius_scale: float = Field(default=1.0, ge=0.0, le=4.0)
 
 
 class JtbdFrontend(BaseModel):
@@ -454,6 +514,7 @@ class JtbdProject(BaseModel):
 	currencies: list[str] = Field(default_factory=list)
 	frontend_framework: Literal["nextjs", "remix", "vite-react"] = "nextjs"
 	frontend: JtbdFrontend | None = None
+	design: JtbdDesign | None = None
 	compliance: list[ComplianceRegime] = Field(default_factory=list)
 	data_sensitivity: list[DataSensitivity] = Field(default_factory=list)
 
@@ -522,12 +583,15 @@ __all__ = [
 	"ApprovalPolicy",
 	"ComplianceRegime",
 	"DataSensitivity",
+	"DesignDensity",
 	"EdgeCaseHandle",
 	"FieldKind",
 	"FormRendererMode",
+	"HexColorStr",
 	"JtbdActor",
 	"JtbdApproval",
 	"JtbdBundle",
+	"JtbdDesign",
 	"JtbdDocReq",
 	"JtbdEdgeCase",
 	"JtbdField",

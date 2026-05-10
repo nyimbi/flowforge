@@ -18,6 +18,7 @@ from .generators import (
 	audit_taxonomy,
 	compensation_handlers,
 	db_migration,
+	design_tokens,
 	diagram,
 	domain_router,
 	domain_service,
@@ -25,7 +26,11 @@ from .generators import (
 	form_spec,
 	frontend,
 	frontend_admin,
+	frontend_cli,
+	frontend_email,
+	frontend_slack,
 	idempotency,
+	lineage,
 	migration_safety,
 	notifications,
 	openapi,
@@ -75,6 +80,11 @@ _PER_BUNDLE_GENERATORS = (
 	openapi.generate,
 	restore_runbook.generate,
 	frontend_admin.generate,
+	frontend_cli.generate,
+	frontend_email.generate,
+	frontend_slack.generate,
+	lineage.generate,
+	design_tokens.generate,
 )
 
 

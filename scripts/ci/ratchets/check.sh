@@ -25,6 +25,7 @@ RATCHETS=(
 	no_except_pass.sh
 	no_unparried_expr_in_step_template.sh
 	no_idempotency_bypass.sh
+	no_design_token_hardcode.sh
 )
 
 FAILED=()

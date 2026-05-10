@@ -1,6 +1,6 @@
 {
 	"schema_version": "2.0",
-	"description": "audit-2026 E-43 / v0.3.0 W1 (item 13) cross-runtime expression conformance fixture; 250 (expr, ctx, expected) tuples that flowforge.expr (Python) and @flowforge/renderer (TS) must agree on byte-for-byte. The 200 base cases mirror expr_parity_200.json; the 50 `conditional`-tagged cases exercise show_if-shaped expressions emitted by the W1 form_renderer='real' path. Regenerate via `uv run python framework/tests/cross_runtime/_build_fixture_v2.py`.",
+	"description": "audit-2026 E-43 / v0.3.0 W1 (item 13) cross-runtime expression conformance fixture; 250 (expr, ctx, expected) tuples that flowforge.expr (Python) and @flowforge/renderer (TS) must agree on byte-for-byte. The 200 base cases mirror the legacy `expr_parity_200.json` (retired in v0.3.0 W3); the 50 `conditional`-tagged cases exercise show_if-shaped expressions emitted by the W1 form_renderer='real' path. Regenerate via `uv run python framework/tests/cross_runtime/generate_fixture.py`.",
 	"cases": [
 		{
 			"id": "arith-001",

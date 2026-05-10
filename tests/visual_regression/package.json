@@ -1,0 +1,21 @@
+{
+	"name": "@flowforge/visual-regression",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Project-level Playwright runner for the v0.3.0 W3 visual regression CI gate (item 21, ADR-001). DOM snapshots are CI-gating; pixel screenshots are advisory only with SSIM >= 0.98 threshold and run nightly.",
+	"type": "module",
+	"scripts": {
+		"test": "playwright test",
+		"test:dom": "playwright test --project=dom",
+		"test:ssim": "playwright test --project=ssim",
+		"update-baselines": "UPDATE_BASELINES=1 playwright test",
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@playwright/test": "^1.47.0",
+		"@types/node": "^22.0.0",
+		"pngjs": "^7.0.0",
+		"@types/pngjs": "^6.0.5",
+		"typescript": "^5.5.0"
+	}
+}

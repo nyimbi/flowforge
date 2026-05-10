@@ -9,6 +9,13 @@
     "frontend_framework": "nextjs",
     "frontend": {
       "form_renderer": "real"
+    },
+    "design": {
+      "primary": "#0f766e",
+      "accent": "#f59e0b",
+      "font_family": "\"IBM Plex Sans\", system-ui, sans-serif",
+      "density": "compact",
+      "radius_scale": 1.5
     }
   },
   "shared": {

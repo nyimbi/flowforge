@@ -1,0 +1,677 @@
+{
+  "bundle": {
+    "name": "insurance-claim-demo",
+    "package": "insurance_claim_demo",
+    "retention_years_override": null
+  },
+  "jtbds": [
+    {
+      "compliance": [],
+      "data_sensitivity": [],
+      "field_count": 7,
+      "fields": [
+        {
+          "exposure_surfaces": [
+            {
+              "role": "adjuster",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "adjuster",
+              "surface": "service.read"
+            },
+            {
+              "role": "claimant",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "claimant",
+              "surface": "service.read"
+            },
+            {
+              "role": "supervisor",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "supervisor",
+              "surface": "service.read"
+            }
+          ],
+          "id": "claimant_name",
+          "kind": "text",
+          "label": "Claimant full name",
+          "pii": true,
+          "redaction_strategy": {
+            "audit_event_payload": "redacted_mask",
+            "form_input": "visible",
+            "orm_column": "stored_as_is",
+            "outbox_envelope": "redacted_mask",
+            "service_layer": "stored_as_is"
+          },
+          "retention_window_years": 3,
+          "stages": [
+            {
+              "form_field_id": "claimant_name",
+              "label": "Claimant full name",
+              "location": "frontend/src/insurance_claim_demo/claim_intake/Step.tsx",
+              "redaction": "visible",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ClaimIntakeService.fire",
+              "location": "backend/src/insurance_claim_demo/claim_intake/service.py",
+              "redaction": "stored_as_is",
+              "stage": "service_layer"
+            },
+            {
+              "column": "claimant_name",
+              "location": "backend/src/insurance_claim_demo/claim_intake/models.py",
+              "redaction": "stored_as_is",
+              "sa_type": "String(512)",
+              "stage": "orm_column",
+              "table": "claim_intake"
+            },
+            {
+              "location": "audit_sink",
+              "redaction": "redacted_mask",
+              "stage": "audit_event_payload",
+              "topics": [
+                "claim_intake.approved",
+                "claim_intake.escalated",
+                "claim_intake.lapsed_rejected",
+                "claim_intake.large_loss",
+                "claim_intake.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "adjuster",
+                  "channel": "slack",
+                  "trigger": "sla_warn"
+                },
+                {
+                  "audience": "supervisor",
+                  "channel": "slack",
+                  "trigger": "sla_breach"
+                }
+              ],
+              "redaction": "redacted_mask",
+              "stage": "outbox_envelope",
+              "topics": [
+                "claim_intake.approved",
+                "claim_intake.escalated",
+                "claim_intake.lapsed_rejected",
+                "claim_intake.large_loss",
+                "claim_intake.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "exposure_surfaces": [
+            {
+              "role": "adjuster",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "adjuster",
+              "surface": "service.read"
+            },
+            {
+              "role": "claimant",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "claimant",
+              "surface": "service.read"
+            },
+            {
+              "role": "supervisor",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "supervisor",
+              "surface": "service.read"
+            }
+          ],
+          "id": "contact_email",
+          "kind": "email",
+          "label": "Contact email",
+          "pii": true,
+          "redaction_strategy": {
+            "audit_event_payload": "redacted_mask",
+            "form_input": "visible",
+            "orm_column": "stored_as_is",
+            "outbox_envelope": "redacted_mask",
+            "service_layer": "stored_as_is"
+          },
+          "retention_window_years": 3,
+          "stages": [
+            {
+              "form_field_id": "contact_email",
+              "label": "Contact email",
+              "location": "frontend/src/insurance_claim_demo/claim_intake/Step.tsx",
+              "redaction": "visible",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ClaimIntakeService.fire",
+              "location": "backend/src/insurance_claim_demo/claim_intake/service.py",
+              "redaction": "stored_as_is",
+              "stage": "service_layer"
+            },
+            {
+              "column": "contact_email",
+              "location": "backend/src/insurance_claim_demo/claim_intake/models.py",
+              "redaction": "stored_as_is",
+              "sa_type": "String(320)",
+              "stage": "orm_column",
+              "table": "claim_intake"
+            },
+            {
+              "location": "audit_sink",
+              "redaction": "redacted_mask",
+              "stage": "audit_event_payload",
+              "topics": [
+                "claim_intake.approved",
+                "claim_intake.escalated",
+                "claim_intake.lapsed_rejected",
+                "claim_intake.large_loss",
+                "claim_intake.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "adjuster",
+                  "channel": "slack",
+                  "trigger": "sla_warn"
+                },
+                {
+                  "audience": "supervisor",
+                  "channel": "slack",
+                  "trigger": "sla_breach"
+                }
+              ],
+              "redaction": "redacted_mask",
+              "stage": "outbox_envelope",
+              "topics": [
+                "claim_intake.approved",
+                "claim_intake.escalated",
+                "claim_intake.lapsed_rejected",
+                "claim_intake.large_loss",
+                "claim_intake.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "exposure_surfaces": [
+            {
+              "role": "adjuster",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "adjuster",
+              "surface": "service.read"
+            },
+            {
+              "role": "claimant",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "claimant",
+              "surface": "service.read"
+            },
+            {
+              "role": "supervisor",
+              "surface": "admin_console.audit_viewer"
+            },
+            {
+              "role": "supervisor",
+              "surface": "service.read"
+            }
+          ],
+          "id": "contact_phone",
+          "kind": "phone",
+          "label": "Contact phone",
+          "pii": true,
+          "redaction_strategy": {
+            "audit_event_payload": "redacted_mask",
+            "form_input": "visible",
+            "orm_column": "stored_as_is",
+            "outbox_envelope": "redacted_mask",
+            "service_layer": "stored_as_is"
+          },
+          "retention_window_years": 3,
+          "stages": [
+            {
+              "form_field_id": "contact_phone",
+              "label": "Contact phone",
+              "location": "frontend/src/insurance_claim_demo/claim_intake/Step.tsx",
+              "redaction": "visible",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ClaimIntakeService.fire",
+              "location": "backend/src/insurance_claim_demo/claim_intake/service.py",
+              "redaction": "stored_as_is",
+              "stage": "service_layer"
+            },
+            {
+              "column": "contact_phone",
+              "location": "backend/src/insurance_claim_demo/claim_intake/models.py",
+              "redaction": "stored_as_is",
+              "sa_type": "String(40)",
+              "stage": "orm_column",
+              "table": "claim_intake"
+            },
+            {
+              "location": "audit_sink",
+              "redaction": "redacted_mask",
+              "stage": "audit_event_payload",
+              "topics": [
+                "claim_intake.approved",
+                "claim_intake.escalated",
+                "claim_intake.lapsed_rejected",
+                "claim_intake.large_loss",
+                "claim_intake.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "adjuster",
+                  "channel": "slack",
+                  "trigger": "sla_warn"
+                },
+                {
+                  "audience": "supervisor",
+                  "channel": "slack",
+                  "trigger": "sla_breach"
+                }
+              ],
+              "redaction": "redacted_mask",
+              "stage": "outbox_envelope",
+              "topics": [
+                "claim_intake.approved",
+                "claim_intake.escalated",
+                "claim_intake.lapsed_rejected",
+                "claim_intake.large_loss",
+                "claim_intake.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "loss_amount",
+          "kind": "money",
+          "label": "Estimated loss amount",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "loss_amount",
+              "label": "Estimated loss amount",
+              "location": "frontend/src/insurance_claim_demo/claim_intake/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ClaimIntakeService.fire",
+              "location": "backend/src/insurance_claim_demo/claim_intake/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "loss_amount",
+              "location": "backend/src/insurance_claim_demo/claim_intake/models.py",
+              "sa_type": "Numeric(18, 2)",
+              "stage": "orm_column",
+              "table": "claim_intake"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "claim_intake.approved",
+                "claim_intake.escalated",
+                "claim_intake.lapsed_rejected",
+                "claim_intake.large_loss",
+                "claim_intake.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "adjuster",
+                  "channel": "slack",
+                  "trigger": "sla_warn"
+                },
+                {
+                  "audience": "supervisor",
+                  "channel": "slack",
+                  "trigger": "sla_breach"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "claim_intake.approved",
+                "claim_intake.escalated",
+                "claim_intake.lapsed_rejected",
+                "claim_intake.large_loss",
+                "claim_intake.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "loss_date",
+          "kind": "date",
+          "label": "Date of loss",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "loss_date",
+              "label": "Date of loss",
+              "location": "frontend/src/insurance_claim_demo/claim_intake/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ClaimIntakeService.fire",
+              "location": "backend/src/insurance_claim_demo/claim_intake/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "loss_date",
+              "location": "backend/src/insurance_claim_demo/claim_intake/models.py",
+              "sa_type": "Date()",
+              "stage": "orm_column",
+              "table": "claim_intake"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "claim_intake.approved",
+                "claim_intake.escalated",
+                "claim_intake.lapsed_rejected",
+                "claim_intake.large_loss",
+                "claim_intake.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "adjuster",
+                  "channel": "slack",
+                  "trigger": "sla_warn"
+                },
+                {
+                  "audience": "supervisor",
+                  "channel": "slack",
+                  "trigger": "sla_breach"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "claim_intake.approved",
+                "claim_intake.escalated",
+                "claim_intake.lapsed_rejected",
+                "claim_intake.large_loss",
+                "claim_intake.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "loss_description",
+          "kind": "textarea",
+          "label": "Description of loss",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "loss_description",
+              "label": "Description of loss",
+              "location": "frontend/src/insurance_claim_demo/claim_intake/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ClaimIntakeService.fire",
+              "location": "backend/src/insurance_claim_demo/claim_intake/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "loss_description",
+              "location": "backend/src/insurance_claim_demo/claim_intake/models.py",
+              "sa_type": "Text()",
+              "stage": "orm_column",
+              "table": "claim_intake"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "claim_intake.approved",
+                "claim_intake.escalated",
+                "claim_intake.lapsed_rejected",
+                "claim_intake.large_loss",
+                "claim_intake.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "adjuster",
+                  "channel": "slack",
+                  "trigger": "sla_warn"
+                },
+                {
+                  "audience": "supervisor",
+                  "channel": "slack",
+                  "trigger": "sla_breach"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "claim_intake.approved",
+                "claim_intake.escalated",
+                "claim_intake.lapsed_rejected",
+                "claim_intake.large_loss",
+                "claim_intake.submitted"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "policy_number",
+          "kind": "text",
+          "label": "Policy number",
+          "pii": false,
+          "stages": [
+            {
+              "form_field_id": "policy_number",
+              "label": "Policy number",
+              "location": "frontend/src/insurance_claim_demo/claim_intake/Step.tsx",
+              "stage": "form_input"
+            },
+            {
+              "entrypoint": "ClaimIntakeService.fire",
+              "location": "backend/src/insurance_claim_demo/claim_intake/service.py",
+              "stage": "service_layer"
+            },
+            {
+              "column": "policy_number",
+              "location": "backend/src/insurance_claim_demo/claim_intake/models.py",
+              "sa_type": "String(512)",
+              "stage": "orm_column",
+              "table": "claim_intake"
+            },
+            {
+              "location": "audit_sink",
+              "stage": "audit_event_payload",
+              "topics": [
+                "claim_intake.approved",
+                "claim_intake.escalated",
+                "claim_intake.lapsed_rejected",
+                "claim_intake.large_loss",
+                "claim_intake.submitted"
+              ]
+            },
+            {
+              "location": "outbox_registry",
+              "notification_targets": [
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "approved"
+                },
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "rejected"
+                },
+                {
+                  "audience": "claimant",
+                  "channel": "email",
+                  "trigger": "state_enter"
+                },
+                {
+                  "audience": "adjuster",
+                  "channel": "slack",
+                  "trigger": "sla_warn"
+                },
+                {
+                  "audience": "supervisor",
+                  "channel": "slack",
+                  "trigger": "sla_breach"
+                }
+              ],
+              "stage": "outbox_envelope",
+              "topics": [
+                "claim_intake.approved",
+                "claim_intake.escalated",
+                "claim_intake.lapsed_rejected",
+                "claim_intake.large_loss",
+                "claim_intake.submitted"
+              ]
+            }
+          ]
+        }
+      ],
+      "id": "claim_intake",
+      "pii_field_count": 3,
+      "title": "File an insurance claim (FNOL)"
+    }
+  ],
+  "schema_version": "1.0.0",
+  "sensitive_field_kinds": [
+    "address",
+    "email",
+    "file",
+    "party_ref",
+    "phone",
+    "signature"
+  ],
+  "stages": [
+    "form_input",
+    "service_layer",
+    "orm_column",
+    "audit_event_payload",
+    "outbox_envelope"
+  ]
+}

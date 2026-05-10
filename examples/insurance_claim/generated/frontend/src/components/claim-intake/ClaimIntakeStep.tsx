@@ -5,6 +5,12 @@ import { FormRenderer, type FormErrors, type FormValues, type RendererFormSpec }
 
 import formSpec from "../../../../workflows/claim_intake/form_spec.json";
 import { ANALYTICS_EVENTS, type AnalyticsEvent } from "../../insurance_claim_demo/analytics";
+// v0.3.0 W3 / item 18 — design tokens. Side-effect import publishes the
+// `--color-primary` / `--font-family` / `--radius-*` CSS variables so the
+// inline `style` attribute below picks them up live; a re-run of
+// `flowforge jtbd-generate` against a tweaked `project.design` re-themes
+// every Step component that imports this file.
+import "../../insurance_claim_demo/design_tokens.css";
 
 /**
  * Compatibility-shaped subset of `flowforge.ports.analytics.AnalyticsPort`
@@ -191,9 +197,13 @@ export function ClaimIntakeStep(props: ClaimIntakeStepProps): React.ReactElement
 	}, [emit]);
 
 	return (
-		<section data-testid="claim_intake-step" aria-labelledby="claim_intake-step-title" onFocusCapture={handleFocusCapture}>
+		<section
+			data-testid="claim_intake-step"
+			aria-labelledby="claim_intake-step-title"
+			onFocusCapture={handleFocusCapture}
+			style={{ fontFamily: "var(--font-family)", borderRadius: "var(--radius-md)", padding: "var(--density-padding)" }}		>
 			<header>
-				<h2 id="claim_intake-step-title">File an insurance claim (FNOL)</h2>
+				<h2 id="claim_intake-step-title" style={{ color: "var(--color-primary)" }}>File an insurance claim (FNOL)</h2>
 				<p>State: <code>{props.state}</code></p>
 				<p>Instance: <code>{props.instanceId}</code></p>
 			</header>

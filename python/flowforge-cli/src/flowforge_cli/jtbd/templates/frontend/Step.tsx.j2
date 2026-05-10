@@ -6,6 +6,12 @@ import { FormRenderer, type FormErrors, type FormValues, type RendererFormSpec }
 
 import formSpec from "../../../../workflows/{{ jtbd.id }}/form_spec.json";
 import { ANALYTICS_EVENTS, type AnalyticsEvent } from "../../{{ project.package }}/analytics";
+// v0.3.0 W3 / item 18 — design tokens. Side-effect import publishes the
+// `--color-primary` / `--font-family` / `--radius-*` CSS variables so the
+// inline `style` attribute below picks them up live; a re-run of
+// `flowforge jtbd-generate` against a tweaked `project.design` re-themes
+// every Step component that imports this file.
+import "../../{{ project.package }}/design_tokens.css";
 
 /**
  * Compatibility-shaped subset of `flowforge.ports.analytics.AnalyticsPort`
@@ -188,9 +194,14 @@ export function {{ jtbd.class_name }}Step(props: {{ jtbd.class_name }}StepProps)
 	}, [emit]);
 
 	return (
-		<section data-testid="{{ jtbd.id }}-step" aria-labelledby="{{ jtbd.id }}-step-title" onFocusCapture={handleFocusCapture}>
+		<section
+			data-testid="{{ jtbd.id }}-step"
+			aria-labelledby="{{ jtbd.id }}-step-title"
+			onFocusCapture={handleFocusCapture}
+			style={% raw %}{{ fontFamily: "var(--font-family)", borderRadius: "var(--radius-md)", padding: "var(--density-padding)" }}{% endraw %}
+		>
 			<header>
-				<h2 id="{{ jtbd.id }}-step-title">{{ jtbd.title }}</h2>
+				<h2 id="{{ jtbd.id }}-step-title" style={% raw %}{{ color: "var(--color-primary)" }}{% endraw %}>{{ jtbd.title }}</h2>
 				<p>State: <code>{props.state}</code></p>
 				<p>Instance: <code>{props.instanceId}</code></p>
 			</header>

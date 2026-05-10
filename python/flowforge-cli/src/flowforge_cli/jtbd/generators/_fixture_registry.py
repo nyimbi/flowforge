@@ -53,6 +53,21 @@ _REGISTRY: dict[str, tuple[str, ...]] = {
 		"jtbds[].title",
 		"project.package",
 	),
+	# v0.3.0 W3 / item 18 — design-token theming. Reads each
+	# ``project.design.*`` field plus ``project.package`` to pick the
+	# customer-facing + admin tree paths the six emitted files land at.
+	# The ``project.design`` block is normalized into ``DEFAULT_DESIGN``
+	# when missing, so the registry asserts the dotted access shape; the
+	# field-coverage test exercises bundles that exercise both the
+	# default and overridden paths.
+	"design_tokens": (
+		"project.design.accent",
+		"project.design.density",
+		"project.design.font_family",
+		"project.design.primary",
+		"project.design.radius_scale",
+		"project.package",
+	),
 	"diagram": (
 		"jtbds[].id",
 		"jtbds[].initial_state",
@@ -115,12 +130,98 @@ _REGISTRY: dict[str, tuple[str, ...]] = {
 		"project.package",
 		"project.tenancy",
 	),
+	# v0.3.0 W3 / item 9 — Typer CLI client (frontend-cli/<package>/).
+	# Mirrors the operations declared by the W1 ``openapi.yaml`` so the
+	# command tree stays operationally pinned to the spec. Reads
+	# ``jtbds[].transitions`` to derive the per-event Typer subcommand
+	# tree and ``data_capture`` fields to materialise the per-command
+	# Typer ``--`` options.
+	"frontend_cli": (
+		"jtbds[].fields",
+		"jtbds[].fields[].id",
+		"jtbds[].fields[].kind",
+		"jtbds[].fields[].label",
+		"jtbds[].fields[].required",
+		"jtbds[].id",
+		"jtbds[].title",
+		"jtbds[].transitions",
+		"jtbds[].url_segment",
+		"project.name",
+		"project.package",
+	),
+	# v0.3.0 W3 / item 9 — email-driven adapter shell
+	# (frontend-email/<package>/). Routing skeleton only; hosts wire
+	# IMAP/SMTP/SES/SendGrid bridges themselves. Reads
+	# ``jtbds[].transitions`` to derive the closed reply-subject route
+	# catalog and ``bundle.all_audit_topics`` to seed the outbound email
+	# template registry.
+	"frontend_email": (
+		"all_audit_topics",
+		"jtbds[].fields",
+		"jtbds[].fields[].id",
+		"jtbds[].fields[].label",
+		"jtbds[].fields[].required",
+		"jtbds[].id",
+		"jtbds[].title",
+		"jtbds[].transitions",
+		"jtbds[].url_segment",
+		"project.name",
+		"project.package",
+	),
+	# v0.3.0 W3 / item 9 — Slack adapter shell
+	# (frontend-slack/<package>/). Routing skeleton only; hosts wire
+	# the concrete Slack bot (webhook, signing secret, identity bridge)
+	# themselves. Reads ``jtbds[].transitions`` to derive the slash-
+	# command catalog, ``jtbds[].permissions`` to pin per-command
+	# permissions, and ``bundle.all_audit_topics`` to seed the
+	# interactive-message template registry.
+	"frontend_slack": (
+		"all_audit_topics",
+		"jtbds[].fields",
+		"jtbds[].fields[].id",
+		"jtbds[].fields[].label",
+		"jtbds[].fields[].required",
+		"jtbds[].id",
+		"jtbds[].permissions",
+		"jtbds[].title",
+		"jtbds[].transitions",
+		"jtbds[].url_segment",
+		"project.name",
+		"project.package",
+	),
 	"idempotency": (
 		"jtbds[].class_name",
 		"jtbds[].id",
 		"jtbds[].module_name",
 		"jtbds[].table_name",
 		"project.idempotency.ttl_hours",
+		"project.package",
+	),
+	# v0.3.0 W3 / item 11 — per-bundle data-lineage / provenance graph
+	# (lineage.json at the bundle root). Reads every per-JTBD field to
+	# trace it across the five generation-pipeline stages, plus the
+	# JTBD-level compliance + data_sensitivity tags that drive the PII
+	# retention window. ``project.lineage.retention_years`` is the
+	# bundle-wide override that pins the retention window when present.
+	"lineage": (
+		"jtbds[].audit_topics",
+		"jtbds[].class_name",
+		"jtbds[].compliance",
+		"jtbds[].data_sensitivity",
+		"jtbds[].fields",
+		"jtbds[].fields[].id",
+		"jtbds[].fields[].kind",
+		"jtbds[].fields[].label",
+		"jtbds[].fields[].pii",
+		"jtbds[].fields[].sa_type",
+		"jtbds[].id",
+		"jtbds[].module_name",
+		"jtbds[].notifications",
+		"jtbds[].permissions",
+		"jtbds[].table_name",
+		"jtbds[].title",
+		"project.lineage.retention_years",
+		"project.name",
 		"project.package",
 	),
 	"migration_safety": (

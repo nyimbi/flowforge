@@ -1,11 +1,16 @@
 /**
  * TS↔Python expression parity conformance test (audit-2026 E-43, invariant 5).
  *
- * Loads the cross-runtime fixture at
- * `framework/tests/cross_runtime/fixtures/expr_parity_200.json` and asserts
- * that `@flowforge/renderer`'s evaluator produces the recorded expected
- * output for every case. The Python side runs the same fixture under
- * pytest in `framework/tests/cross_runtime/test_expr_parity.py`.
+ * Loads the canonical cross-runtime fixture at
+ * `framework/tests/cross_runtime/fixtures/expr_parity_v2.json` (250 cases:
+ * 200 base + 50 `conditional`-tagged show_if cases) and asserts that
+ * `@flowforge/renderer`'s evaluator produces the recorded expected output
+ * for every case. The Python side runs the same fixture under pytest in
+ * `framework/tests/cross_runtime/test_expr_parity.py`.
+ *
+ * The legacy `expr_parity_200.json` was retired in v0.3.0 W3 once v2
+ * stayed green across W1 + W2 (per `docs/v0.3.0-engineering-plan.md`
+ * §11.1 / §13 follow-ups).
  *
  * Regenerate the fixture with:
  *   uv run python framework/tests/cross_runtime/generate_fixture.py
@@ -26,7 +31,7 @@ const FIXTURE_PATH = path.resolve(
 	"tests",
 	"cross_runtime",
 	"fixtures",
-	"expr_parity_200.json",
+	"expr_parity_v2.json",
 );
 
 interface FixtureCase {
@@ -51,8 +56,8 @@ function loadFixture(): FixtureFile {
 describe("expr parity fixture (audit-2026 E-43)", () => {
 	const fixture = loadFixture();
 
-	it("loads exactly 200 cases", () => {
-		expect(fixture.cases).toHaveLength(200);
+	it("loads exactly 250 cases", () => {
+		expect(fixture.cases).toHaveLength(250);
 	});
 
 	it("has unique case ids", () => {
@@ -75,6 +80,7 @@ describe("expr parity fixture (audit-2026 E-43)", () => {
 			"coalesce",
 			"not_null",
 			"composite",
+			"conditional",
 		];
 		for (const tag of required) {
 			expect(tags.has(tag)).toBe(true);

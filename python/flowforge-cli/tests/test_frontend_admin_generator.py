@@ -238,8 +238,21 @@ def test_pipeline_includes_frontend_admin_files() -> None:
 	raw = json.loads(_INSURANCE_BUNDLE.read_text(encoding="utf-8"))
 	files = generate(raw)
 	admin = _admin_files(files)
+	pkg = raw["project"]["package"]
+	# Other per-bundle generators (v0.3.0 W3 / item 18 design tokens)
+	# contribute additional files to the admin tree for theme parity.
+	# This test pins the frontend_admin generator's own contribution, so
+	# subtract those out before comparing against EXPECTED_REL_PATHS.
+	design_token_paths = {
+		"src/design_tokens.css",
+		"src/theme.ts",
+		"tailwind.config.ts",
+	}
 	rel = sorted(
-		f.path[len(f"frontend-admin/{raw['project']['package']}/") :] for f in admin
+		path
+		for f in admin
+		for path in [f.path[len(f"frontend-admin/{pkg}/") :]]
+		if path not in design_token_paths
 	)
 	assert rel == sorted(EXPECTED_REL_PATHS)
 

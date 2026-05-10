@@ -4,6 +4,12 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
+// v0.3.0 W3 / item 18 — design-token side-effect import. Mirrors the
+// customer-facing tree so the admin console reads the same CSS
+// variables (`--color-primary`, `--font-family`, `--radius-*`). A
+// re-run of `flowforge jtbd-generate` against a tweaked
+// `project.design` re-themes both apps in lockstep.
+import "./design_tokens.css";
 
 const container = document.getElementById("root");
 if (!container) {
