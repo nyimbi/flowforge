@@ -1379,11 +1379,17 @@ green before the wave's row(s) here are signed.
       Per ADR-003 the per-JTBD hypothesis seed is computed at
       template-render time as ``int(sha256(jtbd_id)[:8], 16)`` — a
       32-bit pure function of the JTBD id, visible verbatim in the
-      generated test source as ``_SEED = <int>``.  ``derandomize=True``
-      and ``max_examples=200`` are pinned in the same
-      ``@hypothesis.settings(...)`` block so two pytest invocations
-      against the same generated suite produce identical example
-      sequences.  ``tests/audit_2026/test_hypothesis_seed_uniqueness.py``
+      generated test source as ``_SEED = <int>``.  The emitted
+      tests pin the stacked decorator pair
+      ``@hypothesis.seed(_SEED)`` +
+      ``@hypothesis.settings(derandomize=True, max_examples=200, ...)``
+      (``hypothesis.seed`` is a separate decorator from
+      ``hypothesis.settings`` in hypothesis 6.x; ADR-003 was amended
+      in this wave to reflect the correct stacked-decorator syntax —
+      the per-JTBD seed contract is unchanged) so two pytest
+      invocations against the same generated suite produce
+      identical example sequences.
+      ``tests/audit_2026/test_hypothesis_seed_uniqueness.py``
       asserts (1) the seed value matches the ADR-003 sha256 formula,
       (2) no two JTBDs in the same example bundle share a seed
       (32-bit collision check), and (3) the retrofit
@@ -1689,7 +1695,7 @@ green before the wave's row(s) here are signed.
     commit_sha: TBD
 
 - item: W4a-closeout
-  title: "W4a closeout — regen-diff verification, CHANGELOG, signoff rows, gate runs, plan status flip"
+  title: "W4a closeout — regen-diff verification, CHANGELOG, signoff rows, gate runs, plan status flip, ADR-003 syntax correction"
   wave: W4a
   property: Quality
   worker: worker-w4a-closeout
@@ -1699,6 +1705,7 @@ green before the wave's row(s) here are signed.
       - "CHANGELOG.md (## [0.3.0-engr.4a] — Wave 4a entries for items 3, 4, 5, 14, the new property-coverage gate, and the example bundle baselines note)"
       - "docs/v0.3.0-engineering/signoff-checklist.md (W4a rows appended for items 3, 4, property-coverage-gate, 5, 14, and this closeout)"
       - "docs/v0.3.0-engineering-plan.md (§7 status table — W4a flipped from pending to ✅ completed)"
+      - "docs/v0.3.0-engineering/adr/ADR-003-hypothesis-seed-pinning.md (example syntax corrected from `settings(seed=N)` to the stacked `@seed(N) @settings(...)` form — the per-JTBD seed contract `int(sha256(jtbd_id)[:8], 16)` stays unchanged; bug flagged by worker-reachability on worker-property's implementation)"
     acceptance_tests:
       - "scripts/ci/regen_flag_flip.sh — 6/6 byte-identical (3 examples × 2 form_renderer flag values)"
     pre_deploy_checks:

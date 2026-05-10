@@ -37,12 +37,15 @@
   either commits effects atomically or restores the pre-fire
   snapshot, and no orphan entities outlive their owning fire. Per
   ADR-003 (`docs/v0.3.0-engineering/adr/ADR-003-hypothesis-seed-pinning.md`)
-  every emitted test pins
-  `@hypothesis.settings(seed=N, derandomize=True, max_examples=200)`
+  every emitted test pins the stacked decorator pair
+  `@hypothesis.seed(N) @hypothesis.settings(derandomize=True, max_examples=200, ...)`
   where `N = int(sha256(jtbd_id)[:8], 16)` — 32 bits, distinct per
   JTBD, stable under refactor, and visible in generated source
   because the seed is computed at template-render time, not
-  test-run time. New CI gate
+  test-run time. (`hypothesis.seed` is a separate decorator from
+  `hypothesis.settings` in hypothesis 6.x; ADR-003 was amended in
+  this wave to reflect the correct stacked-decorator syntax — the
+  per-JTBD seed contract is unchanged.) New CI gate
   `make audit-2026-property-coverage` enforces two contracts: (1)
   every generator added in W0-W3 has at least one matching
   `tests/property/generators/test_<generator>_properties.py`
