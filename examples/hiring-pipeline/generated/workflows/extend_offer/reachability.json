@@ -1,0 +1,73 @@
+{
+  "initial_state": "intake",
+  "jtbd_id": "extend_offer",
+  "jtbd_title": "Extend an offer",
+  "summary": {
+    "reachable": 6,
+    "total": 6,
+    "unreachable": 0,
+    "with_unwritable_vars": 1
+  },
+  "transitions": [
+    {
+      "event": "approve",
+      "from_state": "review",
+      "guard_vars": [],
+      "id": "extend_offer_approve",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "done"
+    },
+    {
+      "event": "approve",
+      "from_state": "escalated",
+      "guard_vars": [],
+      "id": "extend_offer_escalated_approve",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "done"
+    },
+    {
+      "event": "submit",
+      "from_state": "intake",
+      "guard_vars": [],
+      "id": "extend_offer_submit",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "review"
+    },
+    {
+      "event": "submit",
+      "from_state": "intake",
+      "guard_vars": [
+        "counter_offer"
+      ],
+      "id": "extend_offer_counter_offer",
+      "priority": 5,
+      "reachable": true,
+      "to_state": "compensation_approval",
+      "unwritable_vars": [
+        "counter_offer"
+      ],
+      "witness": "counter_offer=true"
+    },
+    {
+      "event": "reject",
+      "from_state": "review",
+      "guard_vars": [],
+      "id": "extend_offer_offer_expired_reject",
+      "priority": 6,
+      "reachable": true,
+      "to_state": "rejected"
+    },
+    {
+      "event": "escalate",
+      "from_state": "review",
+      "guard_vars": [],
+      "id": "extend_offer_escalate",
+      "priority": 10,
+      "reachable": true,
+      "to_state": "escalated"
+    }
+  ]
+}

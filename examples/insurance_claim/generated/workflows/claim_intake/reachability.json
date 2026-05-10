@@ -1,0 +1,88 @@
+{
+  "initial_state": "intake",
+  "jtbd_id": "claim_intake",
+  "jtbd_title": "File an insurance claim (FNOL)",
+  "summary": {
+    "reachable": 7,
+    "total": 7,
+    "unreachable": 0,
+    "with_unwritable_vars": 2
+  },
+  "transitions": [
+    {
+      "event": "approve",
+      "from_state": "review",
+      "guard_vars": [],
+      "id": "claim_intake_approve",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "done"
+    },
+    {
+      "event": "approve",
+      "from_state": "escalated",
+      "guard_vars": [],
+      "id": "claim_intake_escalated_approve",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "done"
+    },
+    {
+      "event": "submit",
+      "from_state": "intake",
+      "guard_vars": [],
+      "id": "claim_intake_submit",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "review"
+    },
+    {
+      "event": "submit",
+      "from_state": "intake",
+      "guard_vars": [
+        "large_loss"
+      ],
+      "id": "claim_intake_large_loss",
+      "priority": 5,
+      "reachable": true,
+      "to_state": "senior_triage",
+      "unwritable_vars": [
+        "large_loss"
+      ],
+      "witness": "large_loss=true"
+    },
+    {
+      "event": "reject",
+      "from_state": "review",
+      "guard_vars": [],
+      "id": "claim_intake_lapsed_reject",
+      "priority": 6,
+      "reachable": true,
+      "to_state": "rejected"
+    },
+    {
+      "event": "compensate",
+      "from_state": "review",
+      "guard_vars": [
+        "fraud_detected"
+      ],
+      "id": "claim_intake_fraud_detected_compensate",
+      "priority": 7,
+      "reachable": true,
+      "to_state": "compensated",
+      "unwritable_vars": [
+        "fraud_detected"
+      ],
+      "witness": "fraud_detected=true"
+    },
+    {
+      "event": "escalate",
+      "from_state": "review",
+      "guard_vars": [],
+      "id": "claim_intake_escalate",
+      "priority": 10,
+      "reachable": true,
+      "to_state": "escalated"
+    }
+  ]
+}

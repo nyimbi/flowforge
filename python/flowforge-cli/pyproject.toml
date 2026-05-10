@@ -38,6 +38,20 @@ dependencies = [
 	"jinja2>=3.1",
 	"pyyaml>=6.0",
 	"jsonschema>=4.0",
+	# v0.3.0 W4a / item 14 — Faker drives the per-bundle seed-data
+	# generator's runtime. Pinned with an upper bound so the generated
+	# seed modules' deterministic-seed contract stays stable across
+	# patch upgrades; the generator emits ``Faker().seed_instance(N)``
+	# at module load time so the runtime distribution of values is
+	# byte-stable for a given Faker minor version.
+	"faker>=25,<37",
+	# v0.3.0 W4a / item 3 (ADR-003): the per-JTBD property suite emitted
+	# by ``flowforge jtbd-generate`` imports ``hypothesis`` at test-run
+	# time, so the CLI carries it as a runtime dep. The major-version
+	# pin bounds cross-version shrink-behaviour drift, the dominant
+	# remaining source of property-test non-determinism once the seed
+	# is fixed at generation time.
+	"hypothesis>=6.100,<7.0",
 ]
 
 [project.optional-dependencies]
@@ -51,6 +65,24 @@ test = [
 	"pytest>=7",
 	"pytest-asyncio>=0.23",
 	"z3-solver>=4.13",
+]
+# v0.3.0 W4a / item 4 — guard-aware reachability checker.
+#
+# Per ADR-004 (docs/v0.3.0-engineering/adr/ADR-004-z3-solver-opt-in-extra.md),
+# z3-solver is an opt-in runtime extra with a HARD version pin: SAT
+# solvers are deterministic per-version but not stable across versions,
+# so unpinned z3 produces different counter-examples for the same
+# constraint and breaks byte-identical regen.
+#
+# Hosts opt in via:
+#     pip install 'flowforge-cli[reachability]'
+#     uv pip install 'flowforge-cli[reachability]'
+#
+# Without the extra, the per-JTBD reachability generator emits the
+# documented placeholder file (workflows/<id>/reachability_skipped.txt)
+# instead of running z3, so regen stays byte-stable either way.
+reachability = [
+	"z3-solver==4.13.4.0",
 ]
 
 [project.scripts]

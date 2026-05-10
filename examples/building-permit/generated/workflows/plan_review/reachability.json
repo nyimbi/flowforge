@@ -1,0 +1,55 @@
+{
+  "initial_state": "intake",
+  "jtbd_id": "plan_review",
+  "jtbd_title": "Review Building Plans for Code Compliance",
+  "summary": {
+    "reachable": 4,
+    "total": 4,
+    "unreachable": 0,
+    "with_unwritable_vars": 1
+  },
+  "transitions": [
+    {
+      "event": "approve",
+      "from_state": "review",
+      "guard_vars": [],
+      "id": "plan_review_approve",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "done"
+    },
+    {
+      "event": "submit",
+      "from_state": "intake",
+      "guard_vars": [],
+      "id": "plan_review_submit",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "review"
+    },
+    {
+      "event": "request_more_info",
+      "from_state": "review",
+      "guard_vars": [],
+      "id": "plan_review_corrections_needed_loop",
+      "priority": 5,
+      "reachable": true,
+      "to_state": "intake"
+    },
+    {
+      "event": "submit",
+      "from_state": "intake",
+      "guard_vars": [
+        "major_variance_required"
+      ],
+      "id": "plan_review_major_variance_required",
+      "priority": 6,
+      "reachable": true,
+      "to_state": "variance_review",
+      "unwritable_vars": [
+        "major_variance_required"
+      ],
+      "witness": "major_variance_required=true"
+    }
+  ]
+}

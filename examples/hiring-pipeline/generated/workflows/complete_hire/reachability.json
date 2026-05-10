@@ -1,0 +1,40 @@
+{
+  "initial_state": "intake",
+  "jtbd_id": "complete_hire",
+  "jtbd_title": "Complete hire and onboard",
+  "summary": {
+    "reachable": 3,
+    "total": 3,
+    "unreachable": 0,
+    "with_unwritable_vars": 0
+  },
+  "transitions": [
+    {
+      "event": "approve",
+      "from_state": "review",
+      "guard_vars": [],
+      "id": "complete_hire_approve",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "done"
+    },
+    {
+      "event": "submit",
+      "from_state": "intake",
+      "guard_vars": [],
+      "id": "complete_hire_submit",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "review"
+    },
+    {
+      "event": "reject",
+      "from_state": "review",
+      "guard_vars": [],
+      "id": "complete_hire_candidate_withdrawal_reject",
+      "priority": 5,
+      "reachable": true,
+      "to_state": "rejected"
+    }
+  ]
+}

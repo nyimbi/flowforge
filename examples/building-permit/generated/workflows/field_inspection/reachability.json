@@ -1,0 +1,58 @@
+{
+  "initial_state": "intake",
+  "jtbd_id": "field_inspection",
+  "jtbd_title": "Conduct Field Inspection",
+  "summary": {
+    "reachable": 5,
+    "total": 5,
+    "unreachable": 0,
+    "with_unwritable_vars": 0
+  },
+  "transitions": [
+    {
+      "event": "approve",
+      "from_state": "review",
+      "guard_vars": [],
+      "id": "field_inspection_approve",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "done"
+    },
+    {
+      "event": "approve",
+      "from_state": "escalated",
+      "guard_vars": [],
+      "id": "field_inspection_escalated_approve",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "done"
+    },
+    {
+      "event": "submit",
+      "from_state": "intake",
+      "guard_vars": [],
+      "id": "field_inspection_submit",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "review"
+    },
+    {
+      "event": "reject",
+      "from_state": "review",
+      "guard_vars": [],
+      "id": "field_inspection_failed_inspection_reject",
+      "priority": 5,
+      "reachable": true,
+      "to_state": "rejected"
+    },
+    {
+      "event": "escalate",
+      "from_state": "review",
+      "guard_vars": [],
+      "id": "field_inspection_escalate",
+      "priority": 10,
+      "reachable": true,
+      "to_state": "escalated"
+    }
+  ]
+}

@@ -1,5 +1,184 @@
 # flowforge changelog
 
+## [0.3.0-engr.4a] — Wave 4a
+
+> Fifth wave of the v0.3.0 engineering track per
+> `docs/v0.3.0-engineering-plan.md` §7. W4a closes the backend
+> reliability backlog: per-JTBD property tests with pinned hypothesis
+> seeds (item 3), guard-aware reachability checking with the optional
+> `flowforge-cli[reachability]` z3 extra (item 4), the SLA stress
+> harness (item 5), and Faker-driven seed data (item 14). One new
+> per-PR gate joins the suite — `make audit-2026-property-coverage`
+> asserts every generator added in W0-W3 has a hypothesis property
+> test plus that every emitted per-JTBD property test pins the
+> ADR-003 seed format. Each generator preserves the byte-identical
+> regen contract on the three example bundles across both
+> `form_renderer` flag values: the cumulative regen-diff count is
+> 6/6 byte-identical at closeout time via
+> `scripts/ci/regen_flag_flip.sh`. Four new generated-artifact
+> classes join the byte-identical regen baseline per example —
+> `backend/tests/<jtbd>/test_<jtbd>_properties.py` (item 3 per-JTBD),
+> `workflows/<jtbd>/reachability.json` or
+> `reachability_skipped.txt` plus per-bundle
+> `workflows/reachability_summary.md` (item 4),
+> `backend/tests/load/<jtbd>/{k6_test.js,locust_test.py}` (item 5
+> per-JTBD with `sla.breach_seconds`), and per-bundle
+> `backend/seeds/<package>/seed_<jtbd>.py` (item 14).
+
+- **[Reliable]** (v0.3.0 W4a / item 3, ADR-003) Property-test bank
+  per JTBD. New per-JTBD generator
+  `flowforge_cli.jtbd.generators.property_tests` emits
+  `backend/tests/<jtbd>/test_<jtbd>_properties.py` per JTBD. Each
+  emitted module pins a hypothesis stateful machine over the
+  synthesised state machine and asserts the four runtime invariants
+  the engine already enforces structurally — every legal event
+  sequence from the initial state terminates, the audit chain stays
+  monotonic (one ordinal increment per fire, no gaps), every fire
+  either commits effects atomically or restores the pre-fire
+  snapshot, and no orphan entities outlive their owning fire. Per
+  ADR-003 (`docs/v0.3.0-engineering/adr/ADR-003-hypothesis-seed-pinning.md`)
+  every emitted test pins
+  `@hypothesis.settings(seed=N, derandomize=True, max_examples=200)`
+  where `N = int(sha256(jtbd_id)[:8], 16)` — 32 bits, distinct per
+  JTBD, stable under refactor, and visible in generated source
+  because the seed is computed at template-render time, not
+  test-run time. New CI gate
+  `make audit-2026-property-coverage` enforces two contracts: (1)
+  every generator added in W0-W3 has at least one matching
+  `tests/property/generators/test_<generator>_properties.py`
+  hand-authored property test (13 generators retrofit:
+  `compensation_handlers`, `migration_safety`, `openapi`, `diagram`,
+  `frontend_admin`, `restore_runbook`, `idempotency`,
+  `analytics_taxonomy`, `frontend_cli`, `frontend_email`,
+  `frontend_slack`, `lineage`, `design_tokens`), and (2)
+  `tests/audit_2026/test_hypothesis_seed_uniqueness.py` walks
+  every emitted seed and asserts no two JTBDs in the same example
+  bundle share a 32-bit seed. `hypothesis>=6.100,<7.0` joins
+  `flowforge-cli` runtime deps so the generated tests stay
+  importable on every host install. Reference:
+  `docs/improvements.md` item 3,
+  `docs/v0.3.0-engineering/adr/ADR-003-hypothesis-seed-pinning.md`,
+  `docs/v0.3.0-engineering-plan.md` §6 (Property layer) + §7 W4a.
+
+- **[Reliable, Functional]** (v0.3.0 W4a / item 4, ADR-004)
+  Guard-aware reachability checker. New per-JTBD generator
+  `flowforge_cli.jtbd.generators.reachability` and per-bundle
+  aggregator `flowforge_cli.jtbd.generators.reachability_summary`
+  evaluate guards symbolically and emit one of two artefacts per
+  JTBD: `workflows/<jtbd>/reachability.json` (when the optional z3
+  extra is available) with the per-transition reachability verdict
+  + flagged guards that read `context.X` paths no transition
+  writes, or `workflows/<jtbd>/reachability_skipped.txt` (when z3
+  is not importable) with the documented ADR-004 placeholder text.
+  Per-bundle `workflows/reachability_summary.md` aggregates each
+  JTBD's reachability state into a single operator-facing report.
+  Per ADR-004
+  (`docs/v0.3.0-engineering/adr/ADR-004-z3-solver-opt-in-extra.md`)
+  `z3-solver` is removed from `[dependency-groups] dev` in the
+  repo-root `pyproject.toml` and added to a new
+  `[project.optional-dependencies] reachability = ["z3-solver==4.13.4.0"]`
+  section in `flowforge-cli/pyproject.toml` with a HARD pin to
+  guarantee replay-determinism of the SAT search across hosts.
+  Repo-root `[dependency-groups] dev` now depends on
+  `flowforge-cli[reachability]` so developer installs continue to
+  carry z3 by default. The `flowforge pre-upgrade-check
+  --check-pyproject` subcheck warns if `z3-solver` is referenced
+  outside the `[reachability]` extra so the boundary cannot drift
+  silently. New Make target `make audit-2026-reachability` runs
+  the test suite when the extra is installed and reports SKIP with
+  the install hint otherwise. Reference: `docs/improvements.md`
+  item 4,
+  `docs/v0.3.0-engineering/adr/ADR-004-z3-solver-opt-in-extra.md`,
+  `docs/v0.3.0-engineering-plan.md` §7 W4a.
+
+- **[Functional]** (v0.3.0 W4a / item 14) Faker-driven seed data —
+  per-bundle generator. New `flowforge_cli.jtbd.generators.seed_data`
+  emits `backend/seeds/<package>/seed_<jtbd>.py` per JTBD plus the
+  `__init__.py` package marker and a `__main__.py` entrypoint so
+  `python -m seeds.<package>` (and the new top-level `make seed`
+  target) walks every per-JTBD seed module through the generated
+  service layer. Each per-JTBD module instantiates `Faker` with a
+  deterministic 32-bit seed `int(sha256("<package>:<jtbd_id>")[:8],
+  16)` so two `seed()` calls against the same database produce
+  byte-identical seed rows. Field-kind dispatch covers the full
+  `transforms.SA_COLUMN_TYPE` set (text / textarea / email / phone /
+  address / date / datetime / money / number / boolean / enum /
+  signature / file / party_ref / document_ref) with name-shaped text
+  fields routed to `faker.name()` and validation `min`/`max`/`enum`
+  ranges honoured when present. Ten rows per reachable forward state
+  per JTBD: the generator BFS-walks the synthesised transitions to
+  derive the post-`submit` event suffix that lands an entity in each
+  state, skipping unreachable states (e.g. guard-protected
+  `compensated`) rather than emitting sequences that would fail at
+  runtime. Loaded through the generated `<Class>Service` so RLS,
+  audit chain, and permissions engage exactly as a real client would
+  — never bypasses the engine. New runtime dep `faker>=25,<37` pinned
+  in `flowforge-cli` so the generated seed modules'
+  deterministic-seed contract stays stable across patch upgrades.
+  Each example regenerates the new `backend/seeds/<package>/` tree
+  byte-identical for both `form_renderer` flag values (the seed
+  modules don't read the flag — Principle 2 / per-bundle
+  aggregation). Reference: `docs/improvements.md` item 14,
+  `docs/v0.3.0-engineering-plan.md` §7 W4a.
+
+- **[Reliable]** (v0.3.0 W4a / item 5) SLA stress harness — k6 +
+  Locust per JTBD. New per-JTBD generator
+  `flowforge_cli.jtbd.generators.sla_loadtest` emits
+  `backend/tests/load/<jtbd>/k6_test.js` and
+  `backend/tests/load/<jtbd>/locust_test.py` for every JTBD declaring
+  `sla.breach_seconds`. The harnesses fire `POST /<url_segment>/events`
+  at the rate implied by the breach budget (bucketed VUs: 50 for
+  budgets ≤ 60s, 25 for 60s–3600s, 10 for longer) and assert per-event
+  p95 latency stays under a deterministic ceiling (1% of budget,
+  clamped to [100ms, 2000ms]). JTBDs without `sla.breach_seconds` skip
+  silently so existing fixtures stay byte-identical. Default `TARGET`
+  points at the in-memory port-fakes harness so local loops are fast;
+  re-point at staging via `TARGET=https://staging.example.com`. New
+  Make target `audit-2026-sla-stress` runs **nightly only** via the
+  `.github/workflows/audit-2026.yml` `schedule:` cron (per
+  `docs/v0.3.0-engineering-plan.md` §10 — per-PR runs would be too
+  slow and too flaky). The wrapper
+  `scripts/audit_2026/run_sla_stress.sh` walks the generated harness
+  trees and skips with a clear reason when k6 or Locust are not on
+  PATH (so the per-PR runner never trips on the absent binaries).
+  Each example regenerates the new `backend/tests/load/<jtbd>/` trees
+  byte-identical for both `form_renderer` flag values, raising the
+  combined per-example regen-diff surface again. Reference:
+  `docs/improvements.md` item 5,
+  `docs/v0.3.0-engineering-plan.md` §7 W4a.
+
+- **(v0.3.0 W4a)** New CI gate
+  `make audit-2026-property-coverage`. Layered audit subtarget at
+  `Makefile` runs `tests/audit_2026/test_property_coverage_gate.py`
+  (asserts every generator added in W0-W3 has at least one
+  `tests/property/generators/test_<gen>_properties.py` retrofit
+  property test — 13/13 today) then
+  `tests/audit_2026/test_hypothesis_seed_uniqueness.py` (asserts
+  every emitted per-JTBD property test pins
+  `_SEED = int(sha256(jtbd_id)[:8], 16)` per ADR-003 and no two
+  JTBDs in the same example bundle share a 32-bit seed). The gate
+  is per-PR, sharded under the existing
+  `audit-2026-property` matrix slot, no new workflow job. Adding a
+  new W4-onward generator that lacks a retrofit property test
+  fails the gate loud with the missing path listed. Reference:
+  `docs/v0.3.0-engineering-plan.md` §6 Property layer + §7 W4a.
+
+- **(v0.3.0 W4a)** Example bundle baselines: every example
+  regenerates the new W4a surface byte-identical against the
+  checked-in tree — per-JTBD `backend/tests/<jtbd>/test_<jtbd>_properties.py`
+  (item 3, all 11 JTBDs across the three examples), per-JTBD
+  `workflows/<jtbd>/reachability.json` plus per-bundle
+  `workflows/reachability_summary.md` (item 4, full path when z3
+  is on the developer install per ADR-004), per-JTBD
+  `backend/tests/load/<jtbd>/{k6_test.js,locust_test.py}` for every
+  JTBD declaring `sla.breach_seconds` (item 5), and per-bundle
+  `backend/seeds/<package>/{__init__.py,__main__.py,seed_<jtbd>.py}`
+  (item 14). The cross-flag self-determinism check
+  (`scripts/ci/regen_flag_flip.sh`) reports 6/6 byte-identical (3
+  examples × 2 `form_renderer` values) at closeout time — pinned
+  by the W4a closeout protocol per
+  `docs/v0.3.0-engineering-plan.md` §7.
+
 ## [0.3.0-engr.3] — Wave 3
 
 > Fourth wave of the v0.3.0 engineering track per

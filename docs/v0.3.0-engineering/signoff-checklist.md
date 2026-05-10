@@ -1340,6 +1340,411 @@ green before the wave's row(s) here are signed.
 
 ---
 
+## Wave W4a — Reliability backlog close-outs
+
+```yaml
+- item: W4a-item-3
+  title: "Property-test bank per JTBD with ADR-003 pinned hypothesis seeds + property-coverage gate + retrofit"
+  wave: W4a
+  property: Reliable
+  worker: worker-property
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/property_tests.py (NEW — per-JTBD generator)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/templates/tests/test_property.py.j2 (NEW — hypothesis stateful machine template)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/_fixture_registry.py (CONSUMES entry for property_tests)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/pipeline.py (registered in _PER_JTBD_GENERATORS)"
+      - "python/flowforge-cli/pyproject.toml (added hypothesis>=6.100,<7.0 runtime dep)"
+      - "tests/property/generators/{_bundle_factory.py,test_<13 generators>_properties.py} (NEW — retrofit property tests for every W0-W3 generator)"
+      - "tests/audit_2026/test_property_coverage_gate.py (NEW — every-generator-has-a-property-test gate)"
+      - "tests/audit_2026/test_hypothesis_seed_uniqueness.py (NEW — ADR-003 seed format + 32-bit collision check)"
+      - "Makefile (audit-2026-property-coverage target wired)"
+      - "examples/insurance_claim/generated/backend/tests/claim_intake/test_claim_intake_properties.py (NEW)"
+      - "examples/building-permit/generated/backend/tests/<5 jtbds>/test_<jtbd>_properties.py (NEW × 5)"
+      - "examples/hiring-pipeline/generated/backend/tests/<5 jtbds>/test_<jtbd>_properties.py (NEW × 5)"
+      - "CHANGELOG.md (## [0.3.0-engr.4a] entry for item 3 + property-coverage gate)"
+    acceptance_tests:
+      - "tests/audit_2026/test_property_coverage_gate.py::test_every_required_generator_has_a_property_test — green (13/13 generators covered)"
+      - "tests/audit_2026/test_hypothesis_seed_uniqueness.py — 3/3 green (ADR-003 seed format, no intra-bundle collisions, retrofit seed pattern)"
+      - "tests/property/generators/test_<13 generators>_properties.py — 13/13 green"
+    pre_deploy_checks:
+      - "make audit-2026-property-coverage — green"
+      - "scripts/ci/regen_flag_flip.sh — 6/6 byte-identical (3 examples × 2 form_renderer flag values)"
+      - "make audit-2026-conformance — 11/11 invariants pass"
+      - "bash scripts/ci/ratchets/check.sh — 7/7 PASS"
+      - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
+      - "uv run pytest python/flowforge-cli/tests/ -q — 525/525 green"
+    determinism_proof: |
+      Per ADR-003 the per-JTBD hypothesis seed is computed at
+      template-render time as ``int(sha256(jtbd_id)[:8], 16)`` — a
+      32-bit pure function of the JTBD id, visible verbatim in the
+      generated test source as ``_SEED = <int>``.  ``derandomize=True``
+      and ``max_examples=200`` are pinned in the same
+      ``@hypothesis.settings(...)`` block so two pytest invocations
+      against the same generated suite produce identical example
+      sequences.  ``tests/audit_2026/test_hypothesis_seed_uniqueness.py``
+      asserts (1) the seed value matches the ADR-003 sha256 formula,
+      (2) no two JTBDs in the same example bundle share a seed
+      (32-bit collision check), and (3) the retrofit
+      hand-authored tests under ``tests/property/generators/``
+      use a parallel deterministic seed pattern keyed on the
+      generator name so they also stay byte-stable.
+    cross_runtime_parity_proof: |
+      Generator does not touch the expression evaluator. Hypothesis
+      stateful machines operate on the synthesised Python-side state
+      machine only; the TS evaluator is untouched. No fixture v2
+      churn required; invariant 5 stays green against the existing
+      ``expr_parity_v2.json`` corpus.
+    rollback_plan: |
+      git revert <sha>; the rollback removes the per-JTBD property
+      test trees from each example's generated/ subdir, the new
+      generator + template, the registry/pipeline entries, the
+      retrofit tests under tests/property/generators/, the
+      seed-uniqueness + coverage gate tests, the new Make target,
+      and the hypothesis pyproject pin.  Property tests are purely
+      additive; reverting after merge is mechanical.  Hypothesis
+      stays installed on hosts that haven't re-resolved their
+      lockfile — no breaking change.
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+
+- item: W4a-item-4
+  title: "Guard-aware reachability checker — z3 opt-in extra (ADR-004) + per-JTBD + per-bundle summary"
+  wave: W4a
+  property: [Reliable, Functional]
+  worker: worker-reachability
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/reachability.py (NEW — per-JTBD generator)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/reachability_summary.py (NEW — per-bundle aggregator)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/_fixture_registry.py (CONSUMES entries for reachability + reachability_summary)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/pipeline.py (registered in _PER_JTBD_GENERATORS + _PER_BUNDLE_GENERATORS)"
+      - "python/flowforge-cli/pyproject.toml ([project.optional-dependencies] reachability = [\"z3-solver==4.13.4.0\"])"
+      - "pyproject.toml (z3-solver removed from [dependency-groups] dev; replaced by flowforge-cli[reachability])"
+      - "python/flowforge-cli/src/flowforge_cli/commands/pre_upgrade_check.py (NEW --check-pyproject subcheck for z3 placement)"
+      - "python/flowforge-cli/tests/test_pre_upgrade_check.py (extended with --check-pyproject row)"
+      - "python/flowforge-cli/tests/test_reachability_generator.py (NEW — 15 unit tests covering both branches via z3-import mock)"
+      - "Makefile (audit-2026-reachability target with z3-available branch + SKIP-with-install-hint branch)"
+      - "examples/insurance_claim/generated/workflows/claim_intake/reachability.json + examples/insurance_claim/generated/workflows/reachability_summary.md (NEW)"
+      - "examples/building-permit/generated/workflows/<5 jtbds>/reachability.json + examples/building-permit/generated/workflows/reachability_summary.md (NEW × 5 + 1)"
+      - "examples/hiring-pipeline/generated/workflows/<5 jtbds>/reachability.json + examples/hiring-pipeline/generated/workflows/reachability_summary.md (NEW × 5 + 1)"
+      - "CHANGELOG.md (## [0.3.0-engr.4a] entry for item 4)"
+    acceptance_tests:
+      - "python/flowforge-cli/tests/test_reachability_generator.py — 15/15 green (z3-available path, z3-missing placeholder, byte-stable summary aggregator, fixture-registry parity, examples emit artefacts, modules import cleanly)"
+      - "python/flowforge-cli/tests/test_pre_upgrade_check.py — green (--check-pyproject row)"
+    pre_deploy_checks:
+      - "make audit-2026-reachability — green when z3 extra is installed; reports SKIP with install hint otherwise"
+      - "scripts/ci/regen_flag_flip.sh — 6/6 byte-identical (3 examples × 2 form_renderer flag values)"
+      - "make audit-2026-conformance — 11/11 invariants pass"
+      - "bash scripts/ci/ratchets/check.sh — 7/7 PASS"
+      - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
+    determinism_proof: |
+      Per ADR-004 the per-JTBD generator emits exactly one of two
+      artefacts: ``reachability.json`` when ``import z3`` succeeds
+      (full per-transition verdict) or
+      ``reachability_skipped.txt`` with the documented placeholder
+      text otherwise.  The placeholder body is a frozen string
+      constant in the generator module; the JSON path sorts
+      transitions by ``(state_id, event)`` and writes z3 verdicts
+      in canonical JSON.  Per-bundle ``reachability_summary.md``
+      iterates JTBDs in declaration order with a single
+      ``status`` column (REACHABLE / UNREACHABLE / SKIPPED).  Two
+      regens against the same bundle yield byte-identical output
+      regardless of which branch fired; covered by
+      ``test_byte_identical_regen_without_z3`` +
+      ``test_summary_aggregator_marks_skipped_when_z3_missing``.
+    cross_runtime_parity_proof: |
+      Reachability evaluation is Python-side only (z3 runs on the
+      host that invokes ``flowforge jtbd-generate``).  The TS
+      evaluator does not consume the artefacts.  No fixture v2
+      churn required; invariant 5 stays green.
+    rollback_plan: |
+      git revert <sha>; the rollback removes the per-JTBD +
+      per-bundle reachability artefacts from each example, the
+      two new generator modules, the pyproject extras
+      reorganisation (reverting puts z3-solver back into
+      [dependency-groups] dev — no host change because
+      [dependency-groups] dev was already installed by every
+      developer install), the pre-upgrade-check subcheck, and the
+      Make target.  The reachability artefacts are purely
+      advisory — no runtime code consumes them — so reverting is
+      mechanical and safe.  Hosts that opted into
+      ``flowforge-cli[reachability]`` keep z3 installed until
+      ``uv sync`` re-resolves; nothing breaks in the meantime.
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+
+- item: W4a-property-coverage-gate
+  title: "Property-coverage gate — every W0-W3 generator has a hypothesis property test + ADR-003 seed-uniqueness"
+  wave: W4a
+  property: Reliable
+  worker: worker-property
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "tests/audit_2026/test_property_coverage_gate.py (NEW — REQUIRED_GENERATORS = 13 W0-W3 generators; one match per generator under tests/property/generators/test_<gen>_properties.py)"
+      - "tests/audit_2026/test_hypothesis_seed_uniqueness.py (NEW — ADR-003 seed format check + 32-bit no-collision pin)"
+      - "Makefile (audit-2026-property-coverage target — runs both gate tests)"
+    test_path: "tests/audit_2026/test_property_coverage_gate.py, tests/audit_2026/test_hypothesis_seed_uniqueness.py"
+    acceptance_criterion: |
+      ``make audit-2026-property-coverage`` reports green when (1)
+      every generator in REQUIRED_GENERATORS has at least one
+      hand-authored property test under
+      ``tests/property/generators/test_<gen>_properties.py`` and
+      (2) every emitted per-JTBD property test pins
+      ``_SEED = int(sha256(jtbd_id)[:8], 16)`` per ADR-003 with no
+      32-bit collisions within an example bundle.  Adding a new
+      W4-onward generator that lacks a retrofit fails the gate
+      loud with the missing path listed.
+    pre_deploy_checks:
+      - "make audit-2026-property-coverage — green"
+      - "make audit-2026-conformance — 11/11 invariants pass (no new invariant in W4a; property-coverage stays a gate, not an invariant)"
+      - "bash scripts/ci/ratchets/check.sh — 7/7 PASS"
+    rollback_plan: |
+      git revert <sha>; the gate is purely additive — two test
+      files under tests/audit_2026/ plus the Make target.
+      Reverting removes the gate; the retrofit property tests
+      under tests/property/generators/ stay in place and continue
+      to run under the existing audit-2026-property matrix slot.
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+
+- item: W4a-item-5
+  title: "SLA stress harness — k6 + Locust per JTBD (nightly cadence)"
+  wave: W4a
+  property: Reliable
+  worker: worker-sla
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/sla_loadtest.py (NEW — per-JTBD generator)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/_fixture_registry.py (CONSUMES entry for sla_loadtest)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/pipeline.py (registered in _PER_JTBD_GENERATORS)"
+      - "python/flowforge-cli/tests/test_sla_loadtest_generator.py (NEW — 37 unit tests)"
+      - "scripts/audit_2026/run_sla_stress.sh (NEW — nightly wrapper, skips with reason when k6/locust absent)"
+      - "Makefile (audit-2026-sla-stress target — nightly only)"
+      - ".github/workflows/audit-2026.yml (schedule: cron + audit-2026-sla-stress job gated on schedule event)"
+      - "examples/insurance_claim/generated/backend/tests/load/claim_intake/{k6_test.js,locust_test.py} (NEW)"
+      - "examples/building-permit/generated/backend/tests/load/<5 jtbds>/{k6_test.js,locust_test.py} (NEW)"
+      - "examples/hiring-pipeline/generated/backend/tests/load/<5 jtbds>/{k6_test.js,locust_test.py} (NEW)"
+      - "CHANGELOG.md (## [0.3.0-engr.4a] entry for item 5)"
+    acceptance_tests:
+      - "python/flowforge-cli/tests/test_sla_loadtest_generator.py — 37/37 green"
+    pre_deploy_checks:
+      - "bash scripts/check_all.sh step 8 (regen-diff) — 3/3 examples byte-identical"
+      - "scripts/ci/regen_flag_flip.sh — 6/6 byte-identical (3 examples × 2 form_renderer flag values)"
+      - "make audit-2026-conformance — 11/11 invariants pass"
+      - "bash scripts/ci/ratchets/check.sh — 7/7 PASS"
+      - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
+    determinism_proof: |
+      Pure-functional string assembly. ``_derive_load_params`` is a
+      total deterministic function of ``sla.breach_seconds``; the k6
+      / Locust scripts are line-by-line list joins with no random
+      ids, no timestamps, no dict iteration. JTBDs without
+      ``sla.breach_seconds`` skip silently (empty list return), so
+      pre-W4a fixtures regen byte-identically. Both
+      ``form_renderer`` flag values produce identical SLA harness
+      output (the harness is invariant to that flag); the
+      ``test_form_renderer_flag_does_not_affect_sla_harness`` test
+      pins this so the regen-flag-flip gate keeps producing 6/6
+      byte-identical matches.
+    cadence_proof: |
+      Per-PR runs are excluded by the ``if: github.event_name == 'schedule'``
+      gate in .github/workflows/audit-2026.yml. The wrapper script
+      additionally skips with a clear reason if k6/locust aren't on
+      PATH, so any ad-hoc invocation in a non-nightly context exits
+      0 cleanly. Matches docs/v0.3.0-engineering-plan.md §10:
+      "SLA stress harness (item 5) runs nightly; not per-PR."
+    rollback_plan: |
+      git revert <sha>; the rollback removes the per-JTBD harness
+      tree from each example's generated/ subdir + the new wrapper
+      + Make target + workflow job + the registry/pipeline
+      entries. The SLA harness is purely additive (skip-silently
+      for SLA-less JTBDs), so reverting after merge is mechanical
+      and safe.
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+
+- item: W4a-item-14
+  title: "Faker-driven seed data — per-bundle generator + make seed target"
+  wave: W4a
+  property: Functional
+  worker: worker-seed
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/seed_data.py (NEW — per-bundle generator)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/templates/seed_data.py.j2 (NEW)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/_fixture_registry.py (CONSUMES entry for seed_data)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/pipeline.py (registered in _PER_BUNDLE_GENERATORS)"
+      - "python/flowforge-cli/pyproject.toml (added faker>=25,<37 runtime dep)"
+      - "python/flowforge-cli/tests/test_jtbd_seed_data.py (NEW — 22 unit tests)"
+      - "Makefile (new top-level make seed target with SEED_EXAMPLE / SEED_PACKAGE knobs)"
+      - "examples/insurance_claim/generated/backend/seeds/insurance_claim_demo/{__init__.py,__main__.py,seed_claim_intake.py} (NEW)"
+      - "examples/building-permit/generated/backend/seeds/building_permit/{__init__.py,__main__.py,seed_<5 jtbds>.py} (NEW)"
+      - "examples/hiring-pipeline/generated/backend/seeds/hiring_pipeline/{__init__.py,__main__.py,seed_<5 jtbds>.py} (NEW)"
+      - "CHANGELOG.md (## [0.3.0-engr.4a] entry for item 14)"
+    acceptance_tests:
+      - "python/flowforge-cli/tests/test_jtbd_seed_data.py — 22/22 green"
+    pre_deploy_checks:
+      - "bash scripts/check_all.sh step 8 (regen-diff) — 3/3 examples byte-identical"
+      - "make audit-2026-conformance — 11/11 invariants pass"
+      - "bash scripts/ci/ratchets/check.sh — 7/7 PASS"
+      - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
+      - "uv run pytest python/flowforge-cli/tests/ — 525/525 green (no pre-existing test broken)"
+    determinism_proof: |
+      Faker is seeded deterministically from
+      ``int(sha256("<package>:<jtbd_id>")[:8], 16)`` at module load
+      time, so two ``seed()`` calls against the same database produce
+      byte-identical seed rows.  The generator itself is pure-functional
+      string assembly: ``_faker_expr`` is a total deterministic function
+      of the field's kind / label / validation; ``_seed_event_paths``
+      BFS-walks the synthesised transitions in declaration order with
+      ``(priority, event, to_state)`` tie-breaking.  The dispatch order
+      matches the JTBD's state declaration so the emitted SEED_PATHS
+      tuple is byte-stable.  The module reads no flag-conditioned
+      bundle field (verified by ``test_seed_data`` — same output under
+      ``form_renderer = "skeleton"`` and ``"real"``), so per-bundle
+      regen-diff is byte-identical for every flag combination.  Enum
+      options are sorted before emission so dict-iteration order
+      cannot perturb the source-text dispatch.
+    cadence_proof: |
+      ``make seed`` is the operator-facing entrypoint.  Defaults to
+      ``examples/insurance_claim`` / package
+      ``insurance_claim_demo`` and walks the per-JTBD modules via
+      ``python -m seeds.<package>``.  Not run on per-PR CI — seeding
+      a host database is an operator action, not a regen-diff
+      gate.  Per-PR coverage stays in
+      ``test_jtbd_seed_data.py`` which exercises every dispatch
+      branch + the BFS path-finder + the byte-deterministic regen
+      contract through the in-process pipeline.
+    rollback_plan: |
+      git revert <sha>; the rollback removes the per-bundle seeds tree
+      from each example's generated/ subdir, the new generator + template,
+      the registry/pipeline entries, the make target, the faker pyproject
+      pin, and the test file.  The seed_data generator is purely
+      additive (no public API change to flowforge-core, no migration
+      surface, no schema change), so reverting after merge is
+      mechanical and safe.  The ``faker`` runtime dep stays installed
+      until ``uv sync`` re-resolves the lockfile; downstream hosts
+      that haven't re-installed are unaffected.
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-10
+    commit_sha: TBD
+
+- item: W4a-closeout
+  title: "W4a closeout — regen-diff verification, CHANGELOG, signoff rows, gate runs, plan status flip"
+  wave: W4a
+  property: Quality
+  worker: worker-w4a-closeout
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "CHANGELOG.md (## [0.3.0-engr.4a] — Wave 4a entries for items 3, 4, 5, 14, the new property-coverage gate, and the example bundle baselines note)"
+      - "docs/v0.3.0-engineering/signoff-checklist.md (W4a rows appended for items 3, 4, property-coverage-gate, 5, 14, and this closeout)"
+      - "docs/v0.3.0-engineering-plan.md (§7 status table — W4a flipped from pending to ✅ completed)"
+    acceptance_tests:
+      - "scripts/ci/regen_flag_flip.sh — 6/6 byte-identical (3 examples × 2 form_renderer flag values)"
+    pre_deploy_checks:
+      - "bash scripts/ci/ratchets/check.sh — 7/7 PASS (no new ratchet in W4a)"
+      - "make audit-2026-conformance — 11/11 invariants pass"
+      - "make audit-2026-property-coverage — green (13 generators covered, 3 seed-uniqueness checks green)"
+      - "make audit-2026-reachability — green when z3 extra installed; reports SKIP with install hint otherwise"
+      - "make audit-2026-cross-runtime — Python-side green; JS-side skip-with-reason on pre-existing pnpm-install blocker (carried over from W3)"
+      - "make audit-2026-sla-stress — workflow YAML schedules it nightly only via `schedule: - cron: \"0 3 * * *\"` and the job gate `if: github.event_name == 'schedule'` per docs/v0.3.0-engineering-plan.md §10; per-PR runs never trigger it"
+      - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
+      - "uv run pytest python/flowforge-cli/tests/ -q — 525/525 green"
+      - "scripts/ci/regen_flag_flip.sh — 6/6 byte-identical"
+    determinism_proof: |
+      Closeout artefacts are pure-functional documentation: CHANGELOG
+      entries, signoff rows, and a status-table flip.  The signoff
+      rows mirror the pattern of W0/W1/W2/W3 rows already in this
+      file; no schema or runtime change.  Regen-diff determinism
+      is established by the four implementation rows above; this
+      row consumes their evidence and pins it to the closeout
+      commit SHA.
+    rollback_plan: |
+      git revert <sha>; closeout is purely additive.  Reverting
+      restores the pre-W4a CHANGELOG / signoff / plan-status state
+      without touching any of the implementation rows already
+      landed in this checklist (W4a implementation rows for items
+      3, 4, 5, 14 + the property-coverage gate live above and
+      survive a closeout-only revert).
+  follow_ups:
+    - "pnpm-install unblock (carried over from W3): once `pnpm approve-builds` runs for the workspace, the JS-side cross-runtime parity green run completes; nothing in W4a depends on this."
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header). All W4a verification gates collected at closeout time; one residual follow-up tracked above (pnpm-install unblock, from W3)."
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+```
+
+---
+
 *This file is the v0.3.0-engineering equivalent of
 `docs/audit-2026/signoff-checklist.md`. Treated as a living doc — wave
 sections are appended as W1..W4b land.*

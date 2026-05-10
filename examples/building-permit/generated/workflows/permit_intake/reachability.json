@@ -1,0 +1,31 @@
+{
+  "initial_state": "intake",
+  "jtbd_id": "permit_intake",
+  "jtbd_title": "Submit a Building Permit Application",
+  "summary": {
+    "reachable": 2,
+    "total": 2,
+    "unreachable": 0,
+    "with_unwritable_vars": 0
+  },
+  "transitions": [
+    {
+      "event": "approve",
+      "from_state": "review",
+      "guard_vars": [],
+      "id": "permit_intake_approve",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "done"
+    },
+    {
+      "event": "submit",
+      "from_state": "intake",
+      "guard_vars": [],
+      "id": "permit_intake_submit",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "review"
+    }
+  ]
+}

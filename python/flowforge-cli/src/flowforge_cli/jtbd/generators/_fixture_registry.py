@@ -250,6 +250,49 @@ _REGISTRY: dict[str, tuple[str, ...]] = {
 		"jtbds[].url_segment",
 		"project.name",
 	),
+	# v0.3.0 W4a / item 3 — per-JTBD hypothesis property suite (ADR-003).
+	# Reads the JTBD id (seed input + module path), initial state (assertion
+	# + context anchor), the synthesised state list (KNOWN_STATES /
+	# TERMINAL_STATES) and transition list (event vocabulary + guard
+	# variables). The seed contract pins ``@hypothesis.settings(seed=N,
+	# derandomize=True, max_examples=200)`` where ``N = int(sha256
+	# (jtbds[].id)[:8], 16)`` at generation time, so the seed is visible
+	# in the emitted source and reproducible across hosts.
+	"property_tests": (
+		"jtbds[].id",
+		"jtbds[].initial_state",
+		"jtbds[].module_name",
+		"jtbds[].states",
+		"jtbds[].transitions",
+	),
+	# v0.3.0 W4a / item 4 — guard-aware reachability checker. Reads
+	# every transition's guards plus every data_capture field id so the
+	# unwritable-variable probe can decide which guard reads no field
+	# can populate. ``project.package`` is unread; the file path uses
+	# ``jtbd.id`` only. The placeholder ``reachability_skipped.txt`` is
+	# emitted when ``z3-solver`` is not installed (per ADR-004).
+	"reachability": (
+		"jtbds[].fields",
+		"jtbds[].fields[].id",
+		"jtbds[].id",
+		"jtbds[].initial_state",
+		"jtbds[].states",
+		"jtbds[].title",
+		"jtbds[].transitions",
+	),
+	# v0.3.0 W4a / item 4 — per-bundle aggregator. Same surface as the
+	# per-JTBD generator: it re-derives the summary from the same
+	# normalized bundle (no disk re-read), so the CONSUMES set mirrors
+	# the per-JTBD generator's.
+	"reachability_summary": (
+		"jtbds[].fields",
+		"jtbds[].fields[].id",
+		"jtbds[].id",
+		"jtbds[].initial_state",
+		"jtbds[].states",
+		"jtbds[].title",
+		"jtbds[].transitions",
+	),
 	"restore_runbook": (
 		"jtbds[].audit_topics",
 		"jtbds[].id",
@@ -259,6 +302,50 @@ _REGISTRY: dict[str, tuple[str, ...]] = {
 		"project.name",
 		"project.package",
 		"project.tenancy",
+	),
+	# v0.3.0 W4a / item 14 — Faker-driven seed data. Per-bundle generator
+	# that emits ``backend/seeds/<package>/seed_<jtbd>.py`` per JTBD plus
+	# the ``__init__.py`` package marker. Faker is seeded deterministically
+	# from ``int(sha256("<package>:<jtbd_id>")[:8], 16)`` so two regens
+	# against the same bundle produce byte-identical seed modules and
+	# byte-identical seed *rows* at runtime. Reads the JTBD identifier
+	# surface (id / module_name / class_name / title) plus every
+	# ``data_capture`` field (kind + label + validation feed the
+	# field-kind → Faker dispatch) plus the synthesised states +
+	# transitions (used to BFS each forward state's event path so the
+	# seed loop drives entities through the service layer rather than
+	# bypassing the engine).
+	"seed_data": (
+		"jtbds[].class_name",
+		"jtbds[].fields",
+		"jtbds[].fields[].id",
+		"jtbds[].fields[].kind",
+		"jtbds[].fields[].label",
+		"jtbds[].fields[].validation",
+		"jtbds[].id",
+		"jtbds[].initial_state",
+		"jtbds[].module_name",
+		"jtbds[].states",
+		"jtbds[].title",
+		"jtbds[].transitions",
+		"project.package",
+	),
+	# v0.3.0 W4a / item 5 — per-JTBD k6 + Locust SLA stress harness.
+	# Skips silently for JTBDs without ``sla.breach_seconds`` so existing
+	# fixtures regen byte-identically. Reads the JTBD identifier surface
+	# (id / module_name / class_name / url_segment / title) plus the SLA
+	# budget itself; ``project.package`` is the only bundle-level field
+	# (used in the script header comment for traceability). The harness
+	# scripts run nightly via ``make audit-2026-sla-stress`` — never on
+	# per-PR CI.
+	"sla_loadtest": (
+		"jtbds[].class_name",
+		"jtbds[].id",
+		"jtbds[].module_name",
+		"jtbds[].sla_breach_seconds",
+		"jtbds[].title",
+		"jtbds[].url_segment",
+		"project.package",
 	),
 	"workflow_adapter": (
 		"jtbds[].id",

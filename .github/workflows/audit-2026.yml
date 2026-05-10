@@ -30,6 +30,14 @@ on:
       - "scripts/ci/**"
       - "Makefile"
       - ".github/workflows/audit-2026.yml"
+  # v0.3.0 W4a (item 5): SLA stress harness runs nightly only.
+  # Per docs/v0.3.0-engineering-plan.md section 10:
+  #   "SLA stress harness (item 5) runs nightly; not per-PR."
+  # The audit-2026-sla-stress job below gates on this schedule event
+  # so per-PR matrix runs never trigger it.
+  schedule:
+    # 03:00 UTC nightly. Off-peak for the org's primary timezones.
+    - cron: "0 3 * * *"
 
 concurrency:
   group: audit-2026-${{ github.ref }}
@@ -109,3 +117,50 @@ jobs:
         run: pip install pyyaml
       - name: Run check_signoff.py
         run: python scripts/ci/check_signoff.py --strict
+
+  # v0.3.0 W4a (item 5): SLA stress harness — k6 + Locust per JTBD.
+  #
+  # Gated on the schedule trigger so the harness only runs nightly,
+  # never on per-PR matrix runs. Per docs/v0.3.0-engineering-plan.md
+  # section 10:
+  #
+  #   "SLA stress harness (item 5) runs nightly; not per-PR."
+  #
+  # The wrapper script `scripts/audit_2026/run_sla_stress.sh` walks
+  # `examples/<example>/generated/backend/tests/load/<jtbd>/` and
+  # invokes the k6 + Locust harnesses the `sla_loadtest` generator
+  # emits. When the binaries are absent (e.g. an ad-hoc workflow_run
+  # the `if:` filter doesn't catch), the wrapper skips with a clear
+  # reason and exits 0; otherwise SLA threshold breaches surface as
+  # exit 1 here.
+  audit-2026-sla-stress:
+    name: audit-2026-sla-stress (nightly)
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install workspace deps
+        run: uv sync --all-packages
+      - name: Install k6
+        run: |
+          set -euo pipefail
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+      - name: Install Locust
+        run: pip install locust
+      - name: Run audit-2026-sla-stress
+        run: make audit-2026-sla-stress

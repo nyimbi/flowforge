@@ -66,10 +66,14 @@ def test_pre_upgrade_check_default_runs_all(monkeypatch: pytest.MonkeyPatch) -> 
 	# Override versions dir so the default `backend/migrations/versions`
 	# probe doesn't accidentally hit a real chain on the dev machine.
 	monkeypatch.setenv("FLOWFORGE_PRE_UPGRADE_VERSIONS_DIR", "/nonexistent/path")
+	# Same for the pyproject probe (W4a/v0.3.0 item 4 subcheck) so the
+	# default ``pyproject.toml`` lookup doesn't pick up the dev tree.
+	monkeypatch.setenv("FLOWFORGE_PRE_UPGRADE_PYPROJECT", "/nonexistent/pyproject.toml")
 
 	r = runner.invoke(app, ["pre-upgrade-check"])
 	assert r.exit_code == 0, r.output
 	assert "signing" in r.output
+	assert "pyproject" in r.output
 
 
 # ---------------------------------------------------------------------------
@@ -232,3 +236,193 @@ def test_alembic_chain_flag_force_includes_in_signing_run(
 	assert r.exit_code == 0, r.output
 	assert "signing" in r.output
 	assert "alembic-chain" in r.output
+
+
+# ---------------------------------------------------------------------------
+# pyproject subcheck (W4a/v0.3.0 item 4 — z3 reachability extra contract)
+# ---------------------------------------------------------------------------
+
+
+def _write_pyproject(path: Path, body: str) -> Path:
+	path.write_text(textwrap.dedent(body), encoding="utf-8")
+	return path
+
+
+def test_pyproject_check_skip_when_file_missing(
+	monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+	"""Missing pyproject.toml → SKIP with hint, exit 0."""
+	monkeypatch.delenv("FLOWFORGE_PRE_UPGRADE_PYPROJECT", raising=False)
+	bogus = tmp_path / "no-such-file.toml"
+	r = runner.invoke(
+		app,
+		["pre-upgrade-check", "pyproject", "--pyproject-path", str(bogus)],
+	)
+	assert r.exit_code == 0, r.output
+	assert "SKIP" in r.output
+
+
+def test_pyproject_check_passes_when_z3_absent(tmp_path: Path) -> None:
+	"""pyproject.toml without z3-solver → OK, exit 0."""
+	p = _write_pyproject(
+		tmp_path / "pyproject.toml",
+		"""
+		[project]
+		name = "host-app"
+		version = "0.0.1"
+		dependencies = ["fastapi", "sqlalchemy"]
+		""",
+	)
+	r = runner.invoke(
+		app, ["pre-upgrade-check", "pyproject", "--pyproject-path", str(p)]
+	)
+	assert r.exit_code == 0, r.output
+	assert "OK" in r.output
+
+
+def test_pyproject_check_passes_when_z3_only_in_canonical_extra(
+	tmp_path: Path,
+) -> None:
+	"""z3-solver only in [project.optional-dependencies] reachability → OK."""
+	p = _write_pyproject(
+		tmp_path / "pyproject.toml",
+		"""
+		[project]
+		name = "host-app"
+		version = "0.0.1"
+		dependencies = ["fastapi"]
+
+		[project.optional-dependencies]
+		reachability = [
+			"z3-solver==4.13.4.0",
+		]
+		""",
+	)
+	r = runner.invoke(
+		app, ["pre-upgrade-check", "pyproject", "--pyproject-path", str(p)]
+	)
+	assert r.exit_code == 0, r.output
+	assert "OK" in r.output
+
+
+def test_pyproject_check_passes_with_flowforge_cli_extra(tmp_path: Path) -> None:
+	"""``flowforge-cli[reachability]`` reference → OK (transitive opt-in)."""
+	p = _write_pyproject(
+		tmp_path / "pyproject.toml",
+		"""
+		[project]
+		name = "host-app"
+		version = "0.0.1"
+
+		[dependency-groups]
+		dev = [
+			"flowforge-cli[reachability]",
+		]
+		""",
+	)
+	r = runner.invoke(
+		app, ["pre-upgrade-check", "pyproject", "--pyproject-path", str(p)]
+	)
+	assert r.exit_code == 0, r.output
+	assert "OK" in r.output
+
+
+def test_pyproject_check_warns_when_z3_in_top_level_dependencies(
+	tmp_path: Path,
+) -> None:
+	"""z3-solver in [project] dependencies → WARN, exit 1."""
+	p = _write_pyproject(
+		tmp_path / "pyproject.toml",
+		"""
+		[project]
+		name = "host-app"
+		version = "0.0.1"
+		dependencies = [
+			"fastapi",
+			"z3-solver>=4.13",
+		]
+		""",
+	)
+	r = runner.invoke(
+		app, ["pre-upgrade-check", "pyproject", "--pyproject-path", str(p)]
+	)
+	assert r.exit_code == 1, r.output
+	assert "WARN" in r.output
+	assert "ADR-004" in r.output
+
+
+def test_pyproject_check_warns_when_z3_in_dev_group(tmp_path: Path) -> None:
+	"""z3-solver direct-pinned in dev group → WARN (not via the extra)."""
+	p = _write_pyproject(
+		tmp_path / "pyproject.toml",
+		"""
+		[project]
+		name = "host-app"
+		version = "0.0.1"
+
+		[dependency-groups]
+		dev = [
+			"pytest",
+			"z3-solver>=4.13",
+		]
+		""",
+	)
+	r = runner.invoke(
+		app, ["pre-upgrade-check", "pyproject", "--pyproject-path", str(p)]
+	)
+	assert r.exit_code == 1, r.output
+	assert "WARN" in r.output
+
+
+def test_pyproject_check_warns_when_z3_in_non_canonical_extra(
+	tmp_path: Path,
+) -> None:
+	"""z3-solver in a non-canonical [project.optional-dependencies] block."""
+	p = _write_pyproject(
+		tmp_path / "pyproject.toml",
+		"""
+		[project]
+		name = "host-app"
+		version = "0.0.1"
+
+		[project.optional-dependencies]
+		lint = [
+			"z3-solver>=4.13",
+		]
+		""",
+	)
+	r = runner.invoke(
+		app, ["pre-upgrade-check", "pyproject", "--pyproject-path", str(p)]
+	)
+	assert r.exit_code == 1, r.output
+	assert "WARN" in r.output
+
+
+def test_check_pyproject_flag_force_includes_in_signing_run(
+	monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+	"""``--check-pyproject`` while the positional arg is ``signing``."""
+	monkeypatch.setenv("FLOWFORGE_SIGNING_SECRET", "real-secret")
+	monkeypatch.delenv("FLOWFORGE_ALLOW_INSECURE_DEFAULT", raising=False)
+	p = _write_pyproject(
+		tmp_path / "pyproject.toml",
+		"""
+		[project]
+		name = "host-app"
+		version = "0.0.1"
+		dependencies = ["fastapi"]
+		""",
+	)
+	r = runner.invoke(
+		app,
+		[
+			"pre-upgrade-check",
+			"signing",
+			"--check-pyproject",
+			"--pyproject-path",
+			str(p),
+		],
+	)
+	assert r.exit_code == 0, r.output
+	assert "signing" in r.output
+	assert "pyproject" in r.output

@@ -36,6 +36,7 @@ help:
 	@echo "  audit-2026-ratchets       grep ratchet gates (no_default_secret etc.)"
 	@echo "  audit-2026-visual-regression-dom   DOM-snapshot byte-equality (CI-gating, ADR-001)"
 	@echo "  audit-2026-visual-regression-ssim  pixel SSIM (advisory; nightly only, ADR-001)"
+	@echo "  audit-2026-property-coverage  every generator has a property test + seed uniqueness (W4a / ADR-003)"
 	@echo "  audit-2026-signoff        signoff-checklist gate (P0/P1 rows)"
 
 .PHONY: audit-2026
@@ -164,6 +165,36 @@ restore-drill:
 .PHONY: audit-2026-restore-drill
 audit-2026-restore-drill: restore-drill
 
+# v0.3.0 W4a (item 14): Faker-driven seed data.
+#
+# Loads the canonical example bundle's generated seed modules through
+# the service layer (so RLS, audit chain, and permissions engage). The
+# per-bundle generator emits one ``backend/seeds/<package>/seed_<jtbd>.py``
+# per JTBD, each backed by ``Faker().seed_instance(N)`` where
+# ``N = int(sha256("<package>:<jtbd_id>")[:8], 16)`` — same input always
+# yields the same rows so two ``make seed`` runs against the same
+# database produce byte-identical seeded state.
+#
+# Override the example via ``SEED_EXAMPLE=<dir>`` (defaults to the
+# canonical insurance_claim demo). The host application is responsible
+# for ensuring the database exists, migrations are applied, and the
+# Python path resolves the generated package; ``make seed`` is the
+# operator-facing entrypoint, not a turnkey one-shot.
+#
+# Reference: ``docs/improvements.md`` item 14, ``docs/v0.3.0-engineering-plan.md`` §7 W4a.
+SEED_EXAMPLE ?= examples/insurance_claim
+SEED_PACKAGE ?= insurance_claim_demo
+.PHONY: seed
+seed:
+	@if [ ! -d "$(SEED_EXAMPLE)/generated/backend/seeds/$(SEED_PACKAGE)" ]; then \
+		echo "seed: $(SEED_EXAMPLE)/generated/backend/seeds/$(SEED_PACKAGE) does not exist."; \
+		echo "      Regenerate the example with 'flowforge jtbd-generate' first."; \
+		exit 1; \
+	fi
+	@echo "seed: loading $(SEED_EXAMPLE) ($(SEED_PACKAGE)) through the service layer"
+	cd $(SEED_EXAMPLE)/generated/backend && \
+		PYTHONPATH=src:. uv run python -m seeds.$(SEED_PACKAGE)
+
 # v0.3.0 W3 (item 21): visual regression — DOM-snapshot CI gate.
 #
 # Per ADR-001 (docs/v0.3.0-engineering/adr/ADR-001-visual-regression-invariants.md)
@@ -181,6 +212,72 @@ audit-2026-restore-drill: restore-drill
 .PHONY: audit-2026-visual-regression-dom
 audit-2026-visual-regression-dom:
 	bash scripts/visual_regression/run_dom_snapshots.sh $${VISREG_CADENCE:-smoke}
+
+# v0.3.0 W4a (item 5): SLA stress harness — k6 + Locust per JTBD.
+#
+# For every JTBD declaring ``sla.breach_seconds``, the generator emits a
+# k6 + Locust pair under ``backend/tests/load/<jtbd>/`` that fires
+# ``POST /<url_segment>/events`` at the rate implied by the breach
+# budget and asserts per-event p95 latency stays under a threshold
+# derived from the same budget.
+#
+# Cadence: **nightly only**. Per-PR runs would be both too slow (30s
+# per JTBD with SLA × every example bundle) and too flaky (k6 / Locust
+# binaries aren't in the per-PR runner matrix). The
+# ``.github/workflows/audit-2026.yml`` workflow gates this target on
+# ``schedule:`` cron events; manual local invocation works whenever
+# k6 + locust are on PATH.
+#
+# Per ``docs/v0.3.0-engineering-plan.md`` §10:
+#   "SLA stress harness (item 5) runs nightly; not per-PR."
+#
+# Reference: ``docs/improvements.md`` item 5 + the sla_loadtest
+# generator at ``python/flowforge-cli/src/flowforge_cli/jtbd/generators/sla_loadtest.py``.
+.PHONY: audit-2026-sla-stress
+audit-2026-sla-stress:
+	bash scripts/audit_2026/run_sla_stress.sh
+
+# v0.3.0 W4a (item 4): guard-aware reachability checker.
+#
+# Per ADR-004 (docs/v0.3.0-engineering/adr/ADR-004-z3-solver-opt-in-extra.md)
+# z3-solver is an opt-in runtime extra (`flowforge-cli[reachability]`)
+# with a HARD pin (`z3-solver==4.13.4.0`). When the extra is installed
+# the per-JTBD generator emits ``workflows/<id>/reachability.json``;
+# otherwise it emits ``workflows/<id>/reachability_skipped.txt`` with
+# the documented placeholder text. The integration test asserts both
+# branches land + the per-bundle ``reachability_summary.md`` aggregator
+# stays byte-stable across regens.
+#
+# This target reports SKIP cleanly when the extra is not installed so
+# CI matrices that intentionally test the placeholder branch don't
+# fail. The dedicated test file under
+# ``python/flowforge-cli/tests/test_reachability_generator.py``
+# carries the byte-deterministic assertions; it's invoked here so the
+# layered audit target picks it up only when the extra is available.
+.PHONY: audit-2026-reachability
+audit-2026-reachability:
+	@if uv run python -c "import z3" >/dev/null 2>&1 ; then \
+		echo "audit-2026-reachability: z3-solver available — running suite" ; \
+		$(PYTEST) python/flowforge-cli/tests/test_reachability_generator.py ; \
+	else \
+		echo "audit-2026-reachability: SKIP — z3-solver not installed" ; \
+		echo "  install with: pip install 'flowforge-cli[reachability]'" ; \
+	fi
+
+# v0.3.0 W4a (item 3 / ADR-003): property-coverage gate.
+#
+# Asserts every generator added in W0-W3 has at least one hypothesis
+# property test under ``tests/property/generators/test_<gen>_properties.py``.
+# The canonical list of 13 generators lives in
+# ``tests/audit_2026/test_property_coverage_gate.py`` (REQUIRED_GENERATORS).
+#
+# Also runs the ADR-003 seed-uniqueness checks: every emitted
+# ``test_<jtbd>_properties.py`` pins ``_SEED = int(sha256(jtbd_id)[:8], 16)``
+# and no two JTBDs in the same example bundle share a 32-bit seed.
+.PHONY: audit-2026-property-coverage
+audit-2026-property-coverage:
+	$(PYTEST) tests/audit_2026/test_property_coverage_gate.py
+	$(PYTEST) tests/audit_2026/test_hypothesis_seed_uniqueness.py
 
 # v0.3.0 W3 (item 21): visual regression — pixel SSIM (advisory).
 #

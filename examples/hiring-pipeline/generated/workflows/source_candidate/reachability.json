@@ -1,0 +1,40 @@
+{
+  "initial_state": "intake",
+  "jtbd_id": "source_candidate",
+  "jtbd_title": "Source a candidate",
+  "summary": {
+    "reachable": 3,
+    "total": 3,
+    "unreachable": 0,
+    "with_unwritable_vars": 0
+  },
+  "transitions": [
+    {
+      "event": "approve",
+      "from_state": "review",
+      "guard_vars": [],
+      "id": "source_candidate_approve",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "done"
+    },
+    {
+      "event": "submit",
+      "from_state": "intake",
+      "guard_vars": [],
+      "id": "source_candidate_submit",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "review"
+    },
+    {
+      "event": "reject",
+      "from_state": "review",
+      "guard_vars": [],
+      "id": "source_candidate_duplicate_candidate_reject",
+      "priority": 5,
+      "reachable": true,
+      "to_state": "rejected"
+    }
+  ]
+}

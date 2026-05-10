@@ -140,7 +140,13 @@ dev = [
     "boto3>=1.34",
     "moto[s3,kms]>=5.0",
     "anyio[trio]>=4.0",
-    "z3-solver>=4.13",
+    # v0.3.0 W4a / item 4 (per ADR-004): z3-solver moved out of the
+    # repo-root dev group and into ``flowforge-cli[reachability]`` as an
+    # opt-in runtime extra with a HARD version pin (4.13.4.0). Pulling
+    # the extra here keeps dev installs unchanged (``uv sync`` continues
+    # to provision z3 transparently) while letting hosts opt out without
+    # paying the ~50 MB cost.
+    "flowforge-cli[reachability]",
     # E-44 / IT-01: property-based tests under framework/tests/property/.
     "hypothesis>=6.100",
     "opentelemetry-api>=1.20",

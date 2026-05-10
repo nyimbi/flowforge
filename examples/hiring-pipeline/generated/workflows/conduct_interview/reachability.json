@@ -1,0 +1,46 @@
+{
+  "initial_state": "intake",
+  "jtbd_id": "conduct_interview",
+  "jtbd_title": "Conduct interview loop",
+  "summary": {
+    "reachable": 3,
+    "total": 3,
+    "unreachable": 0,
+    "with_unwritable_vars": 1
+  },
+  "transitions": [
+    {
+      "event": "approve",
+      "from_state": "review",
+      "guard_vars": [],
+      "id": "conduct_interview_approve",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "done"
+    },
+    {
+      "event": "submit",
+      "from_state": "intake",
+      "guard_vars": [],
+      "id": "conduct_interview_submit",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "review"
+    },
+    {
+      "event": "submit",
+      "from_state": "intake",
+      "guard_vars": [
+        "no_show"
+      ],
+      "id": "conduct_interview_no_show",
+      "priority": 5,
+      "reachable": true,
+      "to_state": "reschedule_or_withdraw",
+      "unwritable_vars": [
+        "no_show"
+      ],
+      "witness": "no_show=true"
+    }
+  ]
+}

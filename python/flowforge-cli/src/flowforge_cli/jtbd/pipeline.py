@@ -35,9 +35,14 @@ from .generators import (
 	notifications,
 	openapi,
 	permissions,
+	property_tests,
+	reachability,
+	reachability_summary,
 	readme,
 	restore_runbook,
 	sa_model,
+	seed_data,
+	sla_loadtest,
 	tests as test_gen,
 	workflow_adapter,
 	workflow_def,
@@ -66,6 +71,9 @@ _PER_JTBD_GENERATORS = (
 	compensation_handlers.generate,
 	diagram.generate,
 	idempotency.generate,
+	reachability.generate,
+	sla_loadtest.generate,
+	property_tests.generate,
 )
 
 _PER_BUNDLE_GENERATORS = (
@@ -85,6 +93,8 @@ _PER_BUNDLE_GENERATORS = (
 	frontend_slack.generate,
 	lineage.generate,
 	design_tokens.generate,
+	reachability_summary.generate,
+	seed_data.generate,
 )
 
 

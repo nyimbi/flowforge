@@ -34,6 +34,7 @@ class _Check(str, Enum):
 
 	signing = "signing"
 	alembic_chain = "alembic-chain"
+	pyproject = "pyproject"
 	all = "all"
 
 
@@ -159,9 +160,160 @@ def _check_alembic_chain(versions_dir: Path | None) -> tuple[bool, str]:
 	)
 
 
+def _check_pyproject(pyproject_path: Path | None) -> tuple[bool, str]:
+	"""Return ``(ok, message)`` for the ``pyproject`` readiness check.
+
+	v0.3.0 W4a / item 4 — per ADR-004, ``z3-solver`` is an opt-in
+	runtime extra (``flowforge-cli[reachability]``) with a HARD version
+	pin (``z3-solver==4.13.4.0``). Hosts that pin or unpin it elsewhere
+	in their ``pyproject.toml`` will produce divergent reachability
+	artefacts on regen because SAT counter-examples drift across z3
+	versions. This subcheck warns when ``z3-solver`` appears outside
+	the canonical ``[reachability]`` extra.
+
+	Pass conditions (in order):
+
+	1. The configured ``pyproject.toml`` is missing — nothing to scan,
+	   treat as a no-op pass with a hint.
+	2. ``z3-solver`` does not appear at all — host hasn't enabled
+	   reachability; canonical state.
+	3. ``z3-solver`` appears ONLY in the ``[project.optional-dependencies]
+	   reachability`` block (or the host depends on
+	   ``flowforge-cli[reachability]``) — opt-in path is correctly used.
+
+	Warn condition:
+
+	* ``z3-solver`` appears in any other section (top-level
+	  ``dependencies``, ``[dependency-groups]`` other than via
+	  ``flowforge-cli[reachability]``, ``[project.optional-dependencies]``
+	  block other than ``reachability``). The message names the offending
+	  section so the operator can move the dep into the canonical extra.
+	"""
+
+	# Default location matches `flowforge pre-upgrade-check` invocations
+	# from a host's repo root.
+	if pyproject_path is None:
+		env_path = os.environ.get("FLOWFORGE_PRE_UPGRADE_PYPROJECT")
+		if env_path:
+			pyproject_path = Path(env_path)
+		else:
+			pyproject_path = Path("pyproject.toml")
+
+	if not pyproject_path.is_file():
+		return (
+			True,
+			(
+				f"pyproject: SKIP — `{pyproject_path}` does not exist; "
+				"nothing to scan. Pass `--pyproject-path` or set "
+				"FLOWFORGE_PRE_UPGRADE_PYPROJECT to point at the host's "
+				"pyproject.toml if this is wrong."
+			),
+		)
+
+	try:
+		text = pyproject_path.read_text(encoding="utf-8")
+	except OSError as exc:
+		return (
+			False,
+			f"pyproject: FAIL — cannot read `{pyproject_path}`: {exc}",
+		)
+
+	# Cheap line-by-line scan rather than a full TOML parse: we want to
+	# locate every section that mentions ``z3-solver`` and decide whether
+	# the section is the canonical ``[project.optional-dependencies]
+	# reachability`` block. tomllib would lose the section context cheaply
+	# but tracking ``[<section>]`` headings by line is enough — pyproject
+	# files are small and we only care about presence/absence.
+	current_section: str = ""
+	current_subsection: str = ""
+	offending_sections: list[str] = []
+	saw_canonical_extra: bool = False
+	saw_flowforge_cli_extra: bool = False
+
+	for raw_line in text.splitlines():
+		line = raw_line.strip()
+		if line.startswith("[") and line.endswith("]"):
+			# New TOML section header — reset the subsection tracker.
+			current_section = line.strip("[]").strip()
+			current_subsection = ""
+			continue
+		if not line or line.startswith("#"):
+			continue
+		# Inline-table sub-entries inside ``[project.optional-dependencies]``
+		# or ``[dependency-groups]`` look like ``reachability = [`` opening
+		# the inline list. Track the nearest ``key = [`` to know which
+		# extra/group the subsequent entries belong to.
+		if "=" in line and (line.endswith("[") or line.rstrip().endswith("[")):
+			key = line.split("=", 1)[0].strip()
+			current_subsection = key
+			continue
+		if line == "]":
+			current_subsection = ""
+			continue
+		# Match ``flowforge-cli[reachability]`` references — the canonical
+		# transitive way to pull z3 in via the extra.
+		if "flowforge-cli[reachability]" in line:
+			saw_flowforge_cli_extra = True
+		# z3-solver mention — classify by current section + subsection.
+		if "z3-solver" in line:
+			if (
+				current_section == "project.optional-dependencies"
+				and current_subsection == "reachability"
+			):
+				saw_canonical_extra = True
+				continue
+			# Anything else is an offending location.
+			label = current_section
+			if current_subsection:
+				label = f"{current_section}.{current_subsection}"
+			offending_sections.append(label or "<top-level>")
+
+	if not offending_sections and not saw_canonical_extra and not saw_flowforge_cli_extra:
+		return (
+			True,
+			(
+				f"pyproject: OK — `{pyproject_path}` does not reference z3-solver. "
+				"The reachability extra is opt-in; install with "
+				"`pip install 'flowforge-cli[reachability]'` to enable per-JTBD "
+				"symbolic reachability analysis."
+			),
+		)
+	if not offending_sections:
+		return (
+			True,
+			(
+				f"pyproject: OK — `{pyproject_path}` references z3-solver only via the "
+				"canonical opt-in path "
+				"(`[project.optional-dependencies] reachability` or "
+				"`flowforge-cli[reachability]`)."
+			),
+		)
+	# Deduplicate while preserving discovery order.
+	seen: set[str] = set()
+	dedup: list[str] = []
+	for label in offending_sections:
+		if label in seen:
+			continue
+		seen.add(label)
+		dedup.append(label)
+	return (
+		False,
+		(
+			f"pyproject: WARN — `{pyproject_path}` references z3-solver in "
+			f"{len(dedup)} non-canonical location(s): {', '.join(dedup)}. "
+			"Per ADR-004 z3-solver MUST live in "
+			"`[project.optional-dependencies] reachability` (hard-pinned to "
+			"`==4.13.4.0`) or be pulled transitively via "
+			"`flowforge-cli[reachability]`. Range-pinned or unpinned z3 produces "
+			"divergent SAT counter-examples and breaks byte-identical regen."
+		),
+	)
+
+
 _CHECKS = {
-	_Check.signing: lambda *, versions_dir=None: _check_signing(),
-	_Check.alembic_chain: lambda *, versions_dir=None: _check_alembic_chain(versions_dir),
+	_Check.signing: lambda *, versions_dir=None, pyproject_path=None: _check_signing(),
+	_Check.alembic_chain: lambda *, versions_dir=None, pyproject_path=None: _check_alembic_chain(versions_dir),
+	_Check.pyproject: lambda *, versions_dir=None, pyproject_path=None: _check_pyproject(pyproject_path),
 }
 
 
@@ -193,6 +345,33 @@ def pre_upgrade_check_cmd(
 			),
 		),
 	] = False,
+	pyproject_path: Annotated[
+		Path | None,
+		typer.Option(
+			"--pyproject-path",
+			help=(
+				"Path to the host's pyproject.toml. Defaults to `pyproject.toml` "
+				"in the current working directory or the value of "
+				"FLOWFORGE_PRE_UPGRADE_PYPROJECT if set. Used by the "
+				"`pyproject` subcheck to flag non-canonical z3-solver "
+				"declarations (per ADR-004)."
+			),
+			file_okay=True,
+			dir_okay=False,
+		),
+	] = None,
+	check_pyproject: Annotated[
+		bool,
+		typer.Option(
+			"--check-pyproject/--no-check-pyproject",
+			help=(
+				"Force-include the pyproject subcheck even when running a "
+				"single-check invocation. Equivalent to `pre-upgrade-check pyproject`. "
+				"v0.3.0 W4a / item 4 — flags z3-solver references outside the "
+				"canonical `[project.optional-dependencies] reachability` extra."
+			),
+		),
+	] = False,
 ) -> None:
 	"""Run the requested pre-upgrade audit-2026 check(s) and exit non-zero on failure."""
 	if check == _Check.all:
@@ -202,11 +381,14 @@ def pre_upgrade_check_cmd(
 	# `--alembic-chain` flag forces inclusion when not in `all` mode.
 	if alembic_chain and _Check.alembic_chain not in subjects:
 		subjects.append(_Check.alembic_chain)
+	# `--check-pyproject` flag forces inclusion when not in `all` mode.
+	if check_pyproject and _Check.pyproject not in subjects:
+		subjects.append(_Check.pyproject)
 
 	failed = 0
 	for subject in subjects:
 		fn = _CHECKS[subject]
-		ok, msg = fn(versions_dir=versions_dir)
+		ok, msg = fn(versions_dir=versions_dir, pyproject_path=pyproject_path)
 		typer.echo(msg)
 		if not ok:
 			failed += 1
@@ -227,7 +409,9 @@ def register(app: typer.Typer) -> None:
 		help=(
 			"Audit the host for audit-2026 breaking-change readiness "
 			"(F-7 mitigation; see SECURITY-NOTE.md). W0/v0.3.0 adds "
-			"`alembic-chain` for multi-head detection."
+			"`alembic-chain` for multi-head detection; W4a/v0.3.0 adds "
+			"`pyproject` for non-canonical z3-solver references "
+			"(per ADR-004)."
 		),
 	)(pre_upgrade_check_cmd)
 

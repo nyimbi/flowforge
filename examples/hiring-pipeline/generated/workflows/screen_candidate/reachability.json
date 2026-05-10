@@ -1,0 +1,46 @@
+{
+  "initial_state": "intake",
+  "jtbd_id": "screen_candidate",
+  "jtbd_title": "Screen a candidate",
+  "summary": {
+    "reachable": 3,
+    "total": 3,
+    "unreachable": 0,
+    "with_unwritable_vars": 1
+  },
+  "transitions": [
+    {
+      "event": "approve",
+      "from_state": "review",
+      "guard_vars": [],
+      "id": "screen_candidate_approve",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "done"
+    },
+    {
+      "event": "submit",
+      "from_state": "intake",
+      "guard_vars": [],
+      "id": "screen_candidate_submit",
+      "priority": 0,
+      "reachable": true,
+      "to_state": "review"
+    },
+    {
+      "event": "submit",
+      "from_state": "intake",
+      "guard_vars": [
+        "salary_above_band"
+      ],
+      "id": "screen_candidate_salary_above_band",
+      "priority": 5,
+      "reachable": true,
+      "to_state": "compensation_review",
+      "unwritable_vars": [
+        "salary_above_band"
+      ],
+      "witness": "salary_above_band=true"
+    }
+  ]
+}
