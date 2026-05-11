@@ -4,7 +4,7 @@
     "package": "insurance_claim_demo",
     "domain": "claims",
     "tenancy": "single",
-    "languages": ["en"],
+    "languages": ["en", "fr-CA"],
     "currencies": ["USD", "ZAR"],
     "frontend_framework": "nextjs",
     "frontend": {

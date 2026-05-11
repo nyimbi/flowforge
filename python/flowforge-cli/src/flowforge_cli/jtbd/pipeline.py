@@ -29,11 +29,13 @@ from .generators import (
 	frontend_cli,
 	frontend_email,
 	frontend_slack,
+	i18n,
 	idempotency,
 	lineage,
 	migration_safety,
 	notifications,
 	openapi,
+	operator_manual,
 	permissions,
 	property_tests,
 	reachability,
@@ -48,6 +50,7 @@ from .generators import (
 	workflow_def,
 )
 from .normalize import NormalizedBundle, normalize
+from .overrides import JtbdCopyOverrides
 from .parse import parse_bundle
 
 
@@ -74,6 +77,7 @@ _PER_JTBD_GENERATORS = (
 	reachability.generate,
 	sla_loadtest.generate,
 	property_tests.generate,
+	operator_manual.generate,
 )
 
 _PER_BUNDLE_GENERATORS = (
@@ -95,19 +99,29 @@ _PER_BUNDLE_GENERATORS = (
 	design_tokens.generate,
 	reachability_summary.generate,
 	seed_data.generate,
+	i18n.generate,
 )
 
 
-def generate(bundle: dict[str, Any]) -> list[GeneratedFile]:
+def generate(
+	bundle: dict[str, Any],
+	overrides: JtbdCopyOverrides | None = None,
+) -> list[GeneratedFile]:
 	"""End-to-end: parse → normalize → run every generator → sort.
 
 	Returns a list of files sorted by path so two invocations against the
 	same bundle return byte-identical output (the snapshot/regen tests
 	depend on this).
+
+	*overrides* (v0.3.0 W4b / item 22 / ADR-002) is the optional copy-
+	override sidecar. ``None`` (the default) keeps canonical-only output
+	so pre-W4b bundles regen byte-identically. When passed in, it is
+	applied at normalize time — see :mod:`flowforge_cli.jtbd.overrides`
+	for the lookup contract.
 	"""
 
 	parse_bundle(bundle)
-	norm = normalize(bundle)
+	norm = normalize(bundle, overrides=overrides)
 
 	files: list[GeneratedFile] = []
 	for jt in norm.jtbds:

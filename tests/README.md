@@ -12,7 +12,7 @@ A `test_*.py` file under `framework/` must live in exactly one of:
 
 | Root | Purpose | Example |
 |---|---|---|
-| `framework/tests/<layer>/` | Cross-package layered suite. Layer is one of the 8 listed below. | `framework/tests/audit_2026/test_C_01_*.py` |
+| `framework/tests/<layer>/` | Cross-package layered suite. Layer is one of the 9 listed below. | `framework/tests/audit_2026/test_C_01_*.py` |
 | `framework/python/<pkg>/tests/[<subdir>/]` | Per-package suite. Subdir ∈ `unit / ci / integration / property / fixtures`, or files directly in `tests/`. | `framework/python/flowforge-core/tests/unit/test_engine_fire.py` |
 | `framework/examples/<example>/tests/` | Host-project test under an example project. | `framework/examples/insurance_claim/tests/test_e2e.py` |
 
@@ -20,10 +20,13 @@ Anything else fails CI. The `templates/`, `generated/`, `__pycache__/`,
 `.venv/`, `node_modules/` segments are explicitly skipped (third-party
 or scaffolded code that the framework ships TO host apps).
 
-## The 8 audit-2026 layers
+## The 9 layers
 
 Each layer corresponds to one entry in `make audit-2026-*`
-(see `framework/docs/audit-fix-plan.md` §5.2):
+(see `framework/docs/audit-fix-plan.md` §5.2). The first eight are the
+original audit-2026 layers; `v0_3_0` was added in W4b as the home for
+v0.3.0-engineering-track CI gates that don't belong under the audit-
+2026 finding tree (see `docs/v0.3.0-engineering-plan.md` §7).
 
 | Layer | Make target | Purpose |
 |---|---|---|
@@ -36,6 +39,7 @@ Each layer corresponds to one entry in `make audit-2026-*`
 | `cross_runtime` | `make audit-2026-cross-runtime` | TS↔Python evaluator parity fixture (200 inputs); paired with `framework/js/flowforge-integration-tests/expr-parity.test.ts`. Pins architecture invariant 5. |
 | `chaos` | `make audit-2026-chaos` | Fault-injection suites — crash mid-fire, crash mid-outbox, crash mid-compensation. Wires `flowforge-jtbd` fault injector. |
 | `observability` | `make audit-2026-observability` | Synthetic metric injection + `promtool test rules`; PromQL alert-rule self-tests live under `tests/observability/promql/`. |
+| `v0_3_0` | (per-test invocation) | v0.3.0-engineering-track per-wave CI gates. Today: W4b copy-override sidecar gate (`test_polish_copy_committed_overrides.py`, ADR-002 / item 22) — asserts `flowforge polish-copy --commit` never dirties `examples/` when run without an LLM credential. Future v0.3.0 residual gates land here. |
 
 ## Per-package conventions
 

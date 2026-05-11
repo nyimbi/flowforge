@@ -189,6 +189,28 @@ _REGISTRY: dict[str, tuple[str, ...]] = {
 		"project.name",
 		"project.package",
 	),
+	# v0.3.0 W4b / item 17 — i18n scaffolding + empty-translation lint.
+	# Per-bundle generator that emits ``frontend/src/<pkg>/i18n/<lang>.json``
+	# (one per declared ``project.languages`` entry; default ``("en",)``)
+	# plus a TS ``useT.ts`` hook bound to a string-literal union of every
+	# key path. English catalog is populated; non-English catalogs are
+	# structurally identical with empty values — the lint targets for
+	# the ``audit-2026-i18n-coverage`` gate. Reads field labels, transition
+	# events, audit-topic dotted ids, and SLA budgets to build the closed
+	# key namespace.
+	"i18n": (
+		"jtbds[].audit_topics",
+		"jtbds[].fields",
+		"jtbds[].fields[].id",
+		"jtbds[].fields[].label",
+		"jtbds[].id",
+		"jtbds[].sla_breach_seconds",
+		"jtbds[].sla_warn_pct",
+		"jtbds[].title",
+		"jtbds[].transitions",
+		"project.languages",
+		"project.package",
+	),
 	"idempotency": (
 		"jtbds[].class_name",
 		"jtbds[].id",
@@ -249,6 +271,34 @@ _REGISTRY: dict[str, tuple[str, ...]] = {
 		"jtbds[].title",
 		"jtbds[].url_segment",
 		"project.name",
+	),
+	# v0.3.0 W4b / item 20 — per-JTBD operator manual emitted as MDX
+	# under ``docs/jtbd/<id>.mdx``. Reads the JTBD's authored prose
+	# (situation / motivation / outcome / success_criteria) plus the
+	# synthesised form fields, audit topics, and permission catalog. The
+	# embedded mermaid source is computed through
+	# :func:`generators.diagram.build_mmd` so the manual and the W1
+	# ``diagram.mmd`` never drift on regen. ``project.name`` +
+	# ``project.package`` thread the manual back to the cross-bundle
+	# permission + audit-taxonomy artefacts.
+	"operator_manual": (
+		"jtbds[].actor_role",
+		"jtbds[].audit_topics",
+		"jtbds[].fields",
+		"jtbds[].fields[].id",
+		"jtbds[].fields[].kind",
+		"jtbds[].fields[].label",
+		"jtbds[].fields[].pii",
+		"jtbds[].fields[].required",
+		"jtbds[].id",
+		"jtbds[].motivation",
+		"jtbds[].outcome",
+		"jtbds[].permissions",
+		"jtbds[].situation",
+		"jtbds[].success_criteria",
+		"jtbds[].title",
+		"project.name",
+		"project.package",
 	),
 	# v0.3.0 W4a / item 3 — per-JTBD hypothesis property suite (ADR-003).
 	# Reads the JTBD id (seed input + module path), initial state (assertion

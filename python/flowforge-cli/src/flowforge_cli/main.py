@@ -26,6 +26,7 @@ from .commands import (
 	migrate_fork,
 	migration_safety,
 	new,
+	polish_copy,
 	pre_upgrade_check,
 	regen_catalog,
 	replay,
@@ -66,6 +67,7 @@ bundle_diff.register(app)
 migrate_fork.register(app)
 ai_assist.register(app)
 generate_llmtxt.register(app)
+polish_copy.register(app)
 audit_verify.register(audit_app)
 jtbd_fork.register(jtbd_app)
 jtbd_lint.register(jtbd_app)

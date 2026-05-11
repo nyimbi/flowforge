@@ -84,6 +84,22 @@ test = [
 reachability = [
 	"z3-solver==4.13.4.0",
 ]
+# v0.3.0 W4b / item 22 — opt-in LLM copy polish via sidecar (ADR-002).
+#
+# The ``flowforge polish-copy`` command runs an offline LLM pass over
+# user-facing strings and emits a sidecar at <bundle>.overrides.json.
+# The LLM is the ONLY LLM touchpoint in the entire generation pipeline;
+# the rewrite is an authoring-time concern only — regen never invokes
+# the LLM, CI never sees it. Without this extra installed, polish-copy
+# degrades to a no-op echo (canonical strings round-trip unchanged) so
+# the CLI stays importable and the byte-identical regen contract holds.
+#
+# Hosts opt in via:
+#     pip install 'flowforge-cli[llm]'
+#     uv pip install 'flowforge-cli[llm]'
+llm = [
+	"anthropic>=0.40",
+]
 
 [project.scripts]
 flowforge = "flowforge_cli.main:app"

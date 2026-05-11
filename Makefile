@@ -37,6 +37,7 @@ help:
 	@echo "  audit-2026-visual-regression-dom   DOM-snapshot byte-equality (CI-gating, ADR-001)"
 	@echo "  audit-2026-visual-regression-ssim  pixel SSIM (advisory; nightly only, ADR-001)"
 	@echo "  audit-2026-property-coverage  every generator has a property test + seed uniqueness (W4a / ADR-003)"
+	@echo "  audit-2026-i18n-coverage  no untranslated strings in compliance: JTBDs (W4b / item 17)"
 	@echo "  audit-2026-signoff        signoff-checklist gate (P0/P1 rows)"
 
 .PHONY: audit-2026
@@ -278,6 +279,23 @@ audit-2026-reachability:
 audit-2026-property-coverage:
 	$(PYTEST) tests/audit_2026/test_property_coverage_gate.py
 	$(PYTEST) tests/audit_2026/test_hypothesis_seed_uniqueness.py
+
+# v0.3.0 W4b (item 17): i18n coverage gate.
+#
+# Regenerates every example bundle's i18n catalogs in memory and asserts:
+#
+# * For each JTBD declaring ``compliance: [...]``, every non-English catalog
+#   has no empty values for keys scoped to that JTBD. Empty values for a
+#   compliance-tagged JTBD are an error (exit 1) — regulated workflows
+#   need full translation coverage.
+# * For other JTBDs, empty values are reported as warnings (exit 0).
+#
+# The English catalog is the source of truth; non-English catalogs are
+# emitted structurally identical with empty values, so the gate scales
+# from one language to many without per-language schema drift.
+.PHONY: audit-2026-i18n-coverage
+audit-2026-i18n-coverage:
+	uv run python scripts/i18n/check_coverage.py
 
 # v0.3.0 W3 (item 21): visual regression — pixel SSIM (advisory).
 #

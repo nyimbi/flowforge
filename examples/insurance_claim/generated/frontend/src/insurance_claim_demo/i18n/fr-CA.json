@@ -1,0 +1,22 @@
+{
+  "audit.claim_intake.approved": "",
+  "audit.claim_intake.escalated": "",
+  "audit.claim_intake.lapsed_rejected": "",
+  "audit.claim_intake.large_loss": "",
+  "audit.claim_intake.submitted": "",
+  "jtbd.claim_intake.button.approve": "",
+  "jtbd.claim_intake.button.compensate": "",
+  "jtbd.claim_intake.button.escalate": "",
+  "jtbd.claim_intake.button.reject": "",
+  "jtbd.claim_intake.button.submit": "",
+  "jtbd.claim_intake.field.claimant_name.label": "",
+  "jtbd.claim_intake.field.contact_email.label": "",
+  "jtbd.claim_intake.field.contact_phone.label": "",
+  "jtbd.claim_intake.field.loss_amount.label": "",
+  "jtbd.claim_intake.field.loss_date.label": "",
+  "jtbd.claim_intake.field.loss_description.label": "",
+  "jtbd.claim_intake.field.policy_number.label": "",
+  "jtbd.claim_intake.sla.breach": "",
+  "jtbd.claim_intake.sla.warn": "",
+  "jtbd.claim_intake.title": ""
+}

@@ -1,5 +1,207 @@
 # flowforge changelog
 
+## [0.3.0-engr.4b] — Wave 4b
+
+> Sixth and final wave of the v0.3.0 engineering track per
+> `docs/v0.3.0-engineering-plan.md` §7. W4b closes the UX-completion
+> backlog: per-bundle i18n catalogs with a `useT()` type-safe hook plus
+> a compliance-aware coverage gate (item 17), per-JTBD operator manual
+> MDX (item 20), and opt-in LLM copy polish via sidecar per ADR-002
+> (item 22). One new per-PR gate joins the suite —
+> `make audit-2026-i18n-coverage` errors on untranslated keys in any
+> JTBD declaring `compliance: [...]` and warns on every other empty
+> value. Four new generated-artifact classes join the byte-identical
+> regen baseline per example: `frontend/src/<pkg>/i18n/<lang>.json`
+> per declared language (item 17), `frontend/src/<pkg>/i18n/useT.ts`
+> (item 17), `docs/jtbd/<id>.mdx` per JTBD (item 20). Item 22 ships
+> the `flowforge polish-copy` Typer command + `JtbdCopyOverrides`
+> sidecar schema; no overrides are committed in this wave, so the
+> regen-diff stays canonical-only. The `examples/insurance_claim/jtbd-bundle.json`
+> bundle now declares `languages = ["en", "fr-CA"]` so the regen-diff
+> exercises both populated-English and empty-French catalogs in CI.
+> Item 17 and 20 generators are deterministic by construction; item
+> 22's LLM is opt-in and authoring-time only — never in regen, never
+> in CI. Each generator preserves the byte-identical regen contract
+> on the three example bundles across both `form_renderer` flag
+> values: the cumulative regen-diff count is 6/6 byte-identical at
+> closeout time via `scripts/ci/regen_flag_flip.sh`. With W4b closed
+> the v0.3.0-engineering plan is complete — all 22 items off
+> `docs/improvements.md` have landed across 6 waves (W0..W4b).
+> Capstone close-out report at `docs/v0.3.0-engineering/close-out.md`.
+
+- **[Functional, Capable]** (v0.3.0 W4b / item 17) i18n scaffolding
+  with empty-translation lint. New per-bundle generator
+  `flowforge_cli.jtbd.generators.i18n` emits one JSON catalog per
+  declared `project.languages` entry at
+  `frontend/src/<pkg>/i18n/<lang>.json` plus a type-safe TS hook at
+  `frontend/src/<pkg>/i18n/useT.ts`. Keys span the closed namespace
+  `jtbd.<id>.{title|field.<field_id>.label|button.<event>|sla.{warn,breach}}`
+  + `audit.<topic>` (humanised one-liner per
+  `bundle.all_audit_topics` entry). The English catalog is the source
+  of truth and populated from bundle prose (`humanize_topic` +
+  `humanize_event` render past-tense / button-cased templates for the
+  closed lifecycle-verb set); non-English catalogs are emitted
+  structurally identical with empty values — they are the lint
+  targets. The generated `useT.ts` exports a `TranslationKey`
+  string-literal union of every key, plus `AVAILABLE_LANGUAGES`,
+  `DEFAULT_LANGUAGE`, an `I18nContext` React context, and a `useT()`
+  hook that falls back to the English catalog when the active locale
+  is missing a key (so a partially-translated app stays usable while
+  hosts fill the gaps). New CI gate `make audit-2026-i18n-coverage`
+  runs `scripts/i18n/check_coverage.py` over every example bundle and
+  asserts: any JTBD declaring `compliance: [...]` has zero
+  untranslated keys in any non-English catalog (hard error / exit 1);
+  every other empty value is a warning (exit 0). The gate ships
+  pre-armed: `examples/insurance_claim/jtbd-bundle.json` now declares
+  `languages = ["en", "fr-CA"]` so the gate reports 0 errors / 20
+  warnings (no `claim_intake.compliance` block today; the warnings
+  document the work for a Quebec deployment). JSON is emitted with
+  `sort_keys=True` and a trailing newline so two regens against the
+  same bundle produce byte-identical catalogs. Per Principle 2 of
+  the engineering plan the generator is a per-bundle aggregation —
+  one `useT.ts` and N `<lang>.json` per bundle regardless of JTBD
+  count. Reference: `docs/improvements.md` item 17,
+  `docs/v0.3.0-engineering-plan.md` §7 W4b + §6 (i18n-coverage gate).
+
+- **[Beautiful, Functional]** (v0.3.0 W4b / item 20) Per-JTBD
+  operator manual. New per-JTBD generator
+  `flowforge_cli.jtbd.generators.operator_manual` emits
+  `docs/jtbd/<id>.mdx` per JTBD — a self-contained operator manual
+  rendered from the bundle's authored prose (`situation` +
+  `motivation` + `outcome` + `success_criteria`), the synthesised
+  state diagram (the same mermaid source the W1 `diagram` generator
+  emits to `workflows/<id>/diagram.mmd`, so the manual and the
+  workflow can never drift apart on regen), the form-spec field
+  catalog (one bullet per field with `, required` and `, PII` flag
+  suffixes), the bundle's audit-topic taxonomy (closed-set events
+  approved/escalated/submitted plus `<edge>_rejected` /
+  `<edge>_returned` fallbacks rendered as human one-liners), and the
+  synthesised permissions catalog
+  (`read|submit|review|approve|reject|escalate` actions rendered as
+  human verb phrases). Pure markdown + fenced `mermaid` blocks — no
+  JSX components — so the output is valid MDX in any MDX 2 / 3
+  renderer that treats fences as plain `<pre><code>`. The manual
+  references the W3 visual-regression baselines at
+  `../../../screenshots/frontend/Step.<viewport>.png` unconditionally
+  (renderers show a broken-image fallback while the W3 pnpm-install
+  blocker keeps the baselines unpopulated); the generator
+  deliberately does NOT probe the filesystem — that would break
+  Principle 1 determinism. 11 new MDX files join the byte-identical
+  regen baseline across the three examples (1 + 5 + 5 = 11 JTBDs).
+  Reference: `docs/improvements.md` item 20,
+  `docs/v0.3.0-engineering-plan.md` §7 W4b.
+
+- **[Beautiful]** (v0.3.0 W4b / item 22, ADR-002) Opt-in LLM copy
+  polish via sidecar. New module
+  `flowforge_cli.jtbd.overrides` defines
+  `JtbdCopyOverrides` — a Pydantic v2 schema (`extra='forbid'` at the
+  top level, model validator that walks every key in `strings`
+  against the documented namespace grammar
+  `<jtbd_id>.{field|button|notification|error}.<id>.<suffix>`).
+  Persistence is a *sidecar* at `<bundle_path>.overrides.json`
+  co-located with the bundle, NOT inside `JtbdBundle` — per
+  ADR-002, the canonical content-addressable surface
+  (`JtbdBundle.spec_hash`) is invariant whether the sidecar exists
+  or not. New Typer command `flowforge polish-copy --tone <profile>
+  --bundle <path> [--commit|--dry-run] [--overrides <path>]` runs an
+  authoring-time rewrite of the user-facing strings; tone profiles
+  are `formal-professional`, `friendly-direct`, `regulator-compliant`.
+  The Anthropic provider is an opt-in soft dep
+  (`[project.optional-dependencies] llm = ["anthropic>=0.40"]`) gated
+  through `importlib.util.find_spec` — without the package OR without
+  an `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY` env var, the command
+  degrades to a deterministic no-op echo (canonical strings round-trip
+  unchanged) and `--commit` skips writing the sidecar so
+  `git status --porcelain` stays clean. This is the ONLY LLM
+  touchpoint in the entire generation pipeline; the LLM never runs
+  during regen or in CI. Lookup precedence at generator emit time
+  follows ADR-002 strictly: explicit `--overrides <path>` on
+  `flowforge jtbd-generate` wins, then the co-located sidecar, then
+  none (canonical strings). `flowforge_cli.jtbd.pipeline.generate()`
+  and `flowforge_cli.jtbd.normalize.normalize()` grow an optional
+  `overrides=None` keyword threaded down through `_norm_field`, so
+  the field-label override is applied once at normalize time and
+  every downstream consumer (form_spec.json, Step.tsx FIELDS array)
+  picks up the polished string without re-implementing the lookup.
+  New CI gate `tests/v0_3_0/test_polish_copy_committed_overrides.py`
+  asserts `flowforge polish-copy --commit` with no API key MUST NOT
+  dirty `examples/` for any of the three bundles, and that any
+  committed sidecar is tracked by git. The new `tests/v0_3_0/`
+  layered root joins the framework's allowed test-location list
+  (E-68 lint + `tests/README.md` 9-layer table); future v0.3.0
+  residual gates land there. Determinism unchanged:
+  `scripts/ci/regen_flag_flip.sh` reports 6/6 byte-identical
+  (3 examples × 2 form_renderer flag values). pyright clean on
+  `python/flowforge-cli/src` (0 errors, 0 warnings); flowforge-cli
+  test suite at 585/585 (562 prior + 23 new polish-copy tests).
+  Reference: `docs/improvements.md` item 22,
+  `docs/v0.3.0-engineering/adr/ADR-002-copy-override-sidecar.md`,
+  `docs/v0.3.0-engineering-plan.md` §7 W4b + §11 residual risk #3
+  ((bundle, sidecar) tuple participates in regen-diff hash) + §11
+  residual risk #5 (lookup precedence strictness).
+
+- **(v0.3.0 W4b)** New CI gate `make audit-2026-i18n-coverage`.
+  Layered audit subtarget at `Makefile` runs
+  `scripts/i18n/check_coverage.py` over every example bundle: any
+  JTBD declaring `compliance: [...]` MUST have zero empty values
+  for keys scoped to that JTBD in every non-English catalog
+  (regulated workflows need full translation coverage — hard error
+  / exit 1). Empty values on non-compliance JTBDs surface as
+  warnings (exit 0). The English catalog is the source of truth,
+  emitted populated by the W4b item-17 generator;
+  non-English catalogs ship structurally identical with empty
+  values so the gate scales from one language to many without
+  per-language schema drift. At closeout the gate reports 0
+  errors / 20 warnings against `examples/insurance_claim` (the
+  20 warnings document the work required for a Quebec
+  deployment; flipping `claim_intake.compliance` to a non-empty
+  list would convert them to errors). Wired into the
+  layered-suite list in the Makefile `help` block alongside the
+  other `audit-2026-*` gates. Reference:
+  `docs/v0.3.0-engineering-plan.md` §6 (i18n-coverage gate) + §7
+  W4b.
+
+- **(v0.3.0 W4b)** Example bundle baselines: every example
+  regenerates the new W4b surface byte-identical against the
+  checked-in tree — per-bundle `frontend/src/<pkg>/i18n/<lang>.json`
+  (one per declared language) + `frontend/src/<pkg>/i18n/useT.ts`
+  (item 17), per-JTBD `docs/jtbd/<id>.mdx` (item 20, all 11 JTBDs
+  across the three examples). Item 22 ships the sidecar loader +
+  CLI but commits no overrides this wave, so the
+  `(bundle, sidecar)` regen-diff tuple equals the canonical bundle
+  on every example; once a host runs
+  `flowforge polish-copy --commit` with a real
+  `ANTHROPIC_API_KEY` the resulting `<bundle>.overrides.json` must
+  be committed and joins the regen-diff (the
+  `tests/v0_3_0/test_polish_copy_committed_overrides.py` gate
+  enforces this). `examples/insurance_claim/jtbd-bundle.json`
+  bumps `project.languages` from `["en"]` to `["en", "fr-CA"]`
+  so the i18n gate exercises both the populated-English and
+  empty-French catalog flavors against a regulated example. The
+  cross-flag self-determinism check
+  (`scripts/ci/regen_flag_flip.sh`) reports 6/6 byte-identical
+  (3 examples × 2 `form_renderer` values) at closeout time —
+  pinned by the W4b closeout protocol per
+  `docs/v0.3.0-engineering-plan.md` §7.
+
+- **(v0.3.0 W4b / closeout)** v0.3.0-engineering plan close-out.
+  All 22 items off `docs/improvements.md` landed across 6 waves
+  (W0..W4b). 11/11 conformance invariants pass; 7/7 ratchets
+  PASS; cross-runtime parity Python-side 253/253 against
+  `expr_parity_v2.json` (JS-side skip-with-clear-reason while
+  the pnpm-install blocker stays open — carried over from W3).
+  Capstone close-out report at
+  `docs/v0.3.0-engineering/close-out.md` follows the pattern of
+  `docs/audit-2026/close-out.md`: wave-by-wave summary, per-item
+  evidence trail, port + generator + invariant + ratchet
+  inventory, pre-mortem mitigation outcomes, carry-forwards
+  (pnpm-install unblock + visual-regression baselines + sidecar
+  authoring follow-ons), and a final reviewer-signoff block
+  pending architect verification by the project owner. The
+  plan-status table at
+  `docs/v0.3.0-engineering-plan.md` §7 flips W4b → ✅ completed
+  and the overall plan → ✅ completed.
+
 ## [0.3.0-engr.4a] — Wave 4a
 
 > Fifth wave of the v0.3.0 engineering track per

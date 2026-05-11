@@ -14,6 +14,7 @@ import typer
 
 from .._io import load_structured
 from ..jtbd import generate
+from ..jtbd.overrides import resolve_sidecar
 from ..jtbd.parse import JTBDParseError
 
 
@@ -28,6 +29,17 @@ def jtbd_generate_cmd(
 	jtbd: Path = typer.Option(..., "--jtbd", exists=True, dir_okay=False, help="JTBD bundle file."),
 	out: Path = typer.Option(Path.cwd(), "--out", help="Output root (default: cwd)."),
 	force: bool = typer.Option(False, "--force", help="Allow writing into a non-empty target."),
+	overrides_path: Path | None = typer.Option(
+		None,
+		"--overrides",
+		exists=False,
+		dir_okay=False,
+		help=(
+			"Copy-override sidecar (per ADR-002, v0.3.0 W4b item 22). "
+			"Defaults to the co-located <bundle>.overrides.json when present; "
+			"explicit flag wins over the co-located file."
+		),
+	),
 ) -> None:
 	"""Generate every artefact from *jtbd* under *out*."""
 
@@ -35,8 +47,12 @@ def jtbd_generate_cmd(
 	out = out.resolve()
 
 	bundle = load_structured(jtbd)
+	# Per ADR-002 lookup precedence: --overrides flag > co-located
+	# <bundle>.overrides.json > none (canonical). ``resolve_sidecar``
+	# centralises that contract.
+	overrides = resolve_sidecar(jtbd, overrides_path)
 	try:
-		files = generate(bundle)
+		files = generate(bundle, overrides=overrides)
 	except JTBDParseError as exc:
 		raise typer.BadParameter(str(exc)) from exc
 

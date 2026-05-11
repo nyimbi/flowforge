@@ -1750,6 +1750,351 @@ green before the wave's row(s) here are signed.
     commit_sha: TBD
 ```
 
+## Wave W4b — UX completion
+
+```yaml
+- item: W4b-item-22
+  title: "LLM copy polish via sidecar (per ADR-002)"
+  wave: W4b
+  property: Beautiful
+  worker: worker-polish
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/overrides.py (NEW — JtbdCopyOverrides Pydantic v2 schema with namespace-grammar validator; sidecar_path_for, load_sidecar, resolve_sidecar, validate_key_against_bundle, build_canonical_strings, dump_sidecar helpers)"
+      - "python/flowforge-cli/src/flowforge_cli/commands/polish_copy.py (NEW — `flowforge polish-copy --tone <profile> --bundle <path> [--commit|--dry-run] [--overrides <path>]` Typer command; anthropic provider gated via importlib.util.find_spec — no API key OR no anthropic install → no-op echo path; --commit skips writing the sidecar when polish output == canonical so git status stays clean)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/pipeline.py (generate() takes optional overrides=None; threaded through normalize())"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/normalize.py (normalize() and _norm_field() take optional overrides; field.label overrides applied at normalize time so every downstream emit — form_spec.json, Step.tsx FIELDS array — picks them up without re-implementing the lookup)"
+      - "python/flowforge-cli/src/flowforge_cli/commands/jtbd_generate.py (--overrides <path> flag; resolve_sidecar applies ADR-002 lookup precedence — flag > co-located <bundle>.overrides.json > none)"
+      - "python/flowforge-cli/src/flowforge_cli/main.py (registers polish_copy command)"
+      - "python/flowforge-cli/pyproject.toml ([project.optional-dependencies] llm = [\"anthropic>=0.40\"] — opt-in soft dep)"
+      - "python/flowforge-cli/tests/test_polish_copy.py (NEW — 23 tests: schema validation, namespace key grammar, lookup precedence, CLI no-op echo, --dry-run baseline diff, --commit-no-write-when-canonical, --overrides flag threads into jtbd-generate, co-located sidecar auto-pickup, smoke test against examples/insurance_claim)"
+      - "tests/v0_3_0/__init__.py (NEW — establishes the v0_3_0 layered test root per docs/v0.3.0-engineering-plan.md §7)"
+      - "tests/v0_3_0/test_polish_copy_committed_overrides.py (NEW — CI gate: `flowforge polish-copy --commit` with no API key MUST NOT dirty examples/; any committed sidecar must be tracked by git)"
+      - "tests/audit_2026/test_E_68_test_location_convention.py (allowed `v0_3_0` layer; added `.omc` skip segment for OMC tooling scratch state)"
+      - "tests/README.md (documented the v0_3_0 layer in the 9-layer table; bumped '8 audit-2026 layers' → '9 layers')"
+    acceptance_tests:
+      - "uv run pytest python/flowforge-cli/tests/test_polish_copy.py — 23/23 green"
+      - "uv run pytest tests/v0_3_0/test_polish_copy_committed_overrides.py — 6/6 green (3 examples × {commit-keeps-clean, no-committed-sidecar-drift})"
+      - "uv run pytest tests/audit_2026/test_E_68_test_location_convention.py — 5/5 green (v0_3_0 layer accepted by lint + documented in README)"
+    pre_deploy_checks:
+      - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
+      - "uv run pytest python/flowforge-cli/tests/ -q — 585/585 green (existing 562 + 23 new polish-copy tests)"
+      - "uv run pytest tests/conformance -q — 11/11 invariants pass"
+      - "bash scripts/ci/ratchets/check.sh — 7/7 PASS (no new ratchet added)"
+      - "scripts/ci/regen_flag_flip.sh — 6/6 byte-identical (3 examples × 2 form_renderer flag values) — no sidecars present yet, so the (bundle, sidecar) tuple == bundle and the canonical regen-diff catches every drift"
+      - "Smoke: `uv run flowforge polish-copy --bundle examples/insurance_claim/jtbd-bundle.json --tone formal-professional --dry-run` (no API key) → 'no-op echo' + 'no diff — canonical strings unchanged' + zero files written"
+    determinism_proof: |
+      The LLM is opt-in soft dep. In CI no ANTHROPIC_API_KEY /
+      CLAUDE_API_KEY is set, so `_detect_polish_fn` short-circuits
+      to `_noop_polish` (identity over the canonical strings). With
+      `polished == canonical`, the --commit path skips the sidecar
+      write entirely so `git status --porcelain examples/` stays
+      empty — the `tests/v0_3_0/test_polish_copy_committed_overrides.py`
+      gate asserts this against all three example bundles.
+
+      At regen time, sidecar resolution is fully deterministic:
+      `resolve_sidecar(bundle_path, overrides_path)` applies the
+      ADR-002 precedence (explicit flag > co-located file > None) by
+      pure path math + filesystem read. Two regens with the same
+      (bundle, sidecar) pair produce byte-identical output — pinned
+      by `scripts/check_all.sh` step 8's `diff -rq` between
+      `examples/<example>/generated/` and a fresh regen. Sidecar
+      contents enter the regen-diff because the generator reads them
+      at emit time; a stale sidecar produces drift the diff catches.
+
+      `JtbdCopyOverrides` carries `extra='forbid'` at the top level
+      and a model validator that walks every key in `strings` against
+      the documented namespace regex. A typo (e.g. `labels` plural)
+      fails validation — three negative tests pin this. Canonical
+      `JtbdBundle.spec_hash` is unchanged whether or not a sidecar
+      exists; the override is applied at normalize → generator emit
+      time and never reaches `JtbdBundle.model_validate()`.
+
+      Per-key cross-check (`validate_key_against_bundle`) catches
+      hand-edited sidecars that target a JTBD or field id that does
+      not exist on the bundle, so a typo never silently produces
+      dead overrides.
+    rollback_plan: |
+      git revert <sha>; the implementation is purely additive (new
+      schema module, new Typer command, optional `overrides=None`
+      keyword on `generate()` / `normalize()`, optional `--overrides`
+      flag on `jtbd-generate`, optional `[project.optional-dependencies]
+      llm` extra). No example sidecars are committed in this wave so
+      reverting carries no `examples/` regen impact. The canonical
+      `JtbdBundle.spec_hash` is unchanged before and after. A host
+      that has committed a sidecar can keep it on disk after revert —
+      without the loader code the file is inert (no consumer reads
+      it), and re-applying W4b re-activates it.
+  follow_ups:
+    - "Once a host runs `flowforge polish-copy --commit` with a real ANTHROPIC_API_KEY against any example, the resulting `<bundle>.overrides.json` must be committed (the CI gate enforces this)."
+    - "Optional follow-on: emit `helper_text` / `button.<event>.text` / `notification.<topic>.template` / `error.<code>.message` overrides into form_spec.json and Step.tsx — the schema accepts these key kinds today; generator-side application is scoped to field labels in W4b to keep the change minimal."
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header). ADR-002 invariants verified: sidecar lives outside canonical bundle, spec_hash unchanged, LLM is authoring-time only, lookup precedence is strict, regen-diff captures the (bundle, sidecar) tuple via the generator reading the sidecar at emit time."
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+
+- item: W4b-item-17
+  title: "i18n scaffolding with empty-translation lint (per-bundle generator + useT() hook + audit-2026-i18n-coverage gate)"
+  wave: W4b
+  property: [Functional, Capable]
+  worker: worker-i18n
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/i18n.py (NEW — per-bundle generator emitting <lang>.json catalogs + useT.ts; humanize_topic/humanize_event/english_catalog/empty_mirror helpers)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/_fixture_registry.py (CONSUMES entry for i18n)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/pipeline.py (registered in _PER_BUNDLE_GENERATORS)"
+      - "python/flowforge-cli/tests/test_i18n_generator.py (NEW — 37 unit tests: english_catalog shape, humanize_event/topic dispatch, empty_mirror invariants, deterministic JSON, useT.ts hook source, multi-language fanout, registered-in-pipeline assertion)"
+      - "scripts/i18n/check_coverage.py (NEW — coverage gate: errors on compliance: JTBDs with empty non-English values; warnings elsewhere; exit 0/1/2)"
+      - "Makefile (audit-2026-i18n-coverage target — runs check_coverage.py)"
+      - "examples/insurance_claim/jtbd-bundle.json (project.languages bumped from [en] to [en, fr-CA])"
+      - "examples/insurance_claim/generated/frontend/src/insurance_claim_demo/i18n/{en.json,fr-CA.json,useT.ts} (NEW)"
+      - "examples/building-permit/generated/frontend/src/building_permit/i18n/{en.json,useT.ts} (NEW)"
+      - "examples/hiring-pipeline/generated/frontend/src/hiring_pipeline/i18n/{en.json,useT.ts} (NEW)"
+      - "CHANGELOG.md (## [0.3.0-engr.4b] entry for item 17 + the i18n-coverage gate)"
+    acceptance_tests:
+      - "uv run pytest python/flowforge-cli/tests/test_i18n_generator.py — 37/37 green"
+      - "make audit-2026-i18n-coverage — 0 errors / 20 warnings (no compliance-tagged JTBD untranslated; warnings document the Quebec follow-on)"
+    pre_deploy_checks:
+      - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
+      - "uv run pytest python/flowforge-cli/tests/ -q — 585/585 green"
+      - "make audit-2026-conformance — 11/11 invariants pass (no new invariant in W4b; i18n-coverage stays a gate, not an invariant)"
+      - "bash scripts/ci/ratchets/check.sh — 7/7 PASS (no new ratchet added in W4b)"
+      - "scripts/ci/regen_flag_flip.sh — 6/6 byte-identical (3 examples × 2 form_renderer flag values)"
+    determinism_proof: |
+      The generator is a pure function of the normalised bundle:
+      English catalog keys are derived from sorted JTBD iteration
+      (`bundle.jtbds` is already sorted by id at normalize time),
+      sorted field iteration per JTBD, and sorted-deduped transition
+      events; ``bundle.all_audit_topics`` is already sorted +
+      deduplicated upstream. JSON emission uses
+      ``json.dumps(indent=2, sort_keys=True, ensure_ascii=False)``
+      plus an explicit trailing newline so dict iteration order
+      cannot perturb the output. The TS hook iterates ``sorted(english.keys())``
+      for the ``TranslationKey`` union. Non-English catalogs are
+      ``empty_mirror`` of the English catalog so they share the
+      same key set and order. Two regens against the same bundle
+      yield byte-identical output across every artifact (en.json,
+      fr-CA.json when declared, useT.ts) — pinned by
+      ``scripts/check_all.sh`` step 8 against
+      ``examples/<example>/generated/frontend/src/<pkg>/i18n/``.
+    cross_runtime_parity_proof: |
+      The generator does not touch the expression evaluator;
+      i18n catalogs and the ``useT.ts`` hook consume only static
+      bundle metadata. The TS hook's ``TranslationKey`` union is a
+      string-literal type (compile-time only), not a runtime DSL
+      surface. Invariant 5 stays green against the existing
+      ``expr_parity_v2.json`` corpus without fixture churn.
+    rollback_plan: |
+      git revert <sha>; the generator is purely additive (new
+      module + new generator registration + new CI gate + new
+      example artifacts). The bundle-side change
+      (project.languages = ["en", "fr-CA"]) is also additive
+      — reverting it keeps the bundle valid against the
+      ``JtbdProject`` schema (languages defaults to ``["en"]``).
+      Reverting removes the i18n/ subtree from each example's
+      generated/ tree on next regen; the audit-2026-i18n-coverage
+      gate disappears with the Makefile target. No schema
+      migration, no runtime port change, no public API change
+      to flowforge-core.
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+
+- item: W4b-item-20
+  title: "Per-JTBD operator manual (per-JTBD operator_manual.mdx generator)"
+  wave: W4b
+  property: [Beautiful, Functional]
+  worker: worker-manual
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/operator_manual.py (NEW — per-JTBD generator; _permission_summary/_audit_topic_summary/_field_bullet/build_mdx helpers; reuses diagram.build_mmd so the manual + workflow diagram never drift)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/templates/operator_manual.mdx.j2 (NEW — pure markdown + fenced mermaid; no JSX components)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/generators/_fixture_registry.py (CONSUMES entries for operator_manual)"
+      - "python/flowforge-cli/src/flowforge_cli/jtbd/pipeline.py (registered in _PER_JTBD_GENERATORS)"
+      - "examples/insurance_claim/generated/docs/jtbd/claim_intake.mdx (NEW)"
+      - "examples/building-permit/generated/docs/jtbd/{field_inspection,permit_decision,permit_intake,permit_issuance,plan_review}.mdx (NEW × 5)"
+      - "examples/hiring-pipeline/generated/docs/jtbd/{complete_hire,conduct_interview,extend_offer,screen_candidate,source_candidate}.mdx (NEW × 5)"
+      - "CHANGELOG.md (## [0.3.0-engr.4b] entry for item 20)"
+    acceptance_tests:
+      - "Byte-identical regen against examples/*/generated/docs/jtbd/ — covered by scripts/check_all.sh step 8 (regen-diff) and the cross-flag self-determinism harness scripts/ci/regen_flag_flip.sh"
+      - "Property-test coverage retrofit deferred to a follow-up (audit-2026-property-coverage REQUIRED_GENERATORS list does not include operator_manual today; future PR can promote it once the test pattern stabilises against the operator_manual.mdx.j2 template)"
+    pre_deploy_checks:
+      - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
+      - "uv run pytest python/flowforge-cli/tests/ -q — 585/585 green (operator_manual exercised end-to-end via the pipeline-integration tests + regen-diff baseline)"
+      - "make audit-2026-conformance — 11/11 invariants pass"
+      - "scripts/ci/regen_flag_flip.sh — 6/6 byte-identical (3 examples × 2 form_renderer flag values)"
+    determinism_proof: |
+      Pure-functional MDX assembly. ``build_mdx`` iterates the bundle
+      and JTBD in declaration order; field bullets, audit-topic
+      summaries, and permission summaries are total deterministic
+      functions of the (field, topic, permission) inputs.
+      ``diagram.build_mmd`` is the W1 generator's pure entry point
+      so the embedded mermaid block is byte-identical to the
+      ``workflows/<id>/diagram.mmd`` file — manual and workflow
+      diagram never drift on regen. No clock, no random ids, no
+      filesystem probe (the W3 visual-regression baseline path is
+      referenced unconditionally; renderers fall back to
+      broken-image while the pnpm-install blocker keeps the
+      screenshots/ tree empty). Both ``form_renderer`` flag values
+      produce identical MDX output (the manual is invariant to that
+      flag); the cross-flag self-determinism check
+      (``scripts/ci/regen_flag_flip.sh``) reports 6/6 byte-identical.
+    cross_runtime_parity_proof: |
+      Generator does not touch the expression evaluator. MDX
+      consumers are markdown renderers, not JSON-DSL consumers.
+      No fixture churn required; invariant 5 stays green against
+      ``expr_parity_v2.json``.
+    rollback_plan: |
+      git revert <sha>; the rollback removes the per-JTBD MDX
+      tree from each example's generated/docs/jtbd/ subdir, the
+      generator + template, and the registry/pipeline entries.
+      Operator manuals are purely additive — host docs that
+      consume them gracefully degrade to "no manual available"
+      until re-applied.
+  follow_ups:
+    - "Property-coverage retrofit: add `operator_manual` to `tests/audit_2026/test_property_coverage_gate.py::REQUIRED_GENERATORS` and emit a hand-authored `tests/property/generators/test_operator_manual_properties.py` once the MDX template stabilises. Deferred to a follow-up; today the generator is exercised end-to-end by the regen-diff baseline against three example bundles."
+    - "Visual-regression baselines: the MDX references `../../../screenshots/frontend/Step.<viewport>.png` unconditionally; once the W3 pnpm-install blocker clears and `pnpm approve-builds` runs, the baseline tree populates and the broken-image fallback disappears."
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+
+- item: W4b-i18n-coverage-gate
+  title: "i18n-coverage gate — compliance JTBDs must have zero untranslated keys"
+  wave: W4b
+  property: [Functional, Capable]
+  worker: worker-i18n
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "scripts/i18n/check_coverage.py (NEW — walks examples/, regenerates each bundle's catalogs in memory, errors on compliance: JTBDs with empty non-English values, warns elsewhere)"
+      - "Makefile (audit-2026-i18n-coverage target — runs check_coverage.py with `uv run python`)"
+    test_path: "scripts/i18n/check_coverage.py"
+    acceptance_criterion: |
+      ``make audit-2026-i18n-coverage`` reports green when (1) every
+      JTBD declaring ``compliance: [...]`` has zero empty values
+      for keys scoped to that JTBD across every non-English catalog
+      (hard error / exit 1 if not), and (2) the script's run-time
+      contract holds (no runtime crash; exit 2 on bundle parse /
+      generator error). Adding a new ``compliance:``-tagged JTBD
+      without translating its strings fails the gate loud, with a
+      message listing the missing keys per language.
+    pre_deploy_checks:
+      - "make audit-2026-i18n-coverage — 0 errors / 20 warnings against examples/ (the warnings document the Quebec follow-on; no claim_intake.compliance block today)"
+      - "make audit-2026-conformance — 11/11 invariants pass"
+      - "bash scripts/ci/ratchets/check.sh — 7/7 PASS (no new ratchet in W4b)"
+    rollback_plan: |
+      git revert <sha>; the gate is purely additive — one Python
+      script + one Make target. Reverting removes the gate;
+      example bundles still regenerate byte-identical because the
+      i18n generator (item 17) is orthogonal to the gate.
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header)"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+
+- item: W4b-closeout
+  title: "W4b closeout + v0.3.0-engineering capstone close-out report"
+  wave: W4b
+  property: Quality
+  worker: worker-w4b-closeout
+  status: implementation_landed_pending_signoff
+  evidence:
+    files_changed:
+      - "CHANGELOG.md (## [0.3.0-engr.4b] — Wave 4b: items 17, 20, 22 entries consolidated under a single heading; i18n-coverage gate entry; example bundle baseline note; W4b/closeout summary)"
+      - "docs/v0.3.0-engineering/signoff-checklist.md (W4b rows appended: items 17, 20, 22 already landed; this commit adds 17, 20, i18n-coverage-gate, and this closeout row)"
+      - "docs/v0.3.0-engineering-plan.md (§7 status table — W4b flipped from pending to ✅ completed; overall plan flipped to ✅ completed)"
+      - "docs/v0.3.0-engineering/close-out.md (NEW — capstone close-out report following the docs/audit-2026/close-out.md pattern: wave-by-wave summary, per-item evidence trail, port + generator + invariant + ratchet inventory, pre-mortem mitigation outcomes, carry-forwards, reviewer signoff)"
+    acceptance_tests:
+      - "scripts/ci/regen_flag_flip.sh — 6/6 byte-identical (3 examples × 2 form_renderer flag values) at closeout time"
+      - "make audit-2026-i18n-coverage — 0 errors / 20 warnings"
+    pre_deploy_checks:
+      - "bash scripts/ci/ratchets/check.sh — 7/7 PASS (no new ratchet in W4b)"
+      - "make audit-2026-conformance — 11/11 invariants pass"
+      - "make audit-2026-property-coverage — 3/3 green (13 W0-W3 generators retrofitted; 3 seed-uniqueness checks pass)"
+      - "uv run pytest tests/cross_runtime/ -q — Python-side 253/253 green; JS-side skip-with-reason on the pre-existing pnpm-install blocker (carried over from W3)"
+      - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
+      - "uv run pytest python/flowforge-cli/tests/ -q — 585/585 green"
+      - "uv run pytest tests/v0_3_0/ tests/audit_2026/test_E_68_test_location_convention.py -q — 11/11 green"
+      - "Examples regen-diff via scripts/ci/regen_flag_flip.sh — 6/6 byte-identical at closeout time"
+    determinism_proof: |
+      Closeout artefacts are pure-functional documentation: a
+      consolidated CHANGELOG heading, signoff rows, a status-table
+      flip, and the new ``docs/v0.3.0-engineering/close-out.md``
+      capstone report. The signoff rows mirror the pattern of
+      W0/W1/W2/W3/W4a rows already in this file; no schema or
+      runtime change. Regen-diff determinism is established by
+      the three implementation rows above (W4b-item-17,
+      W4b-item-20, W4b-item-22) — this row consumes their evidence
+      and pins it to the closeout commit SHA.
+    rollback_plan: |
+      git revert <sha>; closeout is purely additive. Reverting
+      restores the pre-W4b-closeout CHANGELOG / signoff / plan-status
+      / close-out state without touching any of the implementation
+      rows already landed in this checklist (W4b implementation
+      rows for items 17, 20, 22 plus the i18n-coverage-gate row
+      live above and survive a closeout-only revert).
+  follow_ups:
+    - "pnpm-install unblock (carried over from W3): once `pnpm approve-builds` runs for the workspace, the JS-side cross-runtime parity green run completes and the W3 visual-regression baseline catalogs land in a follow-up PR. The W4b operator-manual MDX references the W3 baseline paths unconditionally so this unblock retroactively fills the broken-image fallbacks."
+    - "Quebec deployment follow-on: the i18n-coverage gate ships at 0 errors / 20 warnings against examples/insurance_claim today (20 fr-CA strings empty, no compliance tag). Flipping `claim_intake.compliance: [...]` non-empty would convert the warnings to errors; the host responsible for the Quebec deployment owns the fr-CA translation work + the compliance-tag flip."
+    - "Sidecar authoring follow-on: item 22 ships the loader + CLI but no overrides are committed in W4b. A host that runs `flowforge polish-copy --commit` with a real ANTHROPIC_API_KEY against any example must commit the resulting `<bundle>.overrides.json`; the `tests/v0_3_0/test_polish_copy_committed_overrides.py` gate enforces this."
+    - "Property-coverage retrofit for the W4b generators (i18n, operator_manual): add to `tests/audit_2026/test_property_coverage_gate.py::REQUIRED_GENERATORS` and emit hand-authored `tests/property/generators/test_<gen>_properties.py` for each. Deferred to a follow-up; today the generators are exercised end-to-end by the regen-diff baseline against three example bundles plus item 17's 37 unit tests."
+    - "Final-pass reviewer signoff on the close-out report (`docs/v0.3.0-engineering/close-out.md`) is marked `pending architect verification by user` — the project owner runs the architect dispatch."
+  architecture_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+    note: "single-stakeholder approval pattern (see roles header). All W4b verification gates collected at closeout time; capstone close-out report at docs/v0.3.0-engineering/close-out.md pending architect verification."
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-05-11
+    commit_sha: TBD
+```
+
 ---
 
 *This file is the v0.3.0-engineering equivalent of

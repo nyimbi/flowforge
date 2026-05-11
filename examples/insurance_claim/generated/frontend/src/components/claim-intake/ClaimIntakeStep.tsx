@@ -11,6 +11,11 @@ import { ANALYTICS_EVENTS, type AnalyticsEvent } from "../../insurance_claim_dem
 // `flowforge jtbd-generate` against a tweaked `project.design` re-themes
 // every Step component that imports this file.
 import "../../insurance_claim_demo/design_tokens.css";
+// v0.3.0 W4b / item 17 — i18n. The generated catalog is keyed by a
+// closed string-literal union; field labels below resolve through
+// `useT()` so hosts can swap the active locale by wrapping this Step
+// with an `I18nContext.Provider` without forking the template.
+import { useT } from "../../insurance_claim_demo/i18n/useT";
 
 /**
  * Compatibility-shaped subset of `flowforge.ports.analytics.AnalyticsPort`
@@ -80,6 +85,7 @@ const EVT_FORM_ABANDONED: AnalyticsEvent = ANALYTICS_EVENTS.CLAIM_INTAKE_FORM_AB
  * fire — the analytics surface is pure observability.
  */
 export function ClaimIntakeStep(props: ClaimIntakeStepProps): React.ReactElement {
+	const t = useT();
 	const [busy, setBusy] = React.useState(false);
 	const [values, setValues] = React.useState<FormValues>({});
 	const [errors, setErrors] = React.useState<FormErrors>({});
@@ -203,7 +209,7 @@ export function ClaimIntakeStep(props: ClaimIntakeStepProps): React.ReactElement
 			onFocusCapture={handleFocusCapture}
 			style={{ fontFamily: "var(--font-family)", borderRadius: "var(--radius-md)", padding: "var(--density-padding)" }}		>
 			<header>
-				<h2 id="claim_intake-step-title" style={{ color: "var(--color-primary)" }}>File an insurance claim (FNOL)</h2>
+				<h2 id="claim_intake-step-title" style={{ color: "var(--color-primary)" }}>{t("jtbd.claim_intake.title")}</h2>
 				<p>State: <code>{props.state}</code></p>
 				<p>Instance: <code>{props.instanceId}</code></p>
 			</header>
@@ -215,7 +221,7 @@ export function ClaimIntakeStep(props: ClaimIntakeStepProps): React.ReactElement
 				onValidate={handleValidate}
 				validateOn="blur"
 				disabled={busy}
-				submitLabel={busy ? "Submitting…" : "Submit"}
+				submitLabel={busy ? "Submitting…" : t("jtbd.claim_intake.button.submit")}
 				data-testid="claim_intake-form"
 			/>
 			{PII_FIELD_IDS.length > 0 ? (
@@ -228,9 +234,10 @@ export function ClaimIntakeStep(props: ClaimIntakeStepProps): React.ReactElement
 							const raw = values[id];
 							const display = revealed ? (raw == null ? "" : String(raw)) : "••••••";
 							const errorId = errors[id] ? `${id}-error` : undefined;
+							const labelKey = `jtbd.claim_intake.field.${id}.label` as const;
 							return (
 								<li key={id}>
-									<span>{meta.label}: </span>
+									<span>{t(labelKey as Parameters<typeof t>[0])}: </span>
 									<span aria-describedby={errorId} data-pii-revealed={revealed ? "true" : "false"}>
 										{display}
 									</span>
@@ -250,7 +257,7 @@ export function ClaimIntakeStep(props: ClaimIntakeStepProps): React.ReactElement
 			) : null}
 			<footer>
 				<button type="button" disabled={busy} onClick={() => fire("approve", {})}>
-					Approve
+					{t("jtbd.claim_intake.button.approve")}
 				</button>
 			</footer>
 		</section>

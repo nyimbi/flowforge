@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import transforms as T
+from .overrides import JtbdCopyOverrides
 
 
 @dataclass(frozen=True)
@@ -174,11 +175,26 @@ class NormalizedBundle:
 	all_notifications: tuple[NormalizedNotification, ...] = field(default_factory=tuple)
 
 
-def _norm_field(raw: dict[str, Any]) -> NormalizedField:
+def _norm_field(
+	raw: dict[str, Any],
+	jtbd_id: str,
+	overrides: JtbdCopyOverrides | None,
+) -> NormalizedField:
+	canonical_label = raw.get("label") or raw["id"].replace("_", " ").title()
+	# v0.3.0 W4b / item 22 / ADR-002 — copy-override sidecar. When an
+	# override is present for ``<jtbd_id>.field.<field_id>.label``, swap
+	# it in at normalize time so every downstream consumer (form_spec,
+	# Step.tsx, frontend-cli, frontend-email, frontend-slack) renders the
+	# polished label without re-implementing the lookup. The canonical
+	# bundle is untouched; spec_hash is unchanged.
+	if overrides is not None:
+		label = overrides.field_label(jtbd_id, raw["id"], canonical_label)
+	else:
+		label = canonical_label
 	return NormalizedField(
 		id=raw["id"],
 		kind=raw["kind"],
-		label=raw.get("label") or raw["id"].replace("_", " ").title(),
+		label=label,
 		required=bool(raw.get("required", False)),
 		pii=bool(raw.get("pii", False)),
 		sa_type=T.SA_COLUMN_TYPE.get(raw["kind"], "String(255)"),
@@ -215,11 +231,17 @@ def _norm_notification(raw: dict[str, Any]) -> NormalizedNotification:
 	)
 
 
-def _norm_jtbd(raw: dict[str, Any], shared_perms: list[str]) -> NormalizedJTBD:
+def _norm_jtbd(
+	raw: dict[str, Any],
+	shared_perms: list[str],
+	overrides: JtbdCopyOverrides | None = None,
+) -> NormalizedJTBD:
 	jt_id = raw["id"]
 	states = T.derive_states(raw)
 	transitions = T.derive_transitions(raw, states)
-	fields = tuple(_norm_field(f) for f in (raw.get("data_capture") or []))
+	fields = tuple(
+		_norm_field(f, jt_id, overrides) for f in (raw.get("data_capture") or [])
+	)
 	docs = tuple(_norm_doc(d) for d in (raw.get("documents_required") or []))
 	approvals = tuple(_norm_approval(a) for a in (raw.get("approvals") or []))
 	notifications = tuple(_norm_notification(n) for n in (raw.get("notifications") or []))
@@ -257,8 +279,19 @@ def _norm_jtbd(raw: dict[str, Any], shared_perms: list[str]) -> NormalizedJTBD:
 	)
 
 
-def normalize(bundle: dict[str, Any]) -> NormalizedBundle:
-	"""Turn a parsed bundle into the view model used by generators."""
+def normalize(
+	bundle: dict[str, Any],
+	overrides: JtbdCopyOverrides | None = None,
+) -> NormalizedBundle:
+	"""Turn a parsed bundle into the view model used by generators.
+
+	*overrides* (v0.3.0 W4b / item 22 / ADR-002) is the optional copy-
+	override sidecar. When present, ``field.<id>.label`` overrides are
+	applied at normalize time so the polished string reaches every
+	downstream generator without the generator knowing about the
+	sidecar. The canonical bundle is left untouched; the override
+	never participates in ``spec_hash``.
+	"""
 
 	assert isinstance(bundle, dict), "bundle must be a dict"
 
@@ -318,7 +351,9 @@ def normalize(bundle: dict[str, Any]) -> NormalizedBundle:
 		design=design,
 	)
 
-	jtbds = tuple(_norm_jtbd(j, shared_perms) for j in bundle["jtbds"])
+	jtbds = tuple(
+		_norm_jtbd(j, shared_perms, overrides) for j in bundle["jtbds"]
+	)
 
 	# Cross-bundle aggregations: union, sorted, deduplicated.
 	all_perms_set: set[str] = set(shared_perms)

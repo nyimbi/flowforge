@@ -39,6 +39,13 @@ _AUDIT_2026_LAYERS = frozenset(
 		"cross_runtime",
 		"chaos",
 		"observability",
+		# v0.3.0-engineering layer — homes the per-wave CI gates that
+		# don't fit cleanly under audit_2026 (which is reserved for the
+		# audit-2026 finding tree). Today it contains the W4b copy-
+		# override sidecar gate (item 22 / ADR-002); future v0.3.0
+		# residual gates land here. Documented at
+		# docs/v0.3.0-engineering-plan.md §7 W4b row.
+		"v0_3_0",
 	}
 )
 
@@ -55,6 +62,11 @@ _SKIP_SEGMENTS = frozenset(
 		"__pycache__",
 		"templates",  # flowforge_cli templates ship test stubs to scaffolded hosts
 		"generated",  # examples/<x>/generated/backend/tests ships test stubs
+		# OMC tooling scratch state (`.omc/state/`) is untracked and
+		# transient — workers write per-run sandboxes here (regen-flag-flip
+		# trees, session logs). Walking them produces false positives that
+		# point at scaffolded generator output, not committed source.
+		".omc",
 	}
 )
 

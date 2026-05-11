@@ -1,0 +1,22 @@
+{
+  "audit.claim_intake.approved": "Claim Intake approved",
+  "audit.claim_intake.escalated": "Claim Intake escalated",
+  "audit.claim_intake.lapsed_rejected": "Claim Intake lapsed rejected",
+  "audit.claim_intake.large_loss": "Claim Intake: large loss",
+  "audit.claim_intake.submitted": "Claim Intake submitted",
+  "jtbd.claim_intake.button.approve": "Approve",
+  "jtbd.claim_intake.button.compensate": "Compensate",
+  "jtbd.claim_intake.button.escalate": "Escalate",
+  "jtbd.claim_intake.button.reject": "Reject",
+  "jtbd.claim_intake.button.submit": "Submit",
+  "jtbd.claim_intake.field.claimant_name.label": "Claimant full name",
+  "jtbd.claim_intake.field.contact_email.label": "Contact email",
+  "jtbd.claim_intake.field.contact_phone.label": "Contact phone",
+  "jtbd.claim_intake.field.loss_amount.label": "Estimated loss amount",
+  "jtbd.claim_intake.field.loss_date.label": "Date of loss",
+  "jtbd.claim_intake.field.loss_description.label": "Description of loss",
+  "jtbd.claim_intake.field.policy_number.label": "Policy number",
+  "jtbd.claim_intake.sla.breach": "SLA breached: response time exceeded the agreed budget.",
+  "jtbd.claim_intake.sla.warn": "SLA approaching (80% elapsed): please act soon.",
+  "jtbd.claim_intake.title": "File an insurance claim (FNOL)"
+}
