@@ -10,13 +10,24 @@ Importing this module is safe; it has no side effects on the engine.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import TYPE_CHECKING
+from typing import Protocol
 
 from flowforge._uuid7 import uuid7str
 from flowforge.engine.tokens import Token, TokenSet
 
-if TYPE_CHECKING:
-	from flowforge.dsl.workflow_def import TransitionDef
+
+class _ForkBranch(Protocol):
+	"""Duck-typed branch descriptor accepted by ``make_fork_tokens``.
+
+	The engine's E-74 wiring will eventually pass real
+	``flowforge.dsl.workflow_def.Transition`` instances, but the helper
+	is intentionally permissive on input so callers (and the
+	conformance test) can pass any object exposing a ``to: str``
+	attribute. The wiring milestone will deprecate this Protocol once
+	the engine commits to the full ``Transition`` shape.
+	"""
+
+	to: str
 
 
 class RegionStillForkedError(Exception):
@@ -33,7 +44,7 @@ class TokenAlreadyConsumedError(Exception):
 def make_fork_tokens(
 	*,
 	region: str,
-	branches: Iterable["TransitionDef"],
+	branches: Iterable["_ForkBranch"],
 ) -> list[Token]:
 	"""Allocate one ``Token`` per outgoing branch transition.
 
