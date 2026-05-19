@@ -133,7 +133,7 @@ def test_tutorial_dry_run_step5_shows_lint_command(tmp_path: Path) -> None:
 
 
 def test_tutorial_help() -> None:
-	r = runner.invoke(app, ["tutorial", "--help"])
+	r = runner.invoke(app, ["tutorial", "--help"], terminal_width=140)
 	assert r.exit_code == 0
 	assert "--out" in r.output
 	assert "--step" in r.output
