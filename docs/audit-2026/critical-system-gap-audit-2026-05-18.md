@@ -46,7 +46,7 @@ Fixed or materially hardened:
 - Focused transactional UoW verification passed: core/FastAPI/storage focused subset `25 passed`, SQLAlchemy package `20 passed, 1 skipped`, audit-pg package `38 passed, 2 skipped`, FastAPI package `21 passed`, and integration gate `65 Python + 291 JS + 4 e2e = 360` with 0 failures.
 - Focused outbox reconciliation verification passed: `fire_and_commit(...)` rows inserted by SQLAlchemy were drained by `flowforge_outbox_pg.DrainWorker` against the same database file, with the row ending in `dispatched`.
 
-Latest verification evidence:
+Verification evidence collected during remediation:
 
 - `VISREG_ALLOW_SKIP=1 UV_CACHE_DIR=/private/tmp/flowforge-uv-cache bash scripts/check_all.sh`
   - Result: `U24 gate PASSED`, 46 Python packages, 7 JS packages, 2,668 counted tests/assertions, Python dependency audit clean, JS production dependency audit clean, byte-identical regen clean, elapsed 115 seconds on the latest rerun.

@@ -59,7 +59,7 @@ Chromium can launch and where the selected UMS backend checkout is accessible
 The exact external execution sequence is documented in
 `docs/audit-2026/external-release-runbook.md`.
 
-Latest direct blocker verification:
+Direct blocker evidence:
 
 - Recent PR checks on commit `4ed3639` are green: `flowforge end-to-end gate` run
   `26095391068`, `Audit 2026 DOM baseline generation` run `26095391144`, and
