@@ -33,6 +33,9 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   release-external:
     name: audit-2026-release-external
@@ -156,6 +159,42 @@ jobs:
           FLOWFORGE_TEST_PG_URL: postgresql://postgres:postgres@127.0.0.1:5432/flowforge_release
         run: make audit-2026-release-external
 
+      - name: Write external release evidence summary
+        working-directory: flowforge
+        env:
+          BACKEND_REF: ${{ inputs.backend_ref }}
+          BACKEND_REPOSITORY: ${{ inputs.backend_repository }}
+          RUN_UMS_PARITY: ${{ inputs.run_ums_parity }}
+        run: |
+          cat > docs/audit-2026/external-release-evidence-current.md <<EOF
+          # Audit 2026 external release evidence
+
+          ## Release candidate
+
+          - Flowforge commit: ${GITHUB_SHA}
+          - Workflow run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          - Workflow attempt: ${GITHUB_RUN_ATTEMPT}
+          - UMS parity requested: ${RUN_UMS_PARITY}
+          - UMS backend repository/ref, if requested: ${BACKEND_REPOSITORY}@${BACKEND_REF}
+          - Date/time UTC: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          - Environment: GitHub Actions ubuntu-latest with Postgres 16 service and Playwright Chromium
+
+          ## Passing evidence
+
+          - \`make audit-2026-release-external\`: passed.
+          - DOM visual regression: passed in Playwright Chromium.
+          - Browser full-stack Playwright: passed in Playwright Chromium.
+          - Real-key polish-copy sidecar gate: passed against committed reviewed sidecar.
+          - Live Postgres release checks: passed against disposable Postgres service.
+          - Downstream UMS workflow-def parity: ${RUN_UMS_PARITY}.
+
+          ## Artifact contents
+
+          - Reviewed DOM baselines under \`examples/**/screenshots/**/*.dom.html\`.
+          - Reviewed sidecar \`examples/insurance_claim/jtbd-bundle.json.overrides.json\`.
+          - External release runbook and evidence template.
+          EOF
+
       - name: Upload external release evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -164,7 +203,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
           path: |
-            flowforge/docs/audit-2026/external-release-evidence-template.md
+            flowforge/docs/audit-2026/external-release-evidence*.md
             flowforge/docs/audit-2026/external-release-runbook.md
             flowforge/examples/**/screenshots/**/*.dom.html
             flowforge/examples/insurance_claim/jtbd-bundle.json.overrides.json

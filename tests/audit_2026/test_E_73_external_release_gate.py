@@ -40,6 +40,7 @@ def test_external_release_gate_is_wired_as_manual_release_workflow() -> None:
 
 	assert "workflow_dispatch:" in workflow
 	assert "pull_request:" not in workflow
+	assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24" in workflow
 	assert "Optional downstream UMS parity is release-" in workflow
 	assert "not a package dependency" in workflow
 	assert "permissions:" in workflow
@@ -79,8 +80,12 @@ def test_external_release_gate_is_wired_as_manual_release_workflow() -> None:
 	assert "FLOWFORGE_REQUIRE_UMS_PARITY:" in workflow
 	assert "FLOWFORGE_TEST_PG_URL:" in workflow
 	assert "make audit-2026-release-external" in workflow
+	assert "Write external release evidence summary" in workflow
+	assert "external-release-evidence-current.md" in workflow
+	assert "GITHUB_RUN_ID" in workflow
 	assert "actions/upload-artifact@v4" in workflow
 	assert "audit-2026-release-external-evidence" in workflow
+	assert "external-release-evidence*.md" in workflow
 	assert "examples/**/screenshots/**/*.dom.html" in workflow
 	assert "examples/insurance_claim/jtbd-bundle.json.overrides.json" in workflow
 	assert "tests/visual_regression/playwright-report/**" in workflow
