@@ -27,7 +27,7 @@ Fixed or materially hardened:
 - The visual-regression harness now routes pages by example identity rather than shared admin path alone.
 - A DOM baseline-generation workflow now runs smoke cadence on pull requests and full cadence through manual dispatch, using Playwright Chromium in GitHub Actions and uploading reviewable candidate `.dom.html` baselines as an artifact; this is a helper for review, not release qualification.
 - A browser full-stack Playwright lane now exists for the generated insurance-claim workflow: it starts a generated FastAPI-router HTTP bridge, starts the generated frontend harness in API mode, fills the generated claim-intake form in Chromium, and verifies `submit`/`approve` requests plus `Idempotency-Key`, `X-Tenant-Id`, and `review -> done` responses.
-- A dedicated `Audit 2026 browser full-stack e2e` pull-request workflow now provisions Playwright Chromium and runs that generated browser flow in GitHub Actions; run `26077822269` passed.
+- A dedicated `Audit 2026 browser full-stack e2e` pull-request workflow now provisions Playwright Chromium and runs that generated browser flow in GitHub Actions; current PR head `4c93da1c8e37a7bf1f88e458266d4cba494ab868` passed run `26078965980`.
 - fr-CA sidecar/i18n validation and W4b generator property coverage were added.
 - JTBD hub publish/rating paths now require authenticated permissions, and rating user identity is bound to the principal.
 - WebSocket subscriber queues are bounded.
@@ -52,9 +52,9 @@ Latest verification evidence:
   - Integration evidence: Stage 3 now runs the audit e2e pytest flows; integration summary from the latest direct run reports 66 Python tests, 295 JS assertions, 4 e2e tests, 365 total, 0 failed, with the browser lane explicitly marked `EXTERNAL`.
   - Caveats: this intentionally set `VISREG_ALLOW_SKIP=1` because Chromium cannot launch in this sandbox. Current release evidence for DOM/browser execution comes from GitHub Actions runs where Playwright Chromium can launch.
 - GitHub PR release-gate evidence:
-  - `flowforge gate (U24)` run `26077822235` passed with committed DOM smoke baselines and Playwright Chromium installed in CI.
-  - `Audit 2026 DOM baseline generation` run `26077822248` passed in a browser-capable runner.
-  - `Audit 2026 browser full-stack e2e` run `26077822269` passed in a browser-capable runner.
+  - `flowforge gate (U24)` run `26078965998` passed with committed DOM smoke baselines and Playwright Chromium installed in CI.
+  - `Audit 2026 DOM baseline generation` run `26078965977` passed in a browser-capable runner.
+  - `Audit 2026 browser full-stack e2e` run `26078965980` passed in a browser-capable runner.
 - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-local`
   - Result: fail-closed local release gate passed. Covered ratchets, conformance, audit unit tests, property tests, integration/e2e, Python+JS cross-runtime parity, edge cases, observability PromQL lint, W4b property coverage, i18n coverage, and signoff mapping.
   - Caveats: the target explicitly prints the external release checks that are outside standalone local qualification: browser DOM baselines, browser Playwright full-stack, real-key polish-copy sidecar, UMS parity, and live Postgres contention/drain verification. UMS parity and live Postgres have since passed in this session with explicit environment wiring.
@@ -71,9 +71,9 @@ Latest verification evidence:
   - Result: `uv run ruff check python/flowforge-cli/src/flowforge_cli/jtbd/generators/analytics_taxonomy.py python/flowforge-cli/tests/test_form_renderer_flag.py python/flowforge-cli/tests/test_analytics_taxonomy.py` passed.
 - Copy-polish sidecar auditability:
   - Result: `uv sync --all-packages --all-extras` installed the optional LLM dependency set, and `uv run python -c "import anthropic; print('anthropic import ok')"` passed. The current local blocker is now the absent `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY` and absent reviewed sidecar, not a missing optional package.
-  - Result: `uv run pytest python/flowforge-cli/tests/test_polish_copy.py -q --tb=short` passed with `29 passed`, including LLM sidecar `llm_provider` / `llm_model` / `prompt_sha256` metadata coverage via an injected deterministic polish function, no-key / missing-extra `--require-llm` failure coverage, provider-format failure coverage, no-op `--require-llm` failure coverage, and preservation of existing reviewed sidecars when a polish pass returns canonical copy.
+  - Result: `uv run pytest python/flowforge-cli/tests/test_polish_copy.py -q --tb=short` passed with `30 passed`, including LLM sidecar `llm_provider` / `llm_model` / `prompt_sha256` metadata coverage via an injected deterministic polish function, no-key / missing-extra `--require-llm` failure coverage, provider-format failure coverage, unexpected provider/auth failure coverage without a traceback, no-op `--require-llm` failure coverage, and preservation of existing reviewed sidecars when a polish pass returns canonical copy.
   - Result: `uv run pyright python/flowforge-cli/src/flowforge_cli/commands/polish_copy.py python/flowforge-cli/src/flowforge_cli/jtbd/overrides.py python/flowforge-cli/tests/test_polish_copy.py --pythonversion 3.11` reported `0 errors, 0 warnings, 0 informations`.
-  - Result: the full local gate's `uv run pytest python/flowforge-cli/tests -q --tb=short` lane passed with `599 passed, 1 skipped`; the same package test command outside the full gate passed with `600 passed`.
+  - Result: the full local gate's `uv run pytest python/flowforge-cli/tests -q --tb=short` lane passed with `599 passed, 1 skipped`; the same package test command outside the full gate now passes with `601 passed, 1 skipped`.
   - Result: `uv run pytest tests/audit_2026/test_E_75_polish_copy_release_gate.py -q --tb=short` passed with `7 passed`, covering release-bundle wiring, valid sidecar acceptance, empty strings, missing metadata, invalid prompt hash, and dead override keys; `uv run flowforge polish-copy --bundle examples/insurance_claim/jtbd-bundle.json --tone formal-professional --require-llm --commit` fails closed because no `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY` is set and writes no sidecar; `uv run python scripts/audit_2026/check_polish_copy_sidecar.py` and `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-polish-copy-sidecar` fail closed because `examples/insurance_claim/jtbd-bundle.json.overrides.json` is absent.
 - WebSocket hub drop-metrics hardening:
   - Result: `uv run pytest python/flowforge-fastapi/tests/test_ws.py tests/audit_2026/test_E_41_fastapi_ws_hardening.py -q --tb=short` passed with `24 passed`.
@@ -342,7 +342,7 @@ Required fix:
 
 ### CRITICAL-07: Visual regression gate exits green without baselines
 
-Status: remediated for the smoke release lane. The DOM snapshot wrapper now fails closed by default when node modules, Playwright, Vite, dev-server harness startup, or checked-in DOM baselines are missing. A local workstation may opt into `VISREG_ALLOW_SKIP=1`, but release gates must not set it. Reviewed smoke DOM baselines are now committed under `examples/insurance_claim/screenshots/**`, and U24 run `26077822235` passed with those baselines in GitHub Actions. Full-cadence baselines remain a release-authoring expansion path through the DOM baseline helper workflow.
+Status: remediated for the smoke release lane. The DOM snapshot wrapper now fails closed by default when node modules, Playwright, Vite, dev-server harness startup, or checked-in DOM baselines are missing. A local workstation may opt into `VISREG_ALLOW_SKIP=1`, but release gates must not set it. Reviewed smoke DOM baselines are now committed under `examples/insurance_claim/screenshots/**`, and U24 run `26078965998` passed with those baselines in GitHub Actions. Full-cadence baselines remain a release-authoring expansion path through the DOM baseline helper workflow.
 
 Files:
 
@@ -357,8 +357,8 @@ The DOM visual regression wrapper previously exited 0 when no DOM baselines were
 
 Current result:
 
-- `flowforge gate (U24)` run `26077822235` passed the smoke DOM gate in CI.
-- `Audit 2026 DOM baseline generation` run `26077822248` passed in CI and continues to upload candidate baselines for review.
+- `flowforge gate (U24)` run `26078965998` passed the smoke DOM gate in CI.
+- `Audit 2026 DOM baseline generation` run `26078965977` passed in CI and continues to upload candidate baselines for review.
 - Local browser-backed DOM execution still cannot launch Chromium in this macOS sandbox, so local developers must not use `VISREG_ALLOW_SKIP=1` as release evidence.
 
 Impact:
@@ -742,7 +742,7 @@ Required fix:
 
 ### HIGH-10: Browser Playwright full-stack lane was missing from integration
 
-Status: remediated for browser-capable PR evidence. Stage 3 now runs `tests/integration/e2e` and the summary splits Python, JS, and e2e counters correctly. Stage 4 now reports the browser lane as `EXTERNAL` by default and can run it with `RUN_BROWSER_E2E=1`. The dedicated `audit-2026-browser-e2e` target starts a generated FastAPI-router HTTP bridge, starts the generated frontend harness in API mode, and runs a real Playwright Chromium spec through the generated claim-intake submit/approve path. The `Audit 2026 browser full-stack e2e` workflow provisions Chromium and passed in GitHub Actions run `26077822269`; this sandbox still blocks local Chromium with `MachPortRendezvousServer ... Permission denied`.
+Status: remediated for browser-capable PR evidence. Stage 3 now runs `tests/integration/e2e` and the summary splits Python, JS, and e2e counters correctly. Stage 4 now reports the browser lane as `EXTERNAL` by default and can run it with `RUN_BROWSER_E2E=1`. The dedicated `audit-2026-browser-e2e` target starts a generated FastAPI-router HTTP bridge, starts the generated frontend harness in API mode, and runs a real Playwright Chromium spec through the generated claim-intake submit/approve path. The `Audit 2026 browser full-stack e2e` workflow provisions Chromium and passed in GitHub Actions run `26078965980`; this sandbox still blocks local Chromium with `MachPortRendezvousServer ... Permission denied`.
 
 Files:
 
@@ -917,11 +917,12 @@ of silently taking the no-op path. The real LLM commit path records
 `llm_provider`, `llm_model`, and `prompt_sha256` metadata in the sidecar, and
 tests cover that metadata through an injected deterministic polish function.
 Additional release-hardening tests now verify that malformed provider output
-fails the command instead of falling back to canonical strings, that
-`--require-llm --commit` fails when a configured provider produces no
-sidecar-worthy changes, and that a canonical/no-op polish pass preserves an
-existing reviewed sidecar instead of overwriting it. A real authoring pass with
-an actual Anthropic/Claude key remains external.
+and unexpected provider/auth failures fail the command instead of falling back
+to canonical strings or printing a traceback, that `--require-llm --commit`
+fails when a configured provider produces no sidecar-worthy changes, and that a
+canonical/no-op polish pass preserves an existing reviewed sidecar instead of
+overwriting it. A real authoring pass with an actual Anthropic/Claude key
+remains external.
 
 Files:
 
@@ -936,10 +937,11 @@ Files:
 The current first sidecar run produced no committed `<bundle>.overrides.json`
 because no supported Anthropic/Claude key is present. In release-authoring mode,
 `--require-llm` fails closed before writing anything when credentials/extras are
-missing or the provider returns unusable output, which makes the missing
-credential/dependency or malformed response explicit. The first real authoring
-pass is still not completed. When that pass is run, committed sidecars now carry
-model and full-prompt checksum metadata for review.
+missing, invalid, or the provider returns unusable output, which makes the
+credential/dependency or provider failure explicit without treating it as a
+canonical no-op. The first real authoring pass is still not completed. When
+that pass is run, committed sidecars now carry model and full-prompt checksum
+metadata for review.
 
 Required fix:
 
@@ -1117,7 +1119,7 @@ demo state transitions behind the explicit
 regenerated and no longer contain `instanceId = "demo"` or unconditional local
 `setState("review")` / `setState("done")` stubs. A browser-backed
 full-stack spec now proves the intended client/backend contract in Chromium;
-GitHub Actions run `26077822269` passed.
+GitHub Actions run `26078965980` passed.
 
 Files:
 
