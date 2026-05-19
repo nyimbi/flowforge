@@ -235,6 +235,9 @@ def test_ums_parity_has_fail_closed_release_target() -> None:
 	assert "SKIP UMS parity: BACKEND_ROOT not found" in check_all
 	assert "audit-2026-ums-parity: BACKEND_ROOT not found" not in check_all
 	assert "framework/scripts/check_all.sh" not in check_all
+	assert "test_property_coverage_gate.py" in check_all
+	assert "test_hypothesis_seed_uniqueness.py" in check_all
+	assert "scripts/i18n/check_coverage.py" in check_all
 	run_integration = _read("scripts/run_integration.sh")
 	assert "bash scripts/run_integration.sh" in run_integration
 	assert "path to flowforge repo root" in run_integration
