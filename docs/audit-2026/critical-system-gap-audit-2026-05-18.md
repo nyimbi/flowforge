@@ -110,7 +110,7 @@ Verification evidence collected during remediation:
 - External release CI wiring:
   - Result: `.github/workflows/audit-2026-release-external.yml` now provides a manual, release-only workflow that checks out a caller-supplied UMS backend repo/ref. It starts a disposable Postgres service, pins pnpm 11.1.3 to match the repo's `allowBuilds` semantics, installs the flowforge workspace with all extras, installs Playwright Chromium, wires `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, uses `UMS_BACKEND_TOKEN` only when it is present for private backend checkouts, and runs `make audit-2026-release-external` without local skip flags. Downstream UMS parity remains release-certification evidence, not a pull-request dependency for the independent Flowforge package.
   - Result: Earlier PR execution of `audit-2026-release-external` exposed the missing `UMS_BACKEND_TOKEN` prerequisite and the misleading coupling to a private downstream backend. The workflow is now manual/release-only and supports tokenless public backend checkout; the remaining CI blocker is a release-certification run with backend access, not ordinary workflow registration.
-  - Result: Manual GitHub Actions run `26095402727` with `backend_repository=nyimbi/ums` and no `UMS_BACKEND_TOKEN` failed during backend checkout with `repository 'https://github.com/nyimbi/ums/' not found`, proving the selected UMS backend still requires a read token in the release environment.
+  - Result: Manual GitHub Actions run `26097271676` with `backend_repository=nyimbi/ums` and no `UMS_BACKEND_TOKEN` failed in the explicit token-detection guard, proving the selected UMS backend still requires a read token in the release environment.
 - External release evidence retention:
   - Result: `docs/audit-2026/external-release-evidence-template.md` now records the fields required to retain DOM baseline review, release skip-flag absence, preflight caveat acknowledgement, `anthropic` import preflight, `uv run flowforge polish-copy --require-llm --commit` output review, reviewed sidecar review, manual workflow run URL, artifact URL, UMS parity, browser e2e, and live Postgres evidence. The manual external workflow uploads an `audit-2026-release-external-evidence` artifact with DOM baselines, Playwright reports/results, the reviewed sidecar, and evidence docs when present.
 - Real-key sidecar authoring helper:
@@ -1360,7 +1360,7 @@ reviewed.
 - The external release bundle remains intentionally blocked in this local
   sandbox because Chromium cannot launch. GitHub pull-request checks are green
   and no longer depend on UMS. The manual external release workflow can check
-  out public UMS repositories without a token, but manual run `26095402727`
+  out public UMS repositories without a token, but manual run `26097271676`
   proved `nyimbi/ums` is private from GitHub Actions without
   `UMS_BACKEND_TOKEN`. The reviewed sidecar is now present.
 

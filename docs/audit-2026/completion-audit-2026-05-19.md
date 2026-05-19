@@ -45,7 +45,7 @@ Chromium can launch and where the selected UMS backend checkout is accessible
 | Verify outbox worker PostgreSQL path | Live Postgres test exposed and then verified PostgreSQL `$N` marker fix in `flowforge_outbox_pg.worker` | Done |
 | Keep JS workspace private/source-first decision explicit | `js/README.md` and audit report state no JS package is npm-publishable in this release | Done |
 | Remove JS test/toolchain warning noise | JS setup deletes Node's localStorage getter in node tests; stale package-level `.npmrc` removed; `pnpm --dir js test` passed cleanly | Done |
-| Run external release bundle | Requires committed DOM baselines, browser e2e, reviewed polish-copy sidecar, UMS parity, and live Postgres evidence. A local run with fresh UMS clone `BACKEND_ROOT=/private/tmp/flowforge-ums-release-backend/backend` and `FLOWFORGE_TEST_PG_URL` supplied reaches `audit-2026-visual-regression-dom`; all 21 browser-backed DOM cases fail at Chromium launch with `MachPortRendezvousServer ... Permission denied`, while 3 non-browser metadata checks pass. Manual GitHub Actions run `26095402727` proved the selected `nyimbi/ums` backend is not readable by Actions without `UMS_BACKEND_TOKEN` (`repository not found`) and failed before the release gate. The workflow is manual/release-only so downstream UMS compatibility does not block ordinary Flowforge pull requests. | Blocked |
+| Run external release bundle | Requires committed DOM baselines, browser e2e, reviewed polish-copy sidecar, UMS parity, and live Postgres evidence. A local run with fresh UMS clone `BACKEND_ROOT=/private/tmp/flowforge-ums-release-backend/backend` and `FLOWFORGE_TEST_PG_URL` supplied reaches `audit-2026-visual-regression-dom`; all 21 browser-backed DOM cases fail at Chromium launch with `MachPortRendezvousServer ... Permission denied`, while 3 non-browser metadata checks pass. Manual GitHub Actions run `26097271676` proved the selected `nyimbi/ums` backend is not readable by Actions without `UMS_BACKEND_TOKEN` and failed in the explicit token-detection guard before the release gate. The workflow is manual/release-only so downstream UMS compatibility does not block ordinary Flowforge pull requests. | Blocked |
 
 ## Remaining blockers
 
@@ -92,10 +92,10 @@ Direct blocker evidence:
   on a private backend token. The workflow is now manual/release-only and can
   check out public UMS backends without a token; `UMS_BACKEND_TOKEN` is only
   needed for private backend repositories.
-- Manual external release run `26095402727` on `audit-2026-critical-readiness`
-  with `backend_repository=nyimbi/ums` and no `UMS_BACKEND_TOKEN` failed during
-  checkout with `repository 'https://github.com/nyimbi/ums/' not found`, so the
-  selected backend is private from the GitHub Actions runner's perspective.
+- Manual external release run `26097271676` on `audit-2026-critical-readiness`
+  with `backend_repository=nyimbi/ums` and no `UMS_BACKEND_TOKEN` failed in the
+  explicit token-detection guard, so the selected backend is private from the
+  GitHub Actions runner's perspective.
 - `.github/workflows/audit-2026-dom-baselines.yml` now also runs on pull
   requests with smoke cadence, so this branch can produce reviewable DOM
   baseline artifacts before the manual helper is registered on `main`.

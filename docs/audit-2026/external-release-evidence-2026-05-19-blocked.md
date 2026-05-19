@@ -41,14 +41,14 @@ runner without `UMS_BACKEND_TOKEN`.
 
 ## Blocked evidence
 
-- Manual external workflow run: `26095402727`
+- Manual external workflow run: `26097271676`
 - Workflow: `.github/workflows/audit-2026-release-external.yml`
 - Inputs:
   - `backend_repository=nyimbi/ums`
   - `backend_ref=main`
 - Result: failed before `make audit-2026-release-external`
-- Failure point: `Checkout UMS backend without token`
-- Failure message: `repository 'https://github.com/nyimbi/ums/' not found`
+- Failure point: `Detect UMS backend checkout token`
+- Failure message: `nyimbi/ums is private from GitHub Actions without UMS_BACKEND_TOKEN. Set repository secret UMS_BACKEND_TOKEN with read access to nyimbi/ums, or choose a public backend_repository input.`
 - Interpretation: the selected UMS backend is private from the GitHub Actions
   runner. `UMS_BACKEND_TOKEN` must be configured with read access to `nyimbi/ums`
   before this workflow can produce a complete retained release artifact.
