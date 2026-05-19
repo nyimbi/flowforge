@@ -2,17 +2,17 @@
 
 Audit findings (audit-fix-plan §4.x DOC-01/DOC-02, §7 E-46, §2 F-5):
 
-- **DOC-01 (P1)** — every Python package under ``framework/python/`` is
+- **DOC-01 (P1)** — every Python package under ``python/`` is
   registered in the root ``[tool.uv.workspace]``. F-5 mitigation: register
   in two steps — first as ``package=false`` build-only members, then flip
   to ``package=true`` per pkg as it's reviewed.
-- **DOC-02 (P2)** — ``framework/README.md`` package count matches the
+- **DOC-02 (P2)** — ``README.md`` package count matches the
   filesystem (no drift like "12 PyPI packages" while there are 46).
-- **DOC-02 (P2)** — ``framework/docs/flowforge-evolution.md`` paths match
+- **DOC-02 (P2)** — ``docs/flowforge-evolution.md`` paths match
   the actual layout (no ``apps/jtbd-hub/`` artefacts; the package lives
-  at ``framework/python/flowforge-jtbd-hub/``).
+  at ``python/flowforge-jtbd-hub/``).
 
-Plan reference: framework/docs/audit-fix-plan.md §7 E-46, §2 F-5.
+Plan reference: docs/audit-fix-plan.md §7 E-46, §2 F-5.
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ def _load_root_pyproject() -> dict:
 
 
 def test_DOC_01_workspace_complete() -> None:
-	"""Every package directory under framework/python is in the workspace members."""
+	"""Every package directory under python/ is in the workspace members."""
 	cfg = _load_root_pyproject()
 	members = cfg.get("tool", {}).get("uv", {}).get("workspace", {}).get("members", [])
 	registered = {m.removeprefix("python/") for m in members if m.startswith("python/")}
@@ -74,7 +74,7 @@ def test_DOC_01_unreviewed_pkgs_marked_package_false() -> None:
 		for p in _PYTHON_DIR.iterdir()
 		if p.is_dir() and p.name.startswith("flowforge-jtbd-") and p.name != "flowforge-jtbd-hub"
 	)
-	# 30 domain packages live under framework/python — every one of them
+	# 30 domain packages live under python/ — every one of them
 	# must be present here (regression-detect a sneaky rename).
 	assert len(jtbd_starters) == 30, (
 		f"expected 30 jtbd domain pkgs, got {len(jtbd_starters)}"
@@ -127,6 +127,41 @@ def test_DOC_01_strategic_pkgs_remain_package_true() -> None:
 		)
 
 
+def test_DOC_01_strategic_pkg_urls_are_standalone_flowforge() -> None:
+	"""PyPI metadata must point at Flowforge, not the original UMS extraction repo."""
+	strategic = {
+		"flowforge-core",
+		"flowforge-fastapi",
+		"flowforge-sqlalchemy",
+		"flowforge-tenancy",
+		"flowforge-audit-pg",
+		"flowforge-outbox-pg",
+		"flowforge-rbac-static",
+		"flowforge-rbac-spicedb",
+		"flowforge-documents-s3",
+		"flowforge-money",
+		"flowforge-signing-kms",
+		"flowforge-notify-multichannel",
+		"flowforge-otel",
+		"flowforge-cli",
+		"flowforge-jtbd",
+		"flowforge-jtbd-hub",
+	}
+	for pkg in strategic:
+		pyproj = _PYTHON_DIR / pkg / "pyproject.toml"
+		with pyproj.open("rb") as f:
+			data = tomllib.load(f)
+		urls = data.get("project", {}).get("urls", {})
+		assert urls, f"{pkg} missing [project.urls]"
+		for name, url in urls.items():
+			assert "github.com/nyimbi/ums" not in url, (
+				f"{pkg} project URL {name!r} still points to UMS: {url}"
+			)
+			assert "github.com/nyimbi/flowforge" in url, (
+				f"{pkg} project URL {name!r} should point to Flowforge: {url}"
+			)
+
+
 # ---------------------------------------------------------------------------
 # DOC-02 — README + handbook accuracy
 # ---------------------------------------------------------------------------
@@ -148,7 +183,7 @@ def test_DOC_02_readme_pkg_count_matches_filesystem() -> None:
 def test_DOC_02_handbook_path_drift_fixed() -> None:
 	"""``docs/flowforge-evolution.md`` no longer references ``apps/jtbd-hub/``."""
 	text = _EVOLUTION.read_text(encoding="utf-8")
-	# The pkg lives at framework/python/flowforge-jtbd-hub/; ``apps/jtbd-hub/``
+	# The pkg lives at python/flowforge-jtbd-hub/; ``apps/jtbd-hub/``
 	# was a pre-rebrand path that no longer exists.
 	bad_paths = re.findall(r"apps/jtbd[\w/.-]*", text)
 	assert not bad_paths, (

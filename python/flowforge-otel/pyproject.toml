@@ -49,11 +49,11 @@ test = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/nyimbi/ums"
-Documentation = "https://github.com/nyimbi/ums/tree/main/framework/docs"
-Repository = "https://github.com/nyimbi/ums"
-Issues = "https://github.com/nyimbi/ums/issues"
-Changelog = "https://github.com/nyimbi/ums/blob/main/framework/CHANGELOG.md"
+Homepage = "https://github.com/nyimbi/flowforge"
+Documentation = "https://github.com/nyimbi/flowforge/tree/main/docs"
+Repository = "https://github.com/nyimbi/flowforge"
+Issues = "https://github.com/nyimbi/flowforge/issues"
+Changelog = "https://github.com/nyimbi/flowforge/blob/main/CHANGELOG.md"
 
 [build-system]
 requires = ["hatchling"]

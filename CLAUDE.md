@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-`flowforge` is a portable workflow framework extracted from the UMS project. It is a **multi-language uv + pnpm monorepo** producing 45 Python packages and 7 npm packages. UMS is a *consumer* of flowforge — nothing under this tree imports from UMS, and the boundary is enforced by tests.
+`flowforge` is a portable workflow framework extracted from the UMS project. It is a **multi-language uv + pnpm monorepo** producing 46 Python packages and 7 npm packages. UMS is a *consumer* of flowforge — nothing under this tree imports from UMS, and the boundary is enforced by tests.
 
 Source spec: `docs/workflow-framework-portability.md`. Build plan: `docs/workflow-framework-plan.md`. Comprehensive system overview: `docs/flowforge-handbook.md`. The current sprint plan is `docs/v0.2.0-plan.md` (audit-2026 follow-on).
 
@@ -102,7 +102,7 @@ Anything else fails CI (`tests/audit_2026/test_E_68_test_location_convention.py`
 
 ### Versioning (E-69 / DOC-05)
 
-- Tier-1 (15 strategic packages): `0.1.x`, patch bump per audit-fix release; `0.2.0` reserved for the post-audit GA. Public API stable within `0.1.x`. Any SECURITY-flagged removal follows the F-7 two-version deprecation rule.
+- Tier-1 (16 strategic packages): `0.1.x`, patch bump per audit-fix release; `0.2.0` reserved for the post-audit GA. Public API stable within `0.1.x`. Any SECURITY-flagged removal follows the F-7 two-version deprecation rule.
 - Tier-2 (30 domain `flowforge-jtbd-*`): pinned at `0.0.1` until it flips to `package = true`, then jumps to `0.1.0` in lockstep with tier-1.
 
 `tests/audit_2026/test_E_69_evolution_reconciliation.py` enforces both rules.

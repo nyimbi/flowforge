@@ -14,7 +14,7 @@ Idempotent: running twice produces no diff (looks for the marker
 
 Usage::
 
-    uv run python framework/scripts/finalize_pypi_metadata.py
+    uv run python scripts/finalize_pypi_metadata.py
     # validate by running `uv build` per pkg
 """
 
@@ -27,7 +27,7 @@ from pathlib import Path
 FRAMEWORK_ROOT = Path(__file__).resolve().parents[1]
 
 
-# 15 strategic / shipping packages.  The 30 jtbd-* domain libraries are
+# 16 strategic / shipping packages.  The 30 jtbd-* domain libraries are
 # not stamped here — they ship as starter scaffolds (E-48a) and don't
 # go to PyPI in this iteration.
 STRATEGIC_PACKAGES = [
@@ -43,6 +43,7 @@ STRATEGIC_PACKAGES = [
 	"flowforge-money",
 	"flowforge-signing-kms",
 	"flowforge-notify-multichannel",
+	"flowforge-otel",
 	"flowforge-cli",
 	"flowforge-jtbd",
 	"flowforge-jtbd-hub",
@@ -65,6 +66,7 @@ _PER_PKG_KEYWORDS: dict[str, list[str]] = {
 	"flowforge-money": ["workflow", "money", "decimal", "currency", "fx"],
 	"flowforge-signing-kms": ["workflow", "kms", "hmac", "aws-kms", "gcp-kms", "signing"],
 	"flowforge-notify-multichannel": ["workflow", "notifications", "smtp", "twilio", "fcm", "webhook", "slack"],
+	"flowforge-otel": ["workflow", "opentelemetry", "metrics", "tracing", "observability"],
 	"flowforge-cli": ["workflow", "cli", "typer", "scaffolding"],
 	"flowforge-jtbd": ["workflow", "jtbd", "jobs-to-be-done", "lockfile", "ai", "lint"],
 	"flowforge-jtbd-hub": ["workflow", "jtbd", "registry", "package-hub", "trust"],
@@ -97,17 +99,17 @@ _AUTHORS_BLOCK = (
 	'maintainers = [{ name = "Nyimbi Odero, Datacraft", email = "nyimbi@gmail.com" }]\n'
 )
 
-_LICENSE_BLOCK = 'license = "Apache-2.0"\nlicense-files = ["LICENSE", "../../LICENSE"]\n'
+_LICENSE_BLOCK = 'license = "Apache-2.0"\nlicense-files = ["LICENSE"]\n'
 
-_REPO_URL = "https://github.com/nyimbi/ums"
+_REPO_URL = "https://github.com/nyimbi/flowforge"
 _PROJECT_URLS = textwrap.dedent(
 	f"""\
 	[project.urls]
 	Homepage = "{_REPO_URL}"
-	Documentation = "{_REPO_URL}/tree/main/framework/docs"
+	Documentation = "{_REPO_URL}/tree/main/docs"
 	Repository = "{_REPO_URL}"
 	Issues = "{_REPO_URL}/issues"
-	Changelog = "{_REPO_URL}/blob/main/framework/CHANGELOG.md"
+	Changelog = "{_REPO_URL}/blob/main/CHANGELOG.md"
 	"""
 )
 
