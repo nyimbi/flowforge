@@ -205,6 +205,17 @@ def test_external_release_evidence_template_tracks_required_proofs() -> None:
 		assert required in template
 
 
+def test_dom_baselines_do_not_embed_ci_checkout_paths() -> None:
+	normalizer = _read("tests/visual_regression/lib/dom_normalize.ts")
+	assert "data-vite-dev-id" in normalizer
+	assert "normaliseViteDevId" in normalizer
+
+	for path in sorted((ROOT / "examples").glob("*/screenshots/**/*.dom.html")):
+		body = path.read_text(encoding="utf-8")
+		assert "/home/runner/work/" not in body, f"{path} embeds a CI checkout path"
+		assert "/Users/" not in body, f"{path} embeds a local checkout path"
+
+
 def test_ums_parity_has_fail_closed_release_target() -> None:
 	makefile = _read("Makefile")
 	check_all = _read("scripts/check_all.sh")

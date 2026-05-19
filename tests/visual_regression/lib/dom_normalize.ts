@@ -359,6 +359,8 @@ function formatAttribute(attr: ParsedAttribute): string {
 		const tokens = value.split(/\s+/).filter((t) => t.length > 0);
 		tokens.sort((a, b) => a.localeCompare(b));
 		value = tokens.join(" ");
+	} else if (lname === "data-vite-dev-id") {
+		value = normaliseViteDevId(value);
 	} else if (lname === "style") {
 		// Stable sort of style declarations: helps when React re-orders
 		// inline-style emission across versions. Normalise spacing too.
@@ -374,6 +376,21 @@ function formatAttribute(attr: ParsedAttribute): string {
 		value = value.replace(/\s+/g, " ").trim();
 	}
 	return `${lname}="${escapeAttrValue(value)}"`;
+}
+
+function normaliseViteDevId(value: string): string {
+	for (const marker of [
+		"/flowforge/examples/",
+		"/flowforge/js/",
+		"/flowforge/python/",
+		"/flowforge/tests/",
+	]) {
+		const idx = value.lastIndexOf(marker);
+		if (idx >= 0) {
+			return value.slice(idx + "/flowforge/".length);
+		}
+	}
+	return value;
 }
 
 function escapeAttrValue(value: string): string {
