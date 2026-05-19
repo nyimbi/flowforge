@@ -45,7 +45,7 @@ private UMS backend checkout.
 | Verify outbox worker PostgreSQL path | Live Postgres test exposed and then verified PostgreSQL `$N` marker fix in `flowforge_outbox_pg.worker` | Done |
 | Keep JS workspace private/source-first decision explicit | `js/README.md` and audit report state no JS package is npm-publishable in this release | Done |
 | Remove JS test/toolchain warning noise | JS setup deletes Node's localStorage getter in node tests; stale package-level `.npmrc` removed; `pnpm --dir js test` passed cleanly | Done |
-| Run external release bundle | Requires committed DOM baselines, browser e2e, reviewed polish-copy sidecar, UMS parity, and live Postgres evidence. A local run with `BACKEND_ROOT` and `FLOWFORGE_TEST_PG_URL` supplied reaches `audit-2026-visual-regression-dom` and fails only when this macOS sandbox blocks Chromium launch with `MachPortRendezvousServer ... Permission denied`. PR run `26082567508` proves the workflow now registers on pull requests, but it fails before UMS checkout because repository secret `UMS_BACKEND_TOKEN` is not configured with access to `nyimbi/ums`. | Blocked |
+| Run external release bundle | Requires committed DOM baselines, browser e2e, reviewed polish-copy sidecar, UMS parity, and live Postgres evidence. A local run with `BACKEND_ROOT` and `FLOWFORGE_TEST_PG_URL` supplied reaches `audit-2026-visual-regression-dom` and fails only when this macOS sandbox blocks Chromium launch with `MachPortRendezvousServer ... Permission denied`. PR run `26082912970` proves the workflow now registers on pull requests and fails fast before UMS checkout with an explicit `UMS_BACKEND_TOKEN` prerequisite error. | Blocked |
 
 ## Remaining blockers
 
@@ -84,10 +84,11 @@ Latest direct blocker verification:
   reaches the DOM browser lane and fails only because local Chromium launch is
   blocked by `MachPortRendezvousServer ... Permission denied`.
 - The remediation branch has been pushed as `audit-2026-critical-readiness`.
-  PR run `26082567508` registered the new `audit-2026-release-external` check
-  and failed during `Checkout UMS backend` with `Repository not found` for
-  `nyimbi/ums`, confirming the missing/inadequate `UMS_BACKEND_TOKEN` repository
-  secret is now the release-CI blocker after workflow registration.
+  PR run `26082912970` registered the new `audit-2026-release-external` check
+  and failed at `Require UMS backend checkout token` with `Set repository secret
+  UMS_BACKEND_TOKEN with read access to the UMS backend before running
+  audit-2026-release-external.`, confirming the missing `UMS_BACKEND_TOKEN`
+  repository secret is now the release-CI blocker after workflow registration.
 - `.github/workflows/audit-2026-dom-baselines.yml` now also runs on pull
   requests with smoke cadence, so this branch can produce reviewable DOM
   baseline artifacts before the manual helper is registered on `main`.
