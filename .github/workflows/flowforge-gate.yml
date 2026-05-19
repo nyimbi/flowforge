@@ -46,7 +46,15 @@ jobs:
         with:
           node-version: "22"
           cache: "pnpm"
-          cache-dependency-path: js/pnpm-lock.yaml
+          cache-dependency-path: |
+            js/pnpm-lock.yaml
+            tests/visual_regression/pnpm-lock.yaml
+
+      - name: Install visual-regression Playwright browser
+        working-directory: tests/visual_regression
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
 
       - name: Run flowforge gate
         run: bash scripts/check_all.sh
