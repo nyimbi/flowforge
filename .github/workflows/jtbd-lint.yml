@@ -87,7 +87,7 @@ jobs:
           while IFS= read -r bundle; do
             [ -z "$bundle" ] && continue
             echo "::group::lint $bundle"
-            if uv run flowforge jtbd lint --bundle "../$bundle" $strict_flag; then
+            if uv run flowforge jtbd lint --bundle "$bundle" $strict_flag; then
               echo "::endgroup::"
             else
               echo "::endgroup::"

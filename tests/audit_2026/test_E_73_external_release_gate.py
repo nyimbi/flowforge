@@ -114,6 +114,13 @@ def test_ci_uv_cache_uses_tracked_dependency_files() -> None:
 		assert "pyproject.toml" in workflow
 
 
+def test_jtbd_lint_workflow_uses_repo_relative_bundle_paths() -> None:
+	workflow = _read(".github/workflows/jtbd-lint.yml")
+
+	assert 'uv run flowforge jtbd lint --bundle "$bundle"' in workflow
+	assert '--bundle "../$bundle"' not in workflow
+
+
 def test_external_release_preflight_reports_all_hard_prerequisites() -> None:
 	script = _read("scripts/audit_2026/check_external_release_preflight.py")
 	sidecar = _read("scripts/audit_2026/check_polish_copy_sidecar.py")
