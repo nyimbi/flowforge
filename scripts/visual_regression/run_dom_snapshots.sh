@@ -129,5 +129,7 @@ fi
 # Everything is in place — run the real suite.
 echo "==> visual-regression-dom (cadence=$CADENCE)"
 cd "$VISREG_DIR"
-VISREG_CADENCE="$CADENCE" \
-	"$VISREG_DIR/node_modules/.bin/playwright" test --project=dom
+if ! VISREG_CADENCE="$CADENCE" \
+	"$VISREG_DIR/node_modules/.bin/playwright" test --project=dom; then
+	unavailable "Playwright DOM run failed — verify Chromium/browser support or inspect the visual-regression output above."
+fi
