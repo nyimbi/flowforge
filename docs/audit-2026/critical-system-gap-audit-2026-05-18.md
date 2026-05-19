@@ -1285,7 +1285,7 @@ Required fix:
 
 ### MEDIUM-19: `check_all.sh` scales poorly by serial pyright and package tests
 
-Status: materially remediated for local and CI execution. `scripts/check_all.sh` now validates `FLOWFORGE_CHECK_JOBS` and runs independent per-package pyright and pytest checks in bounded batches, defaulting to four concurrent package jobs. The latest full local gate rerun passed with the default parallelism, reporting 46 Python packages, 7 JS packages, 2,665 counted tests/assertions, and 102 seconds elapsed. `flowforge-gate.yml` now pins `FLOWFORGE_CHECK_JOBS=4`, uses tracked `pyproject.toml` uv cache inputs, runs pyright through `uv run --with pyright`, and runs pnpm 11.1.3 on Node 22 while keeping uv and pnpm caches enabled. The ratchet verifies it does not set `VISREG_ALLOW_SKIP`; standard CI remains fail-closed on missing DOM baselines while local bootstrap runs must opt into the skip explicitly.
+Status: materially remediated for local and CI execution. `scripts/check_all.sh` now validates `FLOWFORGE_CHECK_JOBS` and runs independent per-package pyright and pytest checks in bounded batches, defaulting to four concurrent package jobs. The latest full local gate rerun passed with the default parallelism, reporting 46 Python packages, 7 JS packages, 2,665 counted tests/assertions, and 86 seconds elapsed. `flowforge-gate.yml` now pins `FLOWFORGE_CHECK_JOBS=4`, uses tracked `pyproject.toml` uv cache inputs, runs pyright through `uv run --with pyright`, and runs pnpm 11.1.3 on Node 22 while keeping uv and pnpm caches enabled. The ratchet verifies it does not set `VISREG_ALLOW_SKIP`; standard CI remains fail-closed on missing DOM baselines while local bootstrap runs must opt into the skip explicitly.
 
 Files:
 

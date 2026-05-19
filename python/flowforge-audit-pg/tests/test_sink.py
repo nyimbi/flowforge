@@ -70,6 +70,8 @@ async def pg_sink():
 	url = os.environ.get("DATABASE_URL")
 	if not url:
 		pytest.skip("DATABASE_URL not set — skipping PG tests")
+	if not (url.startswith("postgresql://") or url.startswith("postgres://")):
+		pytest.skip("DATABASE_URL is not PostgreSQL — skipping PG tests")
 	# Normalise to async driver.
 	if url.startswith("postgresql://"):
 		url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
