@@ -60,10 +60,12 @@ def _adapt_to_lint_bundle(raw: dict[str, Any]) -> dict[str, Any]:
 	for jtbd in raw.get("jtbds", []) or []:
 		entry = dict(jtbd)
 		actor = entry.get("actor")
-		if isinstance(actor, dict) and "external" in actor:
-			actor = dict(actor)
-			actor.pop("external", None)
-			entry["actor"] = actor
+		if isinstance(actor, dict):
+			entry["actor"] = {
+				k: v
+				for k, v in actor.items()
+				if k in {"role", "tier", "capacity", "context"} and v is not None
+			}
 		if "jtbd_id" not in entry:
 			entry["jtbd_id"] = entry.get("id", "unknown")
 		if not entry.get("version"):

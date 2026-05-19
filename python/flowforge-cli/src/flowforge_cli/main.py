@@ -18,6 +18,7 @@ from .commands import (
 	bundle_diff,
 	diff,
 	generate_llmtxt,
+	jtbd_desktop,
 	tutorial,
 	jtbd_fork,
 	jtbd_generate,
@@ -70,6 +71,7 @@ generate_llmtxt.register(app)
 polish_copy.register(app)
 audit_verify.register(audit_app)
 jtbd_fork.register(jtbd_app)
+jtbd_desktop.register(jtbd_app)
 jtbd_lint.register(jtbd_app)
 jtbd_migrate.register(jtbd_app)
 

@@ -55,6 +55,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+desktop = [
+	"PyQt6>=6.7",
+]
 # E-5 conflict solver — Z3 backend. Not a hard dep so hosts that
 # can't ship Z3 (constrained runtimes, AOT-compiled bundles) still
 # get the simple-pairs fallback.
