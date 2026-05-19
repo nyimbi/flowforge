@@ -250,7 +250,7 @@ The original plan closed with four named carry-forwards, each tracked under a si
 
 2. **Quebec deployment translation** — remediated for the examples in this repository. Current i18n coverage is 0 errors / 0 warnings after fr-CA fill. Future compliance-tagged JTBDs still need translated strings before release. Tracked at signoff row `W4b-item-17`.
 
-3. **Sidecar authoring follow-on (W4b item 22)** — still open. Release authors must run `uv run flowforge polish-copy --bundle examples/insurance_claim/jtbd-bundle.json --require-llm --commit` with `ANTHROPIC_API_KEY` or `CLAUDE_API_KEY` plus the `flowforge-cli[llm]` extra, review the generated `<bundle>.overrides.json`, and commit it if accepted. Tracked at signoff row `W4b-item-22`.
+3. **Sidecar authoring follow-on (W4b item 22)** — remediated for the first insurance-claim release sidecar. The reviewed sidecar is committed at `examples/insurance_claim/jtbd-bundle.json.overrides.json` with `llm_provider`, `llm_model`, and `prompt_sha256` metadata; future refreshes can use either `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY` plus `flowforge-cli[llm]`, or `FLOWFORGE_POLISH_PROVIDER=claude-cli` with a configured Claude CLI. Tracked at signoff row `W4b-item-22`.
 
 4. **Property-coverage retrofit for W4b generators (i18n, operator_manual)** — remediated. The W4b generators are now included in the audit property-coverage gate and have hand-authored property tests. Tracked at signoff rows `W4b-item-17`, `W4b-item-20`, `W4b-closeout`.
 

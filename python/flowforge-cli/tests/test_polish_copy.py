@@ -19,6 +19,7 @@ Covers:
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -453,6 +454,7 @@ def test_cli_require_llm_no_api_key_fails_without_sidecar(tmp_path: Path) -> Non
 	)
 	assert result.exit_code == 1, result.output
 	assert "--require-llm needs ANTHROPIC_API_KEY" in result.output
+	assert "FLOWFORGE_POLISH_PROVIDER=claude-cli" in result.output
 	assert not sidecar_path_for(path).exists()
 
 
@@ -652,6 +654,110 @@ def test_cli_unexpected_provider_exception_fails_without_traceback_or_sidecar(
 	assert not sidecar_path_for(path).exists()
 
 
+def test_cli_claude_provider_records_cli_metadata(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""The explicit Claude CLI provider is a real-LLM authoring backend."""
+
+	def fake_run(
+		cmd: list[str],
+		*,
+		check: bool,
+		capture_output: bool,
+		text: bool,
+		timeout: int,
+	) -> subprocess.CompletedProcess[str]:
+		assert cmd[:2] == ["claude", "--bare"]
+		assert "--json-schema" in cmd
+		assert check is False
+		assert capture_output is True
+		assert text is True
+		assert timeout == 120
+		return subprocess.CompletedProcess(
+			cmd,
+			0,
+			stdout=json.dumps(
+				{
+					"is_error": False,
+					"structured_output": {
+						"claim_intake.field.claimant_name.label": "Policyholder legal name"
+					},
+				}
+			),
+			stderr="",
+		)
+
+	monkeypatch.setenv("FLOWFORGE_POLISH_PROVIDER", "claude-cli")
+	monkeypatch.setenv("FLOWFORGE_POLISH_CLAUDE_MODEL", "sonnet-test")
+	monkeypatch.setattr(polish_copy_module.shutil, "which", lambda _name: "/bin/claude")
+	monkeypatch.setattr(polish_copy_module.subprocess, "run", fake_run)
+
+	path = _write_bundle(tmp_path)
+	result = runner.invoke(
+		app,
+		[
+			"polish-copy",
+			"--bundle",
+			str(path),
+			"--tone",
+			"formal-professional",
+			"--require-llm",
+			"--commit",
+		],
+	)
+	assert result.exit_code == 0, result.output
+	sidecar = load_sidecar(path)
+	assert sidecar is not None
+	assert sidecar.llm_provider == "claude-cli"
+	assert sidecar.llm_model == "sonnet-test"
+	assert sidecar.strings["claim_intake.field.claimant_name.label"] == (
+		"Policyholder legal name"
+	)
+
+
+def test_cli_claude_provider_failure_fails_without_sidecar(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""Claude CLI failures remain failed authoring runs."""
+
+	def fake_run(
+		cmd: list[str],
+		*,
+		check: bool,
+		capture_output: bool,
+		text: bool,
+		timeout: int,
+	) -> subprocess.CompletedProcess[str]:
+		assert check is False
+		assert capture_output is True
+		assert text is True
+		assert timeout == 120
+		return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="not funded")
+
+	monkeypatch.setenv("FLOWFORGE_POLISH_PROVIDER", "claude-cli")
+	monkeypatch.setattr(polish_copy_module.shutil, "which", lambda _name: "/bin/claude")
+	monkeypatch.setattr(polish_copy_module.subprocess, "run", fake_run)
+
+	path = _write_bundle(tmp_path)
+	result = runner.invoke(
+		app,
+		[
+			"polish-copy",
+			"--bundle",
+			str(path),
+			"--tone",
+			"formal-professional",
+			"--require-llm",
+			"--commit",
+		],
+	)
+	assert result.exit_code == 1, result.output
+	assert "claude CLI failed: not funded" in result.output
+	assert not sidecar_path_for(path).exists()
+
+
 def test_cli_commit_llm_polish_records_model_and_prompt_checksum(
 	tmp_path: Path,
 	monkeypatch: pytest.MonkeyPatch,
@@ -717,10 +823,10 @@ def test_cli_rejects_invalid_tone(tmp_path: Path) -> None:
 	assert result.exit_code != 0
 
 
-def test_cli_dry_run_with_existing_sidecar_shows_proposed_diff(
+def test_cli_dry_run_no_api_key_preserves_existing_sidecar(
 	tmp_path: Path,
 ) -> None:
-	"""When a sidecar exists, --dry-run diffs canonical-polish vs that sidecar."""
+	"""No-key dry-run must not imply a reviewed sidecar should be reverted."""
 
 	path = _write_bundle(tmp_path)
 	# Seed an existing sidecar that polishes claimant_name.
@@ -748,10 +854,8 @@ def test_cli_dry_run_with_existing_sidecar_shows_proposed_diff(
 		],
 	)
 	assert result.exit_code == 0, result.output
-	# No API key → polish_fn returns canonical. Canonical differs from
-	# the existing sidecar (sidecar = "Claimant (full legal name)";
-	# canonical = "Claimant") → diff shows the revert.
-	assert "claim_intake.field.claimant_name.label" in result.output
+	assert "existing reviewed sidecar is preserved" in result.output
+	assert "proposed changes" not in result.output
 
 
 def test_cli_overrides_flag_threads_into_generate(tmp_path: Path) -> None:

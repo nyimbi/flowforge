@@ -1,0 +1,18 @@
+{
+  "generated_at": "2026-05-19T06:41:13Z",
+  "generator_version": "flowforge polish-copy v0.3.0",
+  "llm_model": "sonnet",
+  "llm_provider": "claude-cli",
+  "prompt_sha256": "e4656e96c6234648ab64fe11fd00cb2c45d1b29f83f43d3e90ef63c04b48b09a",
+  "strings": {
+    "claim_intake.field.claimant_name.label": "Claimant Full Name",
+    "claim_intake.field.contact_email.label": "Contact Email Address",
+    "claim_intake.field.contact_phone.label": "Contact Telephone Number",
+    "claim_intake.field.loss_amount.label": "Estimated Loss Amount",
+    "claim_intake.field.loss_date.label": "Date of Loss",
+    "claim_intake.field.loss_description.label": "Description of Loss",
+    "claim_intake.field.policy_number.label": "Policy Number"
+  },
+  "tone_profile": "formal-professional",
+  "version": "1.0"
+}

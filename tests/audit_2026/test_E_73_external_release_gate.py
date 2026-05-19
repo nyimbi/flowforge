@@ -134,6 +134,7 @@ def test_external_release_preflight_reports_all_hard_prerequisites() -> None:
 	assert "uv run flowforge polish-copy" in sidecar
 	assert "--require-llm --commit" in sidecar
 	assert "flowforge-cli[llm]" in sidecar
+	assert "FLOWFORGE_POLISH_PROVIDER=claude-cli" in sidecar
 	assert "BACKEND_ROOT not found" in script
 	assert "FLOWFORGE_TEST_PG_URL" in script
 	assert "browser execution is verified by make audit-2026-release-external" in script

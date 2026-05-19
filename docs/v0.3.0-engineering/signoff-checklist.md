@@ -1762,32 +1762,34 @@ green before the wave's row(s) here are signed.
   evidence:
     files_changed:
       - "python/flowforge-cli/src/flowforge_cli/jtbd/overrides.py (NEW — JtbdCopyOverrides Pydantic v2 schema with namespace-grammar validator; sidecar_path_for, load_sidecar, resolve_sidecar, validate_key_against_bundle, build_canonical_strings, dump_sidecar helpers)"
-      - "python/flowforge-cli/src/flowforge_cli/commands/polish_copy.py (NEW — `flowforge polish-copy --tone <profile> --bundle <path> [--commit|--dry-run] [--overrides <path>]` Typer command; anthropic provider gated via importlib.util.find_spec — no API key OR no anthropic install → no-op echo path; --commit skips writing the sidecar when polish output == canonical so git status stays clean. Current release-gate hardening adds `--require-llm`, provider-format failure handling, and preservation of existing reviewed sidecars when a polish pass returns canonical copy.)"
+      - "python/flowforge-cli/src/flowforge_cli/commands/polish_copy.py (NEW — `flowforge polish-copy --tone <profile> --bundle <path> [--commit|--dry-run] [--overrides <path>]` Typer command; anthropic provider gated via importlib.util.find_spec — no API key OR no anthropic install → no-op echo path; explicit `FLOWFORGE_POLISH_PROVIDER=claude-cli` backend supports configured Claude CLI authoring; --commit skips writing the sidecar when polish output == canonical so git status stays clean. Current release-gate hardening adds `--require-llm`, provider-format failure handling, Claude CLI success/failure coverage, and preservation of existing reviewed sidecars when no LLM provider is configured.)"
       - "python/flowforge-cli/src/flowforge_cli/jtbd/pipeline.py (generate() takes optional overrides=None; threaded through normalize())"
       - "python/flowforge-cli/src/flowforge_cli/jtbd/normalize.py (normalize() and _norm_field() take optional overrides; field.label overrides applied at normalize time so every downstream emit — form_spec.json, Step.tsx FIELDS array — picks them up without re-implementing the lookup)"
       - "python/flowforge-cli/src/flowforge_cli/commands/jtbd_generate.py (--overrides <path> flag; resolve_sidecar applies ADR-002 lookup precedence — flag > co-located <bundle>.overrides.json > none)"
       - "python/flowforge-cli/src/flowforge_cli/main.py (registers polish_copy command)"
       - "python/flowforge-cli/pyproject.toml ([project.optional-dependencies] llm = [\"anthropic>=0.40\"] — opt-in soft dep)"
-      - "python/flowforge-cli/tests/test_polish_copy.py (NEW at closeout — 23 tests: schema validation, namespace key grammar, lookup precedence, CLI no-op echo, --dry-run baseline diff, --commit-no-write-when-canonical, --overrides flag threads into jtbd-generate, co-located sidecar auto-pickup, smoke test against examples/insurance_claim; current suite has 29 tests after release-gate hardening)"
+      - "python/flowforge-cli/tests/test_polish_copy.py (NEW at closeout — 23 tests: schema validation, namespace key grammar, lookup precedence, CLI no-op echo, --dry-run baseline diff, --commit-no-write-when-canonical, --overrides flag threads into jtbd-generate, co-located sidecar auto-pickup, smoke test against examples/insurance_claim; current suite has 32 tests after release-gate and Claude CLI hardening)"
+      - "examples/insurance_claim/jtbd-bundle.json.overrides.json (NEW — reviewed first LLM polish-copy sidecar with claude-cli audit metadata and prompt checksum)"
       - "tests/v0_3_0/__init__.py (NEW — establishes the v0_3_0 layered test root per docs/v0.3.0-engineering-plan.md §7)"
       - "tests/v0_3_0/test_polish_copy_committed_overrides.py (NEW — CI gate: `flowforge polish-copy --commit` with no API key MUST NOT dirty examples/; any committed sidecar must be tracked by git)"
       - "tests/audit_2026/test_E_68_test_location_convention.py (allowed `v0_3_0` layer; added `.omc` skip segment for OMC tooling scratch state)"
       - "tests/README.md (documented the v0_3_0 layer in the 9-layer table; bumped '8 audit-2026 layers' → '9 layers')"
     acceptance_tests:
-      - "Historical closeout: uv run pytest python/flowforge-cli/tests/test_polish_copy.py — 23/23 green. Current status: focused polish-copy suite is 29/29 green after release-gate hardening."
+      - "Historical closeout: uv run pytest python/flowforge-cli/tests/test_polish_copy.py — 23/23 green. Current status: focused polish-copy suite is 32/32 green after release-gate and Claude CLI hardening."
       - "uv run pytest tests/v0_3_0/test_polish_copy_committed_overrides.py — 6/6 green (3 examples × {commit-keeps-clean, no-committed-sidecar-drift})"
       - "uv run pytest tests/audit_2026/test_E_68_test_location_convention.py — 5/5 green (v0_3_0 layer accepted by lint + documented in README)"
     pre_deploy_checks:
       - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
-      - "Historical closeout: uv run pytest python/flowforge-cli/tests/ -q — 585/585 green (existing 562 + 23 new polish-copy tests). Current status: `uv run pytest python/flowforge-cli/tests -q --tb=short` reports 600 passed."
+      - "Historical closeout: uv run pytest python/flowforge-cli/tests/ -q — 585/585 green (existing 562 + 23 new polish-copy tests). Current status: `uv run pytest python/flowforge-cli/tests -q --tb=short` reports 603 passed, 1 skipped."
       - "uv run pytest tests/conformance -q — 11/11 invariants pass"
       - "bash scripts/ci/ratchets/check.sh — 7/7 PASS (no new ratchet added)"
-      - "scripts/ci/regen_flag_flip.sh — 6/6 byte-identical (3 examples × 2 form_renderer flag values) — no sidecars present yet, so the (bundle, sidecar) tuple == bundle and the canonical regen-diff catches every drift"
+      - "scripts/ci/regen_flag_flip.sh — 6/6 byte-identical (3 examples × 2 form_renderer flag values) — historical closeout had no sidecars; current release includes the reviewed insurance-claim sidecar and regen-diff continues to catch stale sidecar drift"
       - "Smoke: `uv run flowforge polish-copy --bundle examples/insurance_claim/jtbd-bundle.json --tone formal-professional --dry-run` (no API key) → 'no-op echo' + 'no diff — canonical strings unchanged' + zero files written"
     determinism_proof: |
       The LLM is opt-in soft dep. In CI no ANTHROPIC_API_KEY /
-      CLAUDE_API_KEY is set, so `_detect_polish_fn` short-circuits
-      to `_noop_polish` (identity over the canonical strings). With
+      CLAUDE_API_KEY is set and FLOWFORGE_POLISH_PROVIDER is unset, so
+      `_detect_polish_fn` short-circuits to `_noop_polish` (identity over the
+      canonical strings). With
       `polished == canonical`, the --commit path skips the sidecar
       write entirely so `git status --porcelain examples/` stays
       empty — the `tests/v0_3_0/test_polish_copy_committed_overrides.py`
@@ -1868,7 +1870,7 @@ green before the wave's row(s) here are signed.
       - "Current status: fr-CA examples are filled and i18n coverage reports 0 errors / 0 warnings."
     pre_deploy_checks:
       - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
-      - "Historical closeout: uv run pytest python/flowforge-cli/tests/ -q — 585/585 green. Current status: `uv run pytest python/flowforge-cli/tests -q --tb=short` reports 600 passed."
+      - "Historical closeout: uv run pytest python/flowforge-cli/tests/ -q — 585/585 green. Current status: `uv run pytest python/flowforge-cli/tests -q --tb=short` reports 603 passed, 1 skipped."
       - "make audit-2026-conformance — 11/11 invariants pass (no new invariant in W4b; i18n-coverage stays a gate, not an invariant)"
       - "bash scripts/ci/ratchets/check.sh — 7/7 PASS (no new ratchet added in W4b)"
       - "scripts/ci/regen_flag_flip.sh — 6/6 byte-identical (3 examples × 2 form_renderer flag values)"
@@ -1943,7 +1945,7 @@ green before the wave's row(s) here are signed.
       - "Historical closeout: property-test coverage retrofit was deferred for operator_manual. Current status: operator_manual is included in the audit property-coverage gate and has hand-authored property coverage."
     pre_deploy_checks:
       - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
-      - "Historical closeout: uv run pytest python/flowforge-cli/tests/ -q — 585/585 green (operator_manual exercised end-to-end via the pipeline-integration tests + regen-diff baseline). Current status: `uv run pytest python/flowforge-cli/tests -q --tb=short` reports 600 passed."
+      - "Historical closeout: uv run pytest python/flowforge-cli/tests/ -q — 585/585 green (operator_manual exercised end-to-end via the pipeline-integration tests + regen-diff baseline). Current status: `uv run pytest python/flowforge-cli/tests -q --tb=short` reports 603 passed, 1 skipped."
       - "make audit-2026-conformance — 11/11 invariants pass"
       - "scripts/ci/regen_flag_flip.sh — 6/6 byte-identical (3 examples × 2 form_renderer flag values)"
     determinism_proof: |
@@ -1976,7 +1978,7 @@ green before the wave's row(s) here are signed.
       until re-applied.
   follow_ups:
     - "Current status: property-coverage retrofit is remediated; `operator_manual` is in `tests/audit_2026/test_property_coverage_gate.py::REQUIRED_GENERATORS` and has hand-authored property coverage."
-    - "Current status: visual-regression baselines are still open; the MDX references `../../../screenshots/frontend/Step.<viewport>.png` unconditionally, and the baseline tree must be populated by a Chromium-capable baseline generation run."
+    - "Current status: smoke DOM baselines are committed and browser-capable PR lanes have passed; the remaining release proof is a final external release run in an environment where Chromium can launch."
   architecture_lead_signoff:
     signer: Nyimbi Odero
     date: 2026-05-11
@@ -2057,7 +2059,7 @@ green before the wave's row(s) here are signed.
       - "make audit-2026-property-coverage — 3/3 green (13 W0-W3 generators retrofitted; 3 seed-uniqueness checks pass)"
       - "Historical closeout: uv run pytest tests/cross_runtime/ -q — Python-side 253/253 green; JS-side skipped with reason on the pre-existing pnpm-install blocker (carried over from W3). Current status: pnpm is unblocked; remaining release blockers are browser execution and committed DOM baselines, not pnpm install."
       - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
-      - "Historical closeout: uv run pytest python/flowforge-cli/tests/ -q — 585/585 green. Current status: `uv run pytest python/flowforge-cli/tests -q --tb=short` reports 600 passed."
+      - "Historical closeout: uv run pytest python/flowforge-cli/tests/ -q — 585/585 green. Current status: `uv run pytest python/flowforge-cli/tests -q --tb=short` reports 603 passed, 1 skipped."
       - "uv run pytest tests/v0_3_0/ tests/audit_2026/test_E_68_test_location_convention.py -q — 11/11 green"
       - "Examples regen-diff via scripts/ci/regen_flag_flip.sh — 6/6 byte-identical at closeout time"
     determinism_proof: |

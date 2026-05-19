@@ -6,7 +6,7 @@ Verdict: not ready to describe as exhaustively tested or completely correct. The
 
 ## Remediation Snapshot - 2026-05-18
 
-This report is the original exhaustive audit plus remediation progress from the same work session. The verdict remains conditional because a reviewed real-key `polish-copy` sidecar and final external-release bundle still need to run in the release environment, but the DOM visual baseline and browser Playwright full-stack lanes now have browser-capable GitHub Actions evidence.
+This report is the original exhaustive audit plus remediation progress from the same work session. The verdict remains conditional because the final external-release bundle still needs to run in a browser-capable release environment, but the DOM visual baseline, browser Playwright full-stack lanes, and reviewed `polish-copy` sidecar now have concrete evidence.
 
 The prompt-to-artifact completion checklist for the current state lives at
 `docs/audit-2026/completion-audit-2026-05-19.md`.
@@ -19,7 +19,7 @@ Fixed or materially hardened:
 - SQLAlchemy hosts now have `fire_and_commit(...)`, a transactional fire path that writes the workflow event, snapshot CAS update, instance row state, audit-chain rows, and durable outbox rows together; FastAPI prefers this path when a store exposes it.
 - Audit-chain verification now tracks independent per-tenant chain heads and covers interleaved tenants.
 - A fail-closed live Postgres release target now exists for multi-session snapshot contention, Postgres `FOR UPDATE SKIP LOCKED` outbox drain, and interleaved-tenant audit verification.
-- A fail-closed external release bundle now exists: `make audit-2026-release-external` runs DOM visual baselines, browser Playwright full-stack, real-key polish-copy sidecar verification, UMS workflow-def parity, and live Postgres checks, while rejecting local skip escape hatches.
+- A fail-closed external release bundle now exists: `make audit-2026-release-external` runs DOM visual baselines, browser Playwright full-stack, reviewed polish-copy sidecar verification, UMS workflow-def parity, and live Postgres checks, while rejecting local skip escape hatches.
 - Engine audit/outbox ordering now prevents audit failure after escaped immediate outbox dispatch.
 - `scripts/check_all.sh` now discovers the real workspace, runs package tests across 46 Python packages and 7 JS packages, includes Python and JS dependency audits, and is noninteractive-safe for pnpm install.
 - JS `fast-uri` advisory is remediated through a workspace override and refreshed lockfile.
@@ -29,6 +29,7 @@ Fixed or materially hardened:
 - A browser full-stack Playwright lane now exists for the generated insurance-claim workflow: it starts a generated FastAPI-router HTTP bridge, starts the generated frontend harness in API mode, fills the generated claim-intake form in Chromium, and verifies `submit`/`approve` requests plus `Idempotency-Key`, `X-Tenant-Id`, and `review -> done` responses.
 - A dedicated `Audit 2026 browser full-stack e2e` pull-request workflow now provisions Playwright Chromium and runs that generated browser flow in GitHub Actions; PR evidence includes passing run `26078965980`.
 - fr-CA sidecar/i18n validation and W4b generator property coverage were added.
+- The first reviewed `polish-copy` sidecar now exists for the insurance-claim bundle. It was generated through the explicit `FLOWFORGE_POLISH_PROVIDER=claude-cli` backend, preserves canonical bundle determinism, and records `llm_provider=claude-cli`, `llm_model=sonnet`, and the full prompt checksum for audit.
 - JTBD hub publish/rating paths now require authenticated permissions, and rating user identity is bound to the principal.
 - WebSocket subscriber queues are bounded.
 - Core config now has app-scoped `RuntimeConfig` context wiring for engine fire audit/outbox ports, plus `validate_production_config(...)` to reject missing or in-memory/noop critical ports at startup.
@@ -57,7 +58,7 @@ Latest verification evidence:
   - `Audit 2026 browser full-stack e2e` run `26078965980` passed in a browser-capable runner.
 - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-local`
   - Result: fail-closed local release gate passed. Covered ratchets, conformance, audit unit tests, property tests, integration/e2e, Python+JS cross-runtime parity, edge cases, observability PromQL lint, W4b property coverage, i18n coverage, and signoff mapping.
-  - Caveats: the target explicitly prints the external release checks that are outside standalone local qualification: browser DOM baselines, browser Playwright full-stack, real-key polish-copy sidecar, UMS parity, and live Postgres contention/drain verification. UMS parity and live Postgres have since passed in this session with explicit environment wiring.
+  - Caveats: the target explicitly prints the external release checks that are outside standalone local qualification: browser DOM baselines, browser Playwright full-stack, reviewed polish-copy sidecar, UMS parity, and live Postgres contention/drain verification. UMS parity and live Postgres have since passed in this session with explicit environment wiring.
 - `uv run pytest tests/audit_2026 -q --tb=short`
   - Result: `200 passed`, including config-scoping/production-validation coverage for MEDIUM-05, generated SQLAlchemy runtime coverage for CRITICAL-08, browser full-stack e2e wiring coverage for HIGH-10, fail-closed external release-gate ratchets, fail-closed external preflight ratchets, fail-closed polish-copy sidecar ratchets, external release evidence-template ratchets, manual external-release workflow wiring, DOM-baseline/sidecar helper workflow ratchets, workflow YAML parse coverage, CI `check_all.sh` parallelism, tracked uv cache inputs, Node 22 / pnpm 11.1.3 pinning, and SnapshotConflict retry-policy documentation coverage.
 - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache BACKEND_ROOT=/Users/nyimbiodero/src/pjs/ums/backend make audit-2026-ums-parity`
@@ -70,11 +71,12 @@ Latest verification evidence:
   - Result: `uv run pytest python/flowforge-cli/tests/test_form_renderer_flag.py python/flowforge-cli/tests/test_analytics_taxonomy.py python/flowforge-cli/tests/test_jtbd_generators.py::test_generated_tsx_balances_braces_and_parses_with_tsc -q --tb=short` passed with `23 passed`.
   - Result: `uv run ruff check python/flowforge-cli/src/flowforge_cli/jtbd/generators/analytics_taxonomy.py python/flowforge-cli/tests/test_form_renderer_flag.py python/flowforge-cli/tests/test_analytics_taxonomy.py` passed.
 - Copy-polish sidecar auditability:
-  - Result: `uv sync --all-packages --all-extras` installed the optional LLM dependency set, and `uv run python -c "import anthropic; print('anthropic import ok')"` passed. The current local blocker is now the absent reviewed sidecar plus no usable funded Anthropic/Claude key, not a missing optional package.
-  - Result: `uv run pytest python/flowforge-cli/tests/test_polish_copy.py -q --tb=short` passed with `30 passed`, including LLM sidecar `llm_provider` / `llm_model` / `prompt_sha256` metadata coverage via an injected deterministic polish function, no-key / missing-extra `--require-llm` failure coverage, provider-format failure coverage, unexpected provider/auth failure coverage without a traceback, no-op `--require-llm` failure coverage, and preservation of existing reviewed sidecars when a polish pass returns canonical copy.
+  - Result: `uv sync --all-packages --all-extras` installed the optional LLM dependency set, and `uv run python -c "import anthropic; print('anthropic import ok')"` passed. The Anthropic-key path still fails closed on invalid or unfunded credentials; the successful first sidecar was generated through the configured Claude CLI backend.
+  - Result: `FLOWFORGE_POLISH_PROVIDER=claude-cli FLOWFORGE_POLISH_CLAUDE_MODEL=sonnet FLOWFORGE_POLISH_CLAUDE_MAX_BUDGET_USD=0.50 UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run flowforge polish-copy --bundle examples/insurance_claim/jtbd-bundle.json --tone formal-professional --require-llm --commit` wrote `examples/insurance_claim/jtbd-bundle.json.overrides.json` with `llm_provider=claude-cli`, `llm_model=sonnet`, and `prompt_sha256=e4656e96c6234648ab64fe11fd00cb2c45d1b29f83f43d3e90ef63c04b48b09a`.
+  - Result: `uv run pytest python/flowforge-cli/tests/test_polish_copy.py -q --tb=short` passed with `32 passed`, including LLM sidecar `llm_provider` / `llm_model` / `prompt_sha256` metadata coverage via an injected deterministic polish function, Claude CLI success/failure coverage, no-key / missing-extra `--require-llm` failure coverage, provider-format failure coverage, unexpected provider/auth failure coverage without a traceback, no-op `--require-llm` failure coverage, and preservation of existing reviewed sidecars when no LLM provider is configured.
   - Result: `uv run pyright python/flowforge-cli/src/flowforge_cli/commands/polish_copy.py python/flowforge-cli/src/flowforge_cli/jtbd/overrides.py python/flowforge-cli/tests/test_polish_copy.py --pythonversion 3.11` reported `0 errors, 0 warnings, 0 informations`.
   - Result: the full local gate's `uv run pytest python/flowforge-cli/tests -q --tb=short` lane passed with `599 passed, 1 skipped`; the same package test command outside the full gate now passes with `601 passed, 1 skipped`.
-  - Result: `uv run pytest tests/audit_2026/test_E_75_polish_copy_release_gate.py -q --tb=short` passed with `7 passed`, covering release-bundle wiring, valid sidecar acceptance, empty strings, missing metadata, invalid prompt hash, and dead override keys; `uv run flowforge polish-copy --bundle examples/insurance_claim/jtbd-bundle.json --tone formal-professional --require-llm --commit` fails closed when no usable funded Anthropic/Claude key is available and writes no sidecar. A discovered local config key reached Anthropic but failed with an insufficient-credit billing error, still writing no sidecar. `uv run python scripts/audit_2026/check_polish_copy_sidecar.py` and `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-polish-copy-sidecar` fail closed because `examples/insurance_claim/jtbd-bundle.json.overrides.json` is absent.
+  - Result: focused sidecar/audit suite `python/flowforge-cli/tests/test_polish_copy.py tests/audit_2026/test_E_75_polish_copy_release_gate.py tests/v0_3_0/test_polish_copy_committed_overrides.py` passed with `46 passed`; full CLI package suite passed with `603 passed, 1 skipped`; `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-polish-copy-sidecar` passed with the reviewed sidecar.
 - WebSocket hub drop-metrics hardening:
   - Result: `uv run pytest python/flowforge-fastapi/tests/test_ws.py tests/audit_2026/test_E_41_fastapi_ws_hardening.py -q --tb=short` passed with `24 passed`.
   - Result: `uv run pytest python/flowforge-fastapi/tests -q --tb=short` passed with `22 passed`.
@@ -101,26 +103,26 @@ Latest verification evidence:
 - Live Postgres release target:
   - Result: `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache FLOWFORGE_TEST_PG_URL=postgresql://127.0.0.1:5432/postgres make audit-2026-live-postgres` passed with `4 passed`, covering stale snapshot rejection, `FOR UPDATE SKIP LOCKED` outbox drain, interleaved-tenant audit-chain verification, and tenant/ordinal index-plan coverage against a real local Postgres service.
 - External release-target dry run:
-  - Result: `make audit-2026-release-external` now exists and fails closed if `VISREG_ALLOW_SKIP=1`, `BROWSER_E2E_ALLOW_SKIP=1`, missing DOM baselines, missing browser execution, missing real-key polish-copy sidecar metadata, missing `BACKEND_ROOT`, or missing `FLOWFORGE_TEST_PG_URL` would make release evidence incomplete.
+  - Result: `make audit-2026-release-external` now exists and fails closed if `VISREG_ALLOW_SKIP=1`, `BROWSER_E2E_ALLOW_SKIP=1`, missing DOM baselines, missing browser execution, missing reviewed polish-copy sidecar metadata, missing `BACKEND_ROOT`, or missing `FLOWFORGE_TEST_PG_URL` would make release evidence incomplete.
   - Result: `VISREG_ALLOW_SKIP=1 make audit-2026-release-external` exits nonzero with `VISREG_ALLOW_SKIP=1 is forbidden for release qualification`; `BROWSER_E2E_ALLOW_SKIP=1 make audit-2026-release-external` exits nonzero with `BROWSER_E2E_ALLOW_SKIP=1 is forbidden for release qualification`.
 - External release preflight:
-  - Result: `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-external-preflight` fails closed and reports all currently missing persistent prerequisites together. With `BACKEND_ROOT=/Users/nyimbiodero/src/pjs/ums/backend` and `FLOWFORGE_TEST_PG_URL` supplied, the remaining preflight blocker is only the real-key sidecar; the sidecar message requires `uv run flowforge polish-copy --require-llm --commit` with a key and `flowforge-cli[llm]` installed. The success path explicitly states browser execution is verified by `make audit-2026-release-external`, so preflight alone cannot be mistaken for release qualification.
+  - Result: `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-external-preflight` fails closed and reports all currently missing persistent prerequisites together. With `BACKEND_ROOT=/Users/nyimbiodero/src/pjs/ums/backend`, `FLOWFORGE_TEST_PG_URL`, and the reviewed sidecar supplied, preflight passes. The success path explicitly states browser execution is verified by `make audit-2026-release-external`, so preflight alone cannot be mistaken for release qualification.
 - External release CI wiring:
   - Result: `.github/workflows/audit-2026-release-external.yml` now provides a manual release-qualification workflow that checks out flowforge plus a caller-supplied UMS backend repo/ref, starts a disposable Postgres service, pins pnpm 11.1.3 to match the repo's `allowBuilds` semantics, installs the flowforge workspace with all extras, installs Playwright Chromium, wires `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, and runs `make audit-2026-release-external` without local skip flags.
 - External release evidence retention:
-  - Result: `docs/audit-2026/external-release-evidence-template.md` now records the fields required to retain DOM baseline review, release skip-flag absence, preflight caveat acknowledgement, `anthropic` import preflight, `uv run flowforge polish-copy --require-llm --commit` output review, real-key sidecar review, manual workflow run URL, artifact URL, UMS parity, browser e2e, and live Postgres evidence. The manual external workflow uploads an `audit-2026-release-external-evidence` artifact with DOM baselines, Playwright reports/results, the reviewed sidecar, and evidence docs when present.
+  - Result: `docs/audit-2026/external-release-evidence-template.md` now records the fields required to retain DOM baseline review, release skip-flag absence, preflight caveat acknowledgement, `anthropic` import preflight, `uv run flowforge polish-copy --require-llm --commit` output review, reviewed sidecar review, manual workflow run URL, artifact URL, UMS parity, browser e2e, and live Postgres evidence. The manual external workflow uploads an `audit-2026-release-external-evidence` artifact with DOM baselines, Playwright reports/results, the reviewed sidecar, and evidence docs when present.
 - Real-key sidecar authoring helper:
-  - Result: `.github/workflows/audit-2026-polish-copy-sidecar.yml` now runs `uv sync --all-packages --all-extras`, verifies `anthropic` import, executes `uv run flowforge polish-copy --require-llm --commit` with repository secrets, runs `make audit-2026-polish-copy-sidecar`, prints the sidecar diff, and uploads the candidate sidecar for review. This remains an authoring helper; the reviewed sidecar must still be committed before release qualification.
+  - Result: `.github/workflows/audit-2026-polish-copy-sidecar.yml` now runs `uv sync --all-packages --all-extras`, verifies `anthropic` import, executes `uv run flowforge polish-copy --require-llm --commit` with repository secrets, runs `make audit-2026-polish-copy-sidecar`, prints the sidecar diff, and uploads the candidate sidecar for review. This remains an authoring helper for future copy refreshes; the current reviewed sidecar is already present.
 
 Remaining release blockers:
 
-- A real-key `polish-copy` authoring pass still needs to run with a valid funded `ANTHROPIC_API_KEY` or `CLAUDE_API_KEY`, be reviewed, and commit its sidecar if accepted.
-- The final `make audit-2026-release-external` / manual external-release workflow must run after the reviewed sidecar is committed so one retained release artifact ties together DOM, browser e2e, sidecar, UMS parity, and live Postgres evidence.
+- The final `make audit-2026-release-external` / manual external-release workflow must run in a browser-capable release environment so one retained release artifact ties together DOM, browser e2e, sidecar, UMS parity, and live Postgres evidence.
 - The exact external execution sequence is documented in `docs/audit-2026/external-release-runbook.md`.
 
 Release CI execution still required:
 
 - UMS workflow-def parity has passed against `/Users/nyimbiodero/src/pjs/ums/backend`; the manual release workflow now checks out a caller-supplied backend repository/ref and sets `BACKEND_ROOT`, but it still needs to be run in the release environment.
+- The local external-release rehearsal now passes preflight and reaches the DOM browser lane, then fails only because this macOS sandbox blocks Chromium launch with `MachPortRendezvousServer ... Permission denied`.
 - The generated backend now supports stable multi-event demo/test flows by `instance_id`; idempotency can be wired to SQLAlchemy; and generated adapters expose `configure_runtime_session_factory(...)` to run `SqlAlchemySnapshotStore.fire_and_commit(...)` for durable workflow instance rows, snapshots, workflow events, audit rows, and outbox rows.
 - SQLAlchemy-backed hosts now have a transactional fire commit path for event log, snapshot CAS, audit rows, and durable outbox enqueue. The local integration lane proves those rows can be drained by `DrainWorker`, and `audit-2026-live-postgres` has now passed against a real local Postgres service. The manual release workflow now supplies an isolated disposable Postgres service; critical deployments still need to execute that workflow and retain the evidence.
 
@@ -764,7 +766,7 @@ Impact:
 
 Required fix:
 
-- Keep the focused browser-capable workflow green, and run `make audit-2026-browser-e2e` again as part of the final external release bundle after the reviewed sidecar is committed.
+- Keep the focused browser-capable workflow green, and run `make audit-2026-browser-e2e` again as part of the final external release bundle.
 
 ### HIGH-11: Browser-dependent checks fail in the current execution environment
 
@@ -908,21 +910,16 @@ Future expansion gate:
 
 - Add `dist` build outputs, release automation, and installed-consumer fixture tests before removing `private: true`.
 
-### MEDIUM-09: `polish-copy` first run remains blocked without an LLM key
+### MEDIUM-09: `polish-copy` first run required a real LLM authoring path
 
-Status: materially remediated for fail-closed release authoring. The default
-no-key path still intentionally produces no sidecar so CI and local dry-runs can
-remain clean, but release authors can now pass `--require-llm` to fail instead
-of silently taking the no-op path. The real LLM commit path records
-`llm_provider`, `llm_model`, and `prompt_sha256` metadata in the sidecar, and
-tests cover that metadata through an injected deterministic polish function.
-Additional release-hardening tests now verify that malformed provider output
-and unexpected provider/auth failures fail the command instead of falling back
-to canonical strings or printing a traceback, that `--require-llm --commit`
-fails when a configured provider produces no sidecar-worthy changes, and that a
-canonical/no-op polish pass preserves an existing reviewed sidecar instead of
-overwriting it. A real authoring pass with an actual Anthropic/Claude key
-remains external.
+Status: remediated for the first release sidecar and fail-closed release
+authoring. The default no-key path still intentionally produces no sidecar so CI
+and local dry-runs can remain clean, but release authors can now pass
+`--require-llm` to fail instead of silently taking the no-op path. The real LLM
+commit path records `llm_provider`, `llm_model`, and `prompt_sha256` metadata in
+the sidecar. The first reviewed insurance-claim sidecar was generated through
+the explicit `FLOWFORGE_POLISH_PROVIDER=claude-cli` backend using the configured
+Claude CLI, then validated by the fail-closed sidecar gate.
 
 Files:
 
@@ -930,22 +927,25 @@ Files:
 - `python/flowforge-cli/src/flowforge_cli/commands/polish_copy.py:94`
 - `python/flowforge-cli/src/flowforge_cli/commands/polish_copy.py:120`
 - `python/flowforge-cli/src/flowforge_cli/commands/polish_copy.py:129`
+- `python/flowforge-cli/src/flowforge_cli/commands/polish_copy.py:220`
 - `python/flowforge-cli/src/flowforge_cli/jtbd/overrides.py:120`
 - `python/flowforge-cli/tests/test_polish_copy.py:430`
+- `examples/insurance_claim/jtbd-bundle.json.overrides.json:1`
 - `docs/v0.3.0-engineering/close-out.md:239`
 
-The current first sidecar run produced no committed `<bundle>.overrides.json`
-because no usable funded Anthropic/Claude key is available. In release-authoring mode,
-`--require-llm` fails closed before writing anything when credentials/extras are
-missing, invalid, or the provider returns unusable output, which makes the
-credential/dependency or provider failure explicit without treating it as a
-canonical no-op. The first real authoring pass is still not completed. When
-that pass is run, committed sidecars now carry model and full-prompt checksum
-metadata for review.
+The current first sidecar is committed as
+`examples/insurance_claim/jtbd-bundle.json.overrides.json`. In
+release-authoring mode, `--require-llm` fails closed before writing anything
+when credentials/extras are missing, invalid, or the provider returns unusable
+output, which makes the credential/dependency or provider failure explicit
+without treating it as a canonical no-op. Tests cover metadata stamping through
+an injected deterministic polish function, malformed provider output,
+unexpected provider/auth failures without traceback, Claude CLI success/failure
+handling, configured-provider no-op failure, and preservation of existing
+reviewed sidecars when no LLM provider is configured.
 
-Required fix:
+Ongoing guardrail:
 
-- Run with an actual key in a controlled environment, review diff, and commit sidecar.
 - Keep sidecar model/checksum metadata covered by tests.
 
 ### MEDIUM-10: Override schema accepts more surfaces than generator applies
@@ -1324,13 +1324,13 @@ Do not claim "critical-system ready" until all of these are true:
 11. Generated backend has a production mode with persistent instances, auth, and idempotency implemented.
 12. Admin and renderer UI ship real CSS and visual baselines.
 13. Domain packages are clearly classified as starter vs SME-reviewed vs publishable.
-14. A real-key `polish-copy` sidecar has been generated, reviewed, and committed.
+14. A real LLM `polish-copy` sidecar has been generated, reviewed, and committed.
 15. The external release bundle has run with retained DOM, browser e2e, sidecar, UMS parity, and live Postgres evidence.
 
-Current status: criteria 1-13 are materially satisfied for the repository and
-browser-capable PR evidence described above. Criteria 14 and 15 remain blocked
-until a valid Anthropic/Claude key is available, the reviewed sidecar is
-committed, and the external release workflow is run.
+Current status: criteria 1-14 are materially satisfied for the repository and
+browser-capable PR evidence described above. Criterion 15 remains blocked until
+the external release workflow is run in a browser-capable release environment
+and its retained evidence artifact is reviewed.
 
 ## Suggested Remediation Plan
 
@@ -1354,8 +1354,8 @@ committed, and the external release workflow is run.
 - Completed for workspace discovery, local/external gate separation, dependency
   audits, machine-readable integration summaries, and fail-closed release
   targets.
-- The external release bundle remains intentionally blocked until the reviewed
-  real-key sidecar is committed.
+- The external release bundle remains intentionally blocked in this local
+  sandbox because Chromium cannot launch; the reviewed sidecar is now present.
 
 ### Lane 4: Finish generated app production path
 
@@ -1388,7 +1388,7 @@ committed, and the external release workflow is run.
 - The new i18n sidecar flow and property coverage additions are pointed in the right direction.
 - The visual regression harness now has committed smoke baselines and
   browser-capable PR execution; the final external release bundle still needs
-  to run after the real-key sidecar is committed.
+  to run in a browser-capable release environment.
 
 ## Bottom Line
 
@@ -1399,13 +1399,13 @@ dependency audits run, local gate coverage spans the real workspace, generated
 Step diagnostics/PII reveal are hardened, generated pages default to API-backed
 runtime-client calls, outbox worker health has readiness/Prometheus hooks, and
 engine/generated-app paths now use scoped runtime config where it matters. DOM
-smoke baselines and browser full-stack e2e now have browser-capable GitHub
-Actions evidence. It is still not honest to call the system completely
-critical-ready until the remaining external and production-mode gap is closed:
-real-key `polish-copy` review, followed by the final external-release workflow
-run with retained evidence. UMS parity and live Postgres have passed with
-explicit environment wiring; the manual external-release workflow now encodes
-those paths but still needs to run in the release environment after the sidecar
-is committed. JS
-packages remain intentionally private/source-first and must not be represented
-as npm-publishable until a separate dist/consumer-fixture release design lands.
+smoke baselines, browser full-stack e2e, and the first reviewed `polish-copy`
+sidecar now have concrete evidence. It is still not honest to call the system
+completely critical-ready until the remaining external and production-mode gap
+is closed: the final external-release workflow must run with retained evidence
+in a browser-capable release environment. UMS parity and live Postgres have
+passed with explicit environment wiring; the manual external-release workflow
+now encodes those paths but still needs to be executed for the release
+candidate. JS packages remain intentionally private/source-first and must not
+be represented as npm-publishable until a separate dist/consumer-fixture release
+design lands.

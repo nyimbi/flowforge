@@ -32,7 +32,10 @@ from __future__ import annotations
 
 import importlib.util
 import hashlib
+import json
 import os
+import shutil
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, Callable
@@ -61,6 +64,8 @@ __all__ = ["register", "polish_copy_cmd"]
 # CLI builds are distinguishable in audit trails.
 _GENERATOR_VERSION = "flowforge polish-copy v0.3.0"
 _ANTHROPIC_MODEL = "claude-3-5-sonnet-latest"
+_CLAUDE_CLI_DEFAULT_MODEL = "sonnet"
+_CLAUDE_CLI_DEFAULT_BUDGET_USD = "0.25"
 _PROMPT_TEMPLATE = (
 	"You are a UX copywriter. Rewrite each value in the JSON object "
 	"below in the requested tone. PRESERVE the keys exactly. PRESERVE "
@@ -110,6 +115,29 @@ def _detect_polish_fn() -> PolishRuntime:
 	human-readable description that the CLI prints so an operator running
 	the command can see why it degraded to a no-op (the most common case in CI).
 	"""
+
+	if os.environ.get("FLOWFORGE_POLISH_PROVIDER") == "claude-cli":
+		model = os.environ.get("FLOWFORGE_POLISH_CLAUDE_MODEL") or _CLAUDE_CLI_DEFAULT_MODEL
+		if shutil.which("claude") is None:
+			return (
+				_noop_polish,
+				"FLOWFORGE_POLISH_PROVIDER=claude-cli but claude CLI was not found — no-op echo",
+				None,
+				None,
+			)
+
+		def _claude_cli_polish(
+			strings: dict[str, str],
+			tone: ToneProfile,
+		) -> dict[str, str]:
+			return _run_claude_cli_polish(strings, tone, model)
+
+		return (
+			_claude_cli_polish,
+			f"FLOWFORGE_POLISH_PROVIDER=claude-cli — running Claude CLI polish ({model})",
+			"claude-cli",
+			model,
+		)
 
 	# Anthropic is the project's preferred LLM (project CLAUDE.md routes
 	# LLM work through Claude). The optional ``anthropic`` package is
@@ -190,6 +218,81 @@ def _detect_polish_fn() -> PolishRuntime:
 		"anthropic",
 		_ANTHROPIC_MODEL,
 	)
+
+
+def _run_claude_cli_polish(
+	strings: dict[str, str],
+	tone: ToneProfile,
+	model: str,
+) -> dict[str, str]:
+	"""Run a real authoring-time polish through local Claude Code CLI."""
+
+	if not strings:
+		return {}
+
+	schema = json.dumps(
+		{
+			"type": "object",
+			"additionalProperties": {"type": "string"},
+		},
+		sort_keys=True,
+	)
+	budget = (
+		os.environ.get("FLOWFORGE_POLISH_CLAUDE_MAX_BUDGET_USD")
+		or _CLAUDE_CLI_DEFAULT_BUDGET_USD
+	)
+	cmd = [
+		"claude",
+		"--bare",
+		"--print",
+		"--model",
+		model,
+		"--output-format",
+		"json",
+		"--json-schema",
+		schema,
+		"--max-budget-usd",
+		budget,
+		_build_prompt(strings, tone),
+	]
+	try:
+		result = subprocess.run(
+			cmd,
+			check=False,
+			capture_output=True,
+			text=True,
+			timeout=120,
+		)
+	except OSError as exc:
+		raise PolishProviderError(f"claude CLI execution failed: {exc}") from exc
+	except subprocess.TimeoutExpired as exc:
+		raise PolishProviderError("claude CLI timed out") from exc
+
+	if result.returncode != 0:
+		detail = (result.stderr or result.stdout).strip().splitlines()
+		message = detail[-1] if detail else f"exit code {result.returncode}"
+		raise PolishProviderError(f"claude CLI failed: {message}")
+
+	try:
+		payload = json.loads(result.stdout)
+	except json.JSONDecodeError as exc:
+		raise PolishProviderError("claude CLI response was not valid JSON") from exc
+	if not isinstance(payload, dict):
+		raise PolishProviderError("claude CLI response must be a JSON object")
+	if payload.get("is_error"):
+		status = payload.get("api_error_status") or "unknown"
+		raise PolishProviderError(f"claude CLI returned error status {status}")
+	parsed = payload.get("structured_output")
+	if not isinstance(parsed, dict):
+		raise PolishProviderError("claude CLI response missing structured_output object")
+
+	out: dict[str, str] = {}
+	for k, v in parsed.items():
+		if isinstance(k, str) and isinstance(v, str):
+			out[k] = v
+	for k, v in strings.items():
+		out.setdefault(k, v)
+	return out
 
 
 def _diff_lines(
@@ -302,7 +405,8 @@ def polish_copy_cmd(
 	if require_llm and llm_provider is None:
 		typer.echo(
 			"flowforge polish-copy: --require-llm needs ANTHROPIC_API_KEY or "
-			"CLAUDE_API_KEY plus the flowforge-cli[llm] extra.",
+			"CLAUDE_API_KEY plus the flowforge-cli[llm] extra, or "
+			"FLOWFORGE_POLISH_PROVIDER=claude-cli with a configured Claude CLI.",
 			err=True,
 		)
 		raise typer.Exit(1)
@@ -345,6 +449,12 @@ def polish_copy_cmd(
 
 	if dry_run:
 		typer.echo(f"flowforge polish-copy: tone={tone_profile} bundle={bundle}")
+		if is_noop and existing is not None and llm_provider is None:
+			typer.echo(
+				"flowforge polish-copy: no diff — no LLM provider configured; "
+				"existing reviewed sidecar is preserved."
+			)
+			return
 		if lines:
 			typer.echo("flowforge polish-copy: proposed changes")
 			for ln in lines:
@@ -438,6 +548,6 @@ def register(app: typer.Typer) -> None:
 		help=(
 			"Opt-in LLM polish over user-facing copy. Writes a sidecar at "
 			"<bundle>.overrides.json per ADR-002 (item 22 of "
-			"docs/improvements.md). No-op without an API key."
+			"docs/improvements.md). No-op without an LLM provider."
 		),
 	)(polish_copy_cmd)

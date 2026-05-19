@@ -23,12 +23,14 @@ release approval record.
 - `BACKEND_ROOT` points at the UMS backend checkout, for example
   `/Users/nyimbiodero/src/pjs/ums/backend`.
 - `FLOWFORGE_TEST_PG_URL` points at an isolated disposable Postgres database.
-- A valid funded `ANTHROPIC_API_KEY` or `CLAUDE_API_KEY` is set for the real
-  `polish-copy` authoring pass.
-- The optional Anthropic client is installed for the authoring shell. Use
-  `uv sync --all-packages --all-extras` or another environment where
-  `uv run python -c "import anthropic"` succeeds; otherwise `polish-copy`
-  intentionally degrades to a no-op and will not write a sidecar.
+- A real LLM authoring path is available for the `polish-copy` pass: either a
+  valid funded `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY` plus the optional
+  Anthropic client, or `FLOWFORGE_POLISH_PROVIDER=claude-cli` with a configured
+  Claude CLI.
+- For the Anthropic SDK path, use `uv sync --all-packages --all-extras` or
+  another environment where `uv run python -c "import anthropic"` succeeds;
+  otherwise `polish-copy` intentionally degrades to a no-op and will not write a
+  sidecar.
 - `UV_CACHE_DIR` points at a writable cache path when the default user cache is
   not writable.
 
@@ -94,7 +96,7 @@ Acceptance criteria:
 - The test verifies `Idempotency-Key`, `X-Tenant-Id`, request bodies, and
   `review -> done` responses.
 
-## 3. Run real-key polish-copy
+## 3. Run LLM polish-copy
 
 Preferred CI-assisted path:
 
@@ -106,12 +108,25 @@ Download and review the `audit-2026-polish-copy-sidecar-candidate` artifact.
 Commit `examples/insurance_claim/jtbd-bundle.json.overrides.json` only after
 the reviewed copy is acceptable.
 
-Local shell path:
+Local shell path, Anthropic SDK:
 
 Use the canonical insurance-claim bundle for the first authoring pass:
 
 ```bash
 uv run python -c "import anthropic"
+uv run flowforge polish-copy \
+  --bundle examples/insurance_claim/jtbd-bundle.json \
+  --tone formal-professional \
+  --require-llm \
+  --commit
+```
+
+Local shell path, configured Claude CLI:
+
+```bash
+FLOWFORGE_POLISH_PROVIDER=claude-cli \
+FLOWFORGE_POLISH_CLAUDE_MODEL=sonnet \
+FLOWFORGE_POLISH_CLAUDE_MAX_BUDGET_USD=0.50 \
 uv run flowforge polish-copy \
   --bundle examples/insurance_claim/jtbd-bundle.json \
   --tone formal-professional \
@@ -140,9 +155,11 @@ Launch it with:
 
 - `backend_repository`: the UMS backend repository in `owner/repo` form.
 - `backend_ref`: the UMS backend git ref to qualify against.
-- Repository secrets: valid funded `ANTHROPIC_API_KEY` or `CLAUDE_API_KEY`; use
-  `UMS_BACKEND_TOKEN` if the backend repository is private and `GITHUB_TOKEN`
-  cannot read it.
+- Repository secrets: `UMS_BACKEND_TOKEN` if the backend repository is private
+  and `GITHUB_TOKEN` cannot read it. `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY` are
+  only needed if the release workflow is also being used to author a fresh
+  sidecar; once a reviewed sidecar is committed, the external release target
+  verifies it without calling an LLM provider.
 
 CLI equivalent:
 
@@ -173,7 +190,8 @@ Acceptance criteria:
 
 - `audit-2026-visual-regression-dom` passes with committed baselines.
 - `audit-2026-browser-e2e` passes in Chromium.
-- `audit-2026-polish-copy-sidecar` passes with a reviewed real-key sidecar.
+- `audit-2026-polish-copy-sidecar` passes with a reviewed LLM-generated
+  sidecar.
 - `audit-2026-ums-parity` passes against the configured UMS backend.
 - `audit-2026-live-postgres` passes against the configured disposable
   Postgres database.

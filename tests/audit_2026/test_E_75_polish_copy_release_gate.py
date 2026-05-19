@@ -52,6 +52,7 @@ def test_polish_copy_sidecar_gate_requires_llm_audit_metadata() -> None:
 	assert "llm_model" in script
 	assert "prompt_sha256" in script
 	assert "validate_key_against_bundle" in script
+	assert "FLOWFORGE_POLISH_PROVIDER=claude-cli" in script
 
 
 def test_polish_copy_sidecar_authoring_workflow_uploads_review_candidate() -> None:
@@ -87,7 +88,7 @@ def test_polish_copy_sidecar_gate_rejects_empty_strings() -> None:
 	sidecar = JtbdCopyOverrides.model_validate(payload)
 
 	assert _GATE._validate_sidecar(sidecar, _BUNDLE) == (
-		"sidecar has no strings; run a real-key polish-copy authoring pass"
+		"sidecar has no strings; run a real LLM polish-copy authoring pass"
 	)
 
 

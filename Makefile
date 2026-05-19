@@ -27,7 +27,7 @@ help:
 	@echo "  audit-2026-release-local  fail-closed local release gate; excludes documented visual/browser/LLM/UMS/Postgres-live checks"
 	@echo "  audit-2026-release-external  fail-closed external release checks"
 	@echo "  audit-2026-release-external-preflight  summarize missing external release prerequisites"
-	@echo "  audit-2026-polish-copy-sidecar  real-key polish-copy sidecar release evidence"
+	@echo "  audit-2026-polish-copy-sidecar  reviewed polish-copy sidecar release evidence"
 	@echo "  audit-2026-unit           per-finding regression tests"
 	@echo "  audit-2026-property       hypothesis property tests"
 	@echo "  audit-2026-integration    cross-package integration tests"
@@ -85,7 +85,7 @@ audit-2026-release-local: \
 		audit-2026-signoff
 	@echo ""
 	@echo "audit-2026-release-local: fail-closed local release gate passed."
-	@echo "Documented external release checks still required: visual DOM baselines, browser Playwright full-stack, real-key polish-copy sidecar, UMS parity, and live Postgres contention/drain verification."
+	@echo "Documented external release checks still required: visual DOM baselines, browser Playwright full-stack, reviewed polish-copy sidecar, UMS parity, and live Postgres contention/drain verification."
 
 .PHONY: audit-2026-release-external
 audit-2026-release-external:

@@ -42,7 +42,7 @@ def _load_bundle(path: Path) -> dict[str, object]:
 
 def _validate_sidecar(sidecar: JtbdCopyOverrides, bundle: dict[str, object]) -> str | None:
 	if not sidecar.strings:
-		return "sidecar has no strings; run a real-key polish-copy authoring pass"
+		return "sidecar has no strings; run a real LLM polish-copy authoring pass"
 	missing = [
 		field
 		for field in ("llm_provider", "llm_model", "prompt_sha256")
@@ -68,7 +68,8 @@ def check_sidecar() -> str | None:
 		return (
 			f"missing {_display(sidecar_path)}; run `uv run flowforge polish-copy --bundle {_display(_BUNDLE)} "
 			"--require-llm --commit` with ANTHROPIC_API_KEY or CLAUDE_API_KEY set "
-			"and flowforge-cli[llm] installed"
+			"and flowforge-cli[llm] installed, or with FLOWFORGE_POLISH_PROVIDER=claude-cli "
+			"and a configured Claude CLI"
 		)
 	err = _validate_sidecar(sidecar, _load_bundle(_BUNDLE))
 	if err is not None:
