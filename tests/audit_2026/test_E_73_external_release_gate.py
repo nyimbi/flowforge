@@ -33,11 +33,15 @@ def test_external_release_gate_forbids_local_skip_escapes() -> None:
 	assert "$(MAKE) audit-2026-live-postgres" in makefile
 
 
-def test_external_release_gate_is_wired_in_manual_ci_workflow() -> None:
+def test_external_release_gate_is_wired_in_ci_workflow() -> None:
 	workflow = _read(".github/workflows/audit-2026-release-external.yml")
 
+	assert "pull_request:" in workflow
 	assert "workflow_dispatch:" in workflow
 	assert "backend_repository:" in workflow
+	assert "nyimbi/ums" in workflow
+	assert "github.event_name == 'workflow_dispatch' && inputs.backend_repository || 'nyimbi/ums'" in workflow
+	assert "github.event_name == 'workflow_dispatch' && inputs.backend_ref || 'main'" in workflow
 	assert "postgres:16" in workflow
 	assert "pnpm exec playwright install --with-deps chromium" in workflow
 	assert "uv sync --all-packages --all-extras" in workflow

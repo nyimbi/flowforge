@@ -150,8 +150,12 @@ Acceptance criteria:
 
 ## 4. Run external release bundle
 
-The manual CI path is `.github/workflows/audit-2026-release-external.yml`.
-Launch it with:
+The CI path is `.github/workflows/audit-2026-release-external.yml`. On pull
+requests, it runs automatically for release-gate-relevant changes against
+`nyimbi/ums@main`, with a disposable Postgres service and no visual-regression
+skip flags.
+
+For a specific release-candidate backend ref, launch the manual path with:
 
 - `backend_repository`: the UMS backend repository in `owner/repo` form.
 - `backend_ref`: the UMS backend git ref to qualify against.
