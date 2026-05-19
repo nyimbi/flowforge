@@ -27,7 +27,7 @@ Fixed or materially hardened:
 - The visual-regression harness now routes pages by example identity rather than shared admin path alone.
 - A DOM baseline-generation workflow now runs smoke cadence on pull requests and full cadence through manual dispatch, using Playwright Chromium in GitHub Actions and uploading reviewable candidate `.dom.html` baselines as an artifact; this is a helper for review, not release qualification.
 - A browser full-stack Playwright lane now exists for the generated insurance-claim workflow: it starts a generated FastAPI-router HTTP bridge, starts the generated frontend harness in API mode, fills the generated claim-intake form in Chromium, and verifies `submit`/`approve` requests plus `Idempotency-Key`, `X-Tenant-Id`, and `review -> done` responses.
-- A dedicated `Audit 2026 browser full-stack e2e` pull-request workflow now provisions Playwright Chromium and runs that generated browser flow in GitHub Actions; latest PR evidence includes passing run `26095391083`.
+- A dedicated `Audit 2026 browser full-stack e2e` pull-request workflow now provisions Playwright Chromium and runs that generated browser flow in GitHub Actions; PR evidence includes passing run `26095391083`.
 - fr-CA sidecar/i18n validation and W4b generator property coverage were added.
 - The first reviewed `polish-copy` sidecar now exists for the insurance-claim bundle. It was generated through the explicit `FLOWFORGE_POLISH_PROVIDER=claude-cli` backend, preserves canonical bundle determinism, and records `llm_provider=claude-cli`, `llm_model=sonnet`, and the full prompt checksum for audit.
 - JTBD hub publish/rating paths now require authenticated permissions, and rating user identity is bound to the principal.
