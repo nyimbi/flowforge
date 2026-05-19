@@ -3,49 +3,49 @@
     {
       "id": "claimant_name",
       "kind": "text",
-      "label": "Claimant full name",
+      "label": "Claimant Full Name",
       "pii": true,
       "required": true
     },
     {
       "id": "policy_number",
       "kind": "text",
-      "label": "Policy number",
+      "label": "Policy Number",
       "pii": false,
       "required": true
     },
     {
       "id": "loss_date",
       "kind": "date",
-      "label": "Date of loss",
+      "label": "Date of Loss",
       "pii": false,
       "required": true
     },
     {
       "id": "loss_amount",
       "kind": "money",
-      "label": "Estimated loss amount",
+      "label": "Estimated Loss Amount",
       "pii": false,
       "required": true
     },
     {
       "id": "loss_description",
       "kind": "textarea",
-      "label": "Description of loss",
+      "label": "Description of Loss",
       "pii": false,
       "required": true
     },
     {
       "id": "contact_email",
       "kind": "email",
-      "label": "Contact email",
+      "label": "Contact Email Address",
       "pii": true,
       "required": true
     },
     {
       "id": "contact_phone",
       "kind": "phone",
-      "label": "Contact phone",
+      "label": "Contact Telephone Number",
       "pii": true,
       "required": false
     }

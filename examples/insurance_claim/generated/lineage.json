@@ -39,7 +39,7 @@
           ],
           "id": "claimant_name",
           "kind": "text",
-          "label": "Claimant full name",
+          "label": "Claimant Full Name",
           "pii": true,
           "redaction_strategy": {
             "audit_event_payload": "redacted_mask",
@@ -52,7 +52,7 @@
           "stages": [
             {
               "form_field_id": "claimant_name",
-              "label": "Claimant full name",
+              "label": "Claimant Full Name",
               "location": "frontend/src/insurance_claim_demo/claim_intake/Step.tsx",
               "redaction": "visible",
               "stage": "form_input"
@@ -153,7 +153,7 @@
           ],
           "id": "contact_email",
           "kind": "email",
-          "label": "Contact email",
+          "label": "Contact Email Address",
           "pii": true,
           "redaction_strategy": {
             "audit_event_payload": "redacted_mask",
@@ -166,7 +166,7 @@
           "stages": [
             {
               "form_field_id": "contact_email",
-              "label": "Contact email",
+              "label": "Contact Email Address",
               "location": "frontend/src/insurance_claim_demo/claim_intake/Step.tsx",
               "redaction": "visible",
               "stage": "form_input"
@@ -267,7 +267,7 @@
           ],
           "id": "contact_phone",
           "kind": "phone",
-          "label": "Contact phone",
+          "label": "Contact Telephone Number",
           "pii": true,
           "redaction_strategy": {
             "audit_event_payload": "redacted_mask",
@@ -280,7 +280,7 @@
           "stages": [
             {
               "form_field_id": "contact_phone",
-              "label": "Contact phone",
+              "label": "Contact Telephone Number",
               "location": "frontend/src/insurance_claim_demo/claim_intake/Step.tsx",
               "redaction": "visible",
               "stage": "form_input"
@@ -355,12 +355,12 @@
         {
           "id": "loss_amount",
           "kind": "money",
-          "label": "Estimated loss amount",
+          "label": "Estimated Loss Amount",
           "pii": false,
           "stages": [
             {
               "form_field_id": "loss_amount",
-              "label": "Estimated loss amount",
+              "label": "Estimated Loss Amount",
               "location": "frontend/src/insurance_claim_demo/claim_intake/Step.tsx",
               "stage": "form_input"
             },
@@ -430,12 +430,12 @@
         {
           "id": "loss_date",
           "kind": "date",
-          "label": "Date of loss",
+          "label": "Date of Loss",
           "pii": false,
           "stages": [
             {
               "form_field_id": "loss_date",
-              "label": "Date of loss",
+              "label": "Date of Loss",
               "location": "frontend/src/insurance_claim_demo/claim_intake/Step.tsx",
               "stage": "form_input"
             },
@@ -505,12 +505,12 @@
         {
           "id": "loss_description",
           "kind": "textarea",
-          "label": "Description of loss",
+          "label": "Description of Loss",
           "pii": false,
           "stages": [
             {
               "form_field_id": "loss_description",
-              "label": "Description of loss",
+              "label": "Description of Loss",
               "location": "frontend/src/insurance_claim_demo/claim_intake/Step.tsx",
               "stage": "form_input"
             },
@@ -580,12 +580,12 @@
         {
           "id": "policy_number",
           "kind": "text",
-          "label": "Policy number",
+          "label": "Policy Number",
           "pii": false,
           "stages": [
             {
               "form_field_id": "policy_number",
-              "label": "Policy number",
+              "label": "Policy Number",
               "location": "frontend/src/insurance_claim_demo/claim_intake/Step.tsx",
               "stage": "form_input"
             },

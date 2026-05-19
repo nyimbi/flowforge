@@ -58,13 +58,13 @@ interface FieldMeta {
 }
 
 const FIELDS: ReadonlyArray<FieldMeta> = [
-	{ id: "claimant_name", label: "Claimant full name", required: true, pii: true },
-	{ id: "policy_number", label: "Policy number", required: true, pii: false },
-	{ id: "loss_date", label: "Date of loss", required: true, pii: false },
-	{ id: "loss_amount", label: "Estimated loss amount", required: true, pii: false },
-	{ id: "loss_description", label: "Description of loss", required: true, pii: false },
-	{ id: "contact_email", label: "Contact email", required: true, pii: true },
-	{ id: "contact_phone", label: "Contact phone", required: false, pii: true },
+	{ id: "claimant_name", label: "Claimant Full Name", required: true, pii: true },
+	{ id: "policy_number", label: "Policy Number", required: true, pii: false },
+	{ id: "loss_date", label: "Date of Loss", required: true, pii: false },
+	{ id: "loss_amount", label: "Estimated Loss Amount", required: true, pii: false },
+	{ id: "loss_description", label: "Description of Loss", required: true, pii: false },
+	{ id: "contact_email", label: "Contact Email Address", required: true, pii: true },
+	{ id: "contact_phone", label: "Contact Telephone Number", required: false, pii: true },
 ];
 
 const SPEC = formSpec as unknown as RendererFormSpec;

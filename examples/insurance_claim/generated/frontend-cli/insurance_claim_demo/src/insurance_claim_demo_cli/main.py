@@ -32,13 +32,13 @@ app.add_typer(claim_intake_app, name="claim-intake")
 
 @claim_intake_app.command("approve")
 def claim_intake_approve(
-	claimant_name: str = typer.Option(..., help="Claimant full name (required)"),
-	contact_email: str = typer.Option(..., help="Contact email (required)"),
-	contact_phone: Optional[str] = typer.Option(None, help="Contact phone"),
-	loss_amount: float = typer.Option(..., help="Estimated loss amount (required)"),
-	loss_date: str = typer.Option(..., help="Date of loss (required)"),
-	loss_description: str = typer.Option(..., help="Description of loss (required)"),
-	policy_number: str = typer.Option(..., help="Policy number (required)"),
+	claimant_name: str = typer.Option(..., help="Claimant Full Name (required)"),
+	contact_email: str = typer.Option(..., help="Contact Email Address (required)"),
+	contact_phone: Optional[str] = typer.Option(None, help="Contact Telephone Number"),
+	loss_amount: float = typer.Option(..., help="Estimated Loss Amount (required)"),
+	loss_date: str = typer.Option(..., help="Date of Loss (required)"),
+	loss_description: str = typer.Option(..., help="Description of Loss (required)"),
+	policy_number: str = typer.Option(..., help="Policy Number (required)"),
 	base_url: str = typer.Option("http://localhost:8000", "--base-url", help="FastAPI backend base URL."),
 ) -> None:
 	"""Fire ``approve`` against ``/claim-intake/events`` for File an insurance claim (FNOL)."""
@@ -58,13 +58,13 @@ def claim_intake_approve(
 
 @claim_intake_app.command("compensate")
 def claim_intake_compensate(
-	claimant_name: str = typer.Option(..., help="Claimant full name (required)"),
-	contact_email: str = typer.Option(..., help="Contact email (required)"),
-	contact_phone: Optional[str] = typer.Option(None, help="Contact phone"),
-	loss_amount: float = typer.Option(..., help="Estimated loss amount (required)"),
-	loss_date: str = typer.Option(..., help="Date of loss (required)"),
-	loss_description: str = typer.Option(..., help="Description of loss (required)"),
-	policy_number: str = typer.Option(..., help="Policy number (required)"),
+	claimant_name: str = typer.Option(..., help="Claimant Full Name (required)"),
+	contact_email: str = typer.Option(..., help="Contact Email Address (required)"),
+	contact_phone: Optional[str] = typer.Option(None, help="Contact Telephone Number"),
+	loss_amount: float = typer.Option(..., help="Estimated Loss Amount (required)"),
+	loss_date: str = typer.Option(..., help="Date of Loss (required)"),
+	loss_description: str = typer.Option(..., help="Description of Loss (required)"),
+	policy_number: str = typer.Option(..., help="Policy Number (required)"),
 	base_url: str = typer.Option("http://localhost:8000", "--base-url", help="FastAPI backend base URL."),
 ) -> None:
 	"""Fire ``compensate`` against ``/claim-intake/events`` for File an insurance claim (FNOL)."""
@@ -84,13 +84,13 @@ def claim_intake_compensate(
 
 @claim_intake_app.command("escalate")
 def claim_intake_escalate(
-	claimant_name: str = typer.Option(..., help="Claimant full name (required)"),
-	contact_email: str = typer.Option(..., help="Contact email (required)"),
-	contact_phone: Optional[str] = typer.Option(None, help="Contact phone"),
-	loss_amount: float = typer.Option(..., help="Estimated loss amount (required)"),
-	loss_date: str = typer.Option(..., help="Date of loss (required)"),
-	loss_description: str = typer.Option(..., help="Description of loss (required)"),
-	policy_number: str = typer.Option(..., help="Policy number (required)"),
+	claimant_name: str = typer.Option(..., help="Claimant Full Name (required)"),
+	contact_email: str = typer.Option(..., help="Contact Email Address (required)"),
+	contact_phone: Optional[str] = typer.Option(None, help="Contact Telephone Number"),
+	loss_amount: float = typer.Option(..., help="Estimated Loss Amount (required)"),
+	loss_date: str = typer.Option(..., help="Date of Loss (required)"),
+	loss_description: str = typer.Option(..., help="Description of Loss (required)"),
+	policy_number: str = typer.Option(..., help="Policy Number (required)"),
 	base_url: str = typer.Option("http://localhost:8000", "--base-url", help="FastAPI backend base URL."),
 ) -> None:
 	"""Fire ``escalate`` against ``/claim-intake/events`` for File an insurance claim (FNOL)."""
@@ -110,13 +110,13 @@ def claim_intake_escalate(
 
 @claim_intake_app.command("reject")
 def claim_intake_reject(
-	claimant_name: str = typer.Option(..., help="Claimant full name (required)"),
-	contact_email: str = typer.Option(..., help="Contact email (required)"),
-	contact_phone: Optional[str] = typer.Option(None, help="Contact phone"),
-	loss_amount: float = typer.Option(..., help="Estimated loss amount (required)"),
-	loss_date: str = typer.Option(..., help="Date of loss (required)"),
-	loss_description: str = typer.Option(..., help="Description of loss (required)"),
-	policy_number: str = typer.Option(..., help="Policy number (required)"),
+	claimant_name: str = typer.Option(..., help="Claimant Full Name (required)"),
+	contact_email: str = typer.Option(..., help="Contact Email Address (required)"),
+	contact_phone: Optional[str] = typer.Option(None, help="Contact Telephone Number"),
+	loss_amount: float = typer.Option(..., help="Estimated Loss Amount (required)"),
+	loss_date: str = typer.Option(..., help="Date of Loss (required)"),
+	loss_description: str = typer.Option(..., help="Description of Loss (required)"),
+	policy_number: str = typer.Option(..., help="Policy Number (required)"),
 	base_url: str = typer.Option("http://localhost:8000", "--base-url", help="FastAPI backend base URL."),
 ) -> None:
 	"""Fire ``reject`` against ``/claim-intake/events`` for File an insurance claim (FNOL)."""
@@ -136,13 +136,13 @@ def claim_intake_reject(
 
 @claim_intake_app.command("submit")
 def claim_intake_submit(
-	claimant_name: str = typer.Option(..., help="Claimant full name (required)"),
-	contact_email: str = typer.Option(..., help="Contact email (required)"),
-	contact_phone: Optional[str] = typer.Option(None, help="Contact phone"),
-	loss_amount: float = typer.Option(..., help="Estimated loss amount (required)"),
-	loss_date: str = typer.Option(..., help="Date of loss (required)"),
-	loss_description: str = typer.Option(..., help="Description of loss (required)"),
-	policy_number: str = typer.Option(..., help="Policy number (required)"),
+	claimant_name: str = typer.Option(..., help="Claimant Full Name (required)"),
+	contact_email: str = typer.Option(..., help="Contact Email Address (required)"),
+	contact_phone: Optional[str] = typer.Option(None, help="Contact Telephone Number"),
+	loss_amount: float = typer.Option(..., help="Estimated Loss Amount (required)"),
+	loss_date: str = typer.Option(..., help="Date of Loss (required)"),
+	loss_description: str = typer.Option(..., help="Description of Loss (required)"),
+	policy_number: str = typer.Option(..., help="Policy Number (required)"),
 	base_url: str = typer.Option("http://localhost:8000", "--base-url", help="FastAPI backend base URL."),
 ) -> None:
 	"""Fire ``submit`` against ``/claim-intake/events`` for File an insurance claim (FNOL)."""

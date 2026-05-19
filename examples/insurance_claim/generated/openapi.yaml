@@ -32,33 +32,33 @@ paths:
                   additionalProperties: false
                   properties:
                     claimant_name:
-                      title: Claimant full name
+                      title: Claimant Full Name
                       type: string
                       x-flowforge-kind: text
                     contact_email:
                       format: email
-                      title: Contact email
+                      title: Contact Email Address
                       type: string
                       x-flowforge-kind: email
                     contact_phone:
-                      title: Contact phone
+                      title: Contact Telephone Number
                       type: string
                       x-flowforge-kind: phone
                     loss_amount:
-                      title: Estimated loss amount
+                      title: Estimated Loss Amount
                       type: number
                       x-flowforge-kind: money
                     loss_date:
                       format: date
-                      title: Date of loss
+                      title: Date of Loss
                       type: string
                       x-flowforge-kind: date
                     loss_description:
-                      title: Description of loss
+                      title: Description of Loss
                       type: string
                       x-flowforge-kind: textarea
                     policy_number:
-                      title: Policy number
+                      title: Policy Number
                       type: string
                       x-flowforge-kind: text
                   required:

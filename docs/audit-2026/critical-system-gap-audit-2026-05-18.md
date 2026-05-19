@@ -49,7 +49,7 @@ Fixed or materially hardened:
 Latest verification evidence:
 
 - `VISREG_ALLOW_SKIP=1 UV_CACHE_DIR=/private/tmp/flowforge-uv-cache bash scripts/check_all.sh`
-  - Result: `U24 gate PASSED`, 46 Python packages, 7 JS packages, 2,664 counted tests/assertions, Python dependency audit clean, JS production dependency audit clean, byte-identical regen clean, elapsed 97 seconds on the latest rerun.
+  - Result: `U24 gate PASSED`, 46 Python packages, 7 JS packages, 2,668 counted tests/assertions, Python dependency audit clean, JS production dependency audit clean, byte-identical regen clean, elapsed 115 seconds on the latest rerun.
   - Integration evidence: Stage 3 now runs the audit e2e pytest flows; integration summary from the latest direct run reports 66 Python tests, 295 JS assertions, 4 e2e tests, 365 total, 0 failed, with the browser lane explicitly marked `EXTERNAL`.
   - Caveats: this intentionally set `VISREG_ALLOW_SKIP=1` because Chromium cannot launch in this sandbox. Current release evidence for DOM/browser execution comes from GitHub Actions runs where Playwright Chromium can launch.
 - GitHub PR release-gate evidence:
