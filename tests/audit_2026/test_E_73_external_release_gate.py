@@ -45,7 +45,9 @@ def test_external_release_gate_is_wired_as_manual_release_workflow() -> None:
 	assert 'default: "nyimbi/ums"' in workflow
 	assert "backend_ref:" in workflow
 	assert "Detect UMS backend checkout token" in workflow
+	assert "BACKEND_REPOSITORY: ${{ inputs.backend_repository }}" in workflow
 	assert "UMS_BACKEND_TOKEN: ${{ secrets.UMS_BACKEND_TOKEN }}" in workflow
+	assert "nyimbi/ums is private from GitHub Actions without UMS_BACKEND_TOKEN" in workflow
 	assert "attempting public UMS backend checkout without a token" in workflow
 	assert "Checkout UMS backend with token" in workflow
 	assert "Checkout UMS backend without token" in workflow

@@ -58,10 +58,14 @@ jobs:
       - name: Detect UMS backend checkout token
         id: ums-backend-token
         env:
+          BACKEND_REPOSITORY: ${{ inputs.backend_repository }}
           UMS_BACKEND_TOKEN: ${{ secrets.UMS_BACKEND_TOKEN }}
         run: |
           if [ -n "${UMS_BACKEND_TOKEN:-}" ]; then
             echo "has_token=true" >> "$GITHUB_OUTPUT"
+          elif [ "${BACKEND_REPOSITORY}" = "nyimbi/ums" ]; then
+            echo "::error::nyimbi/ums is private from GitHub Actions without UMS_BACKEND_TOKEN. Set repository secret UMS_BACKEND_TOKEN with read access to nyimbi/ums, or choose a public backend_repository input."
+            exit 1
           else
             echo "has_token=false" >> "$GITHUB_OUTPUT"
             echo "::notice::UMS_BACKEND_TOKEN is not set; attempting public UMS backend checkout without a token."
