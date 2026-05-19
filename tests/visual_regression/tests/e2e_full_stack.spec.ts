@@ -47,15 +47,15 @@ test.describe("browser full-stack generated workflow", () => {
 		);
 
 		const form = page.getByTestId("claim_intake-form");
-		await form.getByLabel("Claimant full name", { exact: true }).fill("Amina Diallo");
-		await form.getByLabel("Policy number", { exact: true }).fill("POL-2026-0001");
-		await form.getByLabel("Date of loss", { exact: true }).fill("2026-05-18");
-		await form.getByLabel("Estimated loss amount", { exact: true }).fill("1250.00");
+		await form.getByLabel("Claimant Full Name", { exact: true }).fill("Amina Diallo");
+		await form.getByLabel("Policy Number", { exact: true }).fill("POL-2026-0001");
+		await form.getByLabel("Date of Loss", { exact: true }).fill("2026-05-18");
+		await form.getByLabel("Estimated Loss Amount", { exact: true }).fill("1250.00");
 		await form
-			.getByLabel("Description of loss")
+			.getByLabel("Description of Loss")
 			.fill("Rear bumper damage after a low-speed collision.");
-		await form.getByLabel("Contact email", { exact: true }).fill("amina@example.test");
-		await form.getByLabel("Contact phone", { exact: true }).fill("+1 555 0100");
+		await form.getByLabel("Contact Email Address", { exact: true }).fill("amina@example.test");
+		await form.getByLabel("Contact Telephone Number", { exact: true }).fill("+1 555 0100");
 
 		await page.getByRole("button", { name: "Submit" }).click();
 		await expect.poll(async () => {
