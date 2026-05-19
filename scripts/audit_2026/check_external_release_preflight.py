@@ -20,6 +20,10 @@ def _backend_root() -> Path:
 	return (_REPO_ROOT.parent / "backend").resolve()
 
 
+def _requires_ums_parity() -> bool:
+	return os.environ.get("FLOWFORGE_REQUIRE_UMS_PARITY") == "1"
+
+
 def collect_issues() -> list[str]:
 	issues: list[str] = []
 	if os.environ.get("VISREG_ALLOW_SKIP") == "1":
@@ -36,9 +40,10 @@ def collect_issues() -> list[str]:
 	if sidecar_issue is not None:
 		issues.append(sidecar_issue)
 	backend_root = _backend_root()
-	if not backend_root.is_dir():
+	if _requires_ums_parity() and not backend_root.is_dir():
 		issues.append(
-			f"BACKEND_ROOT not found at {backend_root}; set BACKEND_ROOT=/path/to/backend"
+			f"BACKEND_ROOT not found at {backend_root}; set BACKEND_ROOT=/path/to/backend "
+			"or unset FLOWFORGE_REQUIRE_UMS_PARITY for independent FlowForge release qualification"
 		)
 	if not (
 		os.environ.get("FLOWFORGE_TEST_PG_URL")

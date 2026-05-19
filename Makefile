@@ -28,7 +28,7 @@ help:
 	@echo "audit-2026 targets (see docs/audit-fix-plan.md §5.2):"
 	@echo "  audit-2026                full layered suite (everything below)"
 	@echo "  audit-2026-release-local  fail-closed local release gate; excludes documented visual/browser/LLM/UMS/Postgres-live checks"
-	@echo "  audit-2026-release-external  fail-closed external release checks"
+	@echo "  audit-2026-release-external  fail-closed external FlowForge release checks"
 	@echo "  audit-2026-release-external-preflight  summarize missing external release prerequisites"
 	@echo "  audit-2026-polish-copy-sidecar  reviewed polish-copy sidecar release evidence"
 	@echo "  audit-2026-unit           per-finding regression tests"
@@ -92,7 +92,7 @@ audit-2026-release-local: \
 		audit-2026-signoff
 	@echo ""
 	@echo "audit-2026-release-local: fail-closed local release gate passed."
-	@echo "Documented external release checks still required: visual DOM baselines, browser Playwright full-stack, reviewed polish-copy sidecar, UMS parity, and live Postgres contention/drain verification."
+	@echo "Documented external release checks still required: visual DOM baselines, browser Playwright full-stack, reviewed polish-copy sidecar, optional downstream UMS parity, and live Postgres contention/drain verification."
 
 .PHONY: audit-2026-release-external
 audit-2026-release-external:
@@ -108,10 +108,14 @@ audit-2026-release-external:
 	$(MAKE) audit-2026-visual-regression-dom
 	$(MAKE) audit-2026-browser-e2e
 	$(MAKE) audit-2026-polish-copy-sidecar
-	$(MAKE) audit-2026-ums-parity
+	@if [ "$${FLOWFORGE_REQUIRE_UMS_PARITY:-0}" = "1" ]; then \
+		$(MAKE) audit-2026-ums-parity; \
+	else \
+		echo "audit-2026-release-external: skipping downstream UMS parity; set FLOWFORGE_REQUIRE_UMS_PARITY=1 for UMS release certification"; \
+	fi
 	$(MAKE) audit-2026-live-postgres
 	@echo ""
-	@echo "audit-2026-release-external: browser, visual, polish-copy, UMS parity, and live Postgres release checks passed."
+	@echo "audit-2026-release-external: browser, visual, polish-copy, and live Postgres FlowForge release checks passed."
 
 .PHONY: audit-2026-release-external-preflight
 audit-2026-release-external-preflight:

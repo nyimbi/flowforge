@@ -11,9 +11,10 @@ Verdict:
 Not complete. Local, UMS, live-Postgres, DOM, browser full-stack, and reviewed
 copy-polish sidecar evidence is now strong, including browser-capable GitHub
 Actions runs for the browser lanes. The remaining blocker is the final
-external-release bundle run with retained evidence in an environment where
-Chromium can launch and where the selected UMS backend checkout is accessible
-(public repository checkout, or `UMS_BACKEND_TOKEN` for a private backend).
+independent FlowForge external-release bundle run with retained evidence in an
+environment where Chromium can launch. Downstream UMS parity is already
+verified locally and remains an optional release-certification lane, not a
+package dependency or default independent-release prerequisite.
 
 ## Prompt-to-artifact checklist
 
@@ -33,28 +34,29 @@ Chromium can launch and where the selected UMS backend checkout is accessible
 | Preserve `polish-copy` audit metadata and fail-closed authoring semantics | `uv run pytest python/flowforge-cli/tests/test_polish_copy.py -q --tb=short` -> `32 passed`, covering metadata stamping, provider-format failure, invalid provider/auth failure without traceback, Claude CLI success/failure handling, no-op `--require-llm` failure, and preservation of existing reviewed sidecars; focused sidecar/audit suite `python/flowforge-cli/tests/test_polish_copy.py tests/audit_2026/test_E_75_polish_copy_release_gate.py tests/v0_3_0/test_polish_copy_committed_overrides.py` -> `46 passed`; full CLI package suite -> `603 passed, 1 skipped` | Done |
 | Add W4b generator property coverage | `uv run pytest tests/audit_2026/test_property_coverage_gate.py` via release-local -> passed; W4b `i18n` and `operator_manual` included | Done |
 | Run local full gate | `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache VISREG_ALLOW_SKIP=1 bash scripts/check_all.sh` -> `U24 gate PASSED`, 46 Python packages, 7 JS packages, 2,668 counted tests/assertions, elapsed 115s on the latest rerun | Done with documented local visual skip |
-| Run fail-closed local release gate | `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-local` -> fail-closed local release gate passed; covered ratchets, 11 conformance tests, 195 audit tests, Python+JS cross-runtime parity, edge cases, PromQL lint, W4b property coverage, i18n coverage, and signoff mapping, while still printing browser DOM, browser e2e, reviewed sidecar, UMS parity, and live Postgres as external release checks | Done |
+| Run fail-closed local release gate | `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-local` -> fail-closed local release gate passed; covered ratchets, 11 conformance tests, 195 audit tests, Python+JS cross-runtime parity, edge cases, PromQL lint, W4b property coverage, i18n coverage, and signoff mapping, while still printing browser DOM, browser e2e, reviewed sidecar, optional downstream UMS parity, and live Postgres as external release checks | Done |
 | Run audit ratchets | `uv run pytest tests/audit_2026 -q --tb=short` -> `200 passed`, including the new workflow helper ratchets and YAML parse coverage | Done |
 | Verify PR check state after workflow token change | `gh pr checks 1 --repo nyimbi/flowforge --watch` on commit `4ed3639` returned all PR checks passing: JTBD lint, security ratchets, signoff, audit-2026 unit/conformance/property/e2e/edge/cross-runtime, browser full-stack, flowforge end-to-end gate, and DOM baseline generation. Nightly SLA stress is intentionally skipped on pull requests. | Done |
 | Run live Postgres release checks | `FLOWFORGE_TEST_PG_URL=postgresql://127.0.0.1:5432/postgres make audit-2026-live-postgres` -> `4 passed`, including stale snapshot rejection, SKIP LOCKED outbox drain, interleaved-tenant audit verification, and tenant/ordinal index-plan coverage | Done |
-| Wire external release CI | `.github/workflows/audit-2026-release-external.yml` provides a manual, release-only workflow with caller-supplied UMS checkout input, optional UMS checkout token for private backends, Postgres service, flowforge all-extras sync, Playwright Chromium install, LLM secret wiring, and `make audit-2026-release-external`; `tests/audit_2026/test_E_73_external_release_gate.py` ratchets that it is not a pull-request dependency | Done |
+| Wire external release CI | `.github/workflows/audit-2026-release-external.yml` provides a manual, release-only independent FlowForge workflow with Postgres service, flowforge all-extras sync, Playwright Chromium install, LLM secret wiring, and `make audit-2026-release-external`; optional `run_ums_parity=true` adds caller-supplied UMS checkout input and token handling for downstream certification. `tests/audit_2026/test_E_73_external_release_gate.py` ratchets that it is not a pull-request dependency | Done |
 | Keep GitHub CI runnable from a source checkout | Workflow setup now uses tracked `pyproject.toml` cache dependency inputs instead of ignored `uv.lock`, pnpm 11 jobs run on Node 22, pyright is installed through `uv run --with pyright`, and JTBD lint passes repo-relative bundle paths to the CLI in advisory mode unless `JTBD_LINT_STRICT=true`; the external-release ratchet covers these requirements | Done |
 | Reject release skip escape hatches | `VISREG_ALLOW_SKIP=1 make audit-2026-release-external` exits nonzero with `VISREG_ALLOW_SKIP=1 is forbidden for release qualification`; `BROWSER_E2E_ALLOW_SKIP=1 make audit-2026-release-external` exits nonzero with `BROWSER_E2E_ALLOW_SKIP=1 is forbidden for release qualification` | Done |
-| Summarize external release blockers | `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache BACKEND_ROOT=/private/tmp/flowforge-ums-release-backend/backend FLOWFORGE_TEST_PG_URL=postgresql:///flowforge_release_codex_20260519_0506 uv run python scripts/audit_2026/check_external_release_preflight.py` passes after the reviewed sidecar is present. The preflight success path says browser execution is verified by `make audit-2026-release-external`, so preflight alone is not treated as release qualification. | Done |
-| Retain external release evidence | `docs/audit-2026/external-release-evidence-template.md` captures release candidate, DOM baseline, skip-flag absence, preflight caveat acknowledgement, `anthropic` import check, `uv run flowforge polish-copy --require-llm --commit` review, sidecar review, workflow run, artifact URL, UMS parity, browser e2e, and live Postgres evidence fields; `.github/workflows/audit-2026-release-external.yml` uploads an `audit-2026-release-external-evidence` artifact with DOM baselines, Playwright reports/results, sidecar, and evidence docs when present | Done |
+| Summarize external release blockers | `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache FLOWFORGE_TEST_PG_URL=postgresql:///flowforge_release_codex_20260519_0506 uv run python scripts/audit_2026/check_external_release_preflight.py` passes after the reviewed sidecar is present and no longer requires `BACKEND_ROOT` unless `FLOWFORGE_REQUIRE_UMS_PARITY=1`. The preflight success path says browser execution is verified by `make audit-2026-release-external`, so preflight alone is not treated as release qualification. | Done |
+| Retain external release evidence | `docs/audit-2026/external-release-evidence-template.md` captures release candidate, DOM baseline, skip-flag absence, preflight caveat acknowledgement, `anthropic` import check, `uv run flowforge polish-copy --require-llm --commit` review, sidecar review, workflow run, artifact URL, optional UMS parity, browser e2e, and live Postgres evidence fields; `.github/workflows/audit-2026-release-external.yml` uploads an `audit-2026-release-external-evidence` artifact with DOM baselines, Playwright reports/results, sidecar, and evidence docs when present | Done |
 | Verify outbox worker PostgreSQL path | Live Postgres test exposed and then verified PostgreSQL `$N` marker fix in `flowforge_outbox_pg.worker` | Done |
 | Keep JS workspace private/source-first decision explicit | `js/README.md` and audit report state no JS package is npm-publishable in this release | Done |
 | Remove JS test/toolchain warning noise | JS setup deletes Node's localStorage getter in node tests; stale package-level `.npmrc` removed; `pnpm --dir js test` passed cleanly | Done |
-| Run external release bundle | Requires committed DOM baselines, browser e2e, reviewed polish-copy sidecar, UMS parity, and live Postgres evidence. A local run with fresh UMS clone `BACKEND_ROOT=/private/tmp/flowforge-ums-release-backend/backend` and `FLOWFORGE_TEST_PG_URL` supplied reaches `audit-2026-visual-regression-dom`; all 21 browser-backed DOM cases fail at Chromium launch with `MachPortRendezvousServer ... Permission denied`, while 3 non-browser metadata checks pass. Manual GitHub Actions run `26097271676` proved the selected `nyimbi/ums` backend is not readable by Actions without `UMS_BACKEND_TOKEN` and failed in the explicit token-detection guard before the release gate. The workflow is manual/release-only so downstream UMS compatibility does not block ordinary Flowforge pull requests. | Blocked |
+| Run external release bundle | Requires committed DOM baselines, browser e2e, reviewed polish-copy sidecar, and live Postgres evidence. Optional downstream UMS parity is controlled by `FLOWFORGE_REQUIRE_UMS_PARITY=1` locally or `run_ums_parity=true` in GitHub Actions. A local run with `FLOWFORGE_TEST_PG_URL` supplied reaches `audit-2026-visual-regression-dom`; all 21 browser-backed DOM cases fail at Chromium launch with `MachPortRendezvousServer ... Permission denied`, while 3 non-browser metadata checks pass. Manual GitHub Actions run `26097271676` remains historical proof that private `nyimbi/ums` needs `UMS_BACKEND_TOKEN` only when optional UMS parity is requested. | Blocked |
 
 ## Remaining blockers
 
 1. `make audit-2026-release-external` / `.github/workflows/audit-2026-release-external.yml`
    must run in a browser-capable release environment so the retained release
-   artifact ties together DOM, browser e2e, sidecar, UMS parity, and live
-   Postgres evidence.
-2. If the selected UMS backend repository is private, repository secret
-   `UMS_BACKEND_TOKEN` must be configured with read access to that backend.
+   artifact ties together DOM, browser e2e, sidecar, and live Postgres
+   evidence.
+2. If optional downstream UMS parity is requested against a private backend,
+   repository secret `UMS_BACKEND_TOKEN` must be configured with read access to
+   that backend.
 
 The exact external execution sequence is documented in
 `docs/audit-2026/external-release-runbook.md`.
@@ -79,19 +81,23 @@ Direct blocker evidence:
   `cae102c91eda1553dfc234a87a16cc396cf51ea1` on `main`.
 - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache BACKEND_ROOT=/private/tmp/flowforge-ums-release-backend/backend make audit-2026-ums-parity`
   passes with `134 passed`.
-- `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache BACKEND_ROOT=/private/tmp/flowforge-ums-release-backend/backend FLOWFORGE_TEST_PG_URL=postgresql:///flowforge_release_codex_20260519_0506 uv run python scripts/audit_2026/check_external_release_preflight.py`
-  passes; the success message explicitly says browser execution is verified by
-  `make audit-2026-release-external`.
+- `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache FLOWFORGE_TEST_PG_URL=postgresql:///flowforge_release_codex_20260519_0506 uv run python scripts/audit_2026/check_external_release_preflight.py`
+  passes without `BACKEND_ROOT`; the success message explicitly says browser
+  execution is verified by `make audit-2026-release-external`.
+- `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache FLOWFORGE_REQUIRE_UMS_PARITY=1 FLOWFORGE_TEST_PG_URL=postgresql:///flowforge_release_codex_20260519_0506 uv run python scripts/audit_2026/check_external_release_preflight.py`
+  fails closed and reports the missing `BACKEND_ROOT`, proving UMS parity is
+  opt-in rather than silently skipped when requested.
 - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache BACKEND_ROOT=/private/tmp/flowforge-ums-release-backend/backend FLOWFORGE_TEST_PG_URL=postgresql:///flowforge_release_codex_20260519_0506 make audit-2026-release-external`
   reaches the DOM browser lane; 21 browser-backed DOM checks fail only because
   local Chromium launch is blocked by `MachPortRendezvousServer ... Permission
   denied`, while the 3 metadata checks pass.
 - The remediation branch has been pushed as `audit-2026-critical-readiness`.
   Earlier PR execution of `audit-2026-release-external` exposed that
-  downstream UMS access made an independent Flowforge pull request look blocked
-  on a private backend token. The workflow is now manual/release-only and can
-  check out public UMS backends without a token; `UMS_BACKEND_TOKEN` is only
-  needed for private backend repositories.
+  downstream UMS access made an independent Flowforge release gate look
+  blocked on a private backend token. The workflow is now manual/release-only,
+  runs independent Flowforge evidence by default, and can opt into public or
+  private UMS backends for downstream certification; `UMS_BACKEND_TOKEN` is
+  only needed for private backend repositories when `run_ums_parity=true`.
 - Manual external release run `26097271676` on `audit-2026-critical-readiness`
   with `backend_repository=nyimbi/ums` and no `UMS_BACKEND_TOKEN` failed in the
   explicit token-detection guard, so the selected backend is private from the

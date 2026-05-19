@@ -7,7 +7,8 @@ approval record.
 ## Release candidate
 
 - Flowforge commit:
-- UMS backend repository/ref:
+- UMS parity requested:
+- UMS backend repository/ref, if requested:
 - Operator:
 - Date/time UTC:
 - Environment:
@@ -38,6 +39,7 @@ approval record.
   - Workflow file: `.github/workflows/audit-2026-release-external.yml`
   - Workflow run URL:
   - Artifact URL:
+  - `run_ums_parity` input:
   - `backend_repository` input:
   - `backend_ref` input:
 - Focused browser workflow:
@@ -51,7 +53,7 @@ approval record.
 - DOM visual regression:
 - Browser full-stack Playwright:
 - Real-key polish-copy sidecar gate (`make audit-2026-polish-copy-sidecar`):
-- UMS workflow-def parity:
+- Optional downstream UMS workflow-def parity, if requested:
 - Live Postgres stale snapshot rejection:
 - Live Postgres SKIP LOCKED outbox drain:
 - Live Postgres interleaved-tenant audit verification:

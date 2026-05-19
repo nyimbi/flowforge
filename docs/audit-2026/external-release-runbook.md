@@ -20,7 +20,8 @@ release approval record.
 
 - Chromium-capable shell session, not a sandbox that blocks Playwright process
   launch.
-- `BACKEND_ROOT` points at the UMS backend checkout, for example
+- `BACKEND_ROOT` points at the UMS backend checkout only when
+  `FLOWFORGE_REQUIRE_UMS_PARITY=1`, for example
   `/Users/nyimbiodero/src/pjs/ums/backend`.
 - `FLOWFORGE_TEST_PG_URL` points at an isolated disposable Postgres database.
 - A real LLM authoring path is available for the `polish-copy` pass: either a
@@ -151,18 +152,19 @@ Acceptance criteria:
 ## 4. Run external release bundle
 
 The CI path is `.github/workflows/audit-2026-release-external.yml`. It is a
-manual, release-only workflow because UMS is downstream compatibility evidence,
-not a Flowforge package dependency. Ordinary Flowforge pull requests should be
-qualified by the standalone local/PR gates; release certification adds a
-caller-selected UMS backend checkout, a disposable Postgres service, and no
-visual-regression skip flags. Public UMS backend repositories do not require a
-checkout token. Private backend repositories require repository secret
-`UMS_BACKEND_TOKEN` with read access to the selected backend.
+manual, release-only workflow for Flowforge evidence that cannot be proven in a
+standalone local gate: browser DOM baselines, browser full-stack e2e, reviewed
+sidecar verification, and live Postgres checks. UMS is downstream compatibility
+evidence, not a Flowforge package dependency. Run UMS parity only when a
+release candidate explicitly needs UMS certification.
 
 For a specific release-candidate backend ref, launch the manual path with:
 
-- `backend_repository`: the UMS backend repository in `owner/repo` form.
-- `backend_ref`: the UMS backend git ref to qualify against.
+- `run_ums_parity`: set to `true` only for downstream UMS certification.
+- `backend_repository`: the UMS backend repository in `owner/repo` form; used
+  only when `run_ums_parity=true`.
+- `backend_ref`: the UMS backend git ref to qualify against; used only when
+  `run_ums_parity=true`.
 - Optional repository secret: `UMS_BACKEND_TOKEN` with read access to the UMS
   backend. This is only needed when the selected backend repository is private.
   `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY` are only needed if the release workflow
@@ -186,8 +188,18 @@ Then launch the manual release workflow:
 
 ```bash
 gh workflow run audit-2026-release-external.yml \
+  -f run_ums_parity=true \
   -f backend_repository=nyimbi/ums \
   -f backend_ref=main
+```
+
+For independent Flowforge release qualification, leave `run_ums_parity=false`
+or omit it:
+
+```bash
+gh workflow run audit-2026-release-external.yml \
+  --repo nyimbi/flowforge \
+  --ref audit-2026-critical-readiness
 ```
 
 If a private-backend manual release run failed because the secret was missing or
@@ -202,12 +214,10 @@ For a local release rehearsal, run:
 
 ```bash
 UV_CACHE_DIR=/private/tmp/flowforge-uv-cache \
-BACKEND_ROOT=/Users/nyimbiodero/src/pjs/ums/backend \
 FLOWFORGE_TEST_PG_URL=postgresql://127.0.0.1:5432/postgres \
 make audit-2026-release-external-preflight
 
 UV_CACHE_DIR=/private/tmp/flowforge-uv-cache \
-BACKEND_ROOT=/Users/nyimbiodero/src/pjs/ums/backend \
 FLOWFORGE_TEST_PG_URL=postgresql://127.0.0.1:5432/postgres \
 make audit-2026-release-external
 ```
@@ -215,13 +225,21 @@ make audit-2026-release-external
 Use a CI-specific `FLOWFORGE_TEST_PG_URL` for release CI; the localhost URL
 above is only an example for this workstation.
 
+To include downstream UMS parity in the same local run, add:
+
+```bash
+FLOWFORGE_REQUIRE_UMS_PARITY=1 \
+BACKEND_ROOT=/Users/nyimbiodero/src/pjs/ums/backend
+```
+
 Acceptance criteria:
 
 - `audit-2026-visual-regression-dom` passes with committed baselines.
 - `audit-2026-browser-e2e` passes in Chromium.
 - `audit-2026-polish-copy-sidecar` passes with a reviewed LLM-generated
   sidecar.
-- `audit-2026-ums-parity` passes against the configured UMS backend.
+- If `run_ums_parity=true` or `FLOWFORGE_REQUIRE_UMS_PARITY=1`,
+  `audit-2026-ums-parity` passes against the configured UMS backend.
 - `audit-2026-live-postgres` passes against the configured disposable
   Postgres database.
 - The workflow uploads the `audit-2026-release-external-evidence` artifact with

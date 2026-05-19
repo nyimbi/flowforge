@@ -30,6 +30,8 @@ def test_external_release_gate_forbids_local_skip_escapes() -> None:
 	assert "$(MAKE) audit-2026-visual-regression-dom" in makefile
 	assert "$(MAKE) audit-2026-browser-e2e" in makefile
 	assert "$(MAKE) audit-2026-ums-parity" in makefile
+	assert "FLOWFORGE_REQUIRE_UMS_PARITY" in makefile
+	assert "skipping downstream UMS parity" in makefile
 	assert "$(MAKE) audit-2026-live-postgres" in makefile
 
 
@@ -38,21 +40,32 @@ def test_external_release_gate_is_wired_as_manual_release_workflow() -> None:
 
 	assert "workflow_dispatch:" in workflow
 	assert "pull_request:" not in workflow
-	assert "UMS is release-certification evidence" in workflow
+	assert "Optional downstream UMS parity is release-" in workflow
+	assert "not a package dependency" in workflow
 	assert "permissions:" in workflow
 	assert "contents: read" in workflow
 	assert "backend_repository:" in workflow
+	assert "used only when run_ums_parity is true" in workflow
 	assert 'default: "nyimbi/ums"' in workflow
 	assert "backend_ref:" in workflow
+	assert "run_ums_parity:" in workflow
+	assert 'default: false' in workflow
 	assert "Detect UMS backend checkout token" in workflow
+	assert "if: ${{ inputs.run_ums_parity }}" in workflow
 	assert "BACKEND_REPOSITORY: ${{ inputs.backend_repository }}" in workflow
 	assert "UMS_BACKEND_TOKEN: ${{ secrets.UMS_BACKEND_TOKEN }}" in workflow
 	assert "nyimbi/ums is private from GitHub Actions without UMS_BACKEND_TOKEN" in workflow
 	assert "attempting public UMS backend checkout without a token" in workflow
 	assert "Checkout UMS backend with token" in workflow
 	assert "Checkout UMS backend without token" in workflow
-	assert "steps.ums-backend-token.outputs.has_token == 'true'" in workflow
-	assert "steps.ums-backend-token.outputs.has_token == 'false'" in workflow
+	assert (
+		"inputs.run_ums_parity && steps.ums-backend-token.outputs.has_token == 'true'"
+		in workflow
+	)
+	assert (
+		"inputs.run_ums_parity && steps.ums-backend-token.outputs.has_token == 'false'"
+		in workflow
+	)
 	assert "repository: ${{ inputs.backend_repository }}" in workflow
 	assert "ref: ${{ inputs.backend_ref }}" in workflow
 	assert workflow.count("persist-credentials: false") >= 3
@@ -63,6 +76,7 @@ def test_external_release_gate_is_wired_as_manual_release_workflow() -> None:
 	assert "ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}" in workflow
 	assert "CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}" in workflow
 	assert "BACKEND_ROOT: ${{ github.workspace }}/backend" in workflow
+	assert "FLOWFORGE_REQUIRE_UMS_PARITY:" in workflow
 	assert "FLOWFORGE_TEST_PG_URL:" in workflow
 	assert "make audit-2026-release-external" in workflow
 	assert "actions/upload-artifact@v4" in workflow
@@ -155,6 +169,8 @@ def test_external_release_preflight_reports_all_hard_prerequisites() -> None:
 	assert "flowforge-cli[llm]" in sidecar
 	assert "FLOWFORGE_POLISH_PROVIDER=claude-cli" in sidecar
 	assert "BACKEND_ROOT not found" in script
+	assert "FLOWFORGE_REQUIRE_UMS_PARITY" in script
+	assert "unset FLOWFORGE_REQUIRE_UMS_PARITY" in script
 	assert "FLOWFORGE_TEST_PG_URL" in script
 	assert "browser execution is verified by make audit-2026-release-external" in script
 
