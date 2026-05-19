@@ -1324,48 +1324,60 @@ Do not claim "critical-system ready" until all of these are true:
 11. Generated backend has a production mode with persistent instances, auth, and idempotency implemented.
 12. Admin and renderer UI ship real CSS and visual baselines.
 13. Domain packages are clearly classified as starter vs SME-reviewed vs publishable.
+14. A real-key `polish-copy` sidecar has been generated, reviewed, and committed.
+15. The external release bundle has run with retained DOM, browser e2e, sidecar, UMS parity, and live Postgres evidence.
+
+Current status: criteria 1-13 are materially satisfied for the repository and
+browser-capable PR evidence described above. Criteria 14 and 15 remain blocked
+until a valid Anthropic/Claude key is available, the reviewed sidecar is
+committed, and the external release workflow is run.
 
 ## Suggested Remediation Plan
 
 ### Lane 1: Stop unsafe defaults
 
-- Make FastAPI router mounting require principal extraction by default.
-- Remove client-provided tenant as an authority source.
-- Migrate remaining config consumers that need app scoping onto `config.current()`.
+- Completed for FastAPI router mounting and runtime tenant authority.
+- Engine and generated-app runtime paths use scoped runtime config where needed.
+- Keep future config consumers on `config.current()` rather than reintroducing
+  global mutable port reads.
 
 ### Lane 2: Fix durable correctness
 
-- Add tenant predicates and compare-and-swap to snapshot store.
-- Fix saga tenant filtering and index assignment.
-- Fix multi-tenant audit verification.
-- Move outbox dispatch to durable post-commit worker semantics.
+- Completed for SQLAlchemy-backed hosts: tenant predicates, CAS, saga tenant
+  filtering, multi-tenant audit verification, and transactional fire commits
+  are implemented and covered by local plus live Postgres checks.
+- Hosts that bypass `fire_and_commit(...)` must still provide their own
+  transactional outbox boundary.
 
 ### Lane 3: Make the release gate honest
 
-- Replace hard-coded workspace package lists with discovery.
-- Split required/advisory gates and fail on unintended skips.
-- Add dependency audits.
-- Produce machine-readable gate summaries.
+- Completed for workspace discovery, local/external gate separation, dependency
+  audits, machine-readable integration summaries, and fail-closed release
+  targets.
+- The external release bundle remains intentionally blocked until the reviewed
+  real-key sidecar is committed.
 
 ### Lane 4: Finish generated app production path
 
-- Generate snapshot-store-backed service mode.
-- Generate idempotency implementation for SQLAlchemy.
-- Generate auth/principal dependencies.
-- Mark demo/starter code visibly when production mode is not selected.
+- Completed for generated SQLAlchemy runtime hooks, idempotency wiring, explicit
+  auth/principal dependencies, and demo-mode separation.
+- Critical deployments must still call the generated configuration hooks, apply
+  migrations, and retain live database release evidence.
 
 ### Lane 5: UI readiness
 
-- Ship renderer/admin CSS.
-- Fix visual harness routing by example identity.
-- Seed baselines.
-- Remove long inline explanatory UI text from default operator screens.
+- Completed for renderer/admin CSS, example-identity harness routing, smoke DOM
+  baselines, PII reveal hardening, and removal of long inline operator text.
+- Full-cadence visual coverage and deeper keyboard/focus/table-overflow checks
+  remain future expansion, not current release blockers.
 
 ### Lane 6: Platform packaging
 
-- Decide publishable JS packages and generate dist outputs.
-- Add tarball consumer tests.
-- Promote or relabel domain packages based on review status.
+- Current repository contract is private/source-first JS packages and
+  starter-classified domain packages, with ratchets preventing accidental
+  publishable claims.
+- Publishable JS dist outputs, installed-consumer fixtures, and SME promotion of
+  domain packages remain separate release-design work.
 
 ## Current Strengths Worth Preserving
 
@@ -1374,7 +1386,9 @@ Do not claim "critical-system ready" until all of these are true:
 - The sidecar approach for non-deterministic LLM polish preserves canonical bundle determinism.
 - The package separation between core and adapters is a good architectural boundary.
 - The new i18n sidecar flow and property coverage additions are pointed in the right direction.
-- The visual regression harness architecture is close, but still needs browser-generated baselines and release-environment execution.
+- The visual regression harness now has committed smoke baselines and
+  browser-capable PR execution; the final external release bundle still needs
+  to run after the real-key sidecar is committed.
 
 ## Bottom Line
 
