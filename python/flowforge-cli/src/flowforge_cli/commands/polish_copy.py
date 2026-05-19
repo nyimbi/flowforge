@@ -316,6 +316,13 @@ def polish_copy_cmd(
 	except PolishProviderError as exc:
 		typer.echo(f"flowforge polish-copy: LLM polish failed: {exc}", err=True)
 		raise typer.Exit(1) from exc
+	except Exception as exc:
+		typer.echo(
+			"flowforge polish-copy: LLM polish failed: "
+			f"{type(exc).__name__}: {exc}",
+			err=True,
+		)
+		raise typer.Exit(1) from exc
 
 	# Cross-check every polished key resolves to a real bundle target —
 	# catches a bug in the polish function that emits a stray key.

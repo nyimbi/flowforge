@@ -612,6 +612,46 @@ def test_cli_provider_error_fails_without_writing_sidecar(
 	assert not sidecar_path_for(path).exists()
 
 
+def test_cli_unexpected_provider_exception_fails_without_traceback_or_sidecar(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""Provider transport/auth failures should be operator errors, not tracebacks."""
+
+	def failing_polish(_strings: dict[str, str], _tone: str) -> dict[str, str]:
+		raise RuntimeError("invalid x-api-key")
+
+	monkeypatch.setattr(
+		polish_copy_module,
+		"_detect_polish_fn",
+		lambda: (
+			failing_polish,
+			"test LLM polish",
+			"anthropic",
+			"claude-test-model-20260518",
+		),
+	)
+
+	path = _write_bundle(tmp_path)
+	result = runner.invoke(
+		app,
+		[
+			"polish-copy",
+			"--bundle",
+			str(path),
+			"--tone",
+			"formal-professional",
+			"--require-llm",
+			"--commit",
+		],
+		catch_exceptions=False,
+	)
+	assert result.exit_code == 1, result.output
+	assert "LLM polish failed: RuntimeError: invalid x-api-key" in result.output
+	assert "Traceback" not in result.output
+	assert not sidecar_path_for(path).exists()
+
+
 def test_cli_commit_llm_polish_records_model_and_prompt_checksum(
 	tmp_path: Path,
 	monkeypatch: pytest.MonkeyPatch,
