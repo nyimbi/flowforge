@@ -150,12 +150,14 @@ Acceptance criteria:
 
 ## 4. Run external release bundle
 
-The CI path is `.github/workflows/audit-2026-release-external.yml`. On pull
-requests, it runs automatically for release-gate-relevant changes against
-`nyimbi/ums@main`, with a disposable Postgres service and no visual-regression
-skip flags. The workflow requires repository secret `UMS_BACKEND_TOKEN` with
-read access to the UMS backend; it fails before checkout when that secret is not
-configured.
+The CI path is `.github/workflows/audit-2026-release-external.yml`. It is a
+manual, release-only workflow because UMS is downstream compatibility evidence,
+not a Flowforge package dependency. Ordinary Flowforge pull requests should be
+qualified by the standalone local/PR gates; release certification adds a
+caller-selected UMS backend checkout, a disposable Postgres service, and no
+visual-regression skip flags. The workflow requires repository secret
+`UMS_BACKEND_TOKEN` with read access to the selected UMS backend; it fails
+before checkout when that secret is not configured.
 
 For a specific release-candidate backend ref, launch the manual path with:
 
@@ -178,18 +180,19 @@ gh secret set UMS_BACKEND_TOKEN \
   --body "$FLOWFORGE_UMS_READ_TOKEN"
 ```
 
-Then rerun the failed PR workflow:
-
-```bash
-gh run rerun <failed-run-id> --repo nyimbi/flowforge --failed
-```
-
-CLI equivalent:
+Then launch the manual release workflow:
 
 ```bash
 gh workflow run audit-2026-release-external.yml \
   -f backend_repository=<owner>/<ums-backend-repo> \
   -f backend_ref=<release-candidate-ref>
+```
+
+If a manual release run already failed because the secret was missing, rerun
+only the failed jobs after the secret is configured:
+
+```bash
+gh run rerun <failed-run-id> --repo nyimbi/flowforge --failed
 ```
 
 For a local release rehearsal, run:

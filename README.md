@@ -1,326 +1,719 @@
-# flowforge
+# Flowforge
 
-A portable workflow framework. JSON DSL, two-phase fire engine, hash-chained audit trail, multi-tenant by default, 14 port ABCs that host applications wire to their own infrastructure. Extracted from the UMS project, which consumes flowforge but does not appear in its dependency graph; nothing under this tree imports from UMS.
+Flowforge is a portable workflow framework for building regulated, multi-tenant
+business applications from declarative workflow definitions and JTBD
+(jobs-to-be-done) bundles.
 
-> **v0.1.0 shipped 2026-05-08 — audit-2026 release.** Closes 77 audit findings, 9 architectural invariants conformance-tested, 4 security ratchets enforced in CI. Includes one **SECURITY-BREAKING** change (E-34: HMAC default secret removed; opt-in bridge available for one minor). Read [`docs/audit-2026/SECURITY-NOTE.md`](docs/audit-2026/SECURITY-NOTE.md) and run `flowforge pre-upgrade-check` against every host before upgrading. Upgrade checklist: [`docs/release/v0.1.0-upgrade.md`](docs/release/v0.1.0-upgrade.md). Close-out report: [`docs/audit-2026/close-out.md`](docs/audit-2026/close-out.md).
+It gives host applications:
 
-## What it is
+- A JSON workflow DSL with a compiler, simulator, deterministic replay, and a
+  two-phase fire engine.
+- A pure Python core with no I/O dependencies and 14 explicit host-wired ports.
+- Adapter packages for FastAPI, SQLAlchemy/Postgres, tenancy, audit, outbox,
+  RBAC, documents, signing, notifications, metrics, and related infrastructure.
+- A TypeScript frontend surface: form renderer, runtime client, visual workflow
+  designer, and JTBD editor.
+- A deterministic JTBD-to-application generator that emits backend, frontend,
+  workflow, form, tests, seed data, docs, and design-token assets.
 
-A workflow definition is a single JSON document with a canonical schema. The compiler validates topology at load time (unreachable states, dead-end transitions, duplicate priorities, sub-workflow cycles) so you can't ship a definition that runs differently than it diff-reads. The expression evaluator is a whitelisted operator registry, frozen at module init: no `eval`, no arbitrary Python, byte-identical results between the Python core and the TypeScript designer/renderer. A 200-input parity fixture is run on every PR.
+Flowforge was extracted from UMS, but UMS is not a runtime dependency. A UMS
+checkout is used only for explicit downstream release-certification parity
+tests. Nothing under this repository should import from UMS or require UMS for
+ordinary package development.
 
-The engine is two-phase. Phase 1 evaluates guards and picks one transition. Phase 2 commits effects, appends saga steps, dispatches outbox envelopes, and records audit events. Per-instance fire is serialised; a concurrent fire for the same instance raises `ConcurrentFireRejected`. If outbox or audit dispatch fails, the engine restores the pre-fire snapshot. The audit chain is hash-linked under a per-tenant advisory lock with a `UNIQUE(tenant_id, ordinal)` constraint, so 100 concurrent records per tenant produce zero forks.
+> v0.1.0 shipped 2026-05-08 as the audit-2026 release. It includes one
+> SECURITY-BREAKING change: HMAC default secrets were removed. Read
+> [docs/audit-2026/SECURITY-NOTE.md](docs/audit-2026/SECURITY-NOTE.md) and run
+> `flowforge pre-upgrade-check` before upgrading an existing host.
 
-The core is I/O-free. It defines 14 port ABCs (tenancy, RBAC, audit, outbox, documents, money, settings, signing, notifications, RLS, entity registry, metrics, tasks, grants) that host applications wire to their own infrastructure. SQLAlchemy, FastAPI, KMS, S3, SpiceDB, Mailgun all live in separate adapter packages. A conformance test fails the build if the core ever takes an I/O dependency.
+## One-Command Setup
 
-JTBD (jobs-to-be-done) is the authoring layer above the DSL. You write a bundle (YAML or JSON) describing actors, stages, requirements, glossary, and lifecycle. The CLI generator emits ~12-15 files per JTBD into a host project: alembic migration with RLS policy, SQLAlchemy model, FastAPI router, EntityAdapter, workflow definition, form spec, React step component, Playwright happy-path. Output is byte-identical across runs; CI diffs `examples/*/generated/` against a fresh regen on every PR. A bundle hash (RFC-8785-aligned canonical JSON) makes two processes agree on the bundle bytes regardless of dict ordering.
-
-## Quick start
-
-```python
-from flowforge import config
-from flowforge.dsl import WorkflowDef, State, Transition, Effect
-from flowforge.engine import fire, new_instance
-
-config.reset_to_fakes()  # in-memory ports — sufficient for tests and local dev
-
-wf = WorkflowDef(
-	key="claim",
-	version="1",
-	initial_state="draft",
-	states=[
-		State(id="draft", kind="manual_review", label="Draft"),
-		State(id="submitted", kind="terminal_success", label="Submitted"),
-	],
-	transitions=[
-		Transition(
-			id="t1",
-			from_state="draft",
-			to_state="submitted",
-			on_event="submit",
-			priority=0,
-			effects=[Effect(kind="notify", target="ops", template="claim_submitted")],
-		),
-	],
-)
-
-instance = new_instance(wf)
-result = await fire(instance, event="submit", payload={}, wf=wf)
-print(result.new_state)  # "submitted"
-```
-
-For a real deployment, wire the production ports (Postgres-backed snapshot store, hash-chain audit, outbox worker, KMS signing, S3 documents) through their adapter packages. See `python/flowforge-fastapi/README.md` for the HTTP surface and `python/flowforge-sqlalchemy/README.md` for durable storage.
-
-### From a JTBD bundle
+From a fresh source checkout:
 
 ```bash
-# Scaffold a new project from a domain JTBD bundle
-flowforge new my-app --jtbd flowforge-jtbd-banking
-
-# Add another bundle into an existing project (idempotent)
-flowforge add-jtbd flowforge-jtbd-hr
-
-# Lint a bundle file
-flowforge jtbd lint --def bundle.yaml
-
-# Run the deterministic generator (12+ files per JTBD)
-flowforge jtbd-generate --jtbd ./bundle.yaml --out ./generated
-
-# Walk the generated workflow with events
-flowforge simulate --def workflows/account_open/definition.json
+make setup
 ```
 
-## Architecture
+That runs [scripts/setup.sh](scripts/setup.sh), which:
 
-Three layers, kept clean by tests:
+- verifies `uv`, Python, Node, and `pnpm` are available;
+- installs the full Python workspace with `uv sync`;
+- installs the JS workspace under [js](js);
+- installs the visual-regression harness under
+  [tests/visual_regression](tests/visual_regression);
+- smoke-checks the `flowforge` CLI.
 
-- **Core** (`flowforge-core`) — DSL, compiler, expression evaluator, engine, simulator, replay, port ABCs, in-memory port fakes. Pure Python, no I/O dependencies.
-- **Adapters** — one package per port implementation. Picked à la carte at host startup via `flowforge.config`.
-- **JTBD** (`flowforge-jtbd`, `flowforge-jtbd-hub`, 30 domain libraries) — authoring layer that generates host-app code from a bundle.
+Equivalent direct command:
 
-```
-JTBDEditor  ──▶  bundle.yaml  ──▶  flowforge-cli ──▶  workflow_def.json + form_spec.json + ...
-                                                               │
-Designer    ──▶  workflow_def.json  ─────────────────────────▶│
-                                                               ▼
-                                                        flowforge-fastapi
-                                                               │
-                                                               ▼
-                                                          flowforge-core (engine)
-                                                          /         \
-                                                  flowforge-          flowforge-
-                                                  audit-pg            outbox-pg
-                                                  (hash chain)        (dramatiq)
-                                                          │
-                                                          ▼
-                                                     Postgres
+```bash
+bash scripts/setup.sh
 ```
 
-### The 14 ports
+Useful setup switches:
 
-| # | Port | Purpose | Default impl |
-|---|---|---|---|
-| 1 | `TenancyResolver` | Resolve current tenant, bind session GUCs, elevation scope | `flowforge-tenancy` (`SingleTenantGUC`, `MultiTenantGUC`, `NoTenancy`) |
-| 2 | `RbacResolver` | `has_permission`, `list_principals_with`, `register_permission`, `assert_seed` | `flowforge-rbac-static`, `flowforge-rbac-spicedb` |
-| 3 | `AuditSink` | `record`, `verify_chain`, `redact` | `flowforge-audit-pg` (hash chain, per-tenant advisory lock) |
-| 4 | `OutboxRegistry` | `register(kind, handler, backend)`, `dispatch(envelope)` | `flowforge-outbox-pg` (dramatiq) |
-| 5 | `DocumentPort` | `list_for_subject`, `attach`, `get_classification`, `freshness_days` | `flowforge-documents-s3` |
-| 6 | `MoneyPort` | `convert`, `format` | `flowforge-money` |
-| 7 | `SettingsPort` | `get`, `set`, `register` | host-supplied |
-| 8 | `SigningPort` | `sign_payload`, `verify`, `current_key_id` | `flowforge-signing-kms` (AWS KMS, GCP KMS, HMAC dev) |
-| 9 | `NotificationPort` | `render`, `send`, `register_template` | `flowforge-notify-multichannel` (email/Slack/SMS/in-app) |
-| 10 | `RlsBinder` | `bind(session, ctx)`, `elevated(session)` | `flowforge-sqlalchemy.PgRlsBinder` (GUC-based) |
-| 11 | `EntityAdapter` | `create`, `update`, `lookup`, `compensations` | host-supplied (generated by JTBD) |
-| 12 | `MetricsPort` | `emit(name, value, labels)` | host-supplied |
-| 13 | `TaskTrackerPort` | `create_task(kind, ref, note)` | host-supplied |
-| 14 | `AccessGrantPort` | `grant(rel, until)`, `revoke(rel)` | host-supplied |
-
-Tests use the in-memory fakes under `flowforge.testing.port_fakes`. Production wires whichever adapters you need.
-
-## Repository layout
-
-This is a `uv` + `pnpm` monorepo: 46 Python workspace members, 7 npm workspace members.
-
-```
-flowforge/
-├── python/                          # uv workspace (46 packages)
-│   │
-│   │ # Strategic / shipping packages (16, package=true)
-│   ├── flowforge-core/               # DSL, compiler, engine, simulator, port ABCs
-│   ├── flowforge-fastapi/            # HTTP/WS adapter
-│   ├── flowforge-sqlalchemy/         # snapshot store, saga ledger, RLS binder, alembic bundle
-│   ├── flowforge-tenancy/            # SingleTenantGUC / MultiTenantGUC / NoTenancy
-│   ├── flowforge-audit-pg/           # hash-chain audit sink
-│   ├── flowforge-outbox-pg/          # outbox + dramatiq worker
-│   ├── flowforge-rbac-{static,spicedb}/
-│   ├── flowforge-documents-s3/
-│   ├── flowforge-money/
-│   ├── flowforge-signing-kms/
-│   ├── flowforge-notify-multichannel/
-│   ├── flowforge-otel/              # OpenTelemetry tracing + metrics adapter
-│   ├── flowforge-cli/                # `flowforge` typer CLI
-│   ├── flowforge-jtbd/               # canonical spec, lockfile, linter
-│   ├── flowforge-jtbd-hub/           # registry, mirroring, signing, per-user RBAC
-│   │
-│   │ # Domain JTBD libraries (30, package=false until E-48a/b)
-│   └── flowforge-jtbd-{accounting, agritech, banking, compliance, construction,
-│       corp-finance, crm, ecom, edu, gaming, gov, healthcare, hr, insurance,
-│       legal, logistics, media, mfg, municipal, nonprofit, platformeng, pm,
-│       procurement, realestate, restaurants, retail, saasops, telco, travel,
-│       utilities}/
-├── js/                              # pnpm workspace (7 packages)
-│   ├── flowforge-types/              # TS types generated from core JSON schemas
-│   ├── flowforge-renderer/           # FormRenderer + TS expr evaluator (parity-tested)
-│   ├── flowforge-runtime-client/     # REST + WS client (reconnect, collab conflict)
-│   ├── flowforge-step-adapters/      # generic step components
-│   ├── flowforge-designer/           # canvas, property panel, simulator UI, diff viewer
-│   ├── flowforge-jtbd-editor/        # JTBD authoring IDE
-│   └── flowforge-integration-tests/  # cross-runtime parity, WS reconnect, collab conflict
-├── examples/                        # JTBD worked examples
-│   ├── insurance_claim/
-│   ├── hiring-pipeline/
-│   └── building-permit/
-├── tests/                           # cross-package layered suites
-│   ├── audit_2026/                   # one regression test per audit finding
-│   ├── conformance/                  # 9 architectural invariants
-│   ├── property/                     # hypothesis property tests
-│   ├── chaos/                        # crash mid-fire / mid-outbox / mid-compensation
-│   ├── cross_runtime/                # 200-input TS↔Python expr parity fixture
-│   ├── edge_cases/                   # 9-class edge-case bank
-│   ├── observability/                # promtool + synthetic metric injection
-│   └── integration/{python,js,e2e}/
-├── docs/
-│   ├── flowforge-handbook.md         # comprehensive system overview
-│   ├── workflow-framework-portability.md  # source spec
-│   ├── workflow-framework-plan.md    # build plan
-│   ├── audit-fix-plan.md             # audit-2026 ticket index
-│   ├── audit-2026/                   # SECURITY-NOTE, signoff-checklist, close-out, backlog
-│   ├── ops/                          # runbooks (soak test, etc.)
-│   └── v0.2.0-plan.md                # next-milestone plan
-└── scripts/
-    ├── check_all.sh                  # full developer gate (≈10 min)
-    ├── ci/ratchets/                  # 4 grep gates
-    ├── ci/check_signoff.py           # signoff-checklist gate
-    └── ops/audit-2026-soak.sh        # 24h soak runner
+```bash
+FLOWFORGE_SKIP_JS=1 bash scripts/setup.sh
+FLOWFORGE_SKIP_VISREG=1 bash scripts/setup.sh
+FLOWFORGE_SETUP_SMOKE=0 bash scripts/setup.sh
 ```
 
-The 30 `flowforge-jtbd-<domain>/` packages are registered with `[tool.uv] package = false` per package until they pass either E-48a (rebrand to `*-starter` with scaffold-only classifier) or E-48b (real-content review by a named domain SME). Five strategic verticals carry real content today: banking, gov, healthcare, hr, insurance.
+Prerequisites:
 
-## What gets generated
+- Python 3.11+
+- `uv`
+- Node 22 for the repo CI-compatible JS path
+- `pnpm` 11.1.3 for the repo's `allowBuilds` semantics
 
-For one JTBD `claim_intake`, the generator emits ~12-15 files (≈600 LOC of host code):
+If you only need the CLI in a source checkout:
 
-| File | Purpose |
+```bash
+uv sync
+uv run flowforge --help
+```
+
+Flowforge is path-dependency/source-first in this repository and is not yet
+published as a single PyPI install target.
+
+## Five-Minute Tour
+
+Run the interactive tutorial:
+
+```bash
+uv run flowforge tutorial --out /tmp/flowforge-demo --no-pause
+```
+
+Generate a complete example application from the insurance JTBD bundle:
+
+```bash
+uv run flowforge jtbd-generate \
+  --jtbd examples/insurance_claim/jtbd-bundle.json \
+  --out /tmp/flowforge-insurance \
+  --force
+```
+
+Validate or simulate a generated workflow:
+
+```bash
+uv run flowforge validate --def /tmp/flowforge-insurance/workflows/claim_intake/definition.json
+uv run flowforge simulate --def /tmp/flowforge-insurance/workflows/claim_intake/definition.json --events submit
+```
+
+Run the normal local gate:
+
+```bash
+bash scripts/check_all.sh
+```
+
+Run the fail-closed local release gate:
+
+```bash
+make audit-2026-release-local
+```
+
+The external release bundle intentionally remains separate because it requires
+browser execution, retained visual evidence, optional LLM sidecar evidence,
+downstream UMS parity, and live Postgres checks:
+
+```bash
+make audit-2026-release-external-preflight
+```
+
+See
+[docs/audit-2026/external-release-runbook.md](docs/audit-2026/external-release-runbook.md)
+for the manual release-certification workflow.
+
+## What Flowforge Builds
+
+Flowforge has three authoring levels:
+
+1. **JTBD bundle**: a product/workflow author describes the job, actors, data,
+   documents, approvals, SLAs, notifications, compliance, and design tokens.
+2. **Generator output**: `flowforge jtbd-generate` emits application code,
+   workflow definitions, form specs, tests, docs, i18n, and design tokens.
+3. **Workflow DSL**: the visual designer or code author edits the generated
+   `definition.json` directly when a workflow needs more precision than the
+   bundle synthesis provides.
+
+For one JTBD such as `claim_intake`, the generator emits a host app surface that
+typically includes:
+
+| Output | Purpose |
 |---|---|
-| `alembic/versions/000N_jtbd_<id>.py` | Entity table migration + RLS policy |
-| `backend/src/<pkg>/<entity>/models.py` | SQLAlchemy model with `WorkflowExposed` mixin |
-| `backend/src/<pkg>/<entity>/views.py` | Pydantic v2 models for HTTP/CLI |
-| `backend/src/<pkg>/<entity>/service.py` | Business logic |
-| `backend/src/<pkg>/<entity>/router.py` | FastAPI router |
-| `backend/src/<pkg>/<entity>/workflow_adapter.py` | `EntityAdapter` impl + compensations map |
-| `backend/src/<pkg>/<entity>/tests/test_workflow_adapter.py` | Unit tests |
-| `backend/src/<pkg>/workflows/<id>/definition.json` | Workflow DSL |
-| `backend/src/<pkg>/workflows/<id>/form_spec.<form_id>.json` | Form spec |
-| `backend/src/<pkg>/workflows/<id>/tests/test_simulation.py` | Auto-generated simulator tests |
-| `frontend/src/components/<entity>/<Entity>Step.tsx` | React step wrapper |
-| `tests/e2e/<id>.spec.ts` | Playwright happy-path |
+| `workflows/<id>/definition.json` | Flowforge workflow DSL |
+| `workflows/<id>/form_spec.json` | Form renderer schema |
+| `workflows/<id>/diagram.mmd` | Mermaid source diagram |
+| `workflows/<id>/reachability.json` or `reachability_skipped.txt` | Optional reachability proof |
+| `backend/src/<pkg>/models.py` | SQLAlchemy model |
+| `backend/src/<pkg>/services/<id>_service.py` | Domain service |
+| `backend/src/<pkg>/routers/<id>_router.py` | FastAPI route surface |
+| `backend/src/<pkg>/adapters/<id>_adapter.py` | EntityAdapter and fire wrapper |
+| `backend/tests/<id>/test_simulation.py` | Simulator tests |
+| `backend/tests/<id>/test_property.py` | Property tests |
+| `frontend/src/.../Step.tsx` | React workflow step |
+| `frontend/src/.../runtimeClient.ts` | Runtime API client |
+| `frontend/src/.../design_tokens.css` | Host skin/theme tokens |
+| `frontend-admin/...` | Admin shell and matching theme tokens |
+| `tests/e2e/<id>.spec.ts` | Playwright happy path |
+| `docs/ops/<bundle>/restore-runbook.md` | Generated operational runbook |
 
-A bundle of N JTBDs additionally emits 4-6 cross-cutting files: permission seeds, RBAC seed test, navigation index, JTBD glossary, audit taxonomy enum, frontend wiring.
+The generator is deterministic. Given the same bundle and sidecars, it emits the
+same bytes. CI diffs committed example output against fresh regeneration.
+
+## JTBD Bundle Grammar
+
+A JTBD bundle is JSON or YAML. The canonical models live in
+[python/flowforge-jtbd/src/flowforge_jtbd/dsl/spec.py](python/flowforge-jtbd/src/flowforge_jtbd/dsl/spec.py),
+and the CLI validates bundles against the bundled `jtbd-1.0` JSON schema.
+
+Top-level shape:
+
+```yaml
+project:
+  name: insurance-claim-demo
+  package: insurance_claim_demo
+  domain: claims
+  tenancy: single
+  languages: [en, fr-CA]
+  currencies: [USD, ZAR]
+  frontend_framework: nextjs
+  frontend:
+    form_renderer: real
+  design:
+    primary: "#0f766e"
+    accent: "#f59e0b"
+    font_family: '"IBM Plex Sans", system-ui, sans-serif'
+    density: compact
+    radius_scale: 1.5
+shared:
+  roles: [adjuster, supervisor, claimant]
+  permissions: [claim_intake.read]
+jtbds:
+  - id: claim_intake
+    title: File an insurance claim
+    actor:
+      role: claimant
+      external: true
+    situation: A policyholder suffers a covered loss.
+    motivation: Recover insured losses quickly.
+    outcome: Claim is accepted into triage.
+    success_criteria:
+      - Claim ID is generated within 5 minutes.
+    data_capture:
+      - id: claimant_name
+        kind: text
+        label: Claimant full name
+        required: true
+        pii: true
+    documents_required:
+      - kind: proof_of_loss
+        min: 1
+        freshness_days: 90
+        av_required: true
+    edge_cases:
+      - id: large_loss
+        condition: loss_amount > 100000
+        handle: branch
+        branch_to: senior_triage
+    approvals:
+      - role: adjuster
+        policy: 1_of_1
+    sla:
+      warn_pct: 80
+      breach_seconds: 86400
+    notifications:
+      - trigger: state_enter
+        channel: email
+        audience: claimant
+    metrics:
+      - claim_intake.submission_count
+    compliance: [SOC2]
+    data_sensitivity: [PII]
+```
+
+### Top-Level Fields
+
+| Field | Required | Meaning |
+|---|---:|---|
+| `project` | yes | Bundle metadata and host-app defaults |
+| `shared` | no | Shared roles, permissions, and entity metadata |
+| `jtbds` | yes | One or more JTBD specs; IDs must be unique |
+
+### `project`
+
+| Field | Required | Allowed values / notes |
+|---|---:|---|
+| `name` | yes | Human-readable project name |
+| `package` | yes | ASCII snake_case identifier |
+| `domain` | yes | Host domain label |
+| `tenancy` | no | `none`, `single`, `multi`; default `single` |
+| `languages` | no | Locale tags used for generated i18n catalogs |
+| `currencies` | no | Currency codes used by forms/money fields |
+| `frontend_framework` | no | `nextjs`, `remix`, `vite-react`; default `nextjs` |
+| `frontend.form_renderer` | no | `skeleton` or `real`; default `skeleton` |
+| `design.primary` | no | CSS hex `#RGB`, `#RRGGBB`, or `#RRGGBBAA` |
+| `design.accent` | no | CSS hex |
+| `design.font_family` | no | CSS font-family string |
+| `design.density` | no | `compact` or `comfortable` |
+| `design.radius_scale` | no | Number from `0.0` to `4.0` |
+| `compliance` | no | Project-wide compliance regimes |
+| `data_sensitivity` | no | Project-wide sensitivity labels |
+
+### `jtbds[]`
+
+| Field | Required | Meaning |
+|---|---:|---|
+| `id` | yes | ASCII snake_case JTBD ID |
+| `title` | no | Human title |
+| `version` | no | Strict `MAJOR.MINOR.PATCH`; default `1.0.0` |
+| `status` | no | `draft`, `in_review`, `published`, `deprecated`, `archived` |
+| `actor` | yes | `role`, optional `department`, optional `external` |
+| `situation` | yes | Context that triggers the job |
+| `motivation` | yes | Why the actor wants the job done |
+| `outcome` | yes | Desired end state |
+| `success_criteria` | yes | At least one measurable criterion |
+| `data_capture` | no | Fields captured by forms and models |
+| `documents_required` | no | Required supporting documents |
+| `edge_cases` | no | Known branches/reject/escalate/compensate paths |
+| `approvals` | no | Approval lanes and policies |
+| `sla` | no | Warning percentage and breach budget |
+| `notifications` | no | Notification rules |
+| `metrics` | no | Metric names emitted/generated for the workflow |
+| `requires` | no | IDs or capabilities this JTBD depends on |
+| `compliance` | no | JTBD-level compliance regimes |
+| `data_sensitivity` | no | JTBD-level sensitivity labels |
+
+### Enums and Validation Rules
+
+`data_capture[].kind`:
+
+```text
+text, number, money, date, datetime, enum, boolean, party_ref, document_ref,
+email, phone, address, textarea, signature, file
+```
+
+The current `jtbd-1.0` JSON schema requires every `data_capture` field to
+declare `pii` explicitly as `true` or `false`. The parser also produces focused
+errors for these sensitive field kinds:
+
+```text
+email, phone, party_ref, signature, file, address, text, textarea
+```
+
+`edge_cases[].handle`:
+
+```text
+branch, reject, escalate, compensate, loop
+```
+
+If `handle` is `branch`, `branch_to` is required.
+
+`approvals[].policy`:
+
+```text
+1_of_1, 2_of_2, n_of_m, authority_tier
+```
+
+If `policy` is `n_of_m`, `n` is required. If `policy` is `authority_tier`,
+`tier` is required.
+
+`notifications[].trigger`:
+
+```text
+state_enter, state_exit, sla_warn, sla_breach, approved, rejected, escalated
+```
+
+`notifications[].channel`:
+
+```text
+email, sms, slack, webhook, in_app
+```
+
+`compliance`:
+
+```text
+GDPR, SOX, HIPAA, PCI-DSS, ISO27001, SOC2, NIST-800-53, CCPA
+```
+
+`data_sensitivity`:
+
+```text
+PII, PHI, PCI, secrets, regulated
+```
+
+Identifier fields such as `project.package` and `jtbds[].id` must start with an
+ASCII lowercase letter and then contain only ASCII lowercase letters, digits,
+and underscores.
+
+## Generate Applications
+
+Use the generator directly when you already have a bundle:
+
+```bash
+uv run flowforge jtbd-generate \
+  --jtbd path/to/jtbd-bundle.json \
+  --out ./generated \
+  --force
+```
+
+Use the project scaffolder when you want a new host project skeleton:
+
+```bash
+uv run flowforge new my-claims-app \
+  --jtbd examples/insurance_claim/jtbd-bundle.json \
+  --out /tmp
+```
+
+Add or refresh a JTBD inside an existing generated project:
+
+```bash
+uv run flowforge add-jtbd path/to/jtbd-bundle.json --project ./my-claims-app
+```
+
+Lint a bundle before generation:
+
+```bash
+uv run flowforge jtbd lint --bundle path/to/jtbd-bundle.json --warn-only
+```
+
+Authoring loop:
+
+1. Edit `jtbd-bundle.json`.
+2. Run `uv run flowforge jtbd lint --bundle jtbd-bundle.json --warn-only` while drafting.
+   Remove `--warn-only` for release-quality lifecycle lint.
+3. Run `uv run flowforge jtbd-generate --jtbd jtbd-bundle.json --out generated --force`.
+4. Run generated tests and inspect generated diffs.
+5. Edit `workflows/<id>/definition.json` in the visual designer when the
+   synthesized workflow needs manual topology changes.
+
+## Workflow DSL
+
+A workflow definition is one JSON document with a canonical schema. The
+compiler validates topology before execution: unreachable states, duplicate
+transition priorities, dead ends, invalid sub-workflow references, and related
+shape errors fail before runtime.
+
+Minimal shape:
+
+```json
+{
+  "key": "claim_intake",
+  "version": "0.1.0",
+  "subject_kind": "claim",
+  "initial_state": "intake",
+  "states": [
+    { "name": "intake", "kind": "manual_review", "swimlane": "claimant" },
+    { "name": "review", "kind": "manual_review", "swimlane": "adjuster" },
+    { "name": "done", "kind": "terminal_success" }
+  ],
+  "transitions": [
+    {
+      "id": "submit",
+      "event": "submit",
+      "from_state": "intake",
+      "to_state": "review",
+      "priority": 0,
+      "guards": [],
+      "gates": [],
+      "effects": []
+    }
+  ]
+}
+```
+
+Validate it:
+
+```bash
+uv run flowforge validate --def workflows/claim_intake/definition.json
+```
+
+Simulate it:
+
+```bash
+uv run flowforge simulate --def workflows/claim_intake/definition.json --events submit
+```
+
+## Visual Workflow Editor
+
+The visual workflow editor lives in
+[js/flowforge-designer](js/flowforge-designer). It is a React package around
+ReactFlow plus Flowforge-specific panels:
+
+- canvas for states and transitions;
+- property panel for state, transition, gate, escalation, delegation, document,
+  and checklist fields;
+- form builder;
+- validation panel;
+- simulation panel;
+- diff viewer;
+- review/comment helpers.
+
+Embed it in a host admin application:
+
+```tsx
+import { Designer, sampleWorkflow } from "@flowforge/designer";
+
+export function WorkflowEditorPage() {
+  return (
+    <main style={{ height: "100vh" }}>
+      <Designer workflow={sampleWorkflow()} />
+    </main>
+  );
+}
+```
+
+The generated host applications are skinnable through `project.design`. A
+single bundle-level token block drives:
+
+- CSS variables in generated `design_tokens.css`;
+- Tailwind theme config;
+- TypeScript theme exports;
+- customer-facing frontend styling;
+- admin-console styling.
+
+Example:
+
+```json
+{
+  "project": {
+    "design": {
+      "primary": "#0f766e",
+      "accent": "#f59e0b",
+      "font_family": "\"IBM Plex Sans\", system-ui, sans-serif",
+      "density": "compact",
+      "radius_scale": 1.5
+    }
+  }
+}
+```
+
+Host applications should wrap `@flowforge/designer` in their own app shell and
+map host design tokens to Flowforge CSS variables. The editor must remain a
+tenant-admin tool, not a marketing page: dense controls, predictable layout,
+clear status, and no decorative chrome.
+
+Designer verification:
+
+```bash
+pnpm --dir js --filter @flowforge/designer test
+pnpm --dir js --filter @flowforge/designer build
+```
+
+Visual-regression harness:
+
+```bash
+pnpm --dir tests/visual_regression test
+```
+
+## Runtime Architecture
+
+Flowforge core is I/O-free. The host application wires ports at startup and can
+swap adapters without changing workflow definitions.
+
+The engine is two-phase:
+
+1. Evaluate guards and choose one transition.
+2. Commit effects, saga steps, outbox envelopes, audit records, and snapshots.
+
+If audit or outbox dispatch fails, the engine restores the pre-fire snapshot.
+Per-instance fire is serialized; concurrent fires for one instance raise
+`ConcurrentFireRejected`.
+
+The expression evaluator is a frozen operator registry. There is no `eval`, no
+arbitrary Python execution, and Python/TypeScript parity is tested on every PR.
+
+### The 14 Ports
+
+| # | Port | Purpose | Typical implementation |
+|---|---|---|---|
+| 1 | `TenancyResolver` | Resolve tenant and bind session scope | `flowforge-tenancy` |
+| 2 | `RbacResolver` | Permission checks and seed registration | static or SpiceDB |
+| 3 | `AuditSink` | Hash-chain audit recording and verification | `flowforge-audit-pg` |
+| 4 | `OutboxRegistry` | Register and dispatch outbox envelopes | `flowforge-outbox-pg` |
+| 5 | `DocumentPort` | Document attachment and classification | S3/document adapter |
+| 6 | `MoneyPort` | Money formatting and conversion | `flowforge-money` |
+| 7 | `SettingsPort` | Host settings | host supplied |
+| 8 | `SigningPort` | Sign and verify payloads | KMS or explicit dev HMAC |
+| 9 | `NotificationPort` | Render and send notifications | multichannel adapter |
+| 10 | `RlsBinder` | Bind Postgres RLS context | `flowforge-sqlalchemy` |
+| 11 | `EntityAdapter` | Domain create/update/lookup/compensate | generated/host supplied |
+| 12 | `MetricsPort` | Emit metrics | host supplied or OTel |
+| 13 | `TaskTrackerPort` | Create operational tasks | host supplied |
+| 14 | `AccessGrantPort` | Temporary access grants | host supplied |
+
+Tests use in-memory fakes through `flowforge.testing.port_fakes`.
+
+## Repository Layout
+
+```text
+flowforge/
+  python/                         uv workspace packages
+    flowforge-core/                DSL, compiler, engine, simulator, ports
+    flowforge-fastapi/             HTTP/WS adapter
+    flowforge-sqlalchemy/          durable Postgres storage and RLS
+    flowforge-cli/                 Typer CLI
+    flowforge-jtbd/                canonical JTBD models/schema
+    flowforge-jtbd-hub/            registry/hub surface
+    flowforge-jtbd-*/              domain JTBD libraries
+  js/
+    flowforge-types/               TypeScript workflow/form types
+    flowforge-renderer/            form renderer and TS expression evaluator
+    flowforge-runtime-client/      REST/WS runtime client
+    flowforge-step-adapters/       reusable generated-step adapters
+    flowforge-designer/            visual workflow editor
+    flowforge-jtbd-editor/         JTBD authoring editor
+    flowforge-integration-tests/   cross-runtime JS tests
+  examples/
+    insurance_claim/
+    hiring-pipeline/
+    building-permit/
+  tests/
+    audit_2026/
+    conformance/
+    property/
+    chaos/
+    cross_runtime/
+    edge_cases/
+    observability/
+    integration/
+    visual_regression/
+  docs/
+  scripts/
+```
+
+The monorepo currently has 46 Python workspace members and 7 JS workspace
+members. Tier-1 engine/adapters are the package surface. Domain
+`flowforge-jtbd-*` libraries remain source/workspace members until each is
+reviewed and flipped to package publishing.
+
+## Development Commands
+
+Install:
+
+```bash
+make setup
+```
+
+Common loops:
+
+```bash
+uv run pytest python/flowforge-core/tests -q
+uv run pytest tests/audit_2026 -q --tb=short
+uv run pytest tests/conformance -m invariant_p0
+uv run pyright python/flowforge-core/src --pythonversion 3.11
+
+pnpm --dir js -r test
+pnpm --dir js --filter @flowforge/designer test
+pnpm --dir js --filter @flowforge-renderer test
+```
+
+Full local gate:
+
+```bash
+bash scripts/check_all.sh
+```
+
+Local release gate:
+
+```bash
+make audit-2026-release-local
+```
+
+External release gate:
+
+```bash
+make audit-2026-release-external-preflight
+make audit-2026-release-external
+```
+
+The external gate requires a browser-capable environment, `BACKEND_ROOT` for
+downstream UMS parity when that proof is being collected, a live
+`FLOWFORGE_TEST_PG_URL`, and reviewed sidecar evidence. It is manual
+release-certification evidence, not a normal package dependency.
+
+## CLI Surface
+
+Run `uv run flowforge --help` for the live command list.
+
+Frequently used commands:
+
+| Command | Purpose |
+|---|---|
+| `flowforge tutorial` | Interactive JTBD-to-workflow walkthrough |
+| `flowforge new` | Scaffold a host project from a JTBD bundle |
+| `flowforge add-jtbd` | Add/refresh one JTBD in a generated project |
+| `flowforge jtbd-generate` | Deterministically generate app artifacts |
+| `flowforge jtbd lint` | Lint a JTBD bundle |
+| `flowforge validate` | Validate workflow definitions |
+| `flowforge simulate` | Walk a workflow through events |
+| `flowforge replay` | Replay workflow events |
+| `flowforge diff` | Diff workflow/JTBD structures |
+| `flowforge pre-upgrade-check` | Check host upgrade readiness |
+| `flowforge generate-llmtxt` | Generate an agent quickstart |
+| `flowforge audit verify` | Verify audit-chain evidence |
+| `flowforge audit-2026 health` | Query release-health probes |
+
+## CI and Release Gates
+
+Pull requests run the standalone gates:
+
+- `flowforge-gate.yml`: wraps `scripts/check_all.sh`.
+- `audit-2026.yml`: matrix over unit, conformance, property, cross-runtime,
+  edge, e2e, ratchets, and signoff checks.
+- `audit-2026-dom-baselines.yml`: reviewable DOM baseline artifacts.
+- `audit-2026-browser-e2e.yml`: browser full-stack generated workflow.
+- `jtbd-lint.yml`: advisory or strict JTBD linting, depending on
+  `JTBD_LINT_STRICT`.
+
+Manual release certification uses:
+
+- `audit-2026-release-external.yml`: browser, sidecar, UMS parity, and live
+  Postgres evidence bundle.
+
+## Security Posture
+
+Non-negotiable safety gates:
+
+- No default HMAC signing secret.
+- No string-interpolated SQL.
+- No `==` comparison for HMAC digests.
+- No silent `except Exception: pass`.
+- Conformance tests enforce tenant isolation, two-phase atomicity, replay
+  determinism, snapshot isolation, cross-runtime expression parity, RBAC seed
+  integrity, audit-chain monotonicity, migration/RLS safety, and parallel-fork
+  token primitives.
+- Security-impacting changes must be documented in
+  [docs/audit-2026/SECURITY-NOTE.md](docs/audit-2026/SECURITY-NOTE.md).
 
 ## Examples
 
-Three end-to-end bundles live under `examples/`. Each ships its `jtbd-bundle.json` and a `generated/` tree that CI diffs byte-for-byte against a fresh regen.
-
 | Example | Demonstrates |
 |---|---|
-| `insurance_claim/` | Claim intake → triage → adjudication → payout, with documents, signing, audit chain. |
-| `hiring-pipeline/` | Candidate sourcing → screen → interview loop → offer, with multi-stage approvals. |
-| `building-permit/` | Permit application → review → inspection → issuance, with RLS-scoped tenant data. |
-
-## Development
-
-You need `uv ≥ 0.4`, `pnpm ≥ 9`, Python 3.11, Node 20.
-
-```bash
-uv sync                                     # install Python workspace
-(cd js && pnpm install --frozen-lockfile)   # install JS workspace
-
-bash scripts/check_all.sh                   # full local gate (≈10 min)
-make audit-2026-release-local               # fail-closed local release gate
-make audit-2026-release-external-preflight  # summarize missing external evidence
-make audit-2026-release-external            # browser/LLM/UMS/Postgres release evidence
-```
-
-Narrower loops:
-
-```bash
-uv run pytest python/flowforge-core/tests -q       # one package
-uv run pytest tests/audit_2026/test_C_04_*.py -v   # one finding
-uv run pytest tests/conformance/ -m invariant_p0   # P0 invariants only
-uv run pyright python/flowforge-core/src --pythonversion 3.11
-
-(cd js && pnpm -r test)                             # all JS packages
-(cd js && pnpm -F @flowforge/designer test)         # one package
-```
-
-CI runs independent gates on every PR, each blocking merge to `main`:
-
-- `flowforge-gate.yml` — wraps `scripts/check_all.sh` (sync, typecheck, per-package pytest, JS build, JTBD regen determinism, visual DOM gate, standalone-safe UMS parity check, integration). UMS parity skips only when `BACKEND_ROOT` is absent in a standalone flowforge checkout.
-- `audit-2026.yml` — six-target matrix over `make audit-2026-{unit,conformance,property,edge,cross-runtime,e2e}` plus the ratchet and signoff gates.
-- `audit-2026-release-external.yml` — manual external release workflow for browser visual baselines, browser full-stack Playwright, reviewed real-key `polish-copy` sidecar evidence, UMS workflow-def parity with `BACKEND_ROOT`, and live Postgres checks with `FLOWFORGE_TEST_PG_URL`; this is required before critical-system release qualification. See `docs/audit-2026/external-release-runbook.md` for the exact browser/LLM/DB evidence sequence.
-- `jtbd-lint.yml` — runs `flowforge jtbd lint` against every `jtbd-bundle.{json,yaml}` in the tree. Set `JTBD_LINT_STRICT=true` to treat warnings as errors.
-
-### CLI
-
-The `flowforge` CLI is a Typer app with three sub-apps:
-
-- `flowforge audit verify` — verify the audit hash chain against a saved checkpoint (skeleton).
-- `flowforge jtbd {fork,lint,migrate}` — JTBD lifecycle commands.
-- `flowforge audit-2026 health --prom-url <prom>` — query Prometheus for the audit-2026 release-health SLIs; exits non-zero on any required-probe failure.
-
-Top-level commands: `validate`, `simulate`, `replay`, `new`, `add-jtbd`, `regen-catalog`, `jtbd-generate`, `pre-upgrade-check`, `migrate-fork`, `tutorial`, `diff`, `ai-assist`, `generate-llmtxt`, `upgrade-deps`. Run `flowforge --help` for the live list.
-
-## Security posture
-
-Three CI gates are non-negotiable for merge to `main`:
-
-1. **Ratchets** — four grep-based regression gates under `scripts/ci/ratchets/`:
-   - `no_default_secret.sh` — bans `FLOWFORGE_SIGNING_SECRET` defaults and dev-secret literals (SK-01).
-   - `no_string_interp_sql.sh` — bans f-string / `.format()` / `%` SQL (T-01, J-01, OB-01).
-   - `no_eq_compare_hmac.sh` — bans `==` on HMAC digests; mandates `hmac.compare_digest` (NM-01).
-   - `no_except_pass.sh` — bans `except Exception: pass` swallow (J-10, JH-06, CL-04).
-
-   Legitimate exceptions go in `scripts/ci/ratchets/baseline.txt` with security-team review in the same PR.
-
-2. **Conformance** — nine architectural invariants tagged `@invariant_p0` / `@invariant_p1`:
-   1. Tenant isolation (T-01..T-03)
-   2. Engine fire two-phase atomicity (C-01, C-04)
-   3. Replay determinism (C-06, C-07)
-   4. Snapshot isolation (C-12)
-   5. Cross-runtime expression parity (JS-01..JS-03)
-   6. RBAC seed integrity
-   7. Audit-chain monotonicity (AU-01..AU-03)
-   8. Migration RLS DDL safety (J-01)
-   9. Parallel-fork token primitives (E-74)
-
-   P0 must stay green on every PR.
-
-3. **Signoff** — every audit finding has its acceptance test in `tests/audit_2026/test_<FINDING>_*.py` and a row in `docs/audit-2026/signoff-checklist.md`. `make audit-2026-signoff` enforces the mapping; `python scripts/ci/check_signoff.py --strict` fails if any P0/P1 row is missing evidence.
-
-A 24-hour soak runner lives at `scripts/ops/audit-2026-soak.sh`; the runbook is at `docs/ops/audit-2026-soak-test.md`. Release health is queryable from any host without Grafana via `flowforge audit-2026 health`, which probes Prometheus directly and is intended as a post-deploy gate or periodic ops cron.
-
-## Versioning
-
-Two tiers, both enforced by `tests/audit_2026/test_E_69_evolution_reconciliation.py`:
-
-- **Tier 1** — engine and adapters (16 packages). Pinned at `0.1.x`; patch bump per audit-fix release; `0.2.0` reserved for the post-audit GA. Public APIs stable within `0.1.x`. Any SECURITY-flagged removal follows the F-7 two-version deprecation rule with an opt-in bridge env-var (e.g. `FLOWFORGE_ALLOW_INSECURE_DEFAULT=1` for E-34).
-- **Tier 2** — domain JTBD libraries (30 packages). Pinned at `0.0.1` until the package flips to `[tool.uv] package = true`, at which point it jumps to `0.1.0` in lockstep with tier 1.
-
-## Conventions
-
-- **Async throughout.** Engine, fire, all ports.
-- **Pydantic v2** with `model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)` for canonical models. The lint-side `JtbdLintSpec` uses `extra='allow'` to tolerate schema churn.
-- **Tabs, not spaces** in Python.
-- **UUID7 string IDs** via the local `uuid6`-backed shim (`uuid_extensions` is *not* on PyPI; don't add it as a dependency).
-- **No mocks except for LLMs.** Tests use `flowforge.testing.port_fakes` (real in-memory implementations). Postgres-backed tests use testcontainers.
-
-## Status
-
-`v0.1.0` shipped. Path-dependency only; not yet on PyPI. The framework is in active build; the next milestone is `v0.2.0` (post-audit GA), planned in [`docs/v0.2.0-plan.md`](docs/v0.2.0-plan.md). The architecturally deferred items live in [`docs/audit-2026/backlog.md`](docs/audit-2026/backlog.md).
+| [examples/insurance_claim](examples/insurance_claim) | Claim intake, triage, adjudication, payout, documents, signing, audit |
+| [examples/hiring-pipeline](examples/hiring-pipeline) | Candidate sourcing, screening, interviews, offer workflow |
+| [examples/building-permit](examples/building-permit) | Permit intake, plan review, inspections, issuance, tenant data |
 
 ## Documentation
 
-- [`docs/flowforge-handbook.md`](docs/flowforge-handbook.md) — comprehensive system overview (ADRs, data model, request lifecycle, runbook hooks)
-- [`docs/workflow-framework-portability.md`](docs/workflow-framework-portability.md) — source spec
-- [`docs/workflow-framework-plan.md`](docs/workflow-framework-plan.md) — build plan
-- [`docs/jtbd-editor-arch.md`](docs/jtbd-editor-arch.md) — JTBD authoring IDE design
-- [`docs/flowforge-evolution.md`](docs/flowforge-evolution.md) — forward roadmap
-- [`docs/audit-fix-plan.md`](docs/audit-fix-plan.md) — audit-2026 ticket index
-- [`docs/audit-2026/SECURITY-NOTE.md`](docs/audit-2026/SECURITY-NOTE.md) — operator-action notes per security-impacting change
-- [`docs/llm.txt`](docs/llm.txt) — AI quickstart
-- [`CLAUDE.md`](CLAUDE.md) — guidance for Claude Code instances entering this repo
+- [docs/flowforge-handbook.md](docs/flowforge-handbook.md): comprehensive
+  system handbook.
+- [docs/jtbd-user-guide.md](docs/jtbd-user-guide.md): how to write, manage,
+  generate, review, and edit JTBD-driven applications.
+- [docs/jtbd-generation.md](docs/jtbd-generation.md): generator behavior,
+  emitted files, and host integration.
+- [docs/workflow-framework-portability.md](docs/workflow-framework-portability.md):
+  portability/source architecture.
+- [docs/workflow-ed.md](docs/workflow-ed.md): workflow editor capability spec.
+- [docs/workflow-ed-arch.md](docs/workflow-ed-arch.md): workflow editor
+  architecture.
+- [docs/jtbd-editor-arch.md](docs/jtbd-editor-arch.md): JTBD editor and hub
+  design.
+- [llm.txt](llm.txt): root AI/agent quickstart.
+- [docs/llm.txt](docs/llm.txt): legacy extended AI quickstart.
+- [docs/audit-2026](docs/audit-2026): audit reports, signoff, runbooks, and
+  release evidence.
 
-Per-package READMEs live alongside their `pyproject.toml` (e.g. `python/flowforge-core/README.md`).
+Per-package READMEs live beside their `pyproject.toml` or `package.json`.
 
 ## License
 
-Apache-2.0. A dual-license commercial track is planned per the portability spec §11 R14.
+Apache-2.0. A dual-license commercial track is planned.

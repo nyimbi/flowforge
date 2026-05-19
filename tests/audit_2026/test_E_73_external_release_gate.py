@@ -33,20 +33,21 @@ def test_external_release_gate_forbids_local_skip_escapes() -> None:
 	assert "$(MAKE) audit-2026-live-postgres" in makefile
 
 
-def test_external_release_gate_is_wired_in_ci_workflow() -> None:
+def test_external_release_gate_is_wired_as_manual_release_workflow() -> None:
 	workflow = _read(".github/workflows/audit-2026-release-external.yml")
 
-	assert "pull_request:" in workflow
 	assert "workflow_dispatch:" in workflow
+	assert "pull_request:" not in workflow
+	assert "UMS is release-certification evidence" in workflow
 	assert "permissions:" in workflow
 	assert "contents: read" in workflow
 	assert "backend_repository:" in workflow
-	assert "nyimbi/ums" in workflow
+	assert "backend_ref:" in workflow
 	assert "Require UMS backend checkout token" in workflow
 	assert "UMS_BACKEND_TOKEN: ${{ secrets.UMS_BACKEND_TOKEN }}" in workflow
 	assert "Set repository secret UMS_BACKEND_TOKEN with read access to the UMS backend" in workflow
-	assert "github.event_name == 'workflow_dispatch' && inputs.backend_repository || 'nyimbi/ums'" in workflow
-	assert "github.event_name == 'workflow_dispatch' && inputs.backend_ref || 'main'" in workflow
+	assert "repository: ${{ inputs.backend_repository }}" in workflow
+	assert "ref: ${{ inputs.backend_ref }}" in workflow
 	assert workflow.count("persist-credentials: false") >= 2
 	assert "token: ${{ secrets.UMS_BACKEND_TOKEN }}" in workflow
 	assert "postgres:16" in workflow

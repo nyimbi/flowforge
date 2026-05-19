@@ -37,7 +37,7 @@ private UMS backend checkout.
 | Run audit ratchets | `uv run pytest tests/audit_2026 -q --tb=short` -> `200 passed`, including the new workflow helper ratchets and YAML parse coverage | Done |
 | Verify current PR check state | `gh pr view 1 --repo nyimbi/flowforge --json headRefOid,mergeStateStatus,statusCheckRollup` is the live verification source; latest interactive run in this session returned merge state `CLEAN`, all non-nightly checks successful, and nightly SLA stress intentionally skipped on pull requests | Done |
 | Run live Postgres release checks | `FLOWFORGE_TEST_PG_URL=postgresql://127.0.0.1:5432/postgres make audit-2026-live-postgres` -> `4 passed`, including stale snapshot rejection, SKIP LOCKED outbox drain, interleaved-tenant audit verification, and tenant/ordinal index-plan coverage | Done |
-| Wire external release CI | `.github/workflows/audit-2026-release-external.yml` provides both a PR-triggered workflow for release-gate-relevant changes against `nyimbi/ums@main` and a manual workflow with UMS checkout input, Postgres service, flowforge all-extras sync, Playwright Chromium install, LLM secret wiring, and `make audit-2026-release-external`; `tests/audit_2026/test_E_73_external_release_gate.py` ratchets it | Done |
+| Wire external release CI | `.github/workflows/audit-2026-release-external.yml` provides a manual, release-only workflow with caller-supplied UMS checkout input, Postgres service, flowforge all-extras sync, Playwright Chromium install, LLM secret wiring, and `make audit-2026-release-external`; `tests/audit_2026/test_E_73_external_release_gate.py` ratchets that it is not a pull-request dependency | Done |
 | Keep GitHub CI runnable from a source checkout | Workflow setup now uses tracked `pyproject.toml` cache dependency inputs instead of ignored `uv.lock`, pnpm 11 jobs run on Node 22, pyright is installed through `uv run --with pyright`, and JTBD lint passes repo-relative bundle paths to the CLI in advisory mode unless `JTBD_LINT_STRICT=true`; the external-release ratchet covers these requirements | Done |
 | Reject release skip escape hatches | `VISREG_ALLOW_SKIP=1 make audit-2026-release-external` exits nonzero with `VISREG_ALLOW_SKIP=1 is forbidden for release qualification`; `BROWSER_E2E_ALLOW_SKIP=1 make audit-2026-release-external` exits nonzero with `BROWSER_E2E_ALLOW_SKIP=1 is forbidden for release qualification` | Done |
 | Summarize external release blockers | `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache BACKEND_ROOT=/Users/nyimbiodero/src/pjs/ums/backend FLOWFORGE_TEST_PG_URL=postgresql:///flowforge_release_codex_20260519_0506 uv run python scripts/audit_2026/check_external_release_preflight.py` passes after the reviewed sidecar is present. The preflight success path says browser execution is verified by `make audit-2026-release-external`, so preflight alone is not treated as release qualification. | Done |
@@ -45,7 +45,7 @@ private UMS backend checkout.
 | Verify outbox worker PostgreSQL path | Live Postgres test exposed and then verified PostgreSQL `$N` marker fix in `flowforge_outbox_pg.worker` | Done |
 | Keep JS workspace private/source-first decision explicit | `js/README.md` and audit report state no JS package is npm-publishable in this release | Done |
 | Remove JS test/toolchain warning noise | JS setup deletes Node's localStorage getter in node tests; stale package-level `.npmrc` removed; `pnpm --dir js test` passed cleanly | Done |
-| Run external release bundle | Requires committed DOM baselines, browser e2e, reviewed polish-copy sidecar, UMS parity, and live Postgres evidence. A local run with `BACKEND_ROOT` and `FLOWFORGE_TEST_PG_URL` supplied reaches `audit-2026-visual-regression-dom` and fails only when this macOS sandbox blocks Chromium launch with `MachPortRendezvousServer ... Permission denied`. PR run `26082912970` proves the workflow now registers on pull requests and fails fast before UMS checkout with an explicit `UMS_BACKEND_TOKEN` prerequisite error. | Blocked |
+| Run external release bundle | Requires committed DOM baselines, browser e2e, reviewed polish-copy sidecar, UMS parity, and live Postgres evidence. A local run with `BACKEND_ROOT` and `FLOWFORGE_TEST_PG_URL` supplied reaches `audit-2026-visual-regression-dom` and fails only when this macOS sandbox blocks Chromium launch with `MachPortRendezvousServer ... Permission denied`. The workflow is manual/release-only so downstream UMS compatibility does not block ordinary Flowforge pull requests. | Blocked |
 
 ## Remaining blockers
 
@@ -54,8 +54,8 @@ private UMS backend checkout.
    artifact ties together DOM, browser e2e, sidecar, UMS parity, and live
    Postgres evidence.
 2. Repository secret `UMS_BACKEND_TOKEN` must be configured with read access to
-   the private UMS backend before the PR/manual external-release workflow can
-   produce that evidence.
+   the selected private UMS backend before the manual external-release workflow
+   can produce that evidence.
 
 The exact external execution sequence is documented in
 `docs/audit-2026/external-release-runbook.md`.
@@ -84,11 +84,11 @@ Latest direct blocker verification:
   reaches the DOM browser lane and fails only because local Chromium launch is
   blocked by `MachPortRendezvousServer ... Permission denied`.
 - The remediation branch has been pushed as `audit-2026-critical-readiness`.
-  PR run `26082912970` registered the new `audit-2026-release-external` check
-  and failed at `Require UMS backend checkout token` with `Set repository secret
-  UMS_BACKEND_TOKEN with read access to the UMS backend before running
-  audit-2026-release-external.`, confirming the missing `UMS_BACKEND_TOKEN`
-  repository secret is now the release-CI blocker after workflow registration.
+  Earlier PR execution of `audit-2026-release-external` exposed that
+  downstream UMS access made an independent Flowforge pull request look blocked
+  on a private backend token. The workflow is now manual/release-only; missing
+  `UMS_BACKEND_TOKEN` remains a release-certification blocker, not a package
+  development blocker.
 - `.github/workflows/audit-2026-dom-baselines.yml` now also runs on pull
   requests with smoke cadence, so this branch can produce reviewable DOM
   baseline artifacts before the manual helper is registered on `main`.

@@ -22,6 +22,9 @@ BACKEND_ROOT ?= $(abspath ../backend)
 
 .PHONY: help
 help:
+	@echo "setup targets:"
+	@echo "  setup                     one-command local setup (uv + pnpm + CLI smoke checks)"
+	@echo ""
 	@echo "audit-2026 targets (see docs/audit-fix-plan.md §5.2):"
 	@echo "  audit-2026                full layered suite (everything below)"
 	@echo "  audit-2026-release-local  fail-closed local release gate; excludes documented visual/browser/LLM/UMS/Postgres-live checks"
@@ -47,6 +50,10 @@ help:
 	@echo "  audit-2026-property-coverage  every generator has a property test + seed uniqueness (W4a / ADR-003)"
 	@echo "  audit-2026-i18n-coverage  no untranslated strings in compliance: JTBDs (W4b / item 17)"
 	@echo "  audit-2026-signoff        signoff-checklist gate (P0/P1 rows)"
+
+.PHONY: setup
+setup:
+	bash scripts/setup.sh
 
 .PHONY: audit-2026
 audit-2026: \

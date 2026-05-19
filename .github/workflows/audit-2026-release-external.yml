@@ -1,26 +1,12 @@
 name: Audit 2026 external release
 
-# Release-qualification gate for evidence that cannot be proven by the
-# standalone local PR gate: committed DOM baselines, browser full-stack
-# Playwright, reviewed real-key polish-copy sidecar, UMS parity, and live
-# Postgres contention/drain checks.
+# Manual release-qualification gate for evidence that cannot be proven by the
+# standalone local/PR gates: committed DOM baselines, browser full-stack
+# Playwright, reviewed real-key polish-copy sidecar, downstream UMS parity, and
+# live Postgres contention/drain checks. UMS is release-certification evidence,
+# not a package dependency for ordinary Flowforge PR qualification.
 
 on:
-  pull_request:
-    paths:
-      - ".github/workflows/audit-2026-release-external.yml"
-      - ".github/workflows/audit-2026-dom-baselines.yml"
-      - ".github/workflows/audit-2026-browser-e2e.yml"
-      - "Makefile"
-      - "scripts/audit_2026/**"
-      - "scripts/visual_regression/**"
-      - "scripts/run_browser_full_stack.sh"
-      - "tests/audit_2026/**"
-      - "tests/visual_regression/**"
-      - "examples/insurance_claim/**"
-      - "python/**"
-      - "js/**"
-      - "pyproject.toml"
   workflow_dispatch:
     inputs:
       backend_repository:
@@ -80,8 +66,8 @@ jobs:
       - name: Checkout UMS backend
         uses: actions/checkout@v4
         with:
-          repository: ${{ github.event_name == 'workflow_dispatch' && inputs.backend_repository || 'nyimbi/ums' }}
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.backend_ref || 'main' }}
+          repository: ${{ inputs.backend_repository }}
+          ref: ${{ inputs.backend_ref }}
           path: backend
           persist-credentials: false
           token: ${{ secrets.UMS_BACKEND_TOKEN }}
