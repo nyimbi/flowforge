@@ -12,6 +12,7 @@ on:
       backend_repository:
         description: "GitHub repository containing the UMS backend checkout (owner/repo)"
         required: true
+        default: "nyimbi/ums"
         type: string
       backend_ref:
         description: "Git ref for the UMS backend checkout"
@@ -54,16 +55,20 @@ jobs:
           path: flowforge
           persist-credentials: false
 
-      - name: Require UMS backend checkout token
+      - name: Detect UMS backend checkout token
+        id: ums-backend-token
         env:
           UMS_BACKEND_TOKEN: ${{ secrets.UMS_BACKEND_TOKEN }}
         run: |
-          if [ -z "${UMS_BACKEND_TOKEN:-}" ]; then
-            echo "::error::Set repository secret UMS_BACKEND_TOKEN with read access to the UMS backend before running audit-2026-release-external."
-            exit 1
+          if [ -n "${UMS_BACKEND_TOKEN:-}" ]; then
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::UMS_BACKEND_TOKEN is not set; attempting public UMS backend checkout without a token."
           fi
 
-      - name: Checkout UMS backend
+      - name: Checkout UMS backend with token
+        if: steps.ums-backend-token.outputs.has_token == 'true'
         uses: actions/checkout@v4
         with:
           repository: ${{ inputs.backend_repository }}
@@ -71,6 +76,15 @@ jobs:
           path: backend
           persist-credentials: false
           token: ${{ secrets.UMS_BACKEND_TOKEN }}
+
+      - name: Checkout UMS backend without token
+        if: steps.ums-backend-token.outputs.has_token == 'false'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.backend_repository }}
+          ref: ${{ inputs.backend_ref }}
+          path: backend
+          persist-credentials: false
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v4

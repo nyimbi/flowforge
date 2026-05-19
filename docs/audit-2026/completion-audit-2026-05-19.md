@@ -12,8 +12,8 @@ Not complete. Local, UMS, live-Postgres, DOM, browser full-stack, and reviewed
 copy-polish sidecar evidence is now strong, including browser-capable GitHub
 Actions runs for the browser lanes. The remaining blocker is the final
 external-release bundle run with retained evidence in an environment where
-Chromium can launch and where repository secret `UMS_BACKEND_TOKEN` can read the
-private UMS backend checkout.
+Chromium can launch and where the selected UMS backend checkout is accessible
+(public repository checkout, or `UMS_BACKEND_TOKEN` for a private backend).
 
 ## Prompt-to-artifact checklist
 
@@ -37,7 +37,7 @@ private UMS backend checkout.
 | Run audit ratchets | `uv run pytest tests/audit_2026 -q --tb=short` -> `200 passed`, including the new workflow helper ratchets and YAML parse coverage | Done |
 | Verify current PR check state | `gh pr checks 1 --repo nyimbi/flowforge` on commit `04e5acd` returned all PR checks passing: JTBD lint, security ratchets, signoff, audit-2026 unit/conformance/property/e2e/edge/cross-runtime, browser full-stack, flowforge end-to-end gate, and DOM baseline generation. Nightly SLA stress is intentionally skipped on pull requests. | Done |
 | Run live Postgres release checks | `FLOWFORGE_TEST_PG_URL=postgresql://127.0.0.1:5432/postgres make audit-2026-live-postgres` -> `4 passed`, including stale snapshot rejection, SKIP LOCKED outbox drain, interleaved-tenant audit verification, and tenant/ordinal index-plan coverage | Done |
-| Wire external release CI | `.github/workflows/audit-2026-release-external.yml` provides a manual, release-only workflow with caller-supplied UMS checkout input, Postgres service, flowforge all-extras sync, Playwright Chromium install, LLM secret wiring, and `make audit-2026-release-external`; `tests/audit_2026/test_E_73_external_release_gate.py` ratchets that it is not a pull-request dependency | Done |
+| Wire external release CI | `.github/workflows/audit-2026-release-external.yml` provides a manual, release-only workflow with caller-supplied UMS checkout input, optional UMS checkout token for private backends, Postgres service, flowforge all-extras sync, Playwright Chromium install, LLM secret wiring, and `make audit-2026-release-external`; `tests/audit_2026/test_E_73_external_release_gate.py` ratchets that it is not a pull-request dependency | Done |
 | Keep GitHub CI runnable from a source checkout | Workflow setup now uses tracked `pyproject.toml` cache dependency inputs instead of ignored `uv.lock`, pnpm 11 jobs run on Node 22, pyright is installed through `uv run --with pyright`, and JTBD lint passes repo-relative bundle paths to the CLI in advisory mode unless `JTBD_LINT_STRICT=true`; the external-release ratchet covers these requirements | Done |
 | Reject release skip escape hatches | `VISREG_ALLOW_SKIP=1 make audit-2026-release-external` exits nonzero with `VISREG_ALLOW_SKIP=1 is forbidden for release qualification`; `BROWSER_E2E_ALLOW_SKIP=1 make audit-2026-release-external` exits nonzero with `BROWSER_E2E_ALLOW_SKIP=1 is forbidden for release qualification` | Done |
 | Summarize external release blockers | `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache BACKEND_ROOT=/private/tmp/flowforge-ums-release-backend/backend FLOWFORGE_TEST_PG_URL=postgresql:///flowforge_release_codex_20260519_0506 uv run python scripts/audit_2026/check_external_release_preflight.py` passes after the reviewed sidecar is present. The preflight success path says browser execution is verified by `make audit-2026-release-external`, so preflight alone is not treated as release qualification. | Done |
@@ -53,9 +53,8 @@ private UMS backend checkout.
    must run in a browser-capable release environment so the retained release
    artifact ties together DOM, browser e2e, sidecar, UMS parity, and live
    Postgres evidence.
-2. Repository secret `UMS_BACKEND_TOKEN` must be configured with read access to
-   the selected private UMS backend before the manual external-release workflow
-   can produce that evidence.
+2. If the selected UMS backend repository is private, repository secret
+   `UMS_BACKEND_TOKEN` must be configured with read access to that backend.
 
 The exact external execution sequence is documented in
 `docs/audit-2026/external-release-runbook.md`.
@@ -88,12 +87,9 @@ Latest direct blocker verification:
 - The remediation branch has been pushed as `audit-2026-critical-readiness`.
   Earlier PR execution of `audit-2026-release-external` exposed that
   downstream UMS access made an independent Flowforge pull request look blocked
-  on a private backend token. The workflow is now manual/release-only; missing
-  `UMS_BACKEND_TOKEN` remains a release-certification blocker, not a package
-  development blocker.
-- `gh secret list --repo nyimbi/flowforge` returns no configured repository
-  secrets visible to this token, so the manual external release workflow cannot
-  yet check out private UMS in GitHub Actions.
+  on a private backend token. The workflow is now manual/release-only and can
+  check out public UMS backends without a token; `UMS_BACKEND_TOKEN` is only
+  needed for private backend repositories.
 - `.github/workflows/audit-2026-dom-baselines.yml` now also runs on pull
   requests with smoke cadence, so this branch can produce reviewable DOM
   baseline artifacts before the manual helper is registered on `main`.

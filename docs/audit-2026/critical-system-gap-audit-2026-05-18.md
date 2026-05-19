@@ -6,7 +6,7 @@ Verdict: not ready to describe as exhaustively tested or completely correct. The
 
 ## Remediation Snapshot - 2026-05-18
 
-This report is the original exhaustive audit plus remediation progress from the same work session. The verdict remains conditional because the final external-release bundle still needs to run in a browser-capable release environment with `UMS_BACKEND_TOKEN` configured for the private UMS backend, but the DOM visual baseline, browser Playwright full-stack lanes, and reviewed `polish-copy` sidecar now have concrete evidence.
+This report is the original exhaustive audit plus remediation progress from the same work session. The verdict remains conditional because the final external-release bundle still needs to run in a browser-capable release environment with an accessible UMS backend checkout, but the DOM visual baseline, browser Playwright full-stack lanes, and reviewed `polish-copy` sidecar now have concrete evidence.
 
 The prompt-to-artifact completion checklist for the current state lives at
 `docs/audit-2026/completion-audit-2026-05-19.md`.
@@ -108,8 +108,8 @@ Latest verification evidence:
 - External release preflight:
   - Result: `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-external-preflight` fails closed and reports all currently missing persistent prerequisites together. With a fresh UMS clone at `/private/tmp/flowforge-ums-release-backend/backend`, `FLOWFORGE_TEST_PG_URL`, and the reviewed sidecar supplied, preflight passes. The success path explicitly states browser execution is verified by `make audit-2026-release-external`, so preflight alone cannot be mistaken for release qualification.
 - External release CI wiring:
-  - Result: `.github/workflows/audit-2026-release-external.yml` now provides a manual, release-only workflow that checks out a caller-supplied UMS backend repo/ref. It starts a disposable Postgres service, pins pnpm 11.1.3 to match the repo's `allowBuilds` semantics, installs the flowforge workspace with all extras, installs Playwright Chromium, wires `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, requires `UMS_BACKEND_TOKEN` before backend checkout, and runs `make audit-2026-release-external` without local skip flags. Downstream UMS parity remains release-certification evidence, not a pull-request dependency for the independent Flowforge package.
-  - Result: Earlier PR execution of `audit-2026-release-external` exposed the missing `UMS_BACKEND_TOKEN` prerequisite and the misleading coupling to a private downstream backend. The workflow is now manual/release-only; the remaining CI blocker is a release-certification run with backend access, not ordinary workflow registration.
+  - Result: `.github/workflows/audit-2026-release-external.yml` now provides a manual, release-only workflow that checks out a caller-supplied UMS backend repo/ref. It starts a disposable Postgres service, pins pnpm 11.1.3 to match the repo's `allowBuilds` semantics, installs the flowforge workspace with all extras, installs Playwright Chromium, wires `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, uses `UMS_BACKEND_TOKEN` only when it is present for private backend checkouts, and runs `make audit-2026-release-external` without local skip flags. Downstream UMS parity remains release-certification evidence, not a pull-request dependency for the independent Flowforge package.
+  - Result: Earlier PR execution of `audit-2026-release-external` exposed the missing `UMS_BACKEND_TOKEN` prerequisite and the misleading coupling to a private downstream backend. The workflow is now manual/release-only and supports tokenless public backend checkout; the remaining CI blocker is a release-certification run with backend access, not ordinary workflow registration.
 - External release evidence retention:
   - Result: `docs/audit-2026/external-release-evidence-template.md` now records the fields required to retain DOM baseline review, release skip-flag absence, preflight caveat acknowledgement, `anthropic` import preflight, `uv run flowforge polish-copy --require-llm --commit` output review, reviewed sidecar review, manual workflow run URL, artifact URL, UMS parity, browser e2e, and live Postgres evidence. The manual external workflow uploads an `audit-2026-release-external-evidence` artifact with DOM baselines, Playwright reports/results, the reviewed sidecar, and evidence docs when present.
 - Real-key sidecar authoring helper:
@@ -117,7 +117,7 @@ Latest verification evidence:
 
 Remaining release blockers:
 
-- The final `make audit-2026-release-external` / external-release workflow must run in a browser-capable release environment with `UMS_BACKEND_TOKEN` configured so one retained release artifact ties together DOM, browser e2e, sidecar, UMS parity, and live Postgres evidence.
+- The final `make audit-2026-release-external` / external-release workflow must run in a browser-capable release environment with an accessible UMS backend checkout so one retained release artifact ties together DOM, browser e2e, sidecar, UMS parity, and live Postgres evidence.
 - The exact external execution sequence is documented in `docs/audit-2026/external-release-runbook.md`.
 
 Release CI execution still required:
@@ -1331,7 +1331,7 @@ Do not claim "critical-system ready" until all of these are true:
 Current status: criteria 1-14 are materially satisfied for the repository and
 browser-capable PR evidence described above. Criterion 15 remains blocked until
 the external release workflow is run in a browser-capable release environment
-with `UMS_BACKEND_TOKEN` configured and its retained evidence artifact is
+with an accessible UMS backend checkout and its retained evidence artifact is
 reviewed.
 
 ## Suggested Remediation Plan
@@ -1358,9 +1358,9 @@ reviewed.
   targets.
 - The external release bundle remains intentionally blocked in this local
   sandbox because Chromium cannot launch. GitHub pull-request checks are green
-  and no longer depend on UMS. The manual external release workflow remains
-  blocked until repository secret `UMS_BACKEND_TOKEN` can read the selected UMS
-  backend; the reviewed sidecar is now present.
+  and no longer depend on UMS. The manual external release workflow can check
+  out public UMS repositories without a token; `UMS_BACKEND_TOKEN` is only needed
+  for private selected backends. The reviewed sidecar is now present.
 
 ### Lane 4: Finish generated app production path
 

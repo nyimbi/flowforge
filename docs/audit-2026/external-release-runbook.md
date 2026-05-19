@@ -2,7 +2,7 @@
 
 This runbook covers the release evidence that cannot be completed by the
 standalone local gate. Run it in an environment where Chromium can launch and
-where the required external credentials are intentionally available.
+where any required external credentials are intentionally available.
 
 Do not set `VISREG_ALLOW_SKIP=1` or `BROWSER_E2E_ALLOW_SKIP=1` for any command
 in this runbook.
@@ -155,23 +155,25 @@ manual, release-only workflow because UMS is downstream compatibility evidence,
 not a Flowforge package dependency. Ordinary Flowforge pull requests should be
 qualified by the standalone local/PR gates; release certification adds a
 caller-selected UMS backend checkout, a disposable Postgres service, and no
-visual-regression skip flags. The workflow requires repository secret
-`UMS_BACKEND_TOKEN` with read access to the selected UMS backend; it fails
-before checkout when that secret is not configured.
+visual-regression skip flags. Public UMS backend repositories do not require a
+checkout token. Private backend repositories require repository secret
+`UMS_BACKEND_TOKEN` with read access to the selected backend.
 
 For a specific release-candidate backend ref, launch the manual path with:
 
 - `backend_repository`: the UMS backend repository in `owner/repo` form.
 - `backend_ref`: the UMS backend git ref to qualify against.
-- Repository secrets: `UMS_BACKEND_TOKEN` with read access to the UMS backend.
+- Optional repository secret: `UMS_BACKEND_TOKEN` with read access to the UMS
+  backend. This is only needed when the selected backend repository is private.
   `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY` are only needed if the release workflow
   is also being used to author a fresh sidecar; once a reviewed sidecar is
   committed, the external release target verifies it without calling an LLM
   provider.
 
-Use a purpose-specific UMS read token for `UMS_BACKEND_TOKEN`; do not reuse a
-broad local `gh auth token` unless that risk is explicitly accepted. From a
-shell where the token is already present in the environment:
+If the selected backend repository is private, use a purpose-specific UMS read
+token for `UMS_BACKEND_TOKEN`; do not reuse a broad local `gh auth token`
+unless that risk is explicitly accepted. From a shell where the token is already
+present in the environment:
 
 ```bash
 test -n "${FLOWFORGE_UMS_READ_TOKEN:-}"
@@ -184,12 +186,13 @@ Then launch the manual release workflow:
 
 ```bash
 gh workflow run audit-2026-release-external.yml \
-  -f backend_repository=<owner>/<ums-backend-repo> \
-  -f backend_ref=<release-candidate-ref>
+  -f backend_repository=nyimbi/ums \
+  -f backend_ref=main
 ```
 
-If a manual release run already failed because the secret was missing, rerun
-only the failed jobs after the secret is configured:
+If a private-backend manual release run failed because the secret was missing or
+could not read the selected repository, rerun only the failed jobs after the
+secret is configured:
 
 ```bash
 gh run rerun <failed-run-id> --repo nyimbi/flowforge --failed

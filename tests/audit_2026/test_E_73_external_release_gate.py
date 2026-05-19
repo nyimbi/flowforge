@@ -42,13 +42,18 @@ def test_external_release_gate_is_wired_as_manual_release_workflow() -> None:
 	assert "permissions:" in workflow
 	assert "contents: read" in workflow
 	assert "backend_repository:" in workflow
+	assert 'default: "nyimbi/ums"' in workflow
 	assert "backend_ref:" in workflow
-	assert "Require UMS backend checkout token" in workflow
+	assert "Detect UMS backend checkout token" in workflow
 	assert "UMS_BACKEND_TOKEN: ${{ secrets.UMS_BACKEND_TOKEN }}" in workflow
-	assert "Set repository secret UMS_BACKEND_TOKEN with read access to the UMS backend" in workflow
+	assert "attempting public UMS backend checkout without a token" in workflow
+	assert "Checkout UMS backend with token" in workflow
+	assert "Checkout UMS backend without token" in workflow
+	assert "steps.ums-backend-token.outputs.has_token == 'true'" in workflow
+	assert "steps.ums-backend-token.outputs.has_token == 'false'" in workflow
 	assert "repository: ${{ inputs.backend_repository }}" in workflow
 	assert "ref: ${{ inputs.backend_ref }}" in workflow
-	assert workflow.count("persist-credentials: false") >= 2
+	assert workflow.count("persist-credentials: false") >= 3
 	assert "token: ${{ secrets.UMS_BACKEND_TOKEN }}" in workflow
 	assert "postgres:16" in workflow
 	assert "pnpm exec playwright install --with-deps chromium" in workflow
