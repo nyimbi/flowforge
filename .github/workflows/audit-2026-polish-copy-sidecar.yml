@@ -65,10 +65,11 @@ jobs:
         run: make audit-2026-polish-copy-sidecar
 
       - name: Show sidecar diff for review
+        if: ${{ hashFiles('examples/insurance_claim/jtbd-bundle.json.overrides.json') != '' }}
         run: git diff -- examples/insurance_claim/jtbd-bundle.json.overrides.json
 
       - name: Upload sidecar candidate
-        if: always()
+        if: ${{ hashFiles('examples/insurance_claim/jtbd-bundle.json.overrides.json') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: audit-2026-polish-copy-sidecar-candidate
