@@ -150,6 +150,11 @@
               "CCPA"
             ]
           }
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Human and AI-assisted authoring notes for this project.",
+          "additionalProperties": true
         }
       }
     },
@@ -326,6 +331,11 @@
               "CCPA"
             ]
           }
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Human and AI-assisted authoring notes for this JTBD.",
+          "additionalProperties": true
         }
       }
     },

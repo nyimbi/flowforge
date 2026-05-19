@@ -9,10 +9,16 @@ from typing import Any, cast
 
 from .document import (
 	JtbdDocument,
+	build_ai_authoring_prompt,
+	build_template_from_jtbd,
 	create_default_bundle,
 	create_default_jtbd,
+	create_template_library,
+	load_template_library,
 	normalise_id,
 	requires_pii,
+	save_template_library,
+	verify_generation,
 )
 from ..jtbd import generate
 from ..jtbd.parse import JTBDParseError
@@ -157,6 +163,7 @@ class JtbdEditorWindow(QMainWindow):  # type: ignore[misc]
 		self.document = document
 		self.current_index = 0
 		self._loading = False
+		self.template_library = create_template_library()
 		self.theme = _load_theme(theme)
 		self.setWindowTitle("Flowforge JTBD Editor")
 		self.resize(1360, 860)
@@ -260,6 +267,11 @@ class JtbdEditorWindow(QMainWindow):  # type: ignore[misc]
 		validate.setShortcut("Ctrl+R")
 		tools_menu.addAction(validate)
 		toolbar.addAction(validate)
+
+		verify = QAction("Verify Generation", self)
+		verify.triggered.connect(self._verify_generation)
+		tools_menu.addAction(verify)
+		toolbar.addAction(verify)
 
 		generate_action = QAction("Generate App", self)
 		generate_action.triggered.connect(self._generate_app)
@@ -427,7 +439,78 @@ class JtbdEditorWindow(QMainWindow):  # type: ignore[misc]
 		self.tabs.addTab(_table_panel(self.notifications_table, self._mark_dirty_from_widgets), "Notifications")
 		self.tabs.addTab(_table_panel(self.metrics_table, self._mark_dirty_from_widgets), "Metrics")
 		self.tabs.addTab(_table_panel(self.requires_table, self._mark_dirty_from_widgets), "Dependencies")
+		self._build_visual_tab()
+		self._build_annotations_tab()
+		self._build_ai_tab()
+		self._build_templates_tab()
 		self.editor_layout.addWidget(self.tabs)
+
+	def _build_visual_tab(self) -> None:
+		self.visual_map = QPlainTextEdit()
+		self.visual_map.setReadOnly(True)
+		self.visual_map.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+		self.tabs.addTab(self.visual_map, "Visual Map")
+
+	def _build_annotations_tab(self) -> None:
+		host = QWidget()
+		layout = QFormLayout(host)
+		self.project_notes = QPlainTextEdit()
+		self.project_tags = QLineEdit()
+		self.job_notes = QPlainTextEdit()
+		self.job_tags = QLineEdit()
+		for edit in [self.project_notes, self.job_notes]:
+			edit.setMinimumHeight(80)
+		for widget in [self.project_notes, self.project_tags, self.job_notes, self.job_tags]:
+			_connect_change(widget, self._mark_dirty_from_widgets)
+		layout.addRow("Project notes", self.project_notes)
+		layout.addRow("Project tags", self.project_tags)
+		layout.addRow("JTBD notes", self.job_notes)
+		layout.addRow("JTBD tags", self.job_tags)
+		self.tabs.addTab(host, "Annotations")
+
+	def _build_ai_tab(self) -> None:
+		host = QWidget()
+		layout = QVBoxLayout(host)
+		self.ai_prompt = QPlainTextEdit()
+		self.ai_prompt.setPlaceholderText("Describe the job to be done, constraints, actor, data to collect, and success criteria.")
+		self.ai_prompt.setMinimumHeight(110)
+		self.ai_output = QPlainTextEdit()
+		self.ai_output.setReadOnly(True)
+		buttons = QHBoxLayout()
+		draft = QPushButton("Draft JTBD")
+		draft.clicked.connect(self._draft_jtbd_with_ai)
+		copy_prompt = QPushButton("Copy Review Prompt")
+		copy_prompt.clicked.connect(self._copy_ai_review_prompt)
+		polish_hint = QPushButton("Prepare Copy Polish")
+		polish_hint.clicked.connect(self._prepare_copy_polish)
+		buttons.addWidget(draft)
+		buttons.addWidget(copy_prompt)
+		buttons.addWidget(polish_hint)
+		buttons.addStretch(1)
+		layout.addWidget(self.ai_prompt)
+		layout.addLayout(buttons)
+		layout.addWidget(self.ai_output, 1)
+		self.tabs.addTab(host, "AI Assist")
+
+	def _build_templates_tab(self) -> None:
+		host = QWidget()
+		layout = QVBoxLayout(host)
+		self.template_list = QListWidget()
+		buttons = QHBoxLayout()
+		add = QPushButton("Add From Template")
+		add.clicked.connect(self._add_from_template)
+		capture = QPushButton("Save JTBD As Template")
+		capture.clicked.connect(self._capture_template)
+		load = QPushButton("Load Templates")
+		load.clicked.connect(self._load_templates)
+		save = QPushButton("Save Templates")
+		save.clicked.connect(self._save_templates)
+		for button in [add, capture, load, save]:
+			buttons.addWidget(button)
+		buttons.addStretch(1)
+		layout.addWidget(self.template_list)
+		layout.addLayout(buttons)
+		self.tabs.addTab(host, "Templates")
 
 	def _apply_theme(self) -> None:
 		app = QApplication.instance()
@@ -461,6 +544,9 @@ class JtbdEditorWindow(QMainWindow):  # type: ignore[misc]
 		self.design_font.setText(str(design.get("font_family", "Inter, system-ui, sans-serif")))
 		self.design_density.setCurrentText(str(design.get("density", "comfortable")))
 		self.design_radius.setText(str(design.get("radius_scale", 1.0)))
+		project_annotations = project.get("annotations") or {}
+		self.project_notes.setPlainText(str(project_annotations.get("notes") or ""))
+		self.project_tags.setText(", ".join(project_annotations.get("tags", []) or []))
 		shared = self.document.bundle.get("shared", {})
 		self.shared_roles.setText(", ".join(shared.get("roles", []) or []))
 		self.shared_permissions.setText(", ".join(shared.get("permissions", []) or []))
@@ -475,6 +561,8 @@ class JtbdEditorWindow(QMainWindow):  # type: ignore[misc]
 		self.job_list.setCurrentRow(self.current_index)
 		self._load_job_form(self.current_index)
 		self._loading = False
+		self._refresh_template_list()
+		self._refresh_visual_map()
 		self._refresh_preview_and_validation()
 		self._refresh_title()
 
@@ -495,6 +583,9 @@ class JtbdEditorWindow(QMainWindow):  # type: ignore[misc]
 		self.sla_breach.setText(str(sla.get("breach_seconds") or ""))
 		self.job_compliance.setText(", ".join(jtbd.get("compliance", []) or []))
 		self.job_sensitivity.setText(", ".join(jtbd.get("data_sensitivity", []) or []))
+		job_annotations = jtbd.get("annotations") or {}
+		self.job_notes.setPlainText(str(job_annotations.get("notes") or ""))
+		self.job_tags.setText(", ".join(job_annotations.get("tags", []) or []))
 		self.situation.setPlainText(str(jtbd.get("situation", "")))
 		self.motivation.setPlainText(str(jtbd.get("motivation", "")))
 		self.outcome.setPlainText(str(jtbd.get("outcome", "")))
@@ -523,6 +614,10 @@ class JtbdEditorWindow(QMainWindow):  # type: ignore[misc]
 		project["currencies"] = _csv(self.project_currencies.text())
 		project["compliance"] = _csv_enum(self.project_compliance.text(), COMPLIANCE_REGIMES)
 		project["data_sensitivity"] = _csv_enum(self.project_sensitivity.text(), DATA_SENSITIVITY)
+		project["annotations"] = {
+			"notes": self.project_notes.toPlainText().strip(),
+			"tags": _csv(self.project_tags.text()),
+		}
 		project.setdefault("frontend", {})["form_renderer"] = self.project_renderer.currentText()
 		shared = self.document.bundle.setdefault("shared", {})
 		shared["roles"] = _csv(self.shared_roles.text())
@@ -560,6 +655,10 @@ class JtbdEditorWindow(QMainWindow):  # type: ignore[misc]
 		jtbd["sla"] = sla or None
 		jtbd["compliance"] = _csv_enum(self.job_compliance.text(), COMPLIANCE_REGIMES)
 		jtbd["data_sensitivity"] = _csv_enum(self.job_sensitivity.text(), DATA_SENSITIVITY)
+		annotations = dict(jtbd.get("annotations") or {})
+		annotations["notes"] = self.job_notes.toPlainText().strip()
+		annotations["tags"] = _csv(self.job_tags.text())
+		jtbd["annotations"] = annotations
 		jtbd["success_criteria"] = _string_rows(self.success_table)
 		jtbd["data_capture"] = _field_rows(self.fields_table)
 		jtbd["edge_cases"] = _edge_rows(self.edges_table)
@@ -577,6 +676,7 @@ class JtbdEditorWindow(QMainWindow):  # type: ignore[misc]
 		self._commit_forms()
 		self._refresh_preview_and_validation()
 		self._refresh_job_list_labels()
+		self._refresh_visual_map()
 		self._refresh_title()
 
 	def _refresh_preview_and_validation(self) -> None:
@@ -617,6 +717,7 @@ class JtbdEditorWindow(QMainWindow):  # type: ignore[misc]
 		self._loading = True
 		self._load_job_form(row)
 		self._loading = False
+		self._refresh_visual_map()
 		self._refresh_preview_and_validation()
 
 	def _new_bundle(self) -> None:
@@ -688,6 +789,15 @@ class JtbdEditorWindow(QMainWindow):  # type: ignore[misc]
 		else:
 			QMessageBox.warning(self, "Validation", "Bundle has errors. See the validation panel.")
 
+	def _verify_generation(self) -> None:
+		self._commit_forms()
+		result = verify_generation(self.document.bundle)
+		self._append_validation_result("Generation verification", result)
+		if result.ok:
+			QMessageBox.information(self, "Verify Generation", "\n".join(result.infos) or "Generation verified.")
+		else:
+			QMessageBox.warning(self, "Verify Generation", "Generation verification failed. See the validation panel.")
+
 	def _generate_app(self) -> None:
 		self._commit_forms()
 		result = self.document.validate()
@@ -726,6 +836,92 @@ class JtbdEditorWindow(QMainWindow):  # type: ignore[misc]
 		self.current_index = self.document.add_jtbd(title.strip())
 		self._refresh_all()
 
+	def _draft_jtbd_with_ai(self) -> None:
+		prompt = self.ai_prompt.toPlainText().strip()
+		if not prompt:
+			QMessageBox.warning(self, "AI Assist", "Enter a JTBD prompt first.")
+			return
+		self._commit_forms()
+		try:
+			self.current_index = self.document.add_jtbd_from_prompt(prompt)
+		except ValueError as exc:
+			QMessageBox.warning(self, "AI Assist", str(exc))
+			return
+		self.ai_output.setPlainText(
+			json.dumps(self.document.get_jtbd(self.current_index), indent=2, sort_keys=True)
+		)
+		self._refresh_all()
+
+	def _copy_ai_review_prompt(self) -> None:
+		self._commit_forms()
+		prompt = build_ai_authoring_prompt(
+			self.document.bundle,
+			self.document.get_jtbd(self.current_index),
+		)
+		QApplication.clipboard().setText(prompt)
+		self.ai_output.setPlainText(prompt)
+		self.statusBar().showMessage("AI review prompt copied", 3000)
+
+	def _prepare_copy_polish(self) -> None:
+		if self.document.path is None:
+			self.ai_output.setPlainText("Save the bundle first, then run: flowforge polish-copy --bundle <saved-bundle> --dry-run")
+			return
+		self.ai_output.setPlainText(
+			f"flowforge polish-copy --bundle {self.document.path} --dry-run\n"
+			f"flowforge polish-copy --bundle {self.document.path} --commit"
+		)
+
+	def _add_from_template(self) -> None:
+		row = self.template_list.currentRow()
+		templates = self.template_library.get("templates", [])
+		if row < 0 or row >= len(templates):
+			QMessageBox.warning(self, "Templates", "Select a template first.")
+			return
+		self._commit_forms()
+		self.current_index = self.document.add_jtbd_from_template(templates[row])
+		self._refresh_all()
+
+	def _capture_template(self) -> None:
+		self._commit_forms()
+		entry = build_template_from_jtbd(self.document.get_jtbd(self.current_index))
+		existing = {str(t.get("id")) for t in self.template_library.get("templates", [])}
+		entry["id"] = _unique_template_id(str(entry["id"]), existing)
+		self.template_library.setdefault("templates", []).append(entry)
+		self._refresh_template_list()
+		self.statusBar().showMessage("Template captured", 3000)
+
+	def _load_templates(self) -> None:
+		file_name, _ = QFileDialog.getOpenFileName(
+			self,
+			"Load JTBD templates",
+			"",
+			"JTBD template library (*.json);;All files (*)",
+		)
+		if not file_name:
+			return
+		try:
+			self.template_library = load_template_library(Path(file_name))
+		except Exception as exc:
+			QMessageBox.critical(self, "Load templates failed", str(exc))
+			return
+		self._refresh_template_list()
+
+	def _save_templates(self) -> None:
+		file_name, _ = QFileDialog.getSaveFileName(
+			self,
+			"Save JTBD templates",
+			"jtbd-templates.json",
+			"JTBD template library (*.json)",
+		)
+		if not file_name:
+			return
+		try:
+			save_template_library(Path(file_name), self.template_library)
+		except Exception as exc:
+			QMessageBox.critical(self, "Save templates failed", str(exc))
+			return
+		self.statusBar().showMessage("Templates saved", 3000)
+
 	def _duplicate_job(self) -> None:
 		self._commit_forms()
 		self.current_index = self.document.duplicate_jtbd(self.current_index)
@@ -762,6 +958,41 @@ class JtbdEditorWindow(QMainWindow):  # type: ignore[misc]
 			event.accept()
 		else:
 			event.ignore()
+
+	def _append_validation_result(self, heading: str, result: Any) -> None:
+		lines = [heading]
+		for err in result.errors:
+			lines.append(f"ERROR: {err}")
+		for warn in result.warnings:
+			lines.append(f"WARN: {warn}")
+		for info in result.infos:
+			lines.append(f"INFO: {info}")
+		self.validation_box.setPlainText("\n".join(lines))
+
+	def _refresh_template_list(self) -> None:
+		self.template_list.clear()
+		for template in self.template_library.get("templates", []):
+			self.template_list.addItem(
+				f"{template.get('name') or template.get('id')} - {template.get('description') or ''}".strip()
+			)
+
+	def _refresh_visual_map(self) -> None:
+		lines = ["JTBD composition"]
+		ids = set(self.document.jtbd_ids())
+		for jtbd in self.document.bundle.get("jtbds", []):
+			jtbd_id = str(jtbd.get("id", ""))
+			title = str(jtbd.get("title") or jtbd_id)
+			lines.append(f"* {jtbd_id}: {title}")
+			for required in jtbd.get("requires", []) or []:
+				status = "ok" if required in ids else "missing"
+				lines.append(f"  <- requires {required} [{status}]")
+			annotations = jtbd.get("annotations") or {}
+			tags = annotations.get("tags") or []
+			if tags:
+				lines.append(f"  tags: {', '.join(tags)}")
+			if annotations.get("notes"):
+				lines.append(f"  note: {annotations['notes']}")
+		self.visual_map.setPlainText("\n".join(lines))
 
 
 def run_desktop_editor(bundle: Path | None = None, theme: Path | None = None) -> int:
@@ -1105,6 +1336,15 @@ def _csv(value: str) -> list[str]:
 def _csv_enum(value: str, allowed: list[str]) -> list[str]:
 	canonical = {item.lower(): item for item in allowed}
 	return [canonical.get(item.lower(), item) for item in _csv(value)]
+
+
+def _unique_template_id(base: str, existing: set[str]) -> str:
+	candidate = normalise_id(base, fallback="template")
+	i = 2
+	while candidate in existing:
+		candidate = f"{normalise_id(base, fallback='template')}_{i}"
+		i += 1
+	return candidate
 
 
 def _bool(value: str, default: bool = False) -> bool:

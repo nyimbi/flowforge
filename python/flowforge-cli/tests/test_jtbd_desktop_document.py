@@ -9,9 +9,17 @@ from typer.testing import CliRunner
 
 from flowforge_cli.jtbd_desktop.document import (
 	JtbdDocument,
+	build_ai_authoring_prompt,
+	build_template_from_jtbd,
 	create_default_bundle,
+	create_jtbd_from_prompt,
+	create_jtbd_from_template,
+	create_template_library,
+	load_template_library,
 	normalise_id,
 	requires_pii,
+	save_template_library,
+	verify_generation,
 )
 from flowforge_cli.jtbd import generate
 from flowforge_cli.jtbd.parse import parse_bundle
@@ -35,6 +43,7 @@ def test_default_bundle_is_generation_ready() -> None:
 	assert doc.bundle["project"]["design"]["primary"] == "#2563eb"
 	assert doc.bundle["jtbds"][0]["data_capture"][0]["pii"] is True
 	assert "department" not in doc.bundle["jtbds"][0]["actor"]
+	assert doc.bundle["project"]["annotations"]["tags"] == ["draft"]
 
 
 def test_desktop_bundle_parser_accepts_authoring_metadata() -> None:
@@ -51,6 +60,15 @@ def test_desktop_bundle_parser_accepts_authoring_metadata() -> None:
 	assert parse_bundle(bundle) is bundle
 
 
+def test_annotations_are_schema_and_generator_compatible() -> None:
+	bundle = create_default_bundle()
+	bundle["project"]["annotations"]["notes"] = "Reviewed with operations."
+	bundle["jtbds"][0]["annotations"]["owner"] = "ops"
+
+	assert parse_bundle(bundle) is bundle
+	assert generate(bundle)
+
+
 def test_add_duplicate_and_remove_jobs_keeps_unique_ids() -> None:
 	doc = JtbdDocument(create_default_bundle())
 
@@ -61,6 +79,50 @@ def test_add_duplicate_and_remove_jobs_keeps_unique_ids() -> None:
 	assert doc.jtbd_ids() == ["review_case", "review_case_copy"]
 	assert doc.get_jtbd(third - 1)["status"] == "draft"
 	assert doc.dirty
+
+
+def test_add_from_template_and_prompt_manage_unique_jtbd_list() -> None:
+	doc = JtbdDocument(create_default_bundle())
+	library = create_template_library()
+
+	template_index = doc.add_jtbd_from_template(library["templates"][0])
+	prompt_index = doc.add_jtbd_from_prompt("Collect customer email and payment amount for approval")
+
+	assert doc.get_jtbd(template_index)["annotations"]["source_template"] == "approval_intake"
+	assert doc.get_jtbd(prompt_index)["annotations"]["ai_assist"]["review_required"] is True
+	assert len(set(doc.jtbd_ids())) == len(doc.jtbd_ids())
+	assert any(f["kind"] == "email" for f in doc.get_jtbd(prompt_index)["data_capture"])
+	assert any(f["kind"] == "money" for f in doc.get_jtbd(prompt_index)["data_capture"])
+
+
+def test_template_library_roundtrip(tmp_path: Path) -> None:
+	library = create_template_library()
+	path = tmp_path / "templates.json"
+
+	save_template_library(path, library)
+	loaded = load_template_library(path)
+
+	assert loaded == json.loads(path.read_text(encoding="utf-8"))
+	assert loaded["templates"][0]["id"] == "approval_intake"
+
+
+def test_template_export_and_ai_prompt() -> None:
+	bundle = create_default_bundle()
+	template = build_template_from_jtbd(bundle["jtbds"][0], description="Reusable intake")
+	jtbd = create_jtbd_from_template(template, {"intake_case"})
+	prompt = build_ai_authoring_prompt(bundle, bundle["jtbds"][0])
+
+	assert template["description"] == "Reusable intake"
+	assert jtbd["id"] == "intake_case_2"
+	assert "Selected JTBD JSON" in prompt
+
+
+def test_verify_generation_reports_emitted_files() -> None:
+	result = verify_generation(create_default_bundle())
+
+	assert result.ok
+	assert result.errors == []
+	assert any("generation emits" in info for info in result.infos)
 
 
 def test_remove_last_job_is_rejected() -> None:

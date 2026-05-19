@@ -358,6 +358,7 @@ class JtbdSpec(BaseModel):
 	requires: list[str] = Field(default_factory=list)
 	compliance: list[ComplianceRegime] = Field(default_factory=list)
 	data_sensitivity: list[DataSensitivity] = Field(default_factory=list)
+	annotations: dict[str, Any] = Field(default_factory=dict)
 
 	# --- audit (set by storage layer; spec authors don't fill these) ---
 	created_by: str | None = None
@@ -517,6 +518,7 @@ class JtbdProject(BaseModel):
 	design: JtbdDesign | None = None
 	compliance: list[ComplianceRegime] = Field(default_factory=list)
 	data_sensitivity: list[DataSensitivity] = Field(default_factory=list)
+	annotations: dict[str, Any] = Field(default_factory=dict)
 
 
 class JtbdShared(BaseModel):
