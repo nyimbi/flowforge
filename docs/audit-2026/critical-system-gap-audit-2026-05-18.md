@@ -27,7 +27,7 @@ Fixed or materially hardened:
 - The visual-regression harness now routes pages by example identity rather than shared admin path alone.
 - A DOM baseline-generation workflow now runs smoke cadence on pull requests and full cadence through manual dispatch, using Playwright Chromium in GitHub Actions and uploading reviewable candidate `.dom.html` baselines as an artifact; this is a helper for review, not release qualification.
 - A browser full-stack Playwright lane now exists for the generated insurance-claim workflow: it starts a generated FastAPI-router HTTP bridge, starts the generated frontend harness in API mode, fills the generated claim-intake form in Chromium, and verifies `submit`/`approve` requests plus `Idempotency-Key`, `X-Tenant-Id`, and `review -> done` responses.
-- A dedicated `Audit 2026 browser full-stack e2e` pull-request workflow now provisions Playwright Chromium and runs that generated browser flow in GitHub Actions; latest PR evidence includes passing run `26094321938`.
+- A dedicated `Audit 2026 browser full-stack e2e` pull-request workflow now provisions Playwright Chromium and runs that generated browser flow in GitHub Actions; latest PR evidence includes passing run `26095391083`.
 - fr-CA sidecar/i18n validation and W4b generator property coverage were added.
 - The first reviewed `polish-copy` sidecar now exists for the insurance-claim bundle. It was generated through the explicit `FLOWFORGE_POLISH_PROVIDER=claude-cli` backend, preserves canonical bundle determinism, and records `llm_provider=claude-cli`, `llm_model=sonnet`, and the full prompt checksum for audit.
 - JTBD hub publish/rating paths now require authenticated permissions, and rating user identity is bound to the principal.
@@ -53,9 +53,9 @@ Latest verification evidence:
   - Integration evidence: Stage 3 now runs the audit e2e pytest flows; integration summary from the latest direct run reports 66 Python tests, 295 JS assertions, 4 e2e tests, 365 total, 0 failed, with the browser lane explicitly marked `EXTERNAL`.
   - Caveats: this intentionally set `VISREG_ALLOW_SKIP=1` because Chromium cannot launch in this sandbox. Current release evidence for DOM/browser execution comes from GitHub Actions runs where Playwright Chromium can launch.
 - GitHub PR release-gate evidence:
-  - `flowforge end-to-end gate` run `26094321936` passed with committed DOM smoke baselines and Playwright Chromium installed in CI.
-  - `Audit 2026 DOM baseline generation` run `26094321932` passed in a browser-capable runner.
-  - `Audit 2026 browser full-stack e2e` run `26094321938` passed in a browser-capable runner.
+  - `flowforge end-to-end gate` run `26095391068` passed with committed DOM smoke baselines and Playwright Chromium installed in CI.
+  - `Audit 2026 DOM baseline generation` run `26095391144` passed in a browser-capable runner.
+  - `Audit 2026 browser full-stack e2e` run `26095391083` passed in a browser-capable runner.
 - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-local`
   - Result: fail-closed local release gate passed. Covered ratchets, conformance, audit unit tests, property tests, integration/e2e, Python+JS cross-runtime parity, edge cases, observability PromQL lint, W4b property coverage, i18n coverage, and signoff mapping.
   - Caveats: the target explicitly prints the external release checks that are outside standalone local qualification: browser DOM baselines, browser Playwright full-stack, reviewed polish-copy sidecar, UMS parity, and live Postgres contention/drain verification. UMS parity and live Postgres have since passed in this session with explicit environment wiring.
@@ -110,6 +110,7 @@ Latest verification evidence:
 - External release CI wiring:
   - Result: `.github/workflows/audit-2026-release-external.yml` now provides a manual, release-only workflow that checks out a caller-supplied UMS backend repo/ref. It starts a disposable Postgres service, pins pnpm 11.1.3 to match the repo's `allowBuilds` semantics, installs the flowforge workspace with all extras, installs Playwright Chromium, wires `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, uses `UMS_BACKEND_TOKEN` only when it is present for private backend checkouts, and runs `make audit-2026-release-external` without local skip flags. Downstream UMS parity remains release-certification evidence, not a pull-request dependency for the independent Flowforge package.
   - Result: Earlier PR execution of `audit-2026-release-external` exposed the missing `UMS_BACKEND_TOKEN` prerequisite and the misleading coupling to a private downstream backend. The workflow is now manual/release-only and supports tokenless public backend checkout; the remaining CI blocker is a release-certification run with backend access, not ordinary workflow registration.
+  - Result: Manual GitHub Actions run `26095402727` with `backend_repository=nyimbi/ums` and no `UMS_BACKEND_TOKEN` failed during backend checkout with `repository 'https://github.com/nyimbi/ums/' not found`, proving the selected UMS backend still requires a read token in the release environment.
 - External release evidence retention:
   - Result: `docs/audit-2026/external-release-evidence-template.md` now records the fields required to retain DOM baseline review, release skip-flag absence, preflight caveat acknowledgement, `anthropic` import preflight, `uv run flowforge polish-copy --require-llm --commit` output review, reviewed sidecar review, manual workflow run URL, artifact URL, UMS parity, browser e2e, and live Postgres evidence. The manual external workflow uploads an `audit-2026-release-external-evidence` artifact with DOM baselines, Playwright reports/results, the reviewed sidecar, and evidence docs when present.
 - Real-key sidecar authoring helper:
@@ -345,7 +346,7 @@ Required fix:
 
 ### CRITICAL-07: Visual regression gate exits green without baselines
 
-Status: remediated for the smoke release lane. The DOM snapshot wrapper now fails closed by default when node modules, Playwright, Vite, dev-server harness startup, or checked-in DOM baselines are missing. A local workstation may opt into `VISREG_ALLOW_SKIP=1`, but release gates must not set it. Reviewed smoke DOM baselines are now committed under `examples/insurance_claim/screenshots/**`, and `flowforge end-to-end gate` run `26094321936` passed with those baselines in GitHub Actions. Full-cadence baselines remain a release-authoring expansion path through the DOM baseline helper workflow.
+Status: remediated for the smoke release lane. The DOM snapshot wrapper now fails closed by default when node modules, Playwright, Vite, dev-server harness startup, or checked-in DOM baselines are missing. A local workstation may opt into `VISREG_ALLOW_SKIP=1`, but release gates must not set it. Reviewed smoke DOM baselines are now committed under `examples/insurance_claim/screenshots/**`, and `flowforge end-to-end gate` run `26095391068` passed with those baselines in GitHub Actions. Full-cadence baselines remain a release-authoring expansion path through the DOM baseline helper workflow.
 
 Files:
 
@@ -360,8 +361,8 @@ The DOM visual regression wrapper previously exited 0 when no DOM baselines were
 
 Current result:
 
-- `flowforge end-to-end gate` run `26094321936` passed the smoke DOM gate in CI.
-- `Audit 2026 DOM baseline generation` run `26094321932` passed in CI and continues to upload candidate baselines for review.
+- `flowforge end-to-end gate` run `26095391068` passed the smoke DOM gate in CI.
+- `Audit 2026 DOM baseline generation` run `26095391144` passed in CI and continues to upload candidate baselines for review.
 - Local browser-backed DOM execution still cannot launch Chromium in this macOS sandbox, so local developers must not use `VISREG_ALLOW_SKIP=1` as release evidence.
 
 Impact:
@@ -745,7 +746,7 @@ Required fix:
 
 ### HIGH-10: Browser Playwright full-stack lane was missing from integration
 
-Status: remediated for browser-capable PR evidence. Stage 3 now runs `tests/integration/e2e` and the summary splits Python, JS, and e2e counters correctly. Stage 4 now reports the browser lane as `EXTERNAL` by default and can run it with `RUN_BROWSER_E2E=1`. The dedicated `audit-2026-browser-e2e` target starts a generated FastAPI-router HTTP bridge, starts the generated frontend harness in API mode, and runs a real Playwright Chromium spec through the generated claim-intake submit/approve path. The `Audit 2026 browser full-stack e2e` workflow provisions Chromium and passed in GitHub Actions run `26094321938`; this sandbox still blocks local Chromium with `MachPortRendezvousServer ... Permission denied`.
+Status: remediated for browser-capable PR evidence. Stage 3 now runs `tests/integration/e2e` and the summary splits Python, JS, and e2e counters correctly. Stage 4 now reports the browser lane as `EXTERNAL` by default and can run it with `RUN_BROWSER_E2E=1`. The dedicated `audit-2026-browser-e2e` target starts a generated FastAPI-router HTTP bridge, starts the generated frontend harness in API mode, and runs a real Playwright Chromium spec through the generated claim-intake submit/approve path. The `Audit 2026 browser full-stack e2e` workflow provisions Chromium and passed in GitHub Actions run `26095391083`; this sandbox still blocks local Chromium with `MachPortRendezvousServer ... Permission denied`.
 
 Files:
 
@@ -1120,7 +1121,7 @@ demo state transitions behind the explicit
 regenerated and no longer contain `instanceId = "demo"` or unconditional local
 `setState("review")` / `setState("done")` stubs. A browser-backed
 full-stack spec now proves the intended client/backend contract in Chromium;
-GitHub Actions run `26094321938` passed.
+GitHub Actions run `26095391083` passed.
 
 Files:
 
@@ -1359,8 +1360,9 @@ reviewed.
 - The external release bundle remains intentionally blocked in this local
   sandbox because Chromium cannot launch. GitHub pull-request checks are green
   and no longer depend on UMS. The manual external release workflow can check
-  out public UMS repositories without a token; `UMS_BACKEND_TOKEN` is only needed
-  for private selected backends. The reviewed sidecar is now present.
+  out public UMS repositories without a token, but manual run `26095402727`
+  proved `nyimbi/ums` is private from GitHub Actions without
+  `UMS_BACKEND_TOKEN`. The reviewed sidecar is now present.
 
 ### Lane 4: Finish generated app production path
 

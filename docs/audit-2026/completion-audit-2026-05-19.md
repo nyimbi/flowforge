@@ -25,8 +25,8 @@ Chromium can launch and where the selected UMS backend checkout is accessible
 | Verify UMS parity against real backend | Fresh clone `git clone https://github.com/nyimbi/ums /private/tmp/flowforge-ums-release-backend`; `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache BACKEND_ROOT=/private/tmp/flowforge-ums-release-backend/backend make audit-2026-ums-parity` -> `134 passed` | Done |
 | Add visual-regression dev-server harness | `scripts/visual_regression/run_dom_snapshots.sh` starts `tests/visual_regression/harness/` when `VISREG_DEV_SERVER_URL` is unset | Done |
 | Make visual DOM gate fail closed | `bash scripts/visual_regression/run_dom_snapshots.sh smoke` fails when DOM baselines are missing unless `VISREG_ALLOW_SKIP=1` is explicitly set | Done |
-| Generate and commit DOM baselines | 21 reviewed smoke `.dom.html` baselines are committed under `examples/insurance_claim/screenshots/**`; latest PR evidence includes `flowforge end-to-end gate` run `26094321936` and `Audit 2026 DOM baseline generation` run `26094321932` passing in GitHub Actions with Playwright Chromium | Done |
-| Run browser full-stack e2e | `.github/workflows/audit-2026-browser-e2e.yml` now runs `make audit-2026-browser-e2e` with Playwright Chromium; latest PR evidence includes GitHub run `26094321938` passing. Local `make audit-2026-browser-e2e` still reaches the generated backend/frontend harness and then fails only because this macOS sandbox blocks Chromium launch with `MachPortRendezvousServer ... Permission denied` | Done in browser-capable CI |
+| Generate and commit DOM baselines | 21 reviewed smoke `.dom.html` baselines are committed under `examples/insurance_claim/screenshots/**`; latest PR evidence includes `flowforge end-to-end gate` run `26095391068` and `Audit 2026 DOM baseline generation` run `26095391144` passing in GitHub Actions with Playwright Chromium | Done |
+| Run browser full-stack e2e | `.github/workflows/audit-2026-browser-e2e.yml` now runs `make audit-2026-browser-e2e` with Playwright Chromium; latest PR evidence includes GitHub run `26095391083` passing. Local `make audit-2026-browser-e2e` still reaches the generated backend/frontend harness and then fails only because this macOS sandbox blocks Chromium launch with `MachPortRendezvousServer ... Permission denied` | Done in browser-capable CI |
 | Fill fr-CA translations | `uv run python scripts/i18n/check_coverage.py` via release-local -> `0 error(s), 0 warning(s)` | Done |
 | Run first real `polish-copy` sidecar | `FLOWFORGE_POLISH_PROVIDER=claude-cli FLOWFORGE_POLISH_CLAUDE_MODEL=sonnet FLOWFORGE_POLISH_CLAUDE_MAX_BUDGET_USD=0.50 UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run flowforge polish-copy --bundle examples/insurance_claim/jtbd-bundle.json --tone formal-professional --require-llm --commit` ran through the configured Claude CLI and wrote `examples/insurance_claim/jtbd-bundle.json.overrides.json` with `llm_provider=claude-cli`, `llm_model=sonnet`, and `prompt_sha256=e4656e96c6234648ab64fe11fd00cb2c45d1b29f83f43d3e90ef63c04b48b09a`; `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-polish-copy-sidecar` passed | Done |
 | Verify optional LLM extra is installable | `uv sync --all-packages --all-extras` installed `anthropic==0.100.0`; `uv run python -c "import anthropic; print('anthropic import ok')"` passed | Done |
@@ -35,7 +35,7 @@ Chromium can launch and where the selected UMS backend checkout is accessible
 | Run local full gate | `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache VISREG_ALLOW_SKIP=1 bash scripts/check_all.sh` -> `U24 gate PASSED`, 46 Python packages, 7 JS packages, 2,668 counted tests/assertions, elapsed 115s on the latest rerun | Done with documented local visual skip |
 | Run fail-closed local release gate | `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-local` -> fail-closed local release gate passed; covered ratchets, 11 conformance tests, 195 audit tests, Python+JS cross-runtime parity, edge cases, PromQL lint, W4b property coverage, i18n coverage, and signoff mapping, while still printing browser DOM, browser e2e, reviewed sidecar, UMS parity, and live Postgres as external release checks | Done |
 | Run audit ratchets | `uv run pytest tests/audit_2026 -q --tb=short` -> `200 passed`, including the new workflow helper ratchets and YAML parse coverage | Done |
-| Verify current PR check state | `gh pr checks 1 --repo nyimbi/flowforge` on commit `04e5acd` returned all PR checks passing: JTBD lint, security ratchets, signoff, audit-2026 unit/conformance/property/e2e/edge/cross-runtime, browser full-stack, flowforge end-to-end gate, and DOM baseline generation. Nightly SLA stress is intentionally skipped on pull requests. | Done |
+| Verify current PR check state | `gh pr checks 1 --repo nyimbi/flowforge --watch` on commit `4ed3639` returned all PR checks passing: JTBD lint, security ratchets, signoff, audit-2026 unit/conformance/property/e2e/edge/cross-runtime, browser full-stack, flowforge end-to-end gate, and DOM baseline generation. Nightly SLA stress is intentionally skipped on pull requests. | Done |
 | Run live Postgres release checks | `FLOWFORGE_TEST_PG_URL=postgresql://127.0.0.1:5432/postgres make audit-2026-live-postgres` -> `4 passed`, including stale snapshot rejection, SKIP LOCKED outbox drain, interleaved-tenant audit verification, and tenant/ordinal index-plan coverage | Done |
 | Wire external release CI | `.github/workflows/audit-2026-release-external.yml` provides a manual, release-only workflow with caller-supplied UMS checkout input, optional UMS checkout token for private backends, Postgres service, flowforge all-extras sync, Playwright Chromium install, LLM secret wiring, and `make audit-2026-release-external`; `tests/audit_2026/test_E_73_external_release_gate.py` ratchets that it is not a pull-request dependency | Done |
 | Keep GitHub CI runnable from a source checkout | Workflow setup now uses tracked `pyproject.toml` cache dependency inputs instead of ignored `uv.lock`, pnpm 11 jobs run on Node 22, pyright is installed through `uv run --with pyright`, and JTBD lint passes repo-relative bundle paths to the CLI in advisory mode unless `JTBD_LINT_STRICT=true`; the external-release ratchet covers these requirements | Done |
@@ -45,7 +45,7 @@ Chromium can launch and where the selected UMS backend checkout is accessible
 | Verify outbox worker PostgreSQL path | Live Postgres test exposed and then verified PostgreSQL `$N` marker fix in `flowforge_outbox_pg.worker` | Done |
 | Keep JS workspace private/source-first decision explicit | `js/README.md` and audit report state no JS package is npm-publishable in this release | Done |
 | Remove JS test/toolchain warning noise | JS setup deletes Node's localStorage getter in node tests; stale package-level `.npmrc` removed; `pnpm --dir js test` passed cleanly | Done |
-| Run external release bundle | Requires committed DOM baselines, browser e2e, reviewed polish-copy sidecar, UMS parity, and live Postgres evidence. A local run with fresh UMS clone `BACKEND_ROOT=/private/tmp/flowforge-ums-release-backend/backend` and `FLOWFORGE_TEST_PG_URL` supplied reaches `audit-2026-visual-regression-dom`; all 21 browser-backed DOM cases fail at Chromium launch with `MachPortRendezvousServer ... Permission denied`, while 3 non-browser metadata checks pass. The workflow is manual/release-only so downstream UMS compatibility does not block ordinary Flowforge pull requests. | Blocked |
+| Run external release bundle | Requires committed DOM baselines, browser e2e, reviewed polish-copy sidecar, UMS parity, and live Postgres evidence. A local run with fresh UMS clone `BACKEND_ROOT=/private/tmp/flowforge-ums-release-backend/backend` and `FLOWFORGE_TEST_PG_URL` supplied reaches `audit-2026-visual-regression-dom`; all 21 browser-backed DOM cases fail at Chromium launch with `MachPortRendezvousServer ... Permission denied`, while 3 non-browser metadata checks pass. Manual GitHub Actions run `26095402727` proved the selected `nyimbi/ums` backend is not readable by Actions without `UMS_BACKEND_TOKEN` (`repository not found`) and failed before the release gate. The workflow is manual/release-only so downstream UMS compatibility does not block ordinary Flowforge pull requests. | Blocked |
 
 ## Remaining blockers
 
@@ -61,9 +61,9 @@ The exact external execution sequence is documented in
 
 Latest direct blocker verification:
 
-- PR checks on commit `04e5acd` are green: `flowforge end-to-end gate` run
-  `26094321936`, `Audit 2026 DOM baseline generation` run `26094321932`, and
-  `Audit 2026 browser full-stack e2e` run `26094321938` passed in
+- PR checks on commit `4ed3639` are green: `flowforge end-to-end gate` run
+  `26095391068`, `Audit 2026 DOM baseline generation` run `26095391144`, and
+  `Audit 2026 browser full-stack e2e` run `26095391083` passed in
   Playwright-capable GitHub Actions.
 - Local `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-browser-e2e`
   starts the generated backend bridge and frontend harness, then fails when
@@ -90,6 +90,10 @@ Latest direct blocker verification:
   on a private backend token. The workflow is now manual/release-only and can
   check out public UMS backends without a token; `UMS_BACKEND_TOKEN` is only
   needed for private backend repositories.
+- Manual external release run `26095402727` on `audit-2026-critical-readiness`
+  with `backend_repository=nyimbi/ums` and no `UMS_BACKEND_TOKEN` failed during
+  checkout with `repository 'https://github.com/nyimbi/ums/' not found`, so the
+  selected backend is private from the GitHub Actions runner's perspective.
 - `.github/workflows/audit-2026-dom-baselines.yml` now also runs on pull
   requests with smoke cadence, so this branch can produce reviewable DOM
   baseline artifacts before the manual helper is registered on `main`.
