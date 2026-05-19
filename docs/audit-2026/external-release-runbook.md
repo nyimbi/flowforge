@@ -167,6 +167,23 @@ For a specific release-candidate backend ref, launch the manual path with:
   committed, the external release target verifies it without calling an LLM
   provider.
 
+Use a purpose-specific UMS read token for `UMS_BACKEND_TOKEN`; do not reuse a
+broad local `gh auth token` unless that risk is explicitly accepted. From a
+shell where the token is already present in the environment:
+
+```bash
+test -n "${FLOWFORGE_UMS_READ_TOKEN:-}"
+gh secret set UMS_BACKEND_TOKEN \
+  --repo nyimbi/flowforge \
+  --body "$FLOWFORGE_UMS_READ_TOKEN"
+```
+
+Then rerun the failed PR workflow:
+
+```bash
+gh run rerun <failed-run-id> --repo nyimbi/flowforge --failed
+```
+
 CLI equivalent:
 
 ```bash
