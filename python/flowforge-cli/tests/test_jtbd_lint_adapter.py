@@ -116,6 +116,14 @@ def test_adapt_to_lint_bundle_defaults_missing_version() -> None:
 	assert out["jtbds"][0]["version"] == "1.0.0"
 
 
+def test_adapt_to_lint_bundle_strips_generator_actor_external_flag() -> None:
+	bundle = _bundle(jtbds=[
+		_spec(jtbd_id="x", actor={"role": "claimant", "external": True})
+	])
+	out = _adapt_to_lint_bundle(bundle)
+	assert out["jtbds"][0]["actor"] == {"role": "claimant"}
+
+
 # ---------------------------------------------------------------------------
 # _adapt_shared_roles
 # ---------------------------------------------------------------------------

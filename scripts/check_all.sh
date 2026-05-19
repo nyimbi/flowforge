@@ -129,7 +129,7 @@ for pkg in "${PY_PKGS[@]}"; do
         log="$PYRIGHT_TMP/$pkg.log"
         (
             echo "    pyright: $pkg"
-            uv run pyright "$src_dir" --pythonversion 3.11
+            uv run --with pyright pyright "$src_dir" --pythonversion 3.11
         ) > "$log" 2>&1 &
         pids+=("$!")
         pid_pkgs+=("$pkg")

@@ -183,8 +183,11 @@ class PgAuditSink:
 
 	async def record(self, event: AuditEvent) -> str:
 		"""Append *event* and return the assigned event_id."""
-		async with self._engine.begin() as conn:
-			return await self.record_in_connection(conn, event)
+		tenant_key = event.tenant_id or _NONE_TENANT_KEY
+		py_lock = await self._py_lock_for(tenant_key)
+		async with py_lock:
+			async with self._engine.begin() as conn:
+				return await self._record_in_connection(conn, event, lock_held=True)
 
 	async def record_in_connection(
 		self,
@@ -197,6 +200,15 @@ class PgAuditSink:
 		state, event rows, audit-chain rows, and outbox enqueue rows in the
 		same database transaction. The caller owns commit/rollback.
 		"""
+		return await self._record_in_connection(conn, event, lock_held=False)
+
+	async def _record_in_connection(
+		self,
+		conn: AsyncConnection,
+		event: AuditEvent,
+		*,
+		lock_held: bool,
+	) -> str:
 		event_id = _new_id()
 		occurred_at = event.occurred_at
 		if occurred_at.tzinfo is None:
@@ -218,24 +230,35 @@ class PgAuditSink:
 		# AU-01: serialise the read+insert pair per tenant. On PG the advisory
 		# lock is the authoritative gate; on SQLite (tests) the asyncio.Lock
 		# is, since SQLite has no advisory locks.
+		if lock_held:
+			return await self._insert_locked(conn, event, event_id, row_data)
 		async with py_lock:
-			if _is_postgres(conn):
-				await conn.execute(
-					text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
-					{"k": tenant_key},
-				)
-			prev_sha = await self._chain_head(conn, event.tenant_id)
-			next_ordinal = await self._next_ordinal(conn, event.tenant_id)
-			row_sha = compute_row_sha(prev_sha, row_data)
+			return await self._insert_locked(conn, event, event_id, row_data)
+
+	async def _insert_locked(
+		self,
+		conn: AsyncConnection,
+		event: AuditEvent,
+		event_id: str,
+		row_data: dict[str, Any],
+	) -> str:
+		if _is_postgres(conn):
 			await conn.execute(
-				ff_audit_events.insert().values(
-					event_id=event_id,
-					prev_sha256=prev_sha,
-					row_sha256=row_sha,
-					ordinal=next_ordinal,
-					**row_data,
-				)
+				text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
+				{"k": event.tenant_id or _NONE_TENANT_KEY},
 			)
+		prev_sha = await self._chain_head(conn, event.tenant_id)
+		next_ordinal = await self._next_ordinal(conn, event.tenant_id)
+		row_sha = compute_row_sha(prev_sha, row_data)
+		await conn.execute(
+			ff_audit_events.insert().values(
+				event_id=event_id,
+				prev_sha256=prev_sha,
+				row_sha256=row_sha,
+				ordinal=next_ordinal,
+				**row_data,
+			)
+		)
 		return event_id
 
 	async def verify_chain(self, since: str | None = None) -> Verdict:

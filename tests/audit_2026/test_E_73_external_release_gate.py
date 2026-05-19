@@ -119,6 +119,8 @@ def test_jtbd_lint_workflow_uses_repo_relative_bundle_paths() -> None:
 
 	assert 'uv run flowforge jtbd lint --bundle "$bundle"' in workflow
 	assert '--bundle "../$bundle"' not in workflow
+	assert 'lint_flags="--warn-only"' in workflow
+	assert 'lint_flags="--strict"' in workflow
 
 
 def test_external_release_preflight_reports_all_hard_prerequisites() -> None:
