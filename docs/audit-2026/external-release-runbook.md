@@ -75,6 +75,13 @@ Acceptance criteria:
 
 ## 2. Run browser full-stack e2e
 
+Preferred PR/CI path:
+
+`.github/workflows/audit-2026-browser-e2e.yml` runs the same target in a
+Playwright-capable GitHub runner and uploads browser evidence artifacts.
+
+Local/browser-capable shell path:
+
 ```bash
 make audit-2026-browser-e2e
 ```

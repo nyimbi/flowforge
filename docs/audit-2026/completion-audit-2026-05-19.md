@@ -8,9 +8,10 @@ use across host platforms.
 
 Verdict:
 
-Not complete. Local, UMS, and live-Postgres evidence is strong, but browser
-baselines/browser e2e and real-key copy-polish remain unverified in this
-sandbox.
+Not complete. Local, UMS, live-Postgres, DOM, and browser full-stack evidence
+is now strong, including browser-capable GitHub Actions runs. The remaining
+blocker is the reviewed real-key copy-polish sidecar, followed by the final
+manual external-release bundle run with retained evidence.
 
 ## Prompt-to-artifact checklist
 
@@ -22,8 +23,8 @@ sandbox.
 | Verify UMS parity against real backend | `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache BACKEND_ROOT=/Users/nyimbiodero/src/pjs/ums/backend make audit-2026-ums-parity` -> `156 passed` | Done |
 | Add visual-regression dev-server harness | `scripts/visual_regression/run_dom_snapshots.sh` starts `tests/visual_regression/harness/` when `VISREG_DEV_SERVER_URL` is unset | Done |
 | Make visual DOM gate fail closed | `bash scripts/visual_regression/run_dom_snapshots.sh smoke` fails when DOM baselines are missing unless `VISREG_ALLOW_SKIP=1` is explicitly set | Done |
-| Generate and commit DOM baselines | `UPDATE_BASELINES=1 bash scripts/visual_regression/run_dom_snapshots.sh smoke` starts the local Vite harness at `http://127.0.0.1:5173/` and passes 3 metadata tests, but all 21 browser-backed DOM cases fail when Chromium launch hits `MachPortRendezvousServer ... Permission denied`; `find examples -path '*screenshots*' -name '*.dom.html' -print` returns no files; the unsandboxed baseline-generation rerun request was rejected by the approval layer; `.github/workflows/audit-2026-dom-baselines.yml` now provides a manual Chromium-capable artifact-generation path for reviewed baseline candidates | Blocked |
-| Run browser full-stack e2e | `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-browser-e2e` starts backend/frontend harnesses but Chromium launch fails with `MachPortRendezvousServer ... Permission denied`; the unsandboxed rerun request was rejected by the approval layer | Blocked |
+| Generate and commit DOM baselines | 21 reviewed smoke `.dom.html` baselines are committed under `examples/insurance_claim/screenshots/**`; `flowforge gate (U24)` run `26077822235` passed with DOM snapshots enabled, and `Audit 2026 DOM baseline generation` run `26077822248` passed in GitHub Actions with Playwright Chromium | Done |
+| Run browser full-stack e2e | `.github/workflows/audit-2026-browser-e2e.yml` now runs `make audit-2026-browser-e2e` with Playwright Chromium; GitHub run `26077822269` passed. Local `make audit-2026-browser-e2e` still reaches the generated backend/frontend harness and then fails only because this macOS sandbox blocks Chromium launch with `MachPortRendezvousServer ... Permission denied` | Done in browser-capable CI |
 | Fill fr-CA translations | `uv run python scripts/i18n/check_coverage.py` via release-local -> `0 error(s), 0 warning(s)` | Done |
 | Run first real `polish-copy` sidecar | `uv run flowforge polish-copy --bundle examples/insurance_claim/jtbd-bundle.json --tone formal-professional --require-llm --commit` fails closed because no `ANTHROPIC_API_KEY`/`CLAUDE_API_KEY` is set and writes no sidecar; `test -f examples/insurance_claim/jtbd-bundle.json.overrides.json` fails; `make audit-2026-polish-copy-sidecar` now fails closed while the sidecar is absent; `.github/workflows/audit-2026-polish-copy-sidecar.yml` now provides a manual real-key authoring path that uploads a reviewable sidecar candidate | Blocked |
 | Verify optional LLM extra is installable | `uv sync --all-packages --all-extras` installed `anthropic==0.100.0`; `uv run python -c "import anthropic; print('anthropic import ok')"` passed | Done |
@@ -36,39 +37,43 @@ sandbox.
 | Wire external release CI | `.github/workflows/audit-2026-release-external.yml` provides a manual workflow with UMS checkout input, Postgres service, flowforge all-extras sync, Playwright Chromium install, LLM secret wiring, and `make audit-2026-release-external`; `tests/audit_2026/test_E_73_external_release_gate.py` ratchets it | Done |
 | Keep GitHub CI runnable from a source checkout | Workflow setup now uses tracked `pyproject.toml` cache dependency inputs instead of ignored `uv.lock`, pnpm 11 jobs run on Node 22, pyright is installed through `uv run --with pyright`, and JTBD lint passes repo-relative bundle paths to the CLI in advisory mode unless `JTBD_LINT_STRICT=true`; the external-release ratchet covers these requirements | Done |
 | Reject release skip escape hatches | `VISREG_ALLOW_SKIP=1 make audit-2026-release-external` exits nonzero with `VISREG_ALLOW_SKIP=1 is forbidden for release qualification`; `BROWSER_E2E_ALLOW_SKIP=1 make audit-2026-release-external` exits nonzero with `BROWSER_E2E_ALLOW_SKIP=1 is forbidden for release qualification` | Done |
-| Summarize external release blockers | `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-external-preflight` fails closed and reports all current persistent prerequisite blockers together; with `BACKEND_ROOT` and `FLOWFORGE_TEST_PG_URL` supplied, the remaining preflight blockers are only missing DOM baselines and a missing real-key sidecar produced by `uv run flowforge polish-copy --require-llm --commit` with a key and `flowforge-cli[llm]` installed. The preflight success path now says browser execution is verified by `make audit-2026-release-external`, so preflight alone is not treated as release qualification. | Done |
+| Summarize external release blockers | `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache BACKEND_ROOT=/Users/nyimbiodero/src/pjs/ums/backend FLOWFORGE_TEST_PG_URL=postgresql:///flowforge_release_codex_20260519_0506 uv run python scripts/audit_2026/check_external_release_preflight.py` fails closed with only the missing real-key sidecar. The preflight success path says browser execution is verified by `make audit-2026-release-external`, so preflight alone is not treated as release qualification. | Done |
 | Retain external release evidence | `docs/audit-2026/external-release-evidence-template.md` captures release candidate, DOM baseline, skip-flag absence, preflight caveat acknowledgement, `anthropic` import check, `uv run flowforge polish-copy --require-llm --commit` review, sidecar review, workflow run, artifact URL, UMS parity, browser e2e, and live Postgres evidence fields; `.github/workflows/audit-2026-release-external.yml` uploads an `audit-2026-release-external-evidence` artifact with DOM baselines, Playwright reports/results, sidecar, and evidence docs when present | Done |
 | Verify outbox worker PostgreSQL path | Live Postgres test exposed and then verified PostgreSQL `$N` marker fix in `flowforge_outbox_pg.worker` | Done |
 | Keep JS workspace private/source-first decision explicit | `js/README.md` and audit report state no JS package is npm-publishable in this release | Done |
 | Remove JS test/toolchain warning noise | JS setup deletes Node's localStorage getter in node tests; stale package-level `.npmrc` removed; `pnpm --dir js test` passed cleanly | Done |
-| Run external release bundle | Requires committed DOM baselines, browser e2e, reviewed real-key polish-copy sidecar, UMS parity, and live Postgres evidence; CI is wired but still fail-closed until browser and sidecar evidence exists | Blocked |
+| Run external release bundle | Requires committed DOM baselines, browser e2e, reviewed real-key polish-copy sidecar, UMS parity, and live Postgres evidence; CI is wired and all prerequisite lanes except the real-key sidecar have current evidence. The bundle remains fail-closed until the sidecar is committed and the release workflow is run. | Blocked |
 
 ## Remaining blockers
 
-1. Browser DOM baselines must be generated, reviewed, committed, and verified
-   without `VISREG_ALLOW_SKIP=1`.
-2. `make audit-2026-browser-e2e` must pass in Chromium without
-   `BROWSER_E2E_ALLOW_SKIP=1`.
-3. `uv run flowforge polish-copy --bundle examples/insurance_claim/jtbd-bundle.json --require-llm --commit`
+1. `uv run flowforge polish-copy --bundle examples/insurance_claim/jtbd-bundle.json --require-llm --commit`
    must run with a real Anthropic/Claude key, then the sidecar must be reviewed
    and committed if accepted.
+2. `make audit-2026-release-external` / `.github/workflows/audit-2026-release-external.yml`
+   must run after the sidecar is committed so the retained release artifact ties
+   together DOM, browser e2e, sidecar, UMS parity, and live Postgres evidence.
 
 The exact external execution sequence is documented in
 `docs/audit-2026/external-release-runbook.md`.
 
 Latest direct blocker verification:
 
-- `bash scripts/visual_regression/run_dom_snapshots.sh smoke` fails closed
-  because DOM baselines are not checked in and `VISREG_ALLOW_SKIP=1` is not set.
-- `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-browser-e2e`
+- `flowforge gate (U24)` run `26077822235` passed with committed DOM baselines,
+  and `Audit 2026 DOM baseline generation` run `26077822248` passed in
+  Playwright-capable GitHub Actions.
+- `Audit 2026 browser full-stack e2e` run `26077822269` passed in GitHub
+  Actions. A prior run `26077681556` exposed a strict locator ambiguity around
+  PII reveal controls; commit `aacdc6f` scopes the browser e2e fields to the
+  generated form and exact labels.
+- Local `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-browser-e2e`
   starts the generated backend bridge and frontend harness, then fails when
-  Chromium launch hits `MachPortRendezvousServer ... Permission denied`.
+  Chromium launch hits `MachPortRendezvousServer ... Permission denied`; the
+  local failure is now an environment limitation, not the release proof source.
 - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-polish-copy-sidecar`
   fails closed because `examples/insurance_claim/jtbd-bundle.json.overrides.json`
   is absent.
-- `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache BACKEND_ROOT=/Users/nyimbiodero/src/pjs/ums/backend FLOWFORGE_TEST_PG_URL=postgresql://127.0.0.1:5432/postgres make audit-2026-release-external`
-  fails during external preflight before browser execution, reporting only the
-  missing DOM baselines and missing real-key sidecar.
+- `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache BACKEND_ROOT=/Users/nyimbiodero/src/pjs/ums/backend FLOWFORGE_TEST_PG_URL=postgresql:///flowforge_release_codex_20260519_0506 uv run python scripts/audit_2026/check_external_release_preflight.py`
+  fails during external preflight, reporting only the missing real-key sidecar.
 - `uv run flowforge polish-copy --bundle examples/insurance_claim/jtbd-bundle.json --tone formal-professional --require-llm --commit`
   fails closed because no `ANTHROPIC_API_KEY` or `CLAUDE_API_KEY` is exported,
   and writes no sidecar.
@@ -84,15 +89,10 @@ Latest direct blocker verification:
   daemon. The approval request to launch Docker Desktop was rejected, so the
   local Linux-container fallback for Chromium execution is unavailable in this
   session.
-- `gh workflow run audit-2026-dom-baselines.yml --repo nyimbi/flowforge --ref main -f cadence=smoke`
-  returns `HTTP 404: workflow audit-2026-dom-baselines.yml not found on the
-  default branch`, confirming GitHub cannot manually dispatch the full-cadence
-  helper workflow until the workflow file is pushed to the remote default
-  branch.
-- `gh secret list --repo nyimbi/flowforge` returns no configured repository
-  secrets, so the sidecar-authoring and external-release workflows also need
-  `ANTHROPIC_API_KEY` or `CLAUDE_API_KEY` to be added before real-key
-  `polish-copy` can run in GitHub Actions.
+- `gh workflow run .github/workflows/audit-2026-polish-copy-sidecar.yml --repo nyimbi/flowforge --ref audit-2026-critical-readiness -f tone=formal-professional`
+  returns `HTTP 404: workflow ... not found on the default branch`, confirming
+  GitHub cannot manually dispatch the sidecar helper until that workflow file is
+  on the remote default branch.
 - `GOPATH=/private/tmp/flowforge-go GOMODCACHE=/private/tmp/flowforge-go/pkg/mod GOCACHE=/private/tmp/flowforge-go/build-cache go run github.com/rhysd/actionlint/cmd/actionlint@latest .github/workflows/audit-2026.yml .github/workflows/audit-2026-dom-baselines.yml .github/workflows/audit-2026-polish-copy-sidecar.yml .github/workflows/audit-2026-release-external.yml .github/workflows/flowforge-gate.yml .github/workflows/jtbd-lint.yml`
   passed, so the PR/default helper and release workflow YAML is validated by
   both `actionlint` and the audit ratchets that inspect required workflow

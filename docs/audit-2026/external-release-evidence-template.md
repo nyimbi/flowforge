@@ -40,6 +40,10 @@ approval record.
   - Artifact URL:
   - `backend_repository` input:
   - `backend_ref` input:
+- Focused browser workflow:
+  - Workflow file: `.github/workflows/audit-2026-browser-e2e.yml`
+  - Workflow run URL:
+  - Artifact URL:
 - `make audit-2026-release-external` result:
 
 ## Required passing evidence

@@ -6,7 +6,7 @@ Verdict: not ready to describe as exhaustively tested or completely correct. The
 
 ## Remediation Snapshot - 2026-05-18
 
-This report is the original exhaustive audit plus remediation progress from the same work session. The verdict remains conditional because browser-backed visual baselines and the browser Playwright full-stack lane still need to run successfully in a browser-capable environment, but several original release blockers have been fixed or converted from silent skips into explicit failures.
+This report is the original exhaustive audit plus remediation progress from the same work session. The verdict remains conditional because a reviewed real-key `polish-copy` sidecar and final external-release bundle still need to run in the release environment, but the DOM visual baseline and browser Playwright full-stack lanes now have browser-capable GitHub Actions evidence.
 
 The prompt-to-artifact completion checklist for the current state lives at
 `docs/audit-2026/completion-audit-2026-05-19.md`.
@@ -27,6 +27,7 @@ Fixed or materially hardened:
 - The visual-regression harness now routes pages by example identity rather than shared admin path alone.
 - A DOM baseline-generation workflow now runs smoke cadence on pull requests and full cadence through manual dispatch, using Playwright Chromium in GitHub Actions and uploading reviewable candidate `.dom.html` baselines as an artifact; this is a helper for review, not release qualification.
 - A browser full-stack Playwright lane now exists for the generated insurance-claim workflow: it starts a generated FastAPI-router HTTP bridge, starts the generated frontend harness in API mode, fills the generated claim-intake form in Chromium, and verifies `submit`/`approve` requests plus `Idempotency-Key`, `X-Tenant-Id`, and `review -> done` responses.
+- A dedicated `Audit 2026 browser full-stack e2e` pull-request workflow now provisions Playwright Chromium and runs that generated browser flow in GitHub Actions; run `26077822269` passed.
 - fr-CA sidecar/i18n validation and W4b generator property coverage were added.
 - JTBD hub publish/rating paths now require authenticated permissions, and rating user identity is bound to the principal.
 - WebSocket subscriber queues are bounded.
@@ -49,7 +50,11 @@ Latest verification evidence:
 - `VISREG_ALLOW_SKIP=1 UV_CACHE_DIR=/private/tmp/flowforge-uv-cache bash scripts/check_all.sh`
   - Result: `U24 gate PASSED`, 46 Python packages, 7 JS packages, 2,664 counted tests/assertions, Python dependency audit clean, JS production dependency audit clean, byte-identical regen clean, elapsed 97 seconds on the latest rerun.
   - Integration evidence: Stage 3 now runs the audit e2e pytest flows; integration summary from the latest direct run reports 66 Python tests, 295 JS assertions, 4 e2e tests, 365 total, 0 failed, with the browser lane explicitly marked `EXTERNAL`.
-  - Caveats: this intentionally set `VISREG_ALLOW_SKIP=1` because Chromium cannot launch in this sandbox and DOM baselines are not checked in; default release behavior now fails on missing DOM baselines.
+  - Caveats: this intentionally set `VISREG_ALLOW_SKIP=1` because Chromium cannot launch in this sandbox. Current release evidence for DOM/browser execution comes from GitHub Actions runs where Playwright Chromium can launch.
+- GitHub PR release-gate evidence:
+  - `flowforge gate (U24)` run `26077822235` passed with committed DOM smoke baselines and Playwright Chromium installed in CI.
+  - `Audit 2026 DOM baseline generation` run `26077822248` passed in a browser-capable runner.
+  - `Audit 2026 browser full-stack e2e` run `26077822269` passed in a browser-capable runner.
 - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-local`
   - Result: fail-closed local release gate passed. Covered ratchets, conformance, audit unit tests, property tests, integration/e2e, Python+JS cross-runtime parity, edge cases, observability PromQL lint, W4b property coverage, i18n coverage, and signoff mapping.
   - Caveats: the target explicitly prints the external release checks that are outside standalone local qualification: browser DOM baselines, browser Playwright full-stack, real-key polish-copy sidecar, UMS parity, and live Postgres contention/drain verification. UMS parity and live Postgres have since passed in this session with explicit environment wiring.
@@ -99,7 +104,7 @@ Latest verification evidence:
   - Result: `make audit-2026-release-external` now exists and fails closed if `VISREG_ALLOW_SKIP=1`, `BROWSER_E2E_ALLOW_SKIP=1`, missing DOM baselines, missing browser execution, missing real-key polish-copy sidecar metadata, missing `BACKEND_ROOT`, or missing `FLOWFORGE_TEST_PG_URL` would make release evidence incomplete.
   - Result: `VISREG_ALLOW_SKIP=1 make audit-2026-release-external` exits nonzero with `VISREG_ALLOW_SKIP=1 is forbidden for release qualification`; `BROWSER_E2E_ALLOW_SKIP=1 make audit-2026-release-external` exits nonzero with `BROWSER_E2E_ALLOW_SKIP=1 is forbidden for release qualification`.
 - External release preflight:
-  - Result: `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-external-preflight` fails closed and reports all currently missing persistent prerequisites together. With `BACKEND_ROOT=/Users/nyimbiodero/src/pjs/ums/backend` and `FLOWFORGE_TEST_PG_URL=postgresql://127.0.0.1:5432/postgres` supplied, the remaining preflight blockers are only DOM baselines and the real-key sidecar; the sidecar message now requires `uv run flowforge polish-copy --require-llm --commit` with a key and `flowforge-cli[llm]` installed. The success path explicitly states browser execution is verified by `make audit-2026-release-external`, so preflight alone cannot be mistaken for release qualification.
+  - Result: `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-external-preflight` fails closed and reports all currently missing persistent prerequisites together. With `BACKEND_ROOT=/Users/nyimbiodero/src/pjs/ums/backend` and `FLOWFORGE_TEST_PG_URL` supplied, the remaining preflight blocker is only the real-key sidecar; the sidecar message requires `uv run flowforge polish-copy --require-llm --commit` with a key and `flowforge-cli[llm]` installed. The success path explicitly states browser execution is verified by `make audit-2026-release-external`, so preflight alone cannot be mistaken for release qualification.
 - External release CI wiring:
   - Result: `.github/workflows/audit-2026-release-external.yml` now provides a manual release-qualification workflow that checks out flowforge plus a caller-supplied UMS backend repo/ref, starts a disposable Postgres service, pins pnpm 11.1.3 to match the repo's `allowBuilds` semantics, installs the flowforge workspace with all extras, installs Playwright Chromium, wires `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, and runs `make audit-2026-release-external` without local skip flags.
 - External release evidence retention:
@@ -109,9 +114,8 @@ Latest verification evidence:
 
 Remaining release blockers:
 
-- DOM visual baselines must be generated in an environment where Playwright/Chromium can launch, committed, and run without `VISREG_ALLOW_SKIP=1`.
-- Browser Playwright full-stack e2e is implemented but must run successfully without `BROWSER_E2E_ALLOW_SKIP=1` in a browser-capable environment before release qualification.
 - A real-key `polish-copy` authoring pass still needs to run with `ANTHROPIC_API_KEY` or `CLAUDE_API_KEY`, be reviewed, and commit its sidecar if accepted.
+- The final `make audit-2026-release-external` / manual external-release workflow must run after the reviewed sidecar is committed so one retained release artifact ties together DOM, browser e2e, sidecar, UMS parity, and live Postgres evidence.
 - The exact external execution sequence is documented in `docs/audit-2026/external-release-runbook.md`.
 
 Release CI execution still required:
@@ -338,7 +342,7 @@ Required fix:
 
 ### CRITICAL-07: Visual regression gate exits green without baselines
 
-Status: partially remediated. The DOM snapshot wrapper now fails closed by default when node modules, Playwright, Vite, dev-server harness startup, or checked-in DOM baselines are missing. A local workstation may opt into `VISREG_ALLOW_SKIP=1`, but release gates must not set it. The remaining blocker is operational: DOM baselines still need to be generated in a browser-capable environment and committed.
+Status: remediated for the smoke release lane. The DOM snapshot wrapper now fails closed by default when node modules, Playwright, Vite, dev-server harness startup, or checked-in DOM baselines are missing. A local workstation may opt into `VISREG_ALLOW_SKIP=1`, but release gates must not set it. Reviewed smoke DOM baselines are now committed under `examples/insurance_claim/screenshots/**`, and U24 run `26077822235` passed with those baselines in GitHub Actions. Full-cadence baselines remain a release-authoring expansion path through the DOM baseline helper workflow.
 
 Files:
 
@@ -349,21 +353,21 @@ Files:
 - `examples/hiring-pipeline/screenshots/frontend/.gitkeep`
 - `examples/insurance_claim/screenshots/frontend/.gitkeep`
 
-The DOM visual regression wrapper previously exited 0 when no DOM baselines were checked in. The current example screenshot tree contains `.gitkeep` files only, but the wrapper now treats missing baselines as a failure unless `VISREG_ALLOW_SKIP=1` is explicitly set.
+The DOM visual regression wrapper previously exited 0 when no DOM baselines were checked in. The wrapper now treats missing baselines as a failure unless `VISREG_ALLOW_SKIP=1` is explicitly set, and the canonical insurance-claim smoke tree contains committed `.dom.html` baselines.
 
 Current result:
 
-- `bash scripts/visual_regression/run_dom_snapshots.sh smoke` fails by default when DOM baselines are missing.
-- `VISREG_ALLOW_SKIP=1 bash scripts/visual_regression/run_dom_snapshots.sh smoke` exits 0 with an explicit local-bootstrap skip.
+- `flowforge gate (U24)` run `26077822235` passed the smoke DOM gate in CI.
+- `Audit 2026 DOM baseline generation` run `26077822248` passed in CI and continues to upload candidate baselines for review.
+- Local browser-backed DOM execution still cannot launch Chromium in this macOS sandbox, so local developers must not use `VISREG_ALLOW_SKIP=1` as release evidence.
 
 Impact:
 
-- No PR is currently blocked by DOM UI regressions until baselines are generated and committed in a browser-capable environment.
-- The close-out report's "visual regression as CI gate" claim is aspirational until baselines exist and the skip path is fail-closed in CI.
+- The canonical smoke visual path now blocks PRs through U24 when DOM output drifts.
+- Full-cadence visual coverage is still a separate nightly/manual expansion target.
 
 Required fix:
 
-- Seed DOM baselines in CI-capable browser environment.
 - In CI, missing baselines must fail, not skip.
 - Keep local developer skip only behind explicit `VISREG_ALLOW_SKIP=1`.
 
@@ -738,7 +742,7 @@ Required fix:
 
 ### HIGH-10: Browser Playwright full-stack lane was missing from integration
 
-Status: materially remediated for committed implementation, pending browser-capable execution. Stage 3 now runs `tests/integration/e2e` and the summary splits Python, JS, and e2e counters correctly. Stage 4 now reports the browser lane as `EXTERNAL` by default and can run it with `RUN_BROWSER_E2E=1`. The dedicated `audit-2026-browser-e2e` target starts a generated FastAPI-router HTTP bridge, starts the generated frontend harness in API mode, and runs a real Playwright Chromium spec through the generated claim-intake submit/approve path. This still must pass in an environment where Chromium can launch; this sandbox blocks Chromium with `MachPortRendezvousServer ... Permission denied`.
+Status: remediated for browser-capable PR evidence. Stage 3 now runs `tests/integration/e2e` and the summary splits Python, JS, and e2e counters correctly. Stage 4 now reports the browser lane as `EXTERNAL` by default and can run it with `RUN_BROWSER_E2E=1`. The dedicated `audit-2026-browser-e2e` target starts a generated FastAPI-router HTTP bridge, starts the generated frontend harness in API mode, and runs a real Playwright Chromium spec through the generated claim-intake submit/approve path. The `Audit 2026 browser full-stack e2e` workflow provisions Chromium and passed in GitHub Actions run `26077822269`; this sandbox still blocks local Chromium with `MachPortRendezvousServer ... Permission denied`.
 
 Files:
 
@@ -756,14 +760,15 @@ Impact:
 
 - Cross-package integration gate now states when browser coverage is external instead of silently implying it.
 - `make audit-2026` includes the browser e2e target; `make audit-2026-release-local` continues to exclude it and prints it as a documented external release check.
+- Pull requests now have a focused browser-capable workflow so the external browser lane can be proven before final release qualification.
 
 Required fix:
 
-- Run `make audit-2026-browser-e2e` without `BROWSER_E2E_ALLOW_SKIP=1` in browser-capable CI and require it for critical-system release.
+- Keep the focused browser-capable workflow green, and run `make audit-2026-browser-e2e` again as part of the final external release bundle after the reviewed sidecar is committed.
 
 ### HIGH-11: Browser-dependent checks fail in the current execution environment
 
-Status: materially remediated for local/package-test determinism. Mermaid diagrams now have syntax/shape coverage independent of browser rendering, and the optional `mmdc` round-trip skips with an actionable reason when Chromium cannot launch unless `FLOWFORGE_REQUIRE_MMDC=1` is set in browser-capable CI. The visual DOM wrapper already fails closed by default for missing baselines/prerequisites, with `VISREG_ALLOW_SKIP=1` limited to explicit local bootstrap.
+Status: materially remediated for local/package-test determinism and browser-capable PR evidence. Mermaid diagrams now have syntax/shape coverage independent of browser rendering, and the optional `mmdc` round-trip skips with an actionable reason when Chromium cannot launch unless `FLOWFORGE_REQUIRE_MMDC=1` is set in browser-capable CI. The visual DOM wrapper fails closed by default for missing baselines/prerequisites, with `VISREG_ALLOW_SKIP=1` limited to explicit local bootstrap, and the focused browser full-stack workflow has now passed in GitHub Actions.
 
 Files:
 
@@ -777,7 +782,7 @@ Required fix:
 
 - Keep syntax-only mermaid validation separate from browser-backed rendering.
 - Set `FLOWFORGE_REQUIRE_MMDC=1` only in CI environments where Chromium is expected to launch.
-- Provide committed DOM baselines from a browser-capable environment before claiming visual regression coverage complete.
+- Keep committed DOM baselines and browser workflow evidence current before claiming visual/browser coverage complete.
 
 ### MEDIUM-06: `check_all.sh` duplicates integration work
 
@@ -1104,15 +1109,15 @@ Required fix:
 
 ### MEDIUM-12: Generated frontend page is still a demo stub
 
-Status: materially remediated for generated frontend wiring. Generated pages
+Status: remediated for generated frontend wiring and browser-capable PR evidence. Generated pages
 now default to API-backed runtime calls through a generated
 `runtimeClient.ts`, pass `Idempotency-Key` and `X-Tenant-Id`, and keep local
 demo state transitions behind the explicit
 `NEXT_PUBLIC_FLOWFORGE_DEMO_MODE=1` branch. Checked-in examples were
 regenerated and no longer contain `instanceId = "demo"` or unconditional local
 `setState("review")` / `setState("done")` stubs. A browser-backed
-full-stack spec now proves the intended client/backend contract structurally;
-the release blocker is running that spec successfully in browser-capable CI.
+full-stack spec now proves the intended client/backend contract in Chromium;
+GitHub Actions run `26077822269` passed.
 
 Files:
 
@@ -1129,8 +1134,8 @@ The generated page uses `instanceId = "demo"` and local state transitions instea
 
 Required fix:
 
-- Require `audit-2026-browser-e2e` in browser-capable release CI so the
-  runtime-client path is executed by Chromium, not just statically ratcheted.
+- Keep `audit-2026-browser-e2e` in browser-capable release CI so the runtime-client
+  path remains executed by Chromium, not just statically ratcheted.
 
 ### MEDIUM-13: PII reveal controls are text-only and not polished
 
@@ -1182,7 +1187,7 @@ Required follow-up:
 
 ### MEDIUM-15: Tests and docs overclaim current status
 
-Status: remediated for the stale close-out claim. This audit report carries the current source of truth, and the older v0.3.0 engineering close-out now has an explicit current-status addendum warning readers that it is historical evidence, not current critical-release qualification. The addendum records that `check_all.sh` passes locally only with explicit visual bootstrap skip, `make audit-2026-release-local` still excludes browser/UMS/live-Postgres release checks, the visual blocker is missing DOM baselines rather than pnpm install, and i18n coverage is now 0 errors / 0 warnings after fr-CA fill. UMS parity and live Postgres are now separately verified with explicit environment wiring.
+Status: remediated for the stale close-out claim. This audit report carries the current source of truth, and the older v0.3.0 engineering close-out now has an explicit current-status addendum warning readers that it is historical evidence, not current critical-release qualification. The addendum records that `check_all.sh` local browser behavior needs an explicit visual bootstrap skip in this macOS sandbox, `make audit-2026-release-local` still excludes external release checks, DOM/browser execution now has GitHub Actions evidence, and i18n coverage is now 0 errors / 0 warnings after fr-CA fill. UMS parity and live Postgres are now separately verified with explicit environment wiring.
 
 Files:
 
@@ -1285,7 +1290,7 @@ Required fix:
 
 ### MEDIUM-19: `check_all.sh` scales poorly by serial pyright and package tests
 
-Status: materially remediated for local and CI execution. `scripts/check_all.sh` now validates `FLOWFORGE_CHECK_JOBS` and runs independent per-package pyright and pytest checks in bounded batches, defaulting to four concurrent package jobs. The latest full local gate rerun passed with the default parallelism, reporting 46 Python packages, 7 JS packages, 2,665 counted tests/assertions, and 86 seconds elapsed. `flowforge-gate.yml` now pins `FLOWFORGE_CHECK_JOBS=4`, uses tracked `pyproject.toml` uv cache inputs, runs pyright through `uv run --with pyright`, and runs pnpm 11.1.3 on Node 22 while keeping uv and pnpm caches enabled. The ratchet verifies it does not set `VISREG_ALLOW_SKIP`; standard CI remains fail-closed on missing DOM baselines while local bootstrap runs must opt into the skip explicitly.
+Status: materially remediated for local and CI execution. `scripts/check_all.sh` now validates `FLOWFORGE_CHECK_JOBS` and runs independent per-package pyright and pytest checks in bounded batches, defaulting to four concurrent package jobs. The latest full local gate rerun passed with the default parallelism, reporting 46 Python packages, 7 JS packages, 2,665 counted tests/assertions, and 86 seconds elapsed. `flowforge-gate.yml` now pins `FLOWFORGE_CHECK_JOBS=4`, uses tracked `pyproject.toml` uv cache inputs, runs pyright through `uv run --with pyright`, and runs pnpm 11.1.3 on Node 22 while keeping uv and pnpm caches enabled. The ratchet verifies it does not set `VISREG_ALLOW_SKIP`; standard CI remains fail-closed on DOM prerequisites while local bootstrap runs must opt into the skip explicitly.
 
 Files:
 
@@ -1377,12 +1382,14 @@ plus transactional fire commits, multi-tenant audit verification is fixed,
 dependency audits run, local gate coverage spans the real workspace, generated
 Step diagnostics/PII reveal are hardened, generated pages default to API-backed
 runtime-client calls, outbox worker health has readiness/Prometheus hooks, and
-engine/generated-app paths now use scoped runtime config where it matters. It is
-still not honest to call the system completely critical-ready until the
-remaining external and production-mode gaps are closed: browser-backed DOM
-baselines, browser full-stack e2e, and real-key `polish-copy` review. UMS
-parity and live Postgres have passed with explicit environment wiring; the
-manual external-release workflow now encodes those paths but still needs to run
-in the release environment with retained evidence. JS
+engine/generated-app paths now use scoped runtime config where it matters. DOM
+smoke baselines and browser full-stack e2e now have browser-capable GitHub
+Actions evidence. It is still not honest to call the system completely
+critical-ready until the remaining external and production-mode gap is closed:
+real-key `polish-copy` review, followed by the final external-release workflow
+run with retained evidence. UMS parity and live Postgres have passed with
+explicit environment wiring; the manual external-release workflow now encodes
+those paths but still needs to run in the release environment after the sidecar
+is committed. JS
 packages remain intentionally private/source-first and must not be represented
 as npm-publishable until a separate dist/consumer-fixture release design lands.
