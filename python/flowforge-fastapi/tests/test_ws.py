@@ -128,6 +128,74 @@ def test_ws_rejects_unauthenticated() -> None:
 				pass
 
 
+def test_ws_rejects_cross_site_browser_origin() -> None:
+	"""Browser-originated WS handshakes must not be accepted cross-site."""
+
+	app = FastAPI()
+	app.include_router(
+		build_ws_router(
+			ws_principal_extractor=StaticPrincipalExtractor(
+				Principal(user_id="alice", roles=("staff",))
+			)
+		),
+		prefix=PREFIX,
+	)
+
+	with TestClient(app) as tc:
+		with pytest.raises(Exception):
+			with tc.websocket_connect(
+				f"{PREFIX}/ws",
+				headers={"origin": "https://evil.example"},
+			):
+				pass
+
+
+def test_ws_accepts_same_origin_browser_handshake() -> None:
+	"""Default Origin policy allows same-origin browser connections."""
+
+	app = FastAPI()
+	app.include_router(
+		build_ws_router(
+			ws_principal_extractor=StaticPrincipalExtractor(
+				Principal(user_id="alice", roles=("staff",))
+			)
+		),
+		prefix=PREFIX,
+	)
+
+	with TestClient(app) as tc:
+		with tc.websocket_connect(
+			f"{PREFIX}/ws",
+			headers={"origin": "http://testserver"},
+		) as ws:
+			hello = json.loads(ws.receive_text())
+			assert hello["type"] == "hello"
+			assert hello["user_id"] == "alice"
+
+
+def test_ws_accepts_explicit_allowed_origin() -> None:
+	"""Hosts can trust a separate admin origin explicitly."""
+
+	app = FastAPI()
+	app.include_router(
+		build_ws_router(
+			ws_principal_extractor=StaticPrincipalExtractor(
+				Principal(user_id="alice", roles=("staff",))
+			),
+			allowed_origins=("https://admin.example",),
+		),
+		prefix=PREFIX,
+	)
+
+	with TestClient(app) as tc:
+		with tc.websocket_connect(
+			f"{PREFIX}/ws",
+			headers={"origin": "https://admin.example"},
+		) as ws:
+			hello = json.loads(ws.receive_text())
+			assert hello["type"] == "hello"
+
+
 @pytest.mark.asyncio
 async def test_hub_subscriber_count_tracks_lifecycle() -> None:
 	hub = WorkflowEventsHub()

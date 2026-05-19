@@ -31,6 +31,7 @@ import asyncio
 import json
 import logging
 from typing import Any
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
@@ -197,6 +198,7 @@ def build_ws_router(
 	principal_extractor: PrincipalExtractor | None = None,
 	ws_principal_extractor: WSPrincipalExtractor | None = None,
 	path: str = "/ws",
+	allowed_origins: tuple[str, ...] | None = None,
 	allow_test_defaults: bool = False,
 ) -> APIRouter:
 	"""Construct the WebSocket router.
@@ -211,6 +213,10 @@ def build_ws_router(
 	  closes with policy violation (4401).
 	* Once connected, the client receives a small ``hello`` frame and
 	  then every published envelope.
+	* Browser handshakes with an ``Origin`` header are same-origin by
+	  default.  Hosts with multiple trusted app origins may pass
+	  ``allowed_origins`` as exact origins such as
+	  ``("https://admin.example.com",)``.
 
 	E-41 / FA-03: the WS scope is never mutated — pre-fix the framework
 	flipped ``scope['type']`` from ``"websocket"`` to ``"http"`` to
@@ -234,6 +240,10 @@ def build_ws_router(
 
 	@router.websocket(path)
 	async def ws_endpoint(websocket: WebSocket) -> None:
+		if not _validate_ws_origin(websocket, allowed_origins=allowed_origins):
+			await websocket.close(code=4403)
+			return
+
 		principal = await _extract_ws_principal(websocket, resolved_ws_extractor)
 		if principal is None:
 			# Already closed inside helper.
@@ -267,6 +277,34 @@ def build_ws_router(
 			await hub.unsubscribe(queue)
 
 	return router
+
+
+def _validate_ws_origin(
+	websocket: WebSocket,
+	*,
+	allowed_origins: tuple[str, ...] | None,
+) -> bool:
+	"""Return whether the WebSocket ``Origin`` is trusted.
+
+	Browsers send ``Origin`` for WebSocket handshakes; non-browser
+	clients often do not.  Missing Origin is allowed so CLIs and tests
+	can connect, while browser-originated handshakes must either match
+	an explicit host allow-list or the request host.
+	"""
+
+	origin = websocket.headers.get("origin")
+	if not origin:
+		return True
+
+	if allowed_origins:
+		normalized = origin.rstrip("/")
+		return "*" in allowed_origins or normalized in {
+			item.rstrip("/") for item in allowed_origins
+		}
+
+	origin_host = urlsplit(origin).netloc.lower()
+	request_host = (websocket.headers.get("host") or "").lower()
+	return bool(origin_host and request_host and origin_host == request_host)
 
 
 def _hub_for(websocket: WebSocket) -> WorkflowEventsHub:

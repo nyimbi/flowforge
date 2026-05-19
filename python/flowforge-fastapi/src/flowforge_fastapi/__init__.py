@@ -59,6 +59,7 @@ def mount_routers(
 	tenant_resolver: "TenantResolver | None" = None,
 	tags: Sequence[str] | None = None,
 	require_csrf: bool = False,
+	ws_allowed_origins: Sequence[str] | None = None,
 	allow_test_defaults: bool = False,
 ) -> None:
 	"""Attach designer + runtime + WS routers to *app*.
@@ -75,6 +76,9 @@ def mount_routers(
 	  Runtime request bodies are not an authority source.
 	* ``require_csrf`` — when True, mutating runtime endpoints require a
 	  matching CSRF token (cookie + ``X-CSRF-Token`` header).
+	* ``ws_allowed_origins`` — optional exact browser origins trusted for
+	  WebSocket handshakes.  When unset, WebSocket handshakes with an
+	  ``Origin`` header must be same-origin with the request host.
 	"""
 
 	from fastapi import FastAPI
@@ -96,6 +100,7 @@ def mount_routers(
 	)
 	ws = build_ws_router(
 		principal_extractor=principal_extractor,
+		allowed_origins=tuple(ws_allowed_origins) if ws_allowed_origins else None,
 		allow_test_defaults=allow_test_defaults,
 	)
 

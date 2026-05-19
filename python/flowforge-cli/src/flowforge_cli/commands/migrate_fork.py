@@ -8,10 +8,23 @@ the catalog can show provenance.
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 import typer
 
 from .._io import load_structured, write_json
+
+
+_SAFE_PATH_SEGMENT = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def _safe_path_segment(label: str, value: object) -> str:
+	text = str(value)
+	if not text or not _SAFE_PATH_SEGMENT.fullmatch(text):
+		raise typer.BadParameter(
+			f"{label} must contain only letters, digits, dot, underscore, or hyphen"
+		)
+	return text
 
 
 def register(app: typer.Typer) -> None:
@@ -34,10 +47,12 @@ def migrate_fork_cmd(
 
 	wf = load_structured(upstream)
 	key = wf.get("key", upstream.parent.name)
+	tenant_id = _safe_path_segment("tenant id", tenant)
+	workflow_key = _safe_path_segment("workflow key", key)
 	wf.setdefault("metadata", {})
 	wf["metadata"]["forked_from"] = {"key": key, "version": wf.get("version", "?")}
 	wf["metadata"]["tenant_id"] = tenant
 
-	dst = out or Path("workflows") / tenant / key / "definition.json"
+	dst = out or Path("workflows") / tenant_id / workflow_key / "definition.json"
 	write_json(dst, wf)
 	typer.echo(f"forked {key}@{wf.get('version', '?')} → {dst} (tenant={tenant})")

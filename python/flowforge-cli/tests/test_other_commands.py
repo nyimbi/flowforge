@@ -94,6 +94,58 @@ def test_migrate_fork_copies_with_metadata(workflow_ok: Path, tmp_path: Path) ->
 	assert data["metadata"]["forked_from"]["key"] == "claim_intake"
 
 
+def test_migrate_fork_rejects_unsafe_tenant_default_path(
+	workflow_ok: Path,
+	tmp_path: Path,
+) -> None:
+	with runner.isolated_filesystem(temp_dir=tmp_path):
+		r = runner.invoke(
+			app,
+			[
+				"migrate-fork",
+				str(workflow_ok),
+				"--to",
+				"../outside",
+			],
+		)
+
+	assert r.exit_code != 0
+	assert "tenant id" in r.output
+	assert not (tmp_path / "outside" / "claim_intake" / "definition.json").exists()
+
+
+def test_migrate_fork_rejects_unsafe_workflow_key_default_path(
+	tmp_path: Path,
+) -> None:
+	upstream = tmp_path / "upstream.json"
+	upstream.write_text(
+		json.dumps(
+			{
+				"key": "../outside",
+				"version": "1.0.0",
+				"states": [],
+				"transitions": [],
+			}
+		),
+		encoding="utf-8",
+	)
+
+	with runner.isolated_filesystem(temp_dir=tmp_path):
+		r = runner.invoke(
+			app,
+			[
+				"migrate-fork",
+				str(upstream),
+				"--to",
+				"tenant-A",
+			],
+		)
+
+	assert r.exit_code != 0
+	assert "workflow key" in r.output
+	assert not (tmp_path / "outside" / "definition.json").exists()
+
+
 # ---------- skeleton stubs ----------
 
 
