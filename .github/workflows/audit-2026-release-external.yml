@@ -63,8 +63,8 @@ jobs:
           version: "latest"
           enable-cache: true
           cache-dependency-glob: |
-            flowforge/uv.lock
-            backend/uv.lock
+            flowforge/pyproject.toml
+            backend/pyproject.toml
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -79,7 +79,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "pnpm"
           cache-dependency-path: |
             flowforge/js/pnpm-lock.yaml

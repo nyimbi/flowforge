@@ -84,7 +84,7 @@ def test_flowforge_gate_pins_check_all_parallelism() -> None:
 
 
 def test_ci_workflows_pin_pnpm_11_for_allow_builds() -> None:
-	"""pnpm 11 is required for the allowBuilds approval records in pnpm-workspace.yaml."""
+	"""pnpm 11 is required for allowBuilds and must run on Node 22+."""
 
 	for path in [
 		".github/workflows/audit-2026.yml",
@@ -95,6 +95,23 @@ def test_ci_workflows_pin_pnpm_11_for_allow_builds() -> None:
 		workflow = _read(path)
 		assert "pnpm/action-setup@v4" in workflow
 		assert 'version: "11.1.3"' in workflow
+		assert "actions/setup-node@v4" in workflow
+		assert 'node-version: "22"' in workflow
+
+
+def test_ci_uv_cache_uses_tracked_dependency_files() -> None:
+	"""uv.lock is intentionally ignored, so CI must not require it for setup-uv caching."""
+
+	for path in [
+		".github/workflows/audit-2026.yml",
+		".github/workflows/audit-2026-polish-copy-sidecar.yml",
+		".github/workflows/audit-2026-release-external.yml",
+		".github/workflows/flowforge-gate.yml",
+		".github/workflows/jtbd-lint.yml",
+	]:
+		workflow = _read(path)
+		assert "uv.lock" not in workflow
+		assert "pyproject.toml" in workflow
 
 
 def test_external_release_preflight_reports_all_hard_prerequisites() -> None:

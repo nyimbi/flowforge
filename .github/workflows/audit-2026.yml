@@ -68,6 +68,7 @@ jobs:
         uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
+          cache-dependency-glob: pyproject.toml
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -79,6 +80,14 @@ jobs:
         uses: pnpm/action-setup@v4
         with:
           version: "11.1.3"
+
+      - name: Set up Node.js
+        if: matrix.target == 'audit-2026-cross-runtime'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: js/pnpm-lock.yaml
 
       - name: Install workspace deps
         working-directory: .
@@ -144,6 +153,7 @@ jobs:
         uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
+          cache-dependency-glob: pyproject.toml
       - name: Set up Python
         uses: actions/setup-python@v5
         with:

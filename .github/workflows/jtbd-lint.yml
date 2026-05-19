@@ -48,7 +48,7 @@ jobs:
         with:
           version: "latest"
           enable-cache: true
-          cache-dependency-glob: "uv.lock"
+          cache-dependency-glob: "pyproject.toml"
 
       - name: Install flowforge-cli + flowforge-jtbd
         working-directory: .
@@ -64,9 +64,11 @@ jobs:
             -not -path "*/node_modules/*" \
             -not -path "*/__pycache__/*" \
             | sort)
-          echo "bundles<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$bundles" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          {
+            echo "bundles<<EOF"
+            echo "$bundles"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
           count=$(echo "$bundles" | grep -c . || true)
           echo "count=$count" >> "$GITHUB_OUTPUT"
           echo "Found $count bundle(s):"
