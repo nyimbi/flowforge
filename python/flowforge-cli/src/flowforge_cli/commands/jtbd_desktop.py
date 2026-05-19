@@ -47,7 +47,7 @@ def jtbd_desktop_cmd(
 
 	try:
 		from ..jtbd_desktop.app import run_desktop_editor
-	except RuntimeError as exc:
+	except (RuntimeError, ValueError, OSError) as exc:
 		typer.echo(f"error: {exc}", err=True)
 		raise typer.Exit(1) from exc
 

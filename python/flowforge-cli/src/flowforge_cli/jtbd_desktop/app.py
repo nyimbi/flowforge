@@ -7,14 +7,20 @@ import sys
 from pathlib import Path
 from typing import Any, cast
 
-from .document import JtbdDocument, create_default_bundle, requires_pii
+from .document import (
+	JtbdDocument,
+	create_default_bundle,
+	create_default_jtbd,
+	normalise_id,
+	requires_pii,
+)
 from ..jtbd import generate
 from ..jtbd.parse import JTBDParseError
 
 try:  # pragma: no cover - exercised manually / in GUI smoke environments.
-	from PyQt6.QtCore import Qt
-	from PyQt6.QtGui import QAction, QColor, QPalette
-	from PyQt6.QtWidgets import (
+	from PyQt6.QtCore import Qt  # type: ignore[import-not-found]
+	from PyQt6.QtGui import QAction, QColor, QPalette  # type: ignore[import-not-found]
+	from PyQt6.QtWidgets import (  # type: ignore[import-not-found]
 		QAbstractItemView,
 		QApplication,
 		QCheckBox,
@@ -131,7 +137,11 @@ class NewBundleDialog(QDialog):  # type: ignore[misc]
 			self.package.text().strip() or "new_flowforge_project",
 			self.domain.text().strip() or "case",
 		)
-		bundle["jtbds"][0]["title"] = self.job_title.text().strip() or "Intake case"
+		title = self.job_title.text().strip() or "Intake case"
+		bundle["jtbds"][0] = create_default_jtbd(
+			normalise_id(title, fallback="job"),
+			title,
+		)
 		return bundle
 
 
@@ -535,9 +545,10 @@ class JtbdEditorWindow(QMainWindow):  # type: ignore[misc]
 		jtbd["status"] = self.job_status.currentText()
 		jtbd["actor"] = {
 			"role": self.actor_role.text().strip(),
-			"department": self.actor_department.text().strip() or None,
 			"external": self.actor_external.isChecked(),
 		}
+		if self.actor_department.text().strip():
+			jtbd["actor"]["department"] = self.actor_department.text().strip()
 		jtbd["situation"] = self.situation.toPlainText().strip()
 		jtbd["motivation"] = self.motivation.toPlainText().strip()
 		jtbd["outcome"] = self.outcome.toPlainText().strip()
@@ -574,8 +585,11 @@ class JtbdEditorWindow(QMainWindow):  # type: ignore[misc]
 		)
 		result = self.document.validate()
 		lines: list[str] = []
-		if result.ok and not result.warnings:
-			lines.append("Ready for generation.")
+		if result.ok:
+			if result.warnings:
+				lines.append("Ready for generation. Review advisory findings below.")
+			else:
+				lines.append("Ready for generation.")
 		for err in result.errors:
 			lines.append(f"ERROR: {err}")
 		for warn in result.warnings:
@@ -1089,8 +1103,8 @@ def _csv(value: str) -> list[str]:
 
 
 def _csv_enum(value: str, allowed: list[str]) -> list[str]:
-	_ = allowed
-	return _csv(value)
+	canonical = {item.lower(): item for item in allowed}
+	return [canonical.get(item.lower(), item) for item in _csv(value)]
 
 
 def _bool(value: str, default: bool = False) -> bool:

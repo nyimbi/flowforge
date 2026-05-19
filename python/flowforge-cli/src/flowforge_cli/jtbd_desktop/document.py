@@ -87,7 +87,6 @@ def create_default_jtbd(
 		"status": "draft",
 		"actor": {
 			"role": actor_role or "requester",
-			"department": None,
 			"external": False,
 		},
 		"situation": "A requester needs this work completed with clear ownership.",

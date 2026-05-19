@@ -13,6 +13,8 @@ from flowforge_cli.jtbd_desktop.document import (
 	normalise_id,
 	requires_pii,
 )
+from flowforge_cli.jtbd import generate
+from flowforge_cli.jtbd.parse import parse_bundle
 from flowforge_cli.main import app
 
 
@@ -23,13 +25,30 @@ def test_default_bundle_is_generation_ready() -> None:
 	doc = JtbdDocument()
 
 	result = doc.validate()
+	files = generate(doc.bundle)
 
 	assert result.ok
 	assert result.errors == []
 	assert not any("linter unavailable" in warning for warning in result.warnings)
+	assert files
 	assert doc.bundle["project"]["frontend"]["form_renderer"] == "real"
 	assert doc.bundle["project"]["design"]["primary"] == "#2563eb"
 	assert doc.bundle["jtbds"][0]["data_capture"][0]["pii"] is True
+	assert "department" not in doc.bundle["jtbds"][0]["actor"]
+
+
+def test_desktop_bundle_parser_accepts_authoring_metadata() -> None:
+	bundle = create_default_bundle()
+	bundle["jtbds"].append({
+		**bundle["jtbds"][0],
+		"id": "review_case",
+		"title": "Review case",
+		"requires": ["intake_case"],
+		"version": "1.2.3",
+		"status": "in_review",
+	})
+
+	assert parse_bundle(bundle) is bundle
 
 
 def test_add_duplicate_and_remove_jobs_keeps_unique_ids() -> None:
