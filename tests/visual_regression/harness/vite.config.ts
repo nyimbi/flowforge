@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,6 +9,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "../../..");
 
 function generatedFrontendAlias(): Plugin {
+	function resolveGeneratedImport(target: string): string {
+		const candidates = [
+			target,
+			`${target}.tsx`,
+			`${target}.ts`,
+			`${target}.jsx`,
+			`${target}.js`,
+			path.join(target, "index.tsx"),
+			path.join(target, "index.ts"),
+			path.join(target, "index.jsx"),
+			path.join(target, "index.js"),
+		];
+		return candidates.find((candidate) => existsSync(candidate)) ?? target;
+	}
+
 	return {
 		name: "flowforge-generated-frontend-alias",
 		resolveId(source, importer) {
@@ -21,7 +37,7 @@ function generatedFrontendAlias(): Plugin {
 				return null;
 			}
 			const srcRoot = normal.slice(0, idx + marker.length - 1);
-			return path.join(srcRoot, source.slice(2));
+			return resolveGeneratedImport(path.join(srcRoot, source.slice(2)));
 		},
 	};
 }
@@ -42,6 +58,10 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: [
+			{
+				find: "@flowforge/renderer/styles.css",
+				replacement: path.resolve(repoRoot, "js/flowforge-renderer/src/styles.css"),
+			},
 			{
 				find: "@flowforge/renderer",
 				replacement: path.resolve(repoRoot, "js/flowforge-renderer/src/index.ts"),

@@ -74,6 +74,7 @@ fi
 HARNESS_PID=""
 HARNESS_LOG=""
 HARNESS_URL_FILE=""
+HARNESS_BUILD_DIR=""
 cleanup() {
 	if [[ -n "$HARNESS_PID" ]] && kill -0 "$HARNESS_PID" >/dev/null 2>&1; then
 		kill "$HARNESS_PID" >/dev/null 2>&1 || true
@@ -81,12 +82,21 @@ cleanup() {
 	fi
 	[[ -n "$HARNESS_LOG" ]] && rm -f "$HARNESS_LOG"
 	[[ -n "$HARNESS_URL_FILE" ]] && rm -f "$HARNESS_URL_FILE"
+	[[ -n "$HARNESS_BUILD_DIR" ]] && rm -rf "$HARNESS_BUILD_DIR"
 }
 trap cleanup EXIT
 
 if [[ -z "${VISREG_DEV_SERVER_URL:-}" ]]; then
 	if ! (cd "$VISREG_DIR" && node -e "import('vite')" >/dev/null 2>&1); then
 		unavailable "vite is not installed in tests/visual_regression/node_modules — run pnpm install in tests/visual_regression."
+	fi
+	HARNESS_BUILD_DIR="$(mktemp -d)"
+	if ! (
+		cd "$VISREG_DIR"
+		"$VISREG_DIR/node_modules/.bin/vite" build --config harness/vite.config.ts --outDir "$HARNESS_BUILD_DIR" --emptyOutDir
+	) >/dev/null; then
+		echo "[FAIL] visual-regression harness build failed — generated page imports are not loadable by Vite." >&2
+		exit 1
 	fi
 	HARNESS_URL_FILE="$(mktemp)"
 	HARNESS_LOG="$(mktemp)"
