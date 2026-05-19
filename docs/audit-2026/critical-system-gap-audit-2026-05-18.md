@@ -2,11 +2,11 @@
 
 Scope: full repository review of `flowforge` as a portable workflow framework and generated application scaffold. This audit focuses on capability gaps, incomplete code, UI/UX debt, workflow improvements, code quality, reliability, security, performance, and design risks.
 
-Verdict: not ready to describe as exhaustively tested or completely correct. The repository contains strong deterministic-generator work and useful conformance tests, but several current "green" claims rely on skips, host-side assumptions, in-memory defaults, and starter stubs. Multi-platform production use needs a fail-closed release lane before this can be considered critical-system safe.
+Verdict: the audit's independent Flowforge critical-readiness criteria are now satisfied for the current repository contract. The original snapshot found green claims that relied on skips, host-side assumptions, in-memory defaults, and starter stubs; those release-blocking gaps have been remediated or explicitly reclassified as host/deployment responsibilities. The final fail-closed external release lane has now passed in a browser-capable GitHub Actions environment with retained evidence.
 
 ## Remediation Snapshot - 2026-05-18
 
-This report is the original exhaustive audit plus remediation progress from the same work session. The verdict remains conditional because the final independent Flowforge external-release bundle still needs to run in a browser-capable release environment, but the DOM visual baseline, browser Playwright full-stack lanes, reviewed `polish-copy` sidecar, live Postgres checks, and optional downstream UMS parity now have concrete evidence.
+This report is the original exhaustive audit plus remediation progress from the same work session. The final independent Flowforge external-release bundle passed in GitHub Actions run `26098960312` on commit `ab47aec095b0213e0f7cc9b9b2648d5f3c6c8ea7`, with retained artifact `7084214569`. DOM visual baselines, browser Playwright full-stack, reviewed `polish-copy` sidecar, live Postgres checks, and optional downstream UMS parity now have concrete evidence.
 
 The prompt-to-artifact completion checklist for the current state lives at
 `docs/audit-2026/completion-audit-2026-05-19.md`.
@@ -60,7 +60,7 @@ Verification evidence collected during remediation:
   - Result: fail-closed local release gate passed. Covered ratchets, conformance, audit unit tests, property tests, integration/e2e, Python+JS cross-runtime parity, edge cases, observability PromQL lint, W4b property coverage, i18n coverage, and signoff mapping.
   - Caveats: the target explicitly prints the external release checks that are outside standalone local qualification: browser DOM baselines, browser Playwright full-stack, reviewed polish-copy sidecar, optional downstream UMS parity, and live Postgres contention/drain verification. UMS parity and live Postgres have since passed in this session with explicit environment wiring.
 - `uv run pytest tests/audit_2026 -q --tb=short`
-  - Result: `200 passed`, including config-scoping/production-validation coverage for MEDIUM-05, generated SQLAlchemy runtime coverage for CRITICAL-08, browser full-stack e2e wiring coverage for HIGH-10, fail-closed external release-gate ratchets, fail-closed external preflight ratchets, fail-closed polish-copy sidecar ratchets, external release evidence-template ratchets, manual external-release workflow wiring, DOM-baseline/sidecar helper workflow ratchets, workflow YAML parse coverage, CI `check_all.sh` parallelism, tracked uv cache inputs, Node 22 / pnpm 11.1.3 pinning, and SnapshotConflict retry-policy documentation coverage.
+  - Result: `201 passed`, including config-scoping/production-validation coverage for MEDIUM-05, generated SQLAlchemy runtime coverage for CRITICAL-08, browser full-stack e2e wiring coverage for HIGH-10, fail-closed external release-gate ratchets, fail-closed external preflight ratchets, fail-closed polish-copy sidecar ratchets, external release evidence-template ratchets, manual external-release workflow wiring, DOM-baseline/sidecar helper workflow ratchets, DOM path-stability ratchets, workflow YAML parse coverage, CI `check_all.sh` parallelism, tracked uv cache inputs, Node 22 / pnpm 11.1.3 pinning, and SnapshotConflict retry-policy documentation coverage.
 - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache BACKEND_ROOT=/private/tmp/flowforge-ums-release-backend/backend make audit-2026-ums-parity`
   - Result: `134 passed` in `tests/test_workflow_def_parity.py` against a fresh UMS backend checkout at `cae102c91eda1553dfc234a87a16cc396cf51ea1`.
 - Generated backend smoke:
@@ -112,22 +112,23 @@ Verification evidence collected during remediation:
   - Result: Earlier execution of `audit-2026-release-external` exposed the missing `UMS_BACKEND_TOKEN` prerequisite and the misleading coupling to a private downstream backend. The workflow is now manual/release-only, runs independent Flowforge evidence by default, and supports tokenless public backend checkout only when `run_ums_parity=true`.
   - Result: Manual GitHub Actions run `26097271676` with `backend_repository=nyimbi/ums` and no `UMS_BACKEND_TOKEN` failed in the explicit token-detection guard, proving the selected UMS backend still requires a read token if optional UMS parity is requested in the release environment.
 - External release evidence retention:
-  - Result: `docs/audit-2026/external-release-evidence-template.md` now records the fields required to retain DOM baseline review, release skip-flag absence, preflight caveat acknowledgement, `anthropic` import preflight, `uv run flowforge polish-copy --require-llm --commit` output review, reviewed sidecar review, manual workflow run URL, artifact URL, UMS parity, browser e2e, and live Postgres evidence. The manual external workflow uploads an `audit-2026-release-external-evidence` artifact with DOM baselines, Playwright reports/results, the reviewed sidecar, and evidence docs when present.
+  - Result: `docs/audit-2026/external-release-evidence-template.md` now records the fields required to retain DOM baseline review, release skip-flag absence, preflight caveat acknowledgement, `anthropic` import preflight, `uv run flowforge polish-copy --require-llm --commit` output review, reviewed sidecar review, manual workflow run URL, artifact URL, optional UMS parity, browser e2e, and live Postgres evidence. The manual external workflow uploads an `audit-2026-release-external-evidence` artifact with DOM baselines, Playwright reports/results, the reviewed sidecar, and evidence docs when present.
+  - Result: GitHub Actions run `26098960312` passed the independent external release gate and uploaded artifact `7084214569`, which contains generated `external-release-evidence-current.md`, the runbook/template, DOM baselines, and the reviewed sidecar. The run executed DOM visual regression (`24 passed`), browser full-stack e2e (`1 passed`), the reviewed sidecar gate, and live Postgres release checks (`4 passed`) together in a browser-capable release environment.
 - Real-key sidecar authoring helper:
   - Result: `.github/workflows/audit-2026-polish-copy-sidecar.yml` now runs `uv sync --all-packages --all-extras`, verifies `anthropic` import, executes `uv run flowforge polish-copy --require-llm --commit` with repository secrets, runs `make audit-2026-polish-copy-sidecar`, prints the sidecar diff, and uploads the candidate sidecar for review. This remains an authoring helper for future copy refreshes; the current reviewed sidecar is already present.
 
 Remaining release blockers:
 
-- The final `make audit-2026-release-external` / external-release workflow must run in a browser-capable release environment so one retained release artifact ties together DOM, browser e2e, sidecar, and live Postgres evidence.
+- None for the independent Flowforge critical-readiness criteria in this audit.
 - Optional downstream UMS release certification should be run with `run_ums_parity=true` / `FLOWFORGE_REQUIRE_UMS_PARITY=1` when a release candidate needs compatibility proof against a selected UMS backend.
 - The exact external execution sequence is documented in `docs/audit-2026/external-release-runbook.md`.
 
-Release CI execution still required:
+Release CI execution:
 
-- UMS workflow-def parity has passed against a fresh clone at `/private/tmp/flowforge-ums-release-backend/backend`; the manual release workflow now checks out a caller-supplied backend repository/ref and sets `BACKEND_ROOT`, but it still needs to be run in the release environment.
-- The local external-release rehearsal now passes preflight and reaches the DOM browser lane, then fails only because this macOS sandbox blocks Chromium launch with `MachPortRendezvousServer ... Permission denied`.
+- UMS workflow-def parity has passed against a fresh clone at `/private/tmp/flowforge-ums-release-backend/backend`; the manual release workflow can opt into caller-supplied backend repository/ref and `BACKEND_ROOT` wiring when downstream UMS certification is required.
+- The local external-release rehearsal now passes preflight and reaches the DOM browser lane, then fails only because this macOS sandbox blocks Chromium launch with `MachPortRendezvousServer ... Permission denied`. Browser-capable GitHub Actions run `26098960312` supersedes that local environment limitation.
 - The generated backend now supports stable multi-event demo/test flows by `instance_id`; idempotency can be wired to SQLAlchemy; and generated adapters expose `configure_runtime_session_factory(...)` to run `SqlAlchemySnapshotStore.fire_and_commit(...)` for durable workflow instance rows, snapshots, workflow events, audit rows, and outbox rows.
-- SQLAlchemy-backed hosts now have a transactional fire commit path for event log, snapshot CAS, audit rows, and durable outbox enqueue. The local integration lane proves those rows can be drained by `DrainWorker`, and `audit-2026-live-postgres` has now passed against a real local Postgres service. The manual release workflow now supplies an isolated disposable Postgres service; critical deployments still need to execute that workflow and retain the evidence.
+- SQLAlchemy-backed hosts now have a transactional fire commit path for event log, snapshot CAS, audit rows, and durable outbox enqueue. The local integration lane proves those rows can be drained by `DrainWorker`, `audit-2026-live-postgres` has passed against a real local Postgres service, and the manual release workflow has passed against an isolated disposable Postgres service. Future critical deployments should repeat that workflow and retain fresh evidence for their release candidate.
 
 ## Audit Method
 
@@ -1330,10 +1331,9 @@ Do not claim "critical-system ready" until all of these are true:
 14. A real LLM `polish-copy` sidecar has been generated, reviewed, and committed.
 15. The independent external release bundle has run with retained DOM, browser e2e, sidecar, and live Postgres evidence; downstream UMS parity is retained separately when explicitly requested for UMS certification.
 
-Current status: criteria 1-14 are materially satisfied for the repository and
-browser-capable PR evidence described above. Criterion 15 remains blocked until
-the independent external release workflow is run in a browser-capable release
-environment and its retained evidence artifact is reviewed. UMS parity has
+Current status: criteria 1-15 are satisfied for the repository and
+browser-capable release evidence described above. Criterion 15 is satisfied by
+GitHub Actions run `26098960312` and artifact `7084214569`. UMS parity has
 already passed locally against a fresh UMS checkout and is no longer a default
 independent-release prerequisite.
 
@@ -1359,13 +1359,13 @@ independent-release prerequisite.
 - Completed for workspace discovery, local/external gate separation, dependency
   audits, machine-readable integration summaries, and fail-closed release
   targets.
-- The external release bundle remains intentionally blocked in this local
-  sandbox because Chromium cannot launch. GitHub pull-request checks are green
-  and no longer depend on UMS. The manual external release workflow now runs
-  independent Flowforge evidence by default and opts into UMS only when
+- The external release bundle remains intentionally blocked only in this local
+  sandbox because Chromium cannot launch. GitHub pull-request checks and the
+  manual independent external release workflow are green and no longer depend
+  on UMS by default. The workflow opts into UMS only when
   `run_ums_parity=true`; manual run `26097271676` proved `nyimbi/ums` is
   private from GitHub Actions without `UMS_BACKEND_TOKEN` for that optional
-  downstream certification lane. The reviewed sidecar is now present.
+  downstream certification lane. The reviewed sidecar is present and verified.
 
 ### Lane 4: Finish generated app production path
 
@@ -1397,8 +1397,7 @@ independent-release prerequisite.
 - The package separation between core and adapters is a good architectural boundary.
 - The new i18n sidecar flow and property coverage additions are pointed in the right direction.
 - The visual regression harness now has committed smoke baselines and
-  browser-capable PR execution; the final independent external release bundle
-  still needs to run in a browser-capable release environment.
+  browser-capable PR and release execution.
 
 ## Bottom Line
 
@@ -1410,12 +1409,10 @@ Step diagnostics/PII reveal are hardened, generated pages default to API-backed
 runtime-client calls, outbox worker health has readiness/Prometheus hooks, and
 engine/generated-app paths now use scoped runtime config where it matters. DOM
 smoke baselines, browser full-stack e2e, and the first reviewed `polish-copy`
-sidecar now have concrete evidence. It is still not honest to call the system
-completely critical-ready until the remaining external and production-mode gap
-is closed: the final independent external-release workflow must run with
-retained evidence in a browser-capable release environment. UMS parity and live
-Postgres have passed with explicit environment wiring; UMS parity is now an
-optional downstream certification lane instead of a package-release dependency.
-JS packages remain intentionally private/source-first and must not be
-represented as npm-publishable until a separate dist/consumer-fixture release
-design lands.
+sidecar now have concrete evidence. The final independent external-release
+workflow has also passed with retained evidence in a browser-capable release
+environment. UMS parity and live Postgres have passed with explicit environment
+wiring; UMS parity is now an optional downstream certification lane instead of
+a package-release dependency. JS packages remain intentionally
+private/source-first and must not be represented as npm-publishable until a
+separate dist/consumer-fixture release design lands.
