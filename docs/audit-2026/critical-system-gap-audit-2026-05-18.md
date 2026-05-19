@@ -6,7 +6,7 @@ Verdict: not ready to describe as exhaustively tested or completely correct. The
 
 ## Remediation Snapshot - 2026-05-18
 
-This report is the original exhaustive audit plus remediation progress from the same work session. The verdict remains conditional because the final external-release bundle still needs to run in a browser-capable release environment, but the DOM visual baseline, browser Playwright full-stack lanes, and reviewed `polish-copy` sidecar now have concrete evidence.
+This report is the original exhaustive audit plus remediation progress from the same work session. The verdict remains conditional because the final external-release bundle still needs to run in a browser-capable release environment with `UMS_BACKEND_TOKEN` configured for the private UMS backend, but the DOM visual baseline, browser Playwright full-stack lanes, and reviewed `polish-copy` sidecar now have concrete evidence.
 
 The prompt-to-artifact completion checklist for the current state lives at
 `docs/audit-2026/completion-audit-2026-05-19.md`.
@@ -108,7 +108,8 @@ Latest verification evidence:
 - External release preflight:
   - Result: `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-external-preflight` fails closed and reports all currently missing persistent prerequisites together. With `BACKEND_ROOT=/Users/nyimbiodero/src/pjs/ums/backend`, `FLOWFORGE_TEST_PG_URL`, and the reviewed sidecar supplied, preflight passes. The success path explicitly states browser execution is verified by `make audit-2026-release-external`, so preflight alone cannot be mistaken for release qualification.
 - External release CI wiring:
-  - Result: `.github/workflows/audit-2026-release-external.yml` now provides a manual release-qualification workflow that checks out flowforge plus a caller-supplied UMS backend repo/ref, starts a disposable Postgres service, pins pnpm 11.1.3 to match the repo's `allowBuilds` semantics, installs the flowforge workspace with all extras, installs Playwright Chromium, wires `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, and runs `make audit-2026-release-external` without local skip flags.
+  - Result: `.github/workflows/audit-2026-release-external.yml` now provides a pull-request release-qualification workflow for release-gate-relevant changes against `nyimbi/ums@main`, plus a manual workflow that checks out a caller-supplied UMS backend repo/ref. It starts a disposable Postgres service, pins pnpm 11.1.3 to match the repo's `allowBuilds` semantics, installs the flowforge workspace with all extras, installs Playwright Chromium, wires `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, requires `UMS_BACKEND_TOKEN` before backend checkout, and runs `make audit-2026-release-external` without local skip flags.
+  - Result: PR run `26082567508` registered `audit-2026-release-external` but failed during UMS checkout with `Repository not found` for `nyimbi/ums`, proving the remaining CI blocker is missing/inadequate `UMS_BACKEND_TOKEN`, not workflow registration.
 - External release evidence retention:
   - Result: `docs/audit-2026/external-release-evidence-template.md` now records the fields required to retain DOM baseline review, release skip-flag absence, preflight caveat acknowledgement, `anthropic` import preflight, `uv run flowforge polish-copy --require-llm --commit` output review, reviewed sidecar review, manual workflow run URL, artifact URL, UMS parity, browser e2e, and live Postgres evidence. The manual external workflow uploads an `audit-2026-release-external-evidence` artifact with DOM baselines, Playwright reports/results, the reviewed sidecar, and evidence docs when present.
 - Real-key sidecar authoring helper:
@@ -116,7 +117,7 @@ Latest verification evidence:
 
 Remaining release blockers:
 
-- The final `make audit-2026-release-external` / manual external-release workflow must run in a browser-capable release environment so one retained release artifact ties together DOM, browser e2e, sidecar, UMS parity, and live Postgres evidence.
+- The final `make audit-2026-release-external` / external-release workflow must run in a browser-capable release environment with `UMS_BACKEND_TOKEN` configured so one retained release artifact ties together DOM, browser e2e, sidecar, UMS parity, and live Postgres evidence.
 - The exact external execution sequence is documented in `docs/audit-2026/external-release-runbook.md`.
 
 Release CI execution still required:
@@ -1330,7 +1331,8 @@ Do not claim "critical-system ready" until all of these are true:
 Current status: criteria 1-14 are materially satisfied for the repository and
 browser-capable PR evidence described above. Criterion 15 remains blocked until
 the external release workflow is run in a browser-capable release environment
-and its retained evidence artifact is reviewed.
+with `UMS_BACKEND_TOKEN` configured and its retained evidence artifact is
+reviewed.
 
 ## Suggested Remediation Plan
 
@@ -1355,7 +1357,9 @@ and its retained evidence artifact is reviewed.
   audits, machine-readable integration summaries, and fail-closed release
   targets.
 - The external release bundle remains intentionally blocked in this local
-  sandbox because Chromium cannot launch; the reviewed sidecar is now present.
+  sandbox because Chromium cannot launch. PR execution is additionally blocked
+  until repository secret `UMS_BACKEND_TOKEN` can read `nyimbi/ums`; the reviewed
+  sidecar is now present.
 
 ### Lane 4: Finish generated app production path
 

@@ -64,13 +64,22 @@ jobs:
         with:
           path: flowforge
 
+      - name: Require UMS backend checkout token
+        env:
+          UMS_BACKEND_TOKEN: ${{ secrets.UMS_BACKEND_TOKEN }}
+        run: |
+          if [ -z "${UMS_BACKEND_TOKEN:-}" ]; then
+            echo "::error::Set repository secret UMS_BACKEND_TOKEN with read access to the UMS backend before running audit-2026-release-external."
+            exit 1
+          fi
+
       - name: Checkout UMS backend
         uses: actions/checkout@v4
         with:
           repository: ${{ github.event_name == 'workflow_dispatch' && inputs.backend_repository || 'nyimbi/ums' }}
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.backend_ref || 'main' }}
           path: backend
-          token: ${{ secrets.UMS_BACKEND_TOKEN || github.token }}
+          token: ${{ secrets.UMS_BACKEND_TOKEN }}
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v4

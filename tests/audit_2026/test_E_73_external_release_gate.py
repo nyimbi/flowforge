@@ -40,8 +40,12 @@ def test_external_release_gate_is_wired_in_ci_workflow() -> None:
 	assert "workflow_dispatch:" in workflow
 	assert "backend_repository:" in workflow
 	assert "nyimbi/ums" in workflow
+	assert "Require UMS backend checkout token" in workflow
+	assert "UMS_BACKEND_TOKEN: ${{ secrets.UMS_BACKEND_TOKEN }}" in workflow
+	assert "Set repository secret UMS_BACKEND_TOKEN with read access to the UMS backend" in workflow
 	assert "github.event_name == 'workflow_dispatch' && inputs.backend_repository || 'nyimbi/ums'" in workflow
 	assert "github.event_name == 'workflow_dispatch' && inputs.backend_ref || 'main'" in workflow
+	assert "token: ${{ secrets.UMS_BACKEND_TOKEN }}" in workflow
 	assert "postgres:16" in workflow
 	assert "pnpm exec playwright install --with-deps chromium" in workflow
 	assert "uv sync --all-packages --all-extras" in workflow

@@ -153,17 +153,19 @@ Acceptance criteria:
 The CI path is `.github/workflows/audit-2026-release-external.yml`. On pull
 requests, it runs automatically for release-gate-relevant changes against
 `nyimbi/ums@main`, with a disposable Postgres service and no visual-regression
-skip flags.
+skip flags. The workflow requires repository secret `UMS_BACKEND_TOKEN` with
+read access to the UMS backend; it fails before checkout when that secret is not
+configured.
 
 For a specific release-candidate backend ref, launch the manual path with:
 
 - `backend_repository`: the UMS backend repository in `owner/repo` form.
 - `backend_ref`: the UMS backend git ref to qualify against.
-- Repository secrets: `UMS_BACKEND_TOKEN` if the backend repository is private
-  and `GITHUB_TOKEN` cannot read it. `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY` are
-  only needed if the release workflow is also being used to author a fresh
-  sidecar; once a reviewed sidecar is committed, the external release target
-  verifies it without calling an LLM provider.
+- Repository secrets: `UMS_BACKEND_TOKEN` with read access to the UMS backend.
+  `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY` are only needed if the release workflow
+  is also being used to author a fresh sidecar; once a reviewed sidecar is
+  committed, the external release target verifies it without calling an LLM
+  provider.
 
 CLI equivalent:
 
