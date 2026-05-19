@@ -71,19 +71,23 @@ Latest direct blocker verification:
 - `uv run flowforge polish-copy --bundle examples/insurance_claim/jtbd-bundle.json --tone formal-professional --require-llm --commit`
   fails closed because no `ANTHROPIC_API_KEY` or `CLAUDE_API_KEY` is exported,
   and writes no sidecar.
-- `gh workflow list --repo nyimbi/flowforge` currently shows only the older
-  remote `Audit 2026`, `flowforge gate`, and `JTBD lint` workflows. The new
-  external release, DOM-baseline generation, and sidecar-authoring workflows are
-  still local/uncommitted in this checkout, so they must be committed and pushed
-  before GitHub Actions can generate the missing artifacts.
+- The remediation branch has been pushed as
+  `audit-2026-critical-readiness`. `gh workflow list --repo nyimbi/flowforge`
+  still shows only the older remote `Audit 2026`, `flowforge gate`, and `JTBD
+  lint` workflows because the new manual external release and sidecar-authoring
+  workflows are not on the default branch yet.
+- `.github/workflows/audit-2026-dom-baselines.yml` now also runs on pull
+  requests with smoke cadence, so this branch can produce reviewable DOM
+  baseline artifacts before the manual helper is registered on `main`.
 - `docker info` reports Docker CLI is installed but cannot connect to the Docker
   daemon. The approval request to launch Docker Desktop was rejected, so the
   local Linux-container fallback for Chromium execution is unavailable in this
   session.
 - `gh workflow run audit-2026-dom-baselines.yml --repo nyimbi/flowforge --ref main -f cadence=smoke`
   returns `HTTP 404: workflow audit-2026-dom-baselines.yml not found on the
-  default branch`, confirming GitHub cannot dispatch the new helper workflow
-  until the workflow file is pushed to the remote default branch.
+  default branch`, confirming GitHub cannot manually dispatch the full-cadence
+  helper workflow until the workflow file is pushed to the remote default
+  branch.
 - `gh secret list --repo nyimbi/flowforge` returns no configured repository
   secrets, so the sidecar-authoring and external-release workflows also need
   `ANTHROPIC_API_KEY` or `CLAUDE_API_KEY` to be added before real-key

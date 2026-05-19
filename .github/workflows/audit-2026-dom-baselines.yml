@@ -1,12 +1,22 @@
 name: Audit 2026 DOM baseline generation
 
-# Manual helper for the release blocker that cannot run in local sandboxes:
+# Helper for the release blocker that cannot run in local sandboxes:
 # generate candidate DOM baselines in a Chromium-capable GitHub runner and
-# upload them for human review. This does not replace
+# upload them for human review. Pull requests generate smoke candidates so a
+# branch can collect browser evidence before the workflow exists on main; full
+# cadence remains a manual release-authoring action. This does not replace
 # audit-2026-release-external; reviewed baselines must still be committed and
 # the release gate must pass without local visual skip flags.
 
 on:
+  pull_request:
+    paths:
+      - ".github/workflows/audit-2026-dom-baselines.yml"
+      - "examples/**"
+      - "js/**"
+      - "python/flowforge-cli/**"
+      - "scripts/visual_regression/**"
+      - "tests/visual_regression/**"
   workflow_dispatch:
     inputs:
       cadence:
@@ -60,8 +70,9 @@ jobs:
 
       - name: Generate DOM baseline candidates
         env:
+          DOM_BASELINE_CADENCE: ${{ github.event_name == 'workflow_dispatch' && inputs.cadence || 'smoke' }}
           UPDATE_BASELINES: "1"
-        run: bash scripts/visual_regression/run_dom_snapshots.sh "${{ inputs.cadence }}"
+        run: bash scripts/visual_regression/run_dom_snapshots.sh "$DOM_BASELINE_CADENCE"
 
       - name: Upload DOM baseline candidates
         if: always()

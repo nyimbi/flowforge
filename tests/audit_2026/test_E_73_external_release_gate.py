@@ -59,7 +59,10 @@ def test_external_release_gate_is_wired_in_manual_ci_workflow() -> None:
 def test_dom_baseline_generation_workflow_uploads_reviewable_artifact() -> None:
 	workflow = _read(".github/workflows/audit-2026-dom-baselines.yml")
 
+	assert "pull_request:" in workflow
 	assert "workflow_dispatch:" in workflow
+	assert "DOM_BASELINE_CADENCE:" in workflow
+	assert "github.event_name == 'workflow_dispatch' && inputs.cadence || 'smoke'" in workflow
 	assert "type: choice" in workflow
 	assert "smoke" in workflow
 	assert "full" in workflow

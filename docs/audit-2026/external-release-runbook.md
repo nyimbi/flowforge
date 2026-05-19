@@ -36,6 +36,11 @@ release approval record.
 
 Preferred CI-assisted path:
 
+On pull requests, `.github/workflows/audit-2026-dom-baselines.yml` generates a
+smoke-cadence `audit-2026-dom-baseline-candidates` artifact automatically when
+visual-regression inputs change. Use that artifact for early browser evidence
+before the helper is available on the default branch.
+
 ```bash
 gh workflow run audit-2026-dom-baselines.yml -f cadence=full
 ```
