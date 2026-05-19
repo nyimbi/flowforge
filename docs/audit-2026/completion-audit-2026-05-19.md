@@ -58,6 +58,8 @@ Chromium can launch and where the selected UMS backend checkout is accessible
 
 The exact external execution sequence is documented in
 `docs/audit-2026/external-release-runbook.md`.
+The retained blocked-run evidence record is
+`docs/audit-2026/external-release-evidence-2026-05-19-blocked.md`.
 
 Direct blocker evidence:
 
