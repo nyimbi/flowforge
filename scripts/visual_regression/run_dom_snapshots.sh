@@ -9,13 +9,9 @@
 #                running on a PR branch.
 #   * "full"   — every example (nightly cadence).
 #
-# When prerequisites are missing (Playwright deps not installed because
-# pnpm install is blocked, or the dev-server harness has not yet
-# landed), the script SKIPS WITH A CLEAR REASON and exits 0. This is
-# explicitly authorised by the W3 task brief: the gate must not fail
-# CI on a known-deferred prerequisite. Once worker-tokens lands the
-# pnpm cleanup PR + the dev-server harness, the skip path stops
-# triggering and the gate becomes live with no further changes here.
+# Missing prerequisites are release-gate failures by default. Developers
+# may opt into a local skip with VISREG_ALLOW_SKIP=1 while bootstrapping
+# browsers or baselines on a fresh workstation.
 
 set -uo pipefail
 
@@ -32,10 +28,16 @@ case "$CADENCE" in
 		;;
 esac
 
-skip() {
-	echo "[SKIP] visual-regression-dom: $*"
+unavailable() {
+	if [[ "${VISREG_ALLOW_SKIP:-}" == "1" ]]; then
+		echo "[SKIP] visual-regression-dom: $*"
+		echo "  see tests/visual_regression/README.md for status."
+		exit 0
+	fi
+	echo "[FAIL] visual-regression-dom: $*" >&2
 	echo "  see tests/visual_regression/README.md for status."
-	exit 0
+	echo "  set VISREG_ALLOW_SKIP=1 only for local bootstrap, not release gates." >&2
+	exit 1
 }
 
 # 1. Runner directory must exist (sanity check vs accidental deletion).
@@ -49,23 +51,69 @@ fi
 #    `tests/visual_regression/package.json`. Detect the dir; if absent,
 #    skip with the canonical reason.
 if [[ ! -d "$VISREG_DIR/node_modules" ]]; then
-	skip "tests/visual_regression/node_modules missing — pnpm install is blocked on the pre-existing pnpm-ignored-builds issue (worker-tokens / W3 closeout owns the unblock)."
+	unavailable "tests/visual_regression/node_modules missing — run pnpm install for the visual regression runner."
 fi
 
 # 3. Playwright browsers must be installed. We don't fail-fast here
 #    because Playwright will produce its own "browsers not installed"
 #    message; we just route that into a clean skip.
 if ! "$VISREG_DIR/node_modules/.bin/playwright" --version >/dev/null 2>&1; then
-	skip "@playwright/test CLI not on PATH inside tests/visual_regression/node_modules — pnpm install incomplete."
+	unavailable "@playwright/test CLI not on PATH inside tests/visual_regression/node_modules — pnpm install incomplete."
 fi
 
-# 4. Dev-server harness wiring. The harness lands in the follow-up PR
-#    once pnpm install is unblocked. Until then, VISREG_DEV_SERVER_URL
-#    is unset and the test specs themselves skip-with-reason. We
-#    surface that here so the operator sees a single skip line rather
-#    than N×3-viewport skipped tests.
+if [[ "${UPDATE_BASELINES:-}" != "1" ]]; then
+	if ! find "$REPO_ROOT/examples" -path "*/screenshots/*/*.dom.html" -type f | grep -q .; then
+		unavailable "DOM baselines are not checked in yet — run with UPDATE_BASELINES=1 after Playwright can launch Chromium."
+	fi
+fi
+
+# 4. Dev-server harness wiring. Operators may point the runner at an
+#    already-running server with VISREG_DEV_SERVER_URL. When unset, the
+#    local Vite harness mounts generated pages and admin components
+#    directly from the checked-in example tree.
+HARNESS_PID=""
+HARNESS_LOG=""
+HARNESS_URL_FILE=""
+cleanup() {
+	if [[ -n "$HARNESS_PID" ]] && kill -0 "$HARNESS_PID" >/dev/null 2>&1; then
+		kill "$HARNESS_PID" >/dev/null 2>&1 || true
+		wait "$HARNESS_PID" >/dev/null 2>&1 || true
+	fi
+	[[ -n "$HARNESS_LOG" ]] && rm -f "$HARNESS_LOG"
+	[[ -n "$HARNESS_URL_FILE" ]] && rm -f "$HARNESS_URL_FILE"
+}
+trap cleanup EXIT
+
 if [[ -z "${VISREG_DEV_SERVER_URL:-}" ]]; then
-	skip "VISREG_DEV_SERVER_URL not set — dev-server harness deferred until pnpm install is unblocked. The runner is structurally complete; only the harness wiring is missing."
+	if ! (cd "$VISREG_DIR" && node -e "import('vite')" >/dev/null 2>&1); then
+		unavailable "vite is not installed in tests/visual_regression/node_modules — run pnpm install in tests/visual_regression."
+	fi
+	HARNESS_URL_FILE="$(mktemp)"
+	HARNESS_LOG="$(mktemp)"
+	(
+		cd "$VISREG_DIR"
+		node "$VISREG_DIR/harness/start-dev-server.mjs" "$HARNESS_URL_FILE"
+	) >"$HARNESS_LOG" 2>&1 &
+	HARNESS_PID="$!"
+	for _ in {1..100}; do
+		if [[ -s "$HARNESS_URL_FILE" ]]; then
+			VISREG_DEV_SERVER_URL="$(cat "$HARNESS_URL_FILE")"
+			export VISREG_DEV_SERVER_URL
+			echo "    harness: $VISREG_DEV_SERVER_URL"
+			break
+		fi
+		if ! kill -0 "$HARNESS_PID" >/dev/null 2>&1; then
+			cat "$HARNESS_LOG" >&2
+			echo "[FAIL] visual-regression harness failed to start" >&2
+			exit 1
+		fi
+		sleep 0.1
+	done
+	if [[ -z "${VISREG_DEV_SERVER_URL:-}" ]]; then
+		cat "$HARNESS_LOG" >&2
+		echo "[FAIL] visual-regression harness did not report a URL" >&2
+		exit 1
+	fi
 fi
 
 # Everything is in place — run the real suite.

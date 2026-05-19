@@ -39,14 +39,15 @@ from typing import Any
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def _load_generator() -> tuple[Any, Any]:
+def _load_generator() -> tuple[Any, Any, Any]:
 	"""Lazy-import the i18n generator so this script fails clearly if the
 	workspace is not synced (``uv sync`` not run yet)."""
 
 	from flowforge_cli.jtbd.normalize import normalize as _normalize  # noqa: PLC0415
 	from flowforge_cli.jtbd.generators import i18n as _i18n  # noqa: PLC0415
+	from flowforge_cli.jtbd.i18n_sidecars import load_i18n_sidecars  # noqa: PLC0415
 
-	return _normalize, _i18n
+	return _normalize, _i18n, load_i18n_sidecars
 
 
 def _key_jtbd(key: str) -> str | None:
@@ -73,10 +74,10 @@ def _key_jtbd(key: str) -> str | None:
 def _check_bundle(bundle_path: Path) -> tuple[int, int]:
 	"""Return ``(error_count, warning_count)`` for *bundle_path*."""
 
-	normalize_fn, i18n_mod = _load_generator()
+	normalize_fn, i18n_mod, load_sidecars = _load_generator()
 	raw = json.loads(bundle_path.read_text(encoding="utf-8"))
 	norm = normalize_fn(raw)
-	files = i18n_mod.generate(norm)
+	files = i18n_mod.generate(norm, translations=load_sidecars(bundle_path))
 	# Map {lang: catalog} — useT.ts is the TS hook, skipped here.
 	catalogs: dict[str, dict[str, str]] = {}
 	for f in files:

@@ -20,6 +20,8 @@ from httpx import AsyncClient
 
 pytestmark = pytest.mark.asyncio
 
+AUTH_HEADERS = {"Authorization": "Bearer admin-test-token"}
+
 
 async def _publish(
 	client: AsyncClient,
@@ -42,6 +44,7 @@ async def _publish(
 	signed = await sign_manifest(manifest, signing)
 	response = await client.post(
 		"/api/jtbd-hub/packages",
+		headers=AUTH_HEADERS,
 		json={
 			"manifest": signed.model_dump(mode="json"),
 			"bundle_b64": base64.b64encode(bundle).decode("ascii"),
@@ -74,6 +77,26 @@ async def test_publish_then_search_finds_package(
 	assert results[0]["name"] == "flowforge-jtbd-insurance"
 
 
+async def test_publish_requires_authentication(
+	app_client: AsyncClient, signing: HmacDevSigning
+) -> None:
+	bundle = b'{"k":"v"}'
+	manifest = JtbdManifest(
+		name="pkg-auth-required",
+		version="1.0.0",
+		bundle_hash=bundle_hash(bundle),
+	)
+	signed = await sign_manifest(manifest, signing)
+	r = await app_client.post(
+		"/api/jtbd-hub/packages",
+		json={
+			"manifest": signed.model_dump(mode="json"),
+			"bundle_b64": base64.b64encode(bundle).decode("ascii"),
+		},
+	)
+	assert r.status_code == 401
+
+
 async def test_publish_duplicate_version_409(
 	app_client: AsyncClient, signing: HmacDevSigning
 ) -> None:
@@ -86,6 +109,7 @@ async def test_publish_duplicate_version_409(
 	signed = await sign_manifest(manifest, signing)
 	r = await app_client.post(
 		"/api/jtbd-hub/packages",
+		headers=AUTH_HEADERS,
 		json={
 			"manifest": signed.model_dump(mode="json"),
 			"bundle_b64": base64.b64encode(b'{"k":"v"}').decode("ascii"),
@@ -102,6 +126,7 @@ async def test_publish_unsigned_403(app_client: AsyncClient) -> None:
 	)
 	r = await app_client.post(
 		"/api/jtbd-hub/packages",
+		headers=AUTH_HEADERS,
 		json={
 			"manifest": manifest.model_dump(mode="json"),
 			"bundle_b64": base64.b64encode(b'{"k":"v"}').decode("ascii"),
@@ -123,6 +148,7 @@ async def test_publish_tampered_bundle_400(
 	signed = await sign_manifest(manifest, signing)
 	r = await app_client.post(
 		"/api/jtbd-hub/packages",
+		headers=AUTH_HEADERS,
 		json={
 			"manifest": signed.model_dump(mode="json"),
 			"bundle_b64": base64.b64encode(b'{"k":"different"}').decode("ascii"),
@@ -187,22 +213,26 @@ async def test_install_404_for_unknown_package(
 	assert r.status_code == 404
 
 
-async def test_rate_returns_average(
+async def test_rate_uses_authenticated_principal_not_payload_user(
 	app_client: AsyncClient, signing: HmacDevSigning
 ) -> None:
 	await _publish(app_client, signing)
 	r1 = await app_client.post(
 		"/api/jtbd-hub/packages/flowforge-jtbd-insurance/1.0.0/ratings",
+		headers=AUTH_HEADERS,
 		json={"user_id": "alice", "stars": 5},
 	)
 	assert r1.status_code == 201
+	assert r1.json()["user_id"] == "legacy_admin"
 	r2 = await app_client.post(
 		"/api/jtbd-hub/packages/flowforge-jtbd-insurance/1.0.0/ratings",
+		headers=AUTH_HEADERS,
 		json={"user_id": "bob", "stars": 3},
 	)
 	assert r2.status_code == 201
-	assert r2.json()["average_stars"] == 4.0
-	assert r2.json()["rating_count"] == 2
+	assert r2.json()["user_id"] == "legacy_admin"
+	assert r2.json()["average_stars"] == 3.0
+	assert r2.json()["rating_count"] == 1
 
 
 async def test_rate_rejects_invalid_stars(
@@ -211,9 +241,21 @@ async def test_rate_rejects_invalid_stars(
 	await _publish(app_client, signing)
 	r = await app_client.post(
 		"/api/jtbd-hub/packages/flowforge-jtbd-insurance/1.0.0/ratings",
+		headers=AUTH_HEADERS,
 		json={"user_id": "alice", "stars": 99},
 	)
 	assert r.status_code == 422
+
+
+async def test_rate_requires_authentication(
+	app_client: AsyncClient, signing: HmacDevSigning
+) -> None:
+	await _publish(app_client, signing)
+	r = await app_client.post(
+		"/api/jtbd-hub/packages/flowforge-jtbd-insurance/1.0.0/ratings",
+		json={"user_id": "alice", "stars": 5},
+	)
+	assert r.status_code == 401
 
 
 async def test_demote_requires_admin_token(
@@ -298,6 +340,7 @@ async def test_search_ranks_by_reputation(
 	# Add ratings.
 	await app_client.post(
 		"/api/jtbd-hub/packages/pkg-b/1.0.0/ratings",
+		headers=AUTH_HEADERS,
 		json={"user_id": "u1", "stars": 5},
 	)
 	r = await app_client.get("/api/jtbd-hub/packages")

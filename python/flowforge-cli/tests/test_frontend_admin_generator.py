@@ -42,6 +42,7 @@ EXPECTED_REL_PATHS: tuple[str, ...] = (
 	"index.html",
 	"package.json",
 	"src/App.tsx",
+	"src/admin.css",
 	"src/api.ts",
 	"src/main.tsx",
 	"src/pages/AuditLogViewer.tsx",
@@ -152,6 +153,23 @@ def test_package_json_declares_react_18_and_vite_5() -> None:
 	# build script must run typecheck via tsc -b before vite build, so
 	# a TS-strict regression breaks the host's build.
 	assert manifest["scripts"]["build"] == "tsc -b && vite build"
+
+
+def test_admin_app_imports_and_ships_operator_stylesheet() -> None:
+	"""The generated admin console must not rely on browser-default UI."""
+	bundle = _load_normalized(_INSURANCE_BUNDLE)
+	out = gen.generate(bundle)
+	(main,) = [f for f in out if f.path.endswith("/src/main.tsx")]
+	(css,) = [f for f in out if f.path.endswith("/src/admin.css")]
+	assert 'import "./admin.css";' in main.content
+	for selector in (
+		".ff-admin-app",
+		".ff-admin-nav",
+		".ff-admin-table",
+		".ff-admin-status",
+		"@media (max-width: 760px)",
+	):
+		assert selector in css.content
 
 
 def test_readme_documents_postgres_assumption() -> None:

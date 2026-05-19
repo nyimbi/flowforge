@@ -78,13 +78,14 @@ async function driveHook<T>(fn: () => T): Promise<T> {
 	const root = ReactDOM.createRoot(container);
 	await React19.act(async () => {
 		root.render(React19.createElement(Probe));
+		await new Promise<void>((r) => setTimeout(r, 0));
 	});
-	// Allow microtask queue to flush (instance fetch resolves).
-	await new Promise<void>((r) => setTimeout(r, 0));
 	await React19.act(async () => {
 		root.render(React19.createElement(Probe));
 	});
-	root.unmount();
+	await React19.act(async () => {
+		root.unmount();
+	});
 	if (result === undefined) {
 		throw new Error("Probe produced no result");
 	}

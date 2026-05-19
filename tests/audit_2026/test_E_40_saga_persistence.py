@@ -52,6 +52,29 @@ async def _new_engine() -> tuple[Any, Any]:
 	return engine, sf
 
 
+async def _seed_instance(
+	sf: Any, instance_id: str, *, tenant_id: str = "t"
+) -> None:
+	"""Create the tenant-owned workflow instance required by saga FK/ownership checks."""
+
+	from flowforge_sqlalchemy.models import WorkflowInstance
+
+	async with sf() as session:
+		session.add(
+			WorkflowInstance(
+				id=instance_id,
+				tenant_id=tenant_id,
+				def_key="demo",
+				def_version="1",
+				subject_kind="demo",
+				state="active",
+				terminal=False,
+				context={},
+			)
+		)
+		await session.commit()
+
+
 # ---------------------------------------------------------------------------
 # SA-02 — SagaQueries roundtrip
 # ---------------------------------------------------------------------------
@@ -67,6 +90,7 @@ def test_SA_02_saga_queries_append_list_mark_roundtrip() -> None:
 		engine, sf = await _new_engine()
 		try:
 			q = SagaQueries(sf, tenant_id="t")
+			await _seed_instance(sf, "inst-1")
 
 			row1 = await q.append("inst-1", kind="release_lock", args={"k": "v"})
 			row2 = await q.append("inst-1", kind="refund", args={"amount": 50})
@@ -106,6 +130,7 @@ def test_SA_02_saga_queries_invalid_status_rejected() -> None:
 		engine, sf = await _new_engine()
 		try:
 			q = SagaQueries(sf, tenant_id="t")
+			await _seed_instance(sf, "inst")
 			await q.append("inst", kind="x")
 			with pytest.raises(AssertionError):
 				await q.mark("inst", 0, "made-up")
@@ -139,6 +164,7 @@ def test_C_09_compensation_worker_runs_handler_per_pending_row() -> None:
 		engine, sf = await _new_engine()
 		try:
 			queries = SagaQueries(sf, tenant_id="t")
+			await _seed_instance(sf, "inst")
 			await queries.append("inst", kind="release_lock", args={"k": "x"})
 			await queries.append("inst", kind="refund", args={"amount": 50})
 
@@ -177,6 +203,7 @@ def test_C_09_compensation_runs_exactly_once_across_restart() -> None:
 		engine, sf = await _new_engine()
 		try:
 			queries = SagaQueries(sf, tenant_id="t")
+			await _seed_instance(sf, "inst")
 			await queries.append("inst", kind="undo")
 			await queries.append("inst", kind="undo")
 
@@ -221,6 +248,7 @@ def test_C_09_compensation_failure_marks_row_failed_and_continues() -> None:
 		engine, sf = await _new_engine()
 		try:
 			queries = SagaQueries(sf, tenant_id="t")
+			await _seed_instance(sf, "inst")
 			# idx 0: good; idx 1: bad. LIFO so bad runs first.
 			await queries.append("inst", kind="good")
 			await queries.append("inst", kind="bad")
@@ -255,6 +283,7 @@ def test_C_09_compensation_skips_unregistered_kind() -> None:
 		engine, sf = await _new_engine()
 		try:
 			queries = SagaQueries(sf, tenant_id="t")
+			await _seed_instance(sf, "inst")
 			await queries.append("inst", kind="known")
 			await queries.append("inst", kind="unknown_kind")
 

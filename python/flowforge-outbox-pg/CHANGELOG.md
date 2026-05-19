@@ -7,6 +7,7 @@
   - OB-02: `sqlite_compat=True` with `pool_size > 1` raises `RuntimeError`. SQLite is documented as test-only single-writer.
   - OB-03: New `reconnect_factory` constructor parameter. `run_loop` detects connection-loss exceptions (asyncpg / aiosqlite / OS-level), swaps in a fresh connection, and exposes the count via `worker.reconnects` for metrics scraping.
   - OB-04: `last_error` truncation moved from naive `[:2000]` (codepoints) to byte-budget `_truncate_utf8(s, 2000)` — multi-byte UTF-8 (CJK, emoji) survives without mid-codepoint cuts.
+- **(audit-2026 HIGH-08)** `DrainWorker.health()` now returns a `DrainWorkerHealth` snapshot with `ok`/`degraded` status, last error, last run timestamp, reconnect/run-error counts, cumulative outcome counters, and the most recent `DrainResult`.
 
 ## 0.1.0 — 2026-05-05
 

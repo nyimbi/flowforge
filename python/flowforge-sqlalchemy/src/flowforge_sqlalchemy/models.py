@@ -1,6 +1,6 @@
 """SQLAlchemy 2.x ORM models for the flowforge storage layer.
 
-Ten tables back the engine:
+Eleven tables back the engine:
 
 * ``workflow_definitions`` — one row per ``(tenant_id, key)``; carries
   the latest version pointer.
@@ -21,6 +21,8 @@ Ten tables back the engine:
   :class:`flowforge.engine.signals.SignalCorrelator`.
 * ``workflow_instance_snapshots`` — periodic ``Instance`` checkpoints
   that :class:`SqlAlchemySnapshotStore` reads/writes.
+* ``outbox`` — durable transactional outbox rows compatible with
+  ``flowforge-outbox-pg``'s ``DrainWorker``.
 
 Every table carries a ``tenant_id`` column for RLS — the
 :class:`PgRlsBinder` enforces visibility via ``set_config`` GUCs at the
@@ -37,6 +39,7 @@ from sqlalchemy import (
 	Boolean,
 	DateTime,
 	ForeignKey,
+	ForeignKeyConstraint,
 	Index,
 	Integer,
 	String,
@@ -128,6 +131,7 @@ class WorkflowInstance(Base):
 
 	__table_args__ = (
 		Index("ix_workflow_instances_tenant_def", "tenant_id", "def_key"),
+		UniqueConstraint("tenant_id", "id", name="uq_workflow_instances_tenant_id"),
 	)
 
 
@@ -140,7 +144,6 @@ class WorkflowInstanceToken(Base):
 	tenant_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
 	instance_id: Mapped[str] = mapped_column(
 		UuidStr(),
-		ForeignKey("workflow_instances.id", ondelete="CASCADE"),
 		nullable=False,
 		index=True,
 	)
@@ -149,6 +152,15 @@ class WorkflowInstanceToken(Base):
 	context: Mapped[dict[str, Any]] = mapped_column(JsonB(), nullable=False, default=dict)
 	created_at: Mapped[datetime] = mapped_column(
 		DateTime(timezone=True), nullable=False, default=_utcnow
+	)
+
+	__table_args__ = (
+		ForeignKeyConstraint(
+			["tenant_id", "instance_id"],
+			["workflow_instances.tenant_id", "workflow_instances.id"],
+			ondelete="CASCADE",
+			name="fk_workflow_instance_tokens_tenant_instance",
+		),
 	)
 
 
@@ -166,7 +178,6 @@ class WorkflowEvent(Base):
 	tenant_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
 	instance_id: Mapped[str] = mapped_column(
 		UuidStr(),
-		ForeignKey("workflow_instances.id", ondelete="CASCADE"),
 		nullable=False,
 		index=True,
 	)
@@ -182,8 +193,24 @@ class WorkflowEvent(Base):
 	)
 
 	__table_args__ = (
-		UniqueConstraint("instance_id", "seq", name="uq_workflow_events_instance_seq"),
-		Index("ix_workflow_events_instance_occurred", "instance_id", "occurred_at"),
+		ForeignKeyConstraint(
+			["tenant_id", "instance_id"],
+			["workflow_instances.tenant_id", "workflow_instances.id"],
+			ondelete="CASCADE",
+			name="fk_workflow_events_tenant_instance",
+		),
+		UniqueConstraint(
+			"tenant_id",
+			"instance_id",
+			"seq",
+			name="uq_workflow_events_tenant_instance_seq",
+		),
+		Index(
+			"ix_workflow_events_tenant_instance_occurred",
+			"tenant_id",
+			"instance_id",
+			"occurred_at",
+		),
 	)
 
 
@@ -201,7 +228,6 @@ class WorkflowSagaStep(Base):
 	tenant_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
 	instance_id: Mapped[str] = mapped_column(
 		UuidStr(),
-		ForeignKey("workflow_instances.id", ondelete="CASCADE"),
 		nullable=False,
 		index=True,
 	)
@@ -217,7 +243,18 @@ class WorkflowSagaStep(Base):
 	)
 
 	__table_args__ = (
-		UniqueConstraint("instance_id", "idx", name="uq_workflow_saga_steps_instance_idx"),
+		ForeignKeyConstraint(
+			["tenant_id", "instance_id"],
+			["workflow_instances.tenant_id", "workflow_instances.id"],
+			ondelete="CASCADE",
+			name="fk_workflow_saga_steps_tenant_instance",
+		),
+		UniqueConstraint(
+			"tenant_id",
+			"instance_id",
+			"idx",
+			name="uq_workflow_saga_steps_tenant_instance_idx",
+		),
 	)
 
 
@@ -235,9 +272,7 @@ class WorkflowInstanceQuarantine(Base):
 	tenant_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
 	instance_id: Mapped[str] = mapped_column(
 		UuidStr(),
-		ForeignKey("workflow_instances.id", ondelete="CASCADE"),
 		nullable=False,
-		unique=True,
 	)
 	reason: Mapped[str] = mapped_column(Text, nullable=False)
 	details: Mapped[dict[str, Any]] = mapped_column(JsonB(), nullable=False, default=dict)
@@ -246,6 +281,20 @@ class WorkflowInstanceQuarantine(Base):
 		DateTime(timezone=True), nullable=False, default=_utcnow
 	)
 	cleared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+	__table_args__ = (
+		ForeignKeyConstraint(
+			["tenant_id", "instance_id"],
+			["workflow_instances.tenant_id", "workflow_instances.id"],
+			ondelete="CASCADE",
+			name="fk_workflow_instance_quarantine_tenant_instance",
+		),
+		UniqueConstraint(
+			"tenant_id",
+			"instance_id",
+			name="uq_workflow_instance_quarantine_tenant_instance",
+		),
+	)
 
 
 class BusinessCalendar(Base):
@@ -306,8 +355,8 @@ class WorkflowInstanceSnapshot(Base):
 	"""Periodic checkpoint of an :class:`flowforge.engine.fire.Instance`.
 
 	The :class:`SqlAlchemySnapshotStore` keeps the most recent snapshot
-	per instance (``unique`` on ``instance_id``) and overwrites on every
-	``put``. Retaining the full series is a host concern; the engine
+	per tenant-scoped instance and overwrites on every ``put``. Retaining
+	the full series is a host concern; the engine
 	only needs the latest.
 	"""
 
@@ -317,9 +366,7 @@ class WorkflowInstanceSnapshot(Base):
 	tenant_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
 	instance_id: Mapped[str] = mapped_column(
 		UuidStr(),
-		ForeignKey("workflow_instances.id", ondelete="CASCADE"),
 		nullable=False,
-		unique=True,
 	)
 	def_key: Mapped[str] = mapped_column(String(255), nullable=False)
 	def_version: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -331,4 +378,52 @@ class WorkflowInstanceSnapshot(Base):
 	)
 	updated_at: Mapped[datetime] = mapped_column(
 		DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow
+	)
+
+	__table_args__ = (
+		ForeignKeyConstraint(
+			["tenant_id", "instance_id"],
+			["workflow_instances.tenant_id", "workflow_instances.id"],
+			ondelete="CASCADE",
+			name="fk_workflow_instance_snapshots_tenant_instance",
+		),
+		UniqueConstraint(
+			"tenant_id",
+			"instance_id",
+			name="uq_workflow_instance_snapshots_tenant_instance",
+		),
+	)
+
+
+class OutboxMessage(Base):
+	"""Durable outbox row compatible with ``flowforge-outbox-pg``.
+
+	Rows are inserted with ``status='pending'`` inside the workflow
+	transaction. A drain worker claims and dispatches them after commit.
+	"""
+
+	__tablename__ = "outbox"
+
+	id: Mapped[str] = mapped_column(UuidStr(), primary_key=True)
+	kind: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+	tenant_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+	body: Mapped[dict[str, Any]] = mapped_column(JsonB(), nullable=False, default=dict)
+	status: Mapped[str] = mapped_column(
+		String(32), nullable=False, default="pending", index=True
+	)
+	retries: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+	created_at: Mapped[datetime] = mapped_column(
+		DateTime(timezone=True), nullable=False, default=_utcnow, index=True
+	)
+	locked_until: Mapped[datetime | None] = mapped_column(
+		DateTime(timezone=True), nullable=True
+	)
+	last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+	correlation_id: Mapped[str | None] = mapped_column(
+		String(128), nullable=True, index=True
+	)
+	dedupe_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+	__table_args__ = (
+		Index("ix_outbox_status_created", "status", "created_at"),
 	)

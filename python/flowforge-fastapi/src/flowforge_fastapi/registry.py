@@ -81,14 +81,21 @@ class InstanceStore:
 	def snapshots(self) -> InMemorySnapshotStore:
 		return self._snapshots
 
-	async def put(self, instance: Instance) -> None:
+	async def put(self, instance: Instance, *, tenant_id: str = "default") -> None:
 		await self._snapshots.put(instance)
 		self._meta[instance.id] = {
 			"def_key": instance.def_key,
 			"def_version": instance.def_version,
+			"tenant_id": tenant_id,
 		}
 
 	async def get(self, instance_id: str) -> Instance | None:
+		return await self._snapshots.get(instance_id)
+
+	async def get_for_tenant(self, instance_id: str, *, tenant_id: str) -> Instance | None:
+		row = self._meta.get(instance_id)
+		if row is None or row.get("tenant_id") != tenant_id:
+			return None
 		return await self._snapshots.get(instance_id)
 
 	def def_for(self, instance_id: str) -> tuple[str, str] | None:

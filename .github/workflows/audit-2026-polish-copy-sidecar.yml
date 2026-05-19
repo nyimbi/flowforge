@@ -1,0 +1,77 @@
+name: Audit 2026 polish-copy sidecar authoring
+
+# Manual helper for the release blocker that needs real LLM credentials. It
+# authors a candidate sidecar with repository secrets and uploads it for human
+# review. This does not replace audit-2026-release-external; the reviewed
+# sidecar must still be committed before release qualification.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tone:
+        description: "polish-copy tone profile"
+        required: true
+        default: "formal-professional"
+        type: choice
+        options:
+          - formal-professional
+          - friendly-direct
+          - regulator-compliant
+
+concurrency:
+  group: audit-2026-polish-copy-sidecar-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  author-sidecar:
+    name: author-sidecar
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout flowforge
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install flowforge Python workspace
+        run: uv sync --all-packages --all-extras
+
+      - name: Verify optional LLM client import
+        run: uv run python -c "import anthropic; print('anthropic import ok')"
+
+      - name: Author polish-copy sidecar candidate
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+        run: |
+          uv run flowforge polish-copy \
+            --bundle examples/insurance_claim/jtbd-bundle.json \
+            --tone "${{ inputs.tone }}" \
+            --require-llm \
+            --commit
+
+      - name: Verify sidecar release gate
+        run: make audit-2026-polish-copy-sidecar
+
+      - name: Show sidecar diff for review
+        run: git diff -- examples/insurance_claim/jtbd-bundle.json.overrides.json
+
+      - name: Upload sidecar candidate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-2026-polish-copy-sidecar-candidate
+          if-no-files-found: error
+          retention-days: 14
+          path: examples/insurance_claim/jtbd-bundle.json.overrides.json

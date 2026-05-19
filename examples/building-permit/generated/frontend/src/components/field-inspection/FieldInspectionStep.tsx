@@ -6,6 +6,8 @@ export interface FieldInspectionStepProps {
 	instanceId: string;
 	state: string;
 	onEvent: (event: string, payload?: Record<string, unknown>) => Promise<void> | void;
+	/** Explicitly exposes workflow state / instance diagnostics for developer tools. */
+	developerMode?: boolean;
 }
 
 const FIELDS: ReadonlyArray<{ id: string; label: string; required: boolean; pii: boolean }> = [
@@ -29,7 +31,7 @@ export function FieldInspectionStep(props: FieldInspectionStepProps): React.Reac
 			if (busy) return;
 			setBusy(true);
 			try {
-				await props.onEvent(event, {});
+				await props.onEvent(event, { instance_id: props.instanceId });
 			} finally {
 				setBusy(false);
 			}
@@ -41,8 +43,14 @@ export function FieldInspectionStep(props: FieldInspectionStepProps): React.Reac
 		<section data-testid="field_inspection-step" aria-labelledby="field_inspection-step-title">
 			<header>
 				<h2 id="field_inspection-step-title">Conduct Field Inspection</h2>
-				<p>State: <code>{props.state}</code></p>
-				<p>Instance: <code>{props.instanceId}</code></p>
+				{props.developerMode ? (
+					<dl aria-label="Workflow diagnostics">
+						<dt>State</dt>
+						<dd><code>{props.state}</code></dd>
+						<dt>Instance</dt>
+						<dd><code>{props.instanceId}</code></dd>
+					</dl>
+				) : null}
 			</header>
 			<dl>
 				{FIELDS.map((field) => (

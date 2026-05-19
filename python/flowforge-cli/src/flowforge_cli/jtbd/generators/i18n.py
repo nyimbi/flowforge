@@ -24,6 +24,7 @@ cross-checks generator and registry.
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 
 from ..normalize import NormalizedBundle
 from .._types import GeneratedFile
@@ -159,6 +160,30 @@ def empty_mirror(catalog: dict[str, str]) -> dict[str, str]:
 	return {k: "" for k in catalog}
 
 
+def translated_mirror(
+	catalog: dict[str, str],
+	translations: Mapping[str, str] | None,
+	*,
+	lang: str,
+) -> dict[str, str]:
+	"""Return *catalog*'s keyset populated from a non-canonical catalog.
+
+	Translation sidecars live outside the JTBD bundle so they do not
+	mutate the canonical content-addressable surface. They are still
+	closed against the generated keyset: stale or mistyped keys fail
+	generation instead of silently disappearing.
+	"""
+
+	if translations is None:
+		return empty_mirror(catalog)
+	extra = sorted(set(translations.keys()) - set(catalog.keys()))
+	if extra:
+		raise ValueError(
+			f"translation catalog {lang!r} contains unknown key(s): {', '.join(extra)}"
+		)
+	return {k: translations.get(k, "") for k in catalog}
+
+
 def _emit_json(payload: dict[str, str]) -> str:
 	"""Serialize *payload* to deterministic JSON with a trailing newline.
 
@@ -249,7 +274,10 @@ def _render_useT(bundle: NormalizedBundle, english: dict[str, str]) -> str:
 	return newline.join(lines)
 
 
-def generate(bundle: NormalizedBundle) -> list[GeneratedFile]:
+def generate(
+	bundle: NormalizedBundle,
+	translations: Mapping[str, Mapping[str, str]] | None = None,
+) -> list[GeneratedFile]:
 	"""Emit the i18n catalogs + useT() hook for *bundle*.
 
 	Output paths:
@@ -268,7 +296,14 @@ def generate(bundle: NormalizedBundle) -> list[GeneratedFile]:
 	english = english_catalog(bundle)
 	files: list[GeneratedFile] = []
 	for lang in languages:
-		payload = english if lang == languages[0] else empty_mirror(english)
+		if lang == languages[0]:
+			payload = english
+		else:
+			payload = translated_mirror(
+				english,
+				translations.get(lang) if translations is not None else None,
+				lang=lang,
+			)
 		files.append(
 			GeneratedFile(
 				path=f"frontend/src/{pkg}/i18n/{lang}.json",
@@ -291,4 +326,5 @@ __all__ = [
 	"generate",
 	"humanize_event",
 	"humanize_topic",
+	"translated_mirror",
 ]

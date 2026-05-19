@@ -38,6 +38,7 @@ def load_catalog_from_path(path: Path | str, *, lang: str | None = None) -> Loca
 				f"could not derive language from {p.name!r}; pass lang=…",
 			)
 		lang = match.group(1)
+	assert lang is not None
 	try:
 		raw = json.loads(p.read_text(encoding="utf-8"))
 	except json.JSONDecodeError as exc:

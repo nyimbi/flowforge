@@ -38,8 +38,8 @@ from flowforge.ports.types import Principal
 
 from .auth import (
 	PrincipalExtractor,
-	StaticPrincipalExtractor,
 	WSPrincipalExtractor,
+	resolve_principal_extractor,
 )
 
 
@@ -54,12 +54,17 @@ class WorkflowEventsHub:
 	dropped on next publish.
 	"""
 
-	def __init__(self) -> None:
+	def __init__(self, *, max_queue_size: int = 256) -> None:
+		assert max_queue_size > 0, "max_queue_size must be positive"
+		self._max_queue_size = max_queue_size
 		self._subscribers: set[asyncio.Queue[dict[str, Any]]] = set()
 		self._lock = asyncio.Lock()
+		self._published_total = 0
+		self._delivered_total = 0
+		self._dropped_total = 0
 
 	async def subscribe(self) -> asyncio.Queue[dict[str, Any]]:
-		queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+		queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=self._max_queue_size)
 		async with self._lock:
 			self._subscribers.add(queue)
 		return queue
@@ -73,22 +78,61 @@ class WorkflowEventsHub:
 
 		async with self._lock:
 			targets = list(self._subscribers)
+			self._published_total += 1
 		delivered = 0
+		dropped = 0
 		for q in targets:
 			try:
 				q.put_nowait(envelope)
 				delivered += 1
-			except asyncio.QueueFull:  # pragma: no cover - default queues are unbounded
+			except asyncio.QueueFull:
+				dropped += 1
 				logger.warning("flowforge-fastapi: hub subscriber queue full; dropping")
+		self._delivered_total += delivered
+		self._dropped_total += dropped
 		return delivered
 
 	def subscriber_count(self) -> int:
 		return len(self._subscribers)
 
+	def metrics(self) -> dict[str, int]:
+		"""Return dependency-free counters for host readiness/metrics endpoints."""
+
+		return {
+			"subscribers": len(self._subscribers),
+			"max_queue_size": self._max_queue_size,
+			"published_total": self._published_total,
+			"delivered_total": self._delivered_total,
+			"dropped_total": self._dropped_total,
+		}
+
+	def prometheus_text(self, *, prefix: str = "flowforge_fastapi_ws") -> str:
+		"""Render hub counters in Prometheus text exposition format."""
+
+		metrics = self.metrics()
+		lines = [
+			f"# HELP {prefix}_subscribers Current WebSocket subscribers.",
+			f"# TYPE {prefix}_subscribers gauge",
+			f"{prefix}_subscribers {metrics['subscribers']}",
+			f"# HELP {prefix}_published_envelopes_total WebSocket envelopes published.",
+			f"# TYPE {prefix}_published_envelopes_total counter",
+			f"{prefix}_published_envelopes_total {metrics['published_total']}",
+			f"# HELP {prefix}_delivered_envelopes_total WebSocket envelopes delivered to subscribers.",
+			f"# TYPE {prefix}_delivered_envelopes_total counter",
+			f"{prefix}_delivered_envelopes_total {metrics['delivered_total']}",
+			f"# HELP {prefix}_dropped_envelopes_total WebSocket envelopes dropped for full subscriber queues.",
+			f"# TYPE {prefix}_dropped_envelopes_total counter",
+			f"{prefix}_dropped_envelopes_total {metrics['dropped_total']}",
+		]
+		return "\n".join(lines) + "\n"
+
 	def clear(self) -> None:
 		"""Drop every subscriber. Tests use this between cases."""
 
 		self._subscribers.clear()
+		self._published_total = 0
+		self._delivered_total = 0
+		self._dropped_total = 0
 
 
 # Module-level singleton kept ONLY as the default returned by
@@ -153,6 +197,7 @@ def build_ws_router(
 	principal_extractor: PrincipalExtractor | None = None,
 	ws_principal_extractor: WSPrincipalExtractor | None = None,
 	path: str = "/ws",
+	allow_test_defaults: bool = False,
 ) -> APIRouter:
 	"""Construct the WebSocket router.
 
@@ -179,8 +224,11 @@ def build_ws_router(
 	elif principal_extractor is not None:
 		resolved_ws_extractor = _HTTPOnlyAdapter(principal_extractor)
 	else:
-		# Default: no auth — wrapper around the static extractor.
-		resolved_ws_extractor = StaticPrincipalExtractor()  # type: ignore[assignment]
+		resolved_ws_extractor = resolve_principal_extractor(
+			None,
+			allow_test_defaults=allow_test_defaults,
+			surface="build_ws_router",
+		)  # type: ignore[assignment]
 
 	router = APIRouter(tags=["flowforge-ws"])
 

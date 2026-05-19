@@ -25,7 +25,7 @@ from flowforge.compiler import build_catalog, validate as validate_def
 from flowforge.dsl import WorkflowDef
 from flowforge.ports.types import Principal
 
-from .auth import PrincipalExtractor, StaticPrincipalExtractor
+from .auth import PrincipalExtractor, resolve_principal_extractor
 from .registry import WorkflowDefRegistry, get_registry
 
 
@@ -48,6 +48,7 @@ def build_designer_router(
 	*,
 	principal_extractor: PrincipalExtractor | None = None,
 	tags: Sequence[str] | None = None,
+	allow_test_defaults: bool = False,
 ) -> APIRouter:
 	"""Construct the designer router.
 
@@ -55,7 +56,11 @@ def build_designer_router(
 	whatever path they like (e.g. ``/api/v1/workflows``).
 	"""
 
-	extractor: PrincipalExtractor = principal_extractor or StaticPrincipalExtractor()
+	extractor = resolve_principal_extractor(
+		principal_extractor,
+		allow_test_defaults=allow_test_defaults,
+		surface="build_designer_router",
+	)
 	router_tags: list[str | Any] = list(tags) if tags else ["flowforge-designer"]
 	router = APIRouter(tags=router_tags)
 

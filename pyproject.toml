@@ -2,14 +2,14 @@
 # Version cadence policy (E-69 / DOC-05)
 # =============================================================================
 #
-# Two tiers govern version numbers across the 45-package workspace:
+# Two tiers govern version numbers across the 46-package workspace:
 #
-#   * tier-1 — engine + adapters (15 packages):
+#   * tier-1 — engine + adapters (16 packages):
 #       flowforge-core, flowforge-fastapi, flowforge-sqlalchemy,
 #       flowforge-tenancy, flowforge-audit-pg, flowforge-outbox-pg,
 #       flowforge-rbac-static, flowforge-rbac-spicedb, flowforge-documents-s3,
 #       flowforge-money, flowforge-signing-kms, flowforge-notify-multichannel,
-#       flowforge-cli, flowforge-jtbd, flowforge-jtbd-hub.
+#       flowforge-otel, flowforge-cli, flowforge-jtbd, flowforge-jtbd-hub.
 #       → version = "0.1.x". Patch bump per audit-fix release; minor
 #         (0.2.0) reserved for the post-audit GA. Public APIs are stable
 #         within 0.1.x; SECURITY-flagged removals follow the F-7 two-version
@@ -48,6 +48,8 @@ dependencies = [
     "flowforge-notify-multichannel",
     "flowforge-otel",
     "flowforge-cli",
+    "flowforge-jtbd",
+    "flowforge-jtbd-hub",
 ]
 
 [tool.uv.workspace]

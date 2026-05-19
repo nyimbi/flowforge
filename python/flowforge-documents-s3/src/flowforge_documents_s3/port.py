@@ -1,21 +1,20 @@
 """S3DocumentPortInMemory — S3-backed DocumentPort with put/get/list/delete + presigned URLs.
 
 Implements :class:`flowforge.ports.DocumentPort` over an S3 bucket. The
-adapter keeps an **in-memory** index of subject->doc-ids and per-doc
-metadata (kind, classification, content-type, uploaded-at). Hosts that
-need durable indexing should pair this with their own SQL store and
-treat S3 as the blob backend; this adapter is sufficient for tests,
-demos, and single-process deployments.
+adapter defaults to an **in-memory** index of subject->doc-ids and
+per-doc metadata (kind, classification, content-type, uploaded-at).
+Hosts that need durable indexing can pass :class:`SQLiteDocumentIndex`
+as ``index_store`` while keeping S3 as the blob backend.
 
 E-52 hardening (audit-fix-plan §4.2/§4.3, §7):
 
 * DS-01: ``doc_id`` is validated against ``^[a-zA-Z0-9._-]+$`` at every
   entry point. Path-traversal shapes like ``"../../etc"`` raise
   :class:`ValueError`.
-* DS-02: the canonical class is :class:`S3DocumentPortInMemory` —
-  emphasising that the *index* is in-memory even though the blob layer
-  is durable. The legacy name :class:`S3DocumentPort` remains importable
-  but emits :class:`DeprecationWarning` on access.
+* DS-02: the canonical class is :class:`S3DocumentPortInMemory`;
+  without an explicit ``index_store`` the index is in-memory even though
+  the blob layer is durable. The legacy name :class:`S3DocumentPort`
+  remains importable but emits :class:`DeprecationWarning` on access.
 * DS-03: :meth:`presigned_put_url` signs the ``Content-Type`` parameter
   so an upload with a mismatched header fails signature verification.
   :meth:`presigned_post` exposes a presigned POST policy with explicit
@@ -39,12 +38,15 @@ from __future__ import annotations
 
 import asyncio
 import re
+import sqlite3
+import threading
 import warnings
 import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from io import BytesIO
-from typing import Any, Protocol
+from pathlib import Path
+from typing import Any, Protocol, cast
 
 
 # ----------------------------------------------------------------------
@@ -262,19 +264,262 @@ class DocumentMeta:
 	subject_ids: tuple[str, ...] = ()
 
 
+class DocumentIndexStore(Protocol):
+	"""Durable-or-memory metadata/subject-index contract."""
+
+	def get_meta(self, doc_id: str) -> DocumentMeta | None: ...
+
+	def upsert_meta(self, meta: DocumentMeta) -> None: ...
+
+	def list_meta(self, prefix: str | None = None) -> list[DocumentMeta]: ...
+
+	def attach(self, subject_id: str, doc_id: str) -> DocumentMeta: ...
+
+	def list_for_subject(self, subject_id: str) -> list[DocumentMeta]: ...
+
+	def delete(self, doc_id: str) -> bool: ...
+
+
+class InMemoryDocumentIndex:
+	"""Process-local document metadata/index store."""
+
+	def __init__(self) -> None:
+		self._subject_index: dict[str, list[str]] = {}
+		self._meta: dict[str, DocumentMeta] = {}
+
+	def get_meta(self, doc_id: str) -> DocumentMeta | None:
+		return self._meta.get(doc_id)
+
+	def upsert_meta(self, meta: DocumentMeta) -> None:
+		self._meta[meta.doc_id] = meta
+		for subject_id in meta.subject_ids:
+			ids = self._subject_index.setdefault(subject_id, [])
+			if meta.doc_id not in ids:
+				ids.append(meta.doc_id)
+
+	def list_meta(self, prefix: str | None = None) -> list[DocumentMeta]:
+		return [
+			meta
+			for doc_id, meta in self._meta.items()
+			if prefix is None or doc_id.startswith(prefix)
+		]
+
+	def attach(self, subject_id: str, doc_id: str) -> DocumentMeta:
+		meta = self._meta.get(doc_id)
+		if meta is None:
+			raise KeyError(f"document {doc_id!r} not found; call put() first")
+		ids = self._subject_index.setdefault(subject_id, [])
+		if doc_id not in ids:
+			ids.append(doc_id)
+		if subject_id not in meta.subject_ids:
+			meta = DocumentMeta(
+				doc_id=meta.doc_id,
+				kind=meta.kind,
+				classification=meta.classification,
+				content_type=meta.content_type,
+				uploaded_at=meta.uploaded_at,
+				size_bytes=meta.size_bytes,
+				subject_ids=tuple([*meta.subject_ids, subject_id]),
+			)
+			self._meta[doc_id] = meta
+		return meta
+
+	def list_for_subject(self, subject_id: str) -> list[DocumentMeta]:
+		return [
+			meta
+			for doc_id in self._subject_index.get(subject_id, [])
+			if (meta := self._meta.get(doc_id)) is not None
+		]
+
+	def delete(self, doc_id: str) -> bool:
+		existed = doc_id in self._meta
+		self._meta.pop(doc_id, None)
+		for ids in self._subject_index.values():
+			if doc_id in ids:
+				ids.remove(doc_id)
+		return existed
+
+
+class SQLiteDocumentIndex:
+	"""SQLite-backed durable metadata and subject index.
+
+	This store is intentionally small and dependency-free. It gives
+	hosts a concrete persistent index for the S3 blob adapter without
+	requiring SQLAlchemy or a service database inside this package.
+	"""
+
+	def __init__(self, path: str | Path) -> None:
+		db_path = str(path)
+		assert db_path, "path required"
+		self._lock = threading.RLock()
+		self._conn = sqlite3.connect(db_path, check_same_thread=False)
+		self._conn.row_factory = sqlite3.Row
+		self._init_schema()
+
+	def close(self) -> None:
+		with self._lock:
+			self._conn.close()
+
+	def get_meta(self, doc_id: str) -> DocumentMeta | None:
+		with self._lock:
+			row = self._conn.execute(
+				"select doc_id, kind, classification, content_type, uploaded_at, size_bytes "
+				"from document_meta where doc_id = ?",
+				(doc_id,),
+			).fetchone()
+			if row is None:
+				return None
+			return self._meta_from_row(row)
+
+	def upsert_meta(self, meta: DocumentMeta) -> None:
+		with self._lock, self._conn:
+			self._conn.execute(
+				"insert into document_meta "
+				"(doc_id, kind, classification, content_type, uploaded_at, size_bytes) "
+				"values (?, ?, ?, ?, ?, ?) "
+				"on conflict(doc_id) do update set "
+				"kind = excluded.kind, classification = excluded.classification, "
+				"content_type = excluded.content_type, uploaded_at = excluded.uploaded_at, "
+				"size_bytes = excluded.size_bytes",
+				(
+					meta.doc_id,
+					meta.kind,
+					meta.classification,
+					meta.content_type,
+					meta.uploaded_at.isoformat(),
+					meta.size_bytes,
+				),
+			)
+			self._conn.execute(
+				"delete from document_subjects where doc_id = ?",
+				(meta.doc_id,),
+			)
+			for ordinal, subject_id in enumerate(meta.subject_ids):
+				self._insert_subject(subject_id, meta.doc_id, ordinal=ordinal)
+
+	def list_meta(self, prefix: str | None = None) -> list[DocumentMeta]:
+		with self._lock:
+			if prefix is None:
+				rows = self._conn.execute(
+					"select doc_id, kind, classification, content_type, uploaded_at, size_bytes "
+					"from document_meta order by doc_id"
+				).fetchall()
+			else:
+				rows = self._conn.execute(
+					"select doc_id, kind, classification, content_type, uploaded_at, size_bytes "
+					"from document_meta where doc_id like ? escape '\\' order by doc_id",
+					(_like_prefix(prefix),),
+				).fetchall()
+			return [self._meta_from_row(row) for row in rows]
+
+	def attach(self, subject_id: str, doc_id: str) -> DocumentMeta:
+		with self._lock, self._conn:
+			if self.get_meta(doc_id) is None:
+				raise KeyError(f"document {doc_id!r} not found; call put() first")
+			max_ordinal = self._conn.execute(
+				"select max(ordinal) from document_subjects where subject_id = ?",
+				(subject_id,),
+			).fetchone()[0]
+			self._insert_subject(
+				subject_id,
+				doc_id,
+				ordinal=0 if max_ordinal is None else int(max_ordinal) + 1,
+			)
+			meta = self.get_meta(doc_id)
+			assert meta is not None
+			return meta
+
+	def list_for_subject(self, subject_id: str) -> list[DocumentMeta]:
+		with self._lock:
+			rows = self._conn.execute(
+				"select m.doc_id, m.kind, m.classification, m.content_type, "
+				"m.uploaded_at, m.size_bytes "
+				"from document_subjects s "
+				"join document_meta m on m.doc_id = s.doc_id "
+				"where s.subject_id = ? order by s.ordinal, m.doc_id",
+				(subject_id,),
+			).fetchall()
+			return [self._meta_from_row(row) for row in rows]
+
+	def delete(self, doc_id: str) -> bool:
+		with self._lock, self._conn:
+			cur = self._conn.execute(
+				"delete from document_meta where doc_id = ?",
+				(doc_id,),
+			)
+			self._conn.execute(
+				"delete from document_subjects where doc_id = ?",
+				(doc_id,),
+			)
+			return cur.rowcount > 0
+
+	def _init_schema(self) -> None:
+		with self._lock, self._conn:
+			self._conn.execute(
+				"create table if not exists document_meta ("
+				"doc_id text primary key, "
+				"kind text not null, "
+				"classification text not null, "
+				"content_type text not null, "
+				"uploaded_at text not null, "
+				"size_bytes integer not null)"
+			)
+			self._conn.execute(
+				"create table if not exists document_subjects ("
+				"subject_id text not null, "
+				"doc_id text not null references document_meta(doc_id) on delete cascade, "
+				"ordinal integer not null, "
+				"primary key(subject_id, doc_id))"
+			)
+			self._conn.execute(
+				"create index if not exists idx_document_subjects_doc "
+				"on document_subjects(doc_id)"
+			)
+
+	def _insert_subject(self, subject_id: str, doc_id: str, *, ordinal: int) -> None:
+		self._conn.execute(
+			"insert or ignore into document_subjects(subject_id, doc_id, ordinal) "
+			"values (?, ?, ?)",
+			(subject_id, doc_id, ordinal),
+		)
+
+	def _meta_from_row(self, row: sqlite3.Row) -> DocumentMeta:
+		doc_id = cast(str, row["doc_id"])
+		subject_rows = self._conn.execute(
+			"select subject_id from document_subjects where doc_id = ? order by ordinal, subject_id",
+			(doc_id,),
+		).fetchall()
+		uploaded_at_raw = cast(str, row["uploaded_at"])
+		uploaded_at = datetime.fromisoformat(uploaded_at_raw)
+		if uploaded_at.tzinfo is None:
+			uploaded_at = uploaded_at.replace(tzinfo=timezone.utc)
+		return DocumentMeta(
+			doc_id=doc_id,
+			kind=cast(str, row["kind"]),
+			classification=cast(str, row["classification"]),
+			content_type=cast(str, row["content_type"]),
+			uploaded_at=uploaded_at,
+			size_bytes=int(row["size_bytes"]),
+			subject_ids=tuple(str(subject["subject_id"]) for subject in subject_rows),
+		)
+
+
+def _like_prefix(prefix: str) -> str:
+	escaped = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+	return f"{escaped}%"
+
+
 # ----------------------------------------------------------------------
 # S3 adapter
 # ----------------------------------------------------------------------
 
 
 class S3DocumentPortInMemory:
-	"""S3-backed DocumentPort with an in-memory index.
+	"""S3-backed DocumentPort with pluggable metadata/index storage.
 
-	The blob layer is durable (S3); the per-doc metadata + subject index
-	live in process memory and are lost on restart. Hosts that need
-	durable indexing should pair this with their own SQL store; the
-	``InMemory`` suffix in the class name is the contract advertising
-	that scope (E-52 / DS-02).
+	The blob layer is durable (S3). The per-doc metadata + subject index
+	default to process memory and are lost on restart. Hosts that need
+	durable indexing can pass ``SQLiteDocumentIndex`` as ``index_store``.
 
 	Args:
 		bucket: S3 bucket name. Must already exist.
@@ -282,8 +527,14 @@ class S3DocumentPortInMemory:
 			from the environment via ``boto3.client('s3')``.
 		key_prefix: Prefix prepended to every object key
 			(default: ``"documents/"``).
+		index_store: Metadata/subject index backend. Defaults to
+			:class:`InMemoryDocumentIndex`; pass :class:`SQLiteDocumentIndex`
+			for a dependency-free durable index.
 		magic_validator: Override the default magic-bytes validator.
 			Pass a no-op lambda to disable validation entirely.
+		allow_unvalidated_presigned_put: Presigned PUT uploads bypass
+			server-side magic-byte validation. Keep this disabled for
+			critical deployments; prefer :meth:`put` or :meth:`presigned_post`.
 	"""
 
 	def __init__(
@@ -292,7 +543,9 @@ class S3DocumentPortInMemory:
 		*,
 		client: Any | None = None,
 		key_prefix: str = "documents/",
+		index_store: DocumentIndexStore | None = None,
 		magic_validator: MagicBytesValidator | None = None,
+		allow_unvalidated_presigned_put: bool = False,
 	) -> None:
 		assert bucket and isinstance(bucket, str), "bucket required"
 		assert isinstance(key_prefix, str), "key_prefix must be str"
@@ -301,15 +554,13 @@ class S3DocumentPortInMemory:
 		self._validate_magic: MagicBytesValidator = (
 			magic_validator if magic_validator is not None else _default_magic_validator
 		)
+		self._allow_unvalidated_presigned_put = allow_unvalidated_presigned_put
 		if client is None:
 			import boto3  # type: ignore[import-untyped]
 
 			client = boto3.client("s3")
 		self._s3: Any = client
-		# subject_id -> ordered list of doc_ids
-		self._subject_index: dict[str, list[str]] = {}
-		# doc_id -> DocumentMeta
-		self._meta: dict[str, DocumentMeta] = {}
+		self._index: DocumentIndexStore = index_store or InMemoryDocumentIndex()
 
 	# ------------------------------------------------------------------ key helpers
 
@@ -338,13 +589,9 @@ class S3DocumentPortInMemory:
 			}
 		"""
 		assert isinstance(subject_id, str) and subject_id, "subject_id required"
-		ids = self._subject_index.get(subject_id, [])
 		kind_set = set(kinds) if kinds else None
 		out: list[dict[str, Any]] = []
-		for doc_id in ids:
-			meta = self._meta.get(doc_id)
-			if meta is None:
-				continue
+		for meta in self._index.list_for_subject(subject_id):
 			if kind_set is not None and meta.kind not in kind_set:
 				continue
 			out.append(_descriptor(meta))
@@ -358,32 +605,16 @@ class S3DocumentPortInMemory:
 		"""
 		assert isinstance(subject_id, str) and subject_id, "subject_id required"
 		_validate_doc_id(doc_id)
-		if doc_id not in self._meta:
-			raise KeyError(f"document {doc_id!r} not found; call put() first")
-		ids = self._subject_index.setdefault(subject_id, [])
-		if doc_id not in ids:
-			ids.append(doc_id)
-		# Keep meta.subject_ids in sync (frozen dataclass -> replace).
-		meta = self._meta[doc_id]
-		if subject_id not in meta.subject_ids:
-			self._meta[doc_id] = DocumentMeta(
-				doc_id=meta.doc_id,
-				kind=meta.kind,
-				classification=meta.classification,
-				content_type=meta.content_type,
-				uploaded_at=meta.uploaded_at,
-				size_bytes=meta.size_bytes,
-				subject_ids=tuple([*meta.subject_ids, subject_id]),
-			)
+		self._index.attach(subject_id, doc_id)
 
 	async def get_classification(self, doc_id: str) -> str | None:
 		_validate_doc_id(doc_id)
-		meta = self._meta.get(doc_id)
+		meta = self._index.get_meta(doc_id)
 		return meta.classification if meta else None
 
 	async def freshness_days(self, doc_id: str) -> int | None:
 		_validate_doc_id(doc_id)
-		meta = self._meta.get(doc_id)
+		meta = self._index.get_meta(doc_id)
 		if meta is None:
 			return None
 		delta = datetime.now(timezone.utc) - meta.uploaded_at
@@ -429,8 +660,8 @@ class S3DocumentPortInMemory:
 			content_type=content_type,
 			size_bytes=len(data),
 		)
-		self._meta[doc_id] = meta
-		assert doc_id in self._meta
+		self._index.upsert_meta(meta)
+		assert self._index.get_meta(doc_id) is not None
 		return meta
 
 	async def get(self, doc_id: str) -> bytes:
@@ -455,11 +686,7 @@ class S3DocumentPortInMemory:
 
 		``prefix`` matches against ``doc_id`` (not the S3 key).
 		"""
-		out: list[DocumentMeta] = []
-		for doc_id, meta in self._meta.items():
-			if prefix is None or doc_id.startswith(prefix):
-				out.append(meta)
-		return out
+		return self._index.list_meta(prefix)
 
 	async def delete(self, doc_id: str) -> bool:
 		"""Delete the S3 object and forget local metadata.
@@ -473,12 +700,7 @@ class S3DocumentPortInMemory:
 			Bucket=self._bucket,
 			Key=key,
 		)
-		existed = doc_id in self._meta
-		self._meta.pop(doc_id, None)
-		for ids in self._subject_index.values():
-			if doc_id in ids:
-				ids.remove(doc_id)
-		return existed
+		return self._index.delete(doc_id)
 
 	# ------------------------------------------------------------------ presigned URLs
 
@@ -508,11 +730,18 @@ class S3DocumentPortInMemory:
 		server-side enforcement (e.g. a ``starts-with`` prefix policy)
 		should prefer :meth:`presigned_post`.
 
-		Note: presigned PUT uploads bypass the magic-bytes validator.
-		Hosts that need server-side validation should prefer :meth:`put`.
+		Presigned PUT uploads bypass the magic-bytes validator, so this
+		method is disabled unless ``allow_unvalidated_presigned_put`` was
+		set explicitly on the adapter. Hosts that need server-side
+		validation should prefer :meth:`put` or :meth:`presigned_post`.
 		"""
 		_validate_doc_id(doc_id)
 		assert expires_in > 0, "expires_in must be positive"
+		if not self._allow_unvalidated_presigned_put:
+			raise RuntimeError(
+				"presigned_put_url bypasses magic-byte validation; "
+				"enable allow_unvalidated_presigned_put or use presigned_post/put"
+			)
 		return await asyncio.to_thread(
 			self._s3.generate_presigned_url,
 			"put_object",
@@ -562,7 +791,7 @@ class S3DocumentPortInMemory:
 
 	def register_meta(self, meta: DocumentMeta) -> None:
 		"""Seed metadata without an upload (test helper)."""
-		self._meta[meta.doc_id] = meta
+		self._index.upsert_meta(meta)
 
 
 # ----------------------------------------------------------------------

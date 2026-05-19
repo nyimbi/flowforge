@@ -37,8 +37,6 @@ from .rbac import (
 	Permission,
 	Principal,
 	PrincipalExtractor,
-	Role,
-	role_permissions,
 )
 from .registry import (
 	HubError,
@@ -99,7 +97,7 @@ class InstallResponse(BaseModel):
 class RateRequest(BaseModel):
 	model_config = ConfigDict(extra="forbid")
 
-	user_id: str
+	user_id: str | None = None
 	stars: int
 
 
@@ -382,7 +380,10 @@ def create_app(
 		response_model=PackageDetail,
 		status_code=status.HTTP_201_CREATED,
 	)
-	async def publish_package(payload: PublishRequest) -> PackageDetail:
+	async def publish_package(
+		payload: PublishRequest,
+		_: Principal = Depends(_require_permission(Permission.PACKAGE_PUBLISH)),
+	) -> PackageDetail:
 		try:
 			bundle = base64.b64decode(payload.bundle_b64)
 		except Exception as exc:
@@ -432,10 +433,11 @@ def create_app(
 		name: str,
 		version: str,
 		payload: RateRequest,
+		principal: Principal = Depends(_require_permission(Permission.PACKAGE_INSTALL)),
 	) -> dict[str, Any]:
 		try:
 			rating = await registry.rate(
-				name, version, user_id=payload.user_id, stars=payload.stars
+				name, version, user_id=principal.user_id, stars=payload.stars
 			)
 		except ValueError as exc:
 			raise HTTPException(

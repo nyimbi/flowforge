@@ -3,21 +3,55 @@
 The engine treats the snapshot store as opaque key/value storage keyed
 by ``instance_id``. We persist a JSON dump of the
 :class:`flowforge.engine.fire.Instance` dataclass and reconstruct on
-read. The latest snapshot per instance is kept (``UNIQUE(instance_id)``
-on the table); older states are recoverable from the
-``workflow_events`` log if needed.
+read. The latest snapshot per tenant-scoped instance is kept; older
+states are recoverable from the ``workflow_events`` log if needed.
+Reads and updates are tenant-scoped; row-level security remains a
+second layer rather than the only isolation boundary.
 """
 
 from __future__ import annotations
 
+import copy
+from datetime import datetime, timezone
 from typing import Any, cast
 
 from flowforge._uuid7 import uuid7str
-from flowforge.engine.fire import Instance
-from sqlalchemy import select
+from flowforge.engine.fire import FireResult, Instance, fire as engine_fire
+from flowforge.ports.types import Principal
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from .models import WorkflowInstanceSnapshot
+from .models import OutboxMessage, WorkflowEvent, WorkflowInstance, WorkflowInstanceSnapshot
+
+
+class SnapshotConflict(RuntimeError):
+	"""Raised when a compare-and-swap snapshot write sees a stale version."""
+
+	def __init__(
+		self,
+		instance_id: str,
+		*,
+		expected_seq: int,
+		actual_seq: int | None,
+	) -> None:
+		self.instance_id = instance_id
+		self.expected_seq = expected_seq
+		self.actual_seq = actual_seq
+		actual = "missing" if actual_seq is None else str(actual_seq)
+		super().__init__(
+			f"snapshot conflict for {instance_id}: expected seq {expected_seq}, "
+			f"found {actual}"
+		)
+
+
+class SnapshotTenantMismatch(RuntimeError):
+	"""Raised when an instance id is not owned by this store's tenant."""
+
+	def __init__(self, instance_id: str, *, tenant_id: str) -> None:
+		self.instance_id = instance_id
+		self.tenant_id = tenant_id
+		super().__init__(f"instance {instance_id} is not owned by tenant {tenant_id}")
 
 
 class SqlAlchemySnapshotStore:
@@ -30,9 +64,9 @@ class SqlAlchemySnapshotStore:
 		zero-arg async-session factory). The store opens its own
 		short-lived session per call so it can be used from any caller.
 	tenant_id:
-		Tenant scope for newly written rows. Reads do not filter by tenant
-		(the engine has already resolved the instance) — host-level RLS
-		via :class:`PgRlsBinder` provides isolation in production.
+		Tenant scope for reads and writes. Host-level RLS via
+		:class:`PgRlsBinder` remains defence in depth, but this adapter does
+		not treat ``instance_id`` alone as an authority token.
 	"""
 
 	def __init__(
@@ -40,10 +74,12 @@ class SqlAlchemySnapshotStore:
 		session_factory: async_sessionmaker[AsyncSession],
 		*,
 		tenant_id: str = "default",
+		audit_sink: Any | None = None,
 	) -> None:
 		assert session_factory is not None, "session_factory is required"
 		self._sf = session_factory
 		self._tenant_id = tenant_id
+		self._audit_sink = audit_sink
 
 	async def get(self, instance_id: str) -> Instance | None:
 		"""Return the latest snapshot for *instance_id* or ``None``."""
@@ -51,7 +87,8 @@ class SqlAlchemySnapshotStore:
 		async with self._sf() as session:
 			row = await session.scalar(
 				select(WorkflowInstanceSnapshot).where(
-					WorkflowInstanceSnapshot.instance_id == instance_id
+					WorkflowInstanceSnapshot.tenant_id == self._tenant_id,
+					WorkflowInstanceSnapshot.instance_id == instance_id,
 				)
 			)
 			if row is None:
@@ -63,10 +100,13 @@ class SqlAlchemySnapshotStore:
 		"""Insert or overwrite the snapshot for *instance*."""
 		assert instance.id, "instance.id must be non-empty"
 		body = _body_from_instance(instance)
+		seq = len(instance.history)
 		async with self._sf() as session:
+			await self._assert_instance_owned(session, instance.id)
 			existing = await session.scalar(
 				select(WorkflowInstanceSnapshot).where(
-					WorkflowInstanceSnapshot.instance_id == instance.id
+					WorkflowInstanceSnapshot.tenant_id == self._tenant_id,
+					WorkflowInstanceSnapshot.instance_id == instance.id,
 				)
 			)
 			if existing is None:
@@ -82,7 +122,7 @@ class SqlAlchemySnapshotStore:
 						def_version=instance.def_version,
 						state=instance.state,
 						body=body,
-						seq=len(instance.history),
+						seq=seq,
 					)
 				)
 			else:
@@ -90,8 +130,290 @@ class SqlAlchemySnapshotStore:
 				existing.def_version = instance.def_version
 				existing.state = instance.state
 				existing.body = body
-				existing.seq = len(instance.history)
+				existing.seq = seq
 			await session.commit()
+
+	async def compare_and_put(self, instance: Instance, *, expected_seq: int) -> None:
+		"""Persist *instance* only when the stored ``seq`` matches.
+
+		``seq`` is the durable optimistic-lock version for the latest
+		snapshot. It mirrors ``len(instance.history)``. Hosts can read a
+		snapshot, fire one event, then call this method with the pre-fire
+		sequence; another process that advanced the same
+		``(tenant_id, instance_id)`` first causes :class:`SnapshotConflict`
+		instead of last-writer-wins data loss.
+		"""
+		assert instance.id, "instance.id must be non-empty"
+		assert expected_seq >= 0, "expected_seq must be non-negative"
+		body = _body_from_instance(instance)
+		new_seq = len(instance.history)
+
+		async with self._sf() as session:
+			await self._assert_instance_owned(session, instance.id)
+			result = await session.execute(
+				update(WorkflowInstanceSnapshot)
+				.where(
+					WorkflowInstanceSnapshot.tenant_id == self._tenant_id,
+					WorkflowInstanceSnapshot.instance_id == instance.id,
+					WorkflowInstanceSnapshot.seq == expected_seq,
+				)
+				.values(
+					def_key=instance.def_key,
+					def_version=instance.def_version,
+					state=instance.state,
+					body=body,
+					seq=new_seq,
+				)
+			)
+			if getattr(result, "rowcount", 0) == 1:
+				await session.commit()
+				return
+
+			current = await session.scalar(
+				select(WorkflowInstanceSnapshot.seq).where(
+					WorkflowInstanceSnapshot.tenant_id == self._tenant_id,
+					WorkflowInstanceSnapshot.instance_id == instance.id,
+				)
+			)
+			if current is None and expected_seq == 0:
+				session.add(
+					WorkflowInstanceSnapshot(
+						id=uuid7str(),
+						tenant_id=self._tenant_id,
+						instance_id=instance.id,
+						def_key=instance.def_key,
+						def_version=instance.def_version,
+						state=instance.state,
+						body=body,
+						seq=new_seq,
+					)
+				)
+				try:
+					await session.commit()
+				except IntegrityError as exc:
+					await session.rollback()
+					raise SnapshotConflict(
+						instance.id,
+						expected_seq=expected_seq,
+						actual_seq=await self._current_seq(instance.id),
+					) from exc
+				return
+
+			await session.rollback()
+			raise SnapshotConflict(
+				instance.id,
+				expected_seq=expected_seq,
+				actual_seq=current,
+			)
+
+	async def fire_and_commit(
+		self,
+		*,
+		wd: Any,
+		instance: Instance,
+		event: str,
+		payload: dict[str, Any] | None = None,
+		principal: Principal | None = None,
+		tenant_id: str | None = None,
+		jtbd_id: str | None = None,
+		jtbd_version: str | None = None,
+	) -> FireResult:
+		"""Fire an event and persist all durable side effects atomically.
+
+		This is the critical-system path for SQLAlchemy-backed hosts. The
+		core engine plans/mutates with ``dispatch_ports=False`` so no audit
+		or outbox side effect escapes before storage succeeds. One database
+		transaction then writes:
+
+		* the optimistic-lock snapshot update,
+		* the current ``workflow_instances`` state,
+		* one ``workflow_events`` row,
+		* audit rows through ``audit_sink.record_in_connection`` when an
+		  audit sink was supplied, and
+		* pending durable outbox rows for a post-commit drain worker.
+		"""
+		effective_tenant = tenant_id or self._tenant_id
+		if effective_tenant != self._tenant_id:
+			raise SnapshotTenantMismatch(instance.id, tenant_id=self._tenant_id)
+
+		pre_fire_snapshot = copy.deepcopy(instance)
+		expected_seq = len(pre_fire_snapshot.history)
+		result = await engine_fire(
+			wd,
+			instance,
+			event,
+			payload=payload,
+			principal=principal,
+			tenant_id=self._tenant_id,
+			jtbd_id=jtbd_id,
+			jtbd_version=jtbd_version,
+			dispatch_ports=False,
+		)
+		if result.matched_transition_id is None:
+			return result
+
+		try:
+			async with self._sf() as session:
+				async with session.begin():
+					await self._assert_instance_owned(session, instance.id)
+					await self._compare_and_put_in_session(
+						session,
+						instance,
+						expected_seq=expected_seq,
+					)
+					await self._update_instance_row(session, result)
+					session.add(
+						WorkflowEvent(
+							id=uuid7str(),
+							tenant_id=self._tenant_id,
+							instance_id=instance.id,
+							seq=len(instance.history),
+							event=event,
+							from_state=_transition_payload(result).get("from_state"),
+							to_state=result.new_state,
+							transition_id=result.matched_transition_id,
+							actor_user_id=principal.user_id if principal else None,
+							payload=dict(payload or {}),
+						)
+					)
+					if self._audit_sink is not None:
+						record_in_connection = getattr(
+							self._audit_sink,
+							"record_in_connection",
+							None,
+						)
+						if record_in_connection is None:
+							raise TypeError(
+								"audit_sink must expose record_in_connection(conn, event) "
+								"for transactional fire commits"
+							)
+						conn = await session.connection()
+						for audit_event in result.audit_events:
+							await record_in_connection(conn, audit_event)
+					for envelope in result.outbox_envelopes:
+						session.add(
+							OutboxMessage(
+								id=uuid7str(),
+								kind=envelope.kind,
+								tenant_id=envelope.tenant_id,
+								body=dict(envelope.body or {}),
+								status="pending",
+								retries=0,
+								created_at=datetime.now(timezone.utc),
+								correlation_id=envelope.correlation_id,
+								dedupe_key=envelope.dedupe_key,
+							)
+						)
+		except SnapshotConflict:
+			instance.__dict__.update(pre_fire_snapshot.__dict__)
+			raise
+		except IntegrityError as exc:
+			instance.__dict__.update(pre_fire_snapshot.__dict__)
+			raise SnapshotConflict(
+				instance.id,
+				expected_seq=expected_seq,
+				actual_seq=await self._current_seq(instance.id),
+			) from exc
+		except Exception:
+			instance.__dict__.update(pre_fire_snapshot.__dict__)
+			raise
+
+		return result
+
+	async def _assert_instance_owned(
+		self, session: AsyncSession, instance_id: str
+	) -> None:
+		owned = await session.scalar(
+			select(WorkflowInstance.id).where(
+				WorkflowInstance.tenant_id == self._tenant_id,
+				WorkflowInstance.id == instance_id,
+			)
+		)
+		if owned is None:
+			raise SnapshotTenantMismatch(instance_id, tenant_id=self._tenant_id)
+
+	async def _compare_and_put_in_session(
+		self,
+		session: AsyncSession,
+		instance: Instance,
+		*,
+		expected_seq: int,
+	) -> None:
+		body = _body_from_instance(instance)
+		new_seq = len(instance.history)
+		result = await session.execute(
+			update(WorkflowInstanceSnapshot)
+			.where(
+				WorkflowInstanceSnapshot.tenant_id == self._tenant_id,
+				WorkflowInstanceSnapshot.instance_id == instance.id,
+				WorkflowInstanceSnapshot.seq == expected_seq,
+			)
+			.values(
+				def_key=instance.def_key,
+				def_version=instance.def_version,
+				state=instance.state,
+				body=body,
+				seq=new_seq,
+			)
+		)
+		if getattr(result, "rowcount", 0) == 1:
+			return
+
+		current = await session.scalar(
+			select(WorkflowInstanceSnapshot.seq).where(
+				WorkflowInstanceSnapshot.tenant_id == self._tenant_id,
+				WorkflowInstanceSnapshot.instance_id == instance.id,
+			)
+		)
+		if current is None and expected_seq == 0:
+			session.add(
+				WorkflowInstanceSnapshot(
+					id=uuid7str(),
+					tenant_id=self._tenant_id,
+					instance_id=instance.id,
+					def_key=instance.def_key,
+					def_version=instance.def_version,
+					state=instance.state,
+					body=body,
+					seq=new_seq,
+				)
+			)
+			return
+
+		raise SnapshotConflict(
+			instance.id,
+			expected_seq=expected_seq,
+			actual_seq=current,
+		)
+
+	async def _update_instance_row(
+		self,
+		session: AsyncSession,
+		result: FireResult,
+	) -> None:
+		await session.execute(
+			update(WorkflowInstance)
+			.where(
+				WorkflowInstance.tenant_id == self._tenant_id,
+				WorkflowInstance.id == result.instance.id,
+			)
+			.values(
+				state=result.instance.state,
+				terminal=result.terminal,
+				context=dict(result.instance.context),
+				updated_at=datetime.now(timezone.utc),
+			)
+		)
+
+	async def _current_seq(self, instance_id: str) -> int | None:
+		"""Return the current seq for conflict diagnostics."""
+		async with self._sf() as session:
+			return await session.scalar(
+				select(WorkflowInstanceSnapshot.seq).where(
+					WorkflowInstanceSnapshot.tenant_id == self._tenant_id,
+					WorkflowInstanceSnapshot.instance_id == instance_id,
+				)
+			)
 
 
 def _body_from_instance(instance: Instance) -> dict[str, Any]:
@@ -106,6 +428,14 @@ def _body_from_instance(instance: Instance) -> dict[str, Any]:
 		"saga": list(instance.saga),
 		"history": list(instance.history),
 	}
+
+
+def _transition_payload(result: FireResult) -> dict[str, Any]:
+	"""Return the transition audit payload when present."""
+	if not result.audit_events:
+		return {}
+	payload = result.audit_events[0].payload
+	return dict(payload or {}) if isinstance(payload, dict) else {}
 
 
 def _instance_from_body(row: WorkflowInstanceSnapshot, body: dict[str, Any]) -> Instance:

@@ -19,14 +19,20 @@ from __future__ import annotations
 import copy
 from typing import Any, Sequence
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict
 
 from flowforge.dsl import WorkflowDef
 from flowforge.engine import Instance, fire as engine_fire, new_instance
 from flowforge.ports.types import Principal
 
-from .auth import PrincipalExtractor, StaticPrincipalExtractor, csrf_protect
+from .auth import (
+	PrincipalExtractor,
+	TenantResolver,
+	csrf_protect,
+	resolve_principal_extractor,
+	resolve_tenant_resolver,
+)
 from .registry import (
 	InstanceStore,
 	WorkflowDefRegistry,
@@ -61,7 +67,18 @@ async def _fire_with_unit_of_work(
 	a transactional ``async with store.transaction(): ...`` once the
 	UoW protocol lands (audit-fix-plan §13.7).
 	"""
+	if (fire_and_commit := getattr(store, "fire_and_commit", None)) is not None:
+		return await fire_and_commit(
+			wd=wd,
+			instance=instance,
+			event=event,
+			payload=payload,
+			principal=principal,
+			tenant_id=tenant_id,
+		)
+
 	pre_fire_snapshot = copy.deepcopy(instance)
+	expected_seq = len(pre_fire_snapshot.history)
 	result = await engine_fire(
 		wd,
 		instance,
@@ -71,7 +88,12 @@ async def _fire_with_unit_of_work(
 		tenant_id=tenant_id,
 	)
 	try:
-		await store.put(instance)
+		if (compare_and_put := getattr(store, "compare_and_put", None)) is not None:
+			await compare_and_put(instance, expected_seq=expected_seq)
+		elif isinstance(store, InstanceStore):
+			await store.put(instance, tenant_id=tenant_id)
+		else:
+			await store.put(instance)
 	except Exception:
 		# Restore in-memory instance fields from the snapshot so the
 		# caller's reference no longer reflects an advanced state we
@@ -89,7 +111,7 @@ class CreateInstanceRequest(BaseModel):
 	def_key: str
 	def_version: str | None = None
 	initial_context: dict[str, Any] | None = None
-	tenant_id: str = "default"
+	tenant_id: str | None = None
 	instance_id: str | None = None
 
 
@@ -98,7 +120,7 @@ class FireEventRequest(BaseModel):
 
 	event: str
 	payload: dict[str, Any] | None = None
-	tenant_id: str = "default"
+	tenant_id: str | None = None
 
 
 class InstanceView(BaseModel):
@@ -141,8 +163,10 @@ def _to_view(instance: Instance) -> InstanceView:
 def build_runtime_router(
 	*,
 	principal_extractor: PrincipalExtractor | None = None,
+	tenant_resolver: TenantResolver | None = None,
 	tags: Sequence[str] | None = None,
 	require_csrf: bool = False,
+	allow_test_defaults: bool = False,
 ) -> APIRouter:
 	"""Construct the runtime router.
 
@@ -151,12 +175,33 @@ def build_runtime_router(
 	can reuse one CSRF model across designer + runtime.
 	"""
 
-	extractor: PrincipalExtractor = principal_extractor or StaticPrincipalExtractor()
+	extractor = resolve_principal_extractor(
+		principal_extractor,
+		allow_test_defaults=allow_test_defaults,
+		surface="build_runtime_router",
+	)
+	resolved_tenant = resolve_tenant_resolver(
+		tenant_resolver,
+		allow_test_defaults=allow_test_defaults,
+		surface="build_runtime_router",
+	)
 	router_tags: list[str | Any] = list(tags) if tags else ["flowforge-runtime"]
 	router = APIRouter(tags=router_tags)
 
 	async def _principal(req_principal: Principal = Depends(extractor)) -> Principal:
 		return req_principal
+
+	async def _tenant_id(
+		request: Request,
+		principal: Principal = Depends(_principal),
+	) -> str:
+		tenant_id = await resolved_tenant(request, principal)
+		if not tenant_id:
+			raise HTTPException(
+				status_code=status.HTTP_401_UNAUTHORIZED,
+				detail="tenant resolution returned an empty tenant_id",
+			)
+		return tenant_id
 
 	mutation_deps: list[Any] = []
 	if require_csrf:
@@ -174,6 +219,7 @@ def build_runtime_router(
 		store: InstanceStore = Depends(get_instance_store),
 		hub: WorkflowEventsHub = Depends(get_events_hub),
 		principal: Principal = Depends(_principal),
+		tenant_id: str = Depends(_tenant_id),
 	) -> InstanceView:
 		try:
 			wd = registry.get(body.def_key, body.def_version)
@@ -187,7 +233,7 @@ def build_runtime_router(
 			instance_id=body.instance_id,
 			initial_context=body.initial_context,
 		)
-		await store.put(instance)
+		await store.put(instance, tenant_id=tenant_id)
 		await hub.publish(
 			{
 				"type": "instance.created",
@@ -196,7 +242,7 @@ def build_runtime_router(
 				"def_version": instance.def_version,
 				"state": instance.state,
 				"actor_user_id": principal.user_id,
-				"tenant_id": body.tenant_id,
+				"tenant_id": tenant_id,
 			}
 		)
 		return _to_view(instance)
@@ -213,8 +259,9 @@ def build_runtime_router(
 		store: InstanceStore = Depends(get_instance_store),
 		hub: WorkflowEventsHub = Depends(get_events_hub),
 		principal: Principal = Depends(_principal),
+		tenant_id: str = Depends(_tenant_id),
 	) -> FireResultView:
-		instance = await store.get(instance_id)
+		instance = await store.get_for_tenant(instance_id, tenant_id=tenant_id)
 		if instance is None:
 			raise HTTPException(
 				status_code=status.HTTP_404_NOT_FOUND,
@@ -237,7 +284,7 @@ def build_runtime_router(
 			event=body.event,
 			payload=body.payload,
 			principal=principal,
-			tenant_id=body.tenant_id,
+			tenant_id=tenant_id,
 			store=store,
 		)
 
@@ -253,7 +300,7 @@ def build_runtime_router(
 					"transition_id": result.matched_transition_id,
 					"terminal": result.terminal,
 					"actor_user_id": principal.user_id,
-					"tenant_id": body.tenant_id,
+					"tenant_id": tenant_id,
 				}
 			)
 
@@ -271,8 +318,9 @@ def build_runtime_router(
 		instance_id: str,
 		store: InstanceStore = Depends(get_instance_store),
 		_: Principal = Depends(_principal),
+		tenant_id: str = Depends(_tenant_id),
 	) -> InstanceView:
-		instance = await store.get(instance_id)
+		instance = await store.get_for_tenant(instance_id, tenant_id=tenant_id)
 		if instance is None:
 			raise HTTPException(
 				status_code=status.HTTP_404_NOT_FOUND,

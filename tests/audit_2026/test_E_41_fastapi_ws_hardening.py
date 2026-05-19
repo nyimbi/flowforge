@@ -29,7 +29,6 @@ Plan reference: framework/docs/audit-fix-plan.md §4.2, §4.3, §7 (E-41).
 from __future__ import annotations
 
 import asyncio
-import time
 from typing import Any
 
 import pytest
@@ -40,7 +39,6 @@ from flowforge_fastapi.auth import (
 	ConfigError,
 	WSPrincipalExtractor,
 	csrf_cookie_name,
-	csrf_header_name,
 	issue_csrf_token,
 )
 from flowforge_fastapi.ws import WorkflowEventsHub
@@ -199,8 +197,8 @@ def test_FA_04_hub_is_app_scoped_not_module_singleton():
 
 	app_a = FastAPI()
 	app_b = FastAPI()
-	mount_routers(app_a)
-	mount_routers(app_b)
+	mount_routers(app_a, allow_test_defaults=True)
+	mount_routers(app_b, allow_test_defaults=True)
 
 	hub_a = app_a.state.flowforge_events_hub
 	hub_b = app_b.state.flowforge_events_hub
@@ -215,8 +213,8 @@ def test_FA_04_subscribe_in_app_a_does_not_leak_to_app_b():
 
 	app_a = FastAPI()
 	app_b = FastAPI()
-	mount_routers(app_a)
-	mount_routers(app_b)
+	mount_routers(app_a, allow_test_defaults=True)
+	mount_routers(app_b, allow_test_defaults=True)
 
 	hub_a: WorkflowEventsHub = app_a.state.flowforge_events_hub
 	hub_b: WorkflowEventsHub = app_b.state.flowforge_events_hub
@@ -238,7 +236,6 @@ def test_FA_05_fire_unit_of_work_rolls_back_on_store_failure():
 	"""If ``store.put(instance)`` raises after ``engine_fire``, the in-memory
 	``Instance`` must be restored to the pre-fire snapshot so a retry
 	starts from a clean state."""
-	from flowforge.dsl import WorkflowDef
 	from flowforge.engine import new_instance
 	from flowforge_fastapi.router_runtime import _fire_with_unit_of_work
 
@@ -267,6 +264,82 @@ def test_FA_05_fire_unit_of_work_rolls_back_on_store_failure():
 	# Rollback: state and history match the pre-fire snapshot.
 	assert instance.state == prev_state
 	assert list(instance.history) == prev_history
+
+
+def test_FA_05_fire_unit_of_work_uses_snapshot_cas_when_available():
+	"""Stores that expose ``compare_and_put`` receive the pre-fire seq."""
+	from flowforge.engine import new_instance
+	from flowforge_fastapi.router_runtime import _fire_with_unit_of_work
+
+	wd = _make_demo_wd()
+	instance = new_instance(wd)
+	calls: list[tuple[str, int]] = []
+
+	class CasStore:
+		async def compare_and_put(self, written: Any, *, expected_seq: int) -> None:
+			calls.append((written.state, expected_seq))
+
+		async def put(self, _instance: Any) -> None:  # pragma: no cover - should not run
+			raise AssertionError("compare_and_put should be preferred")
+
+	result = _run(
+		_fire_with_unit_of_work(
+			wd=wd,
+			instance=instance,
+			event="submit",
+			payload=None,
+			principal=Principal(user_id="u", roles=(), is_system=False),
+			tenant_id="t-1",
+			store=CasStore(),
+		)
+	)
+
+	assert result.new_state == "review"
+	assert calls == [("review", 0)]
+
+
+def test_FA_05_fire_unit_of_work_prefers_transactional_store_commit():
+	"""Stores exposing ``fire_and_commit`` own the whole durable commit."""
+	from flowforge.engine import new_instance
+	from flowforge_fastapi.router_runtime import _fire_with_unit_of_work
+
+	wd = _make_demo_wd()
+	instance = new_instance(wd)
+	calls: list[tuple[str, str]] = []
+
+	class TransactionalStore:
+		async def fire_and_commit(self, **kwargs: Any) -> Any:
+			from flowforge.engine import fire
+
+			calls.append((kwargs["event"], kwargs["tenant_id"]))
+			return await fire(
+				kwargs["wd"],
+				kwargs["instance"],
+				kwargs["event"],
+				payload=kwargs["payload"],
+				principal=kwargs["principal"],
+				tenant_id=kwargs["tenant_id"],
+				dispatch_ports=False,
+			)
+
+		async def compare_and_put(self, _written: Any, *, expected_seq: int) -> None:
+			raise AssertionError("fire_and_commit should be preferred")
+
+	store = TransactionalStore()
+	result = _run(
+		_fire_with_unit_of_work(
+			wd=wd,
+			instance=instance,
+			event="submit",
+			payload=None,
+			principal=Principal(user_id="u", roles=(), is_system=False),
+			tenant_id="t-1",
+			store=store,
+		)
+	)
+
+	assert result.new_state == "review"
+	assert calls == [("submit", "t-1")]
 
 
 # ---------------------------------------------------------------------------

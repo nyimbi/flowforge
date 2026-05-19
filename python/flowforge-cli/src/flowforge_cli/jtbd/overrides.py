@@ -2,8 +2,7 @@
 
 The canonical :class:`flowforge_jtbd.dsl.spec.JtbdBundle` stays
 content-addressable (its ``spec_hash`` is invariant to copy polish).
-LLM-driven last-mile copy polish for field labels, helper text, button
-labels, notification templates and error messages lives in a *sidecar*
+LLM-driven last-mile copy polish for field labels lives in a *sidecar*
 file co-located with the bundle on disk:
 
     <bundle_path>.overrides.json
@@ -28,10 +27,6 @@ untouched.
 The string keys follow the namespace pattern:
 
 * ``<jtbd_id>.field.<field_id>.label``
-* ``<jtbd_id>.field.<field_id>.helper_text``
-* ``<jtbd_id>.button.<event>.text``
-* ``<jtbd_id>.notification.<topic>.template``
-* ``<jtbd_id>.error.<code>.message``
 
 Keys outside the namespace are rejected by a model-level validator so a
 hand-edited sidecar can't accidentally introduce a key the consumers
@@ -88,9 +83,6 @@ TONE_PROFILES: tuple[str, ...] = (
 # identifier (field_id / event / topic / code), and the leaf suffix.
 OVERRIDE_KEY_KINDS: tuple[str, ...] = (
 	"field",
-	"button",
-	"notification",
-	"error",
 )
 
 
@@ -101,12 +93,7 @@ OVERRIDE_KEY_KINDS: tuple[str, ...] = (
 _KEY_PATTERN = re.compile(
 	r"^"
 	r"(?P<jtbd>[a-z][a-z0-9_]*)"
-	r"\.(?:"
-	r"field\.(?P<field>[a-z][a-z0-9_]*)\.(?P<field_suffix>label|helper_text)"
-	r"|button\.(?P<event>[a-z][a-z0-9_]*)\.text"
-	r"|notification\.(?P<topic>[a-z][a-z0-9_.\-]*)\.template"
-	r"|error\.(?P<code>[a-z][a-z0-9_]*)\.message"
-	r")"
+	r"\.field\.(?P<field>[a-z][a-z0-9_]*)\.label"
 	r"$"
 )
 
@@ -134,6 +121,9 @@ class JtbdCopyOverrides(BaseModel):
 	# write; consumers read them only for debugging.
 	generated_at: str | None = None
 	generator_version: str | None = None
+	llm_provider: str | None = None
+	llm_model: str | None = None
+	prompt_sha256: str | None = None
 
 	@model_validator(mode="after")
 	def _validate_string_keys(self) -> JtbdCopyOverrides:
@@ -148,35 +138,19 @@ class JtbdCopyOverrides(BaseModel):
 			suffix = "" if len(bad) <= 5 else f" (+{len(bad) - 5} more)"
 			raise ValueError(
 				"copy-override keys must match "
-				"'<jtbd_id>.{field|button|notification|error}.<id>.<suffix>'; "
+				"'<jtbd_id>.field.<field_id>.label'; "
 				f"rejected: {rendered}{suffix}"
 			)
 		return self
 
 	# ------------------------------------------------------------------
-	# Convenience accessors — narrow the call surface in generators so
-	# they don't reach into ``strings`` directly. Each helper returns
-	# the override when present, else ``fallback``.
+	# Convenience accessor — narrow the call surface in generators so
+	# they don't reach into ``strings`` directly. Returns the override
+	# when present, else ``fallback``.
 	# ------------------------------------------------------------------
 
 	def field_label(self, jtbd_id: str, field_id: str, fallback: str) -> str:
 		key = f"{jtbd_id}.field.{field_id}.label"
-		return self.strings.get(key, fallback)
-
-	def field_helper_text(self, jtbd_id: str, field_id: str) -> str | None:
-		key = f"{jtbd_id}.field.{field_id}.helper_text"
-		return self.strings.get(key)
-
-	def button_text(self, jtbd_id: str, event: str, fallback: str) -> str:
-		key = f"{jtbd_id}.button.{event}.text"
-		return self.strings.get(key, fallback)
-
-	def notification_template(self, jtbd_id: str, topic: str, fallback: str) -> str:
-		key = f"{jtbd_id}.notification.{topic}.template"
-		return self.strings.get(key, fallback)
-
-	def error_message(self, jtbd_id: str, code: str, fallback: str) -> str:
-		key = f"{jtbd_id}.error.{code}.message"
 		return self.strings.get(key, fallback)
 
 
@@ -250,9 +224,8 @@ def validate_key_against_bundle(
 	"""Return ``None`` if *key* resolves to a real bundle target, else an error.
 
 	The bundle is the raw parsed JSON (pre-normalize). Only ``field.*``
-	keys are cross-checked today — button / notification / error keys
-	are accepted unconditionally because their identifiers are not pinned
-	on the canonical bundle. (A future invariant can extend this.)
+	keys are accepted by the sidecar schema today, and every accepted key
+	is cross-checked against the bundle before the release gate can pass.
 	"""
 
 	assert isinstance(key, str), "key must be a string"
@@ -273,11 +246,7 @@ def validate_key_against_bundle(
 	if jtbd is None:
 		return f"{key!r}: no JTBD with id {jtbd_id!r} in bundle"
 
-	# Field-specific cross-check.
 	field_id = match.group("field")
-	if field_id is None:
-		# button / notification / error — accept; no canonical cross-check.
-		return None
 
 	captures = jtbd.get("data_capture")
 	if not isinstance(captures, list):
@@ -300,11 +269,9 @@ def build_canonical_strings(bundle: dict[str, object]) -> dict[str, str]:
 	deterministic input the LLM rewrite is applied on top of, and the
 	identity vs the rewrite is what ``--dry-run`` diffs against.
 
-	Covers field labels today — the only place canonical strings live
-	on the bundle. Helper text / button text / notification templates /
-	error messages have no canonical equivalent on the bundle, so the
-	canonical map omits those namespaces; ``polish-copy`` can still
-	*propose* them, but only with explicit author intent.
+	Covers field labels — the only sidecar namespace that generators
+	apply today. Other user-facing string surfaces must be wired into
+	generated artifacts before the schema accepts them.
 	"""
 
 	assert isinstance(bundle, dict), "bundle must be a dict"

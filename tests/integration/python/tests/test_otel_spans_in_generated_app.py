@@ -190,3 +190,36 @@ async def test_generated_adapter_records_fire_duration_histogram(
 	assert value >= 0
 	assert labels.get("tenant_id") == "tenant-otel-test"
 	assert labels.get("jtbd_id") == "claim_intake"
+
+
+async def test_generated_adapter_records_metrics_to_scoped_runtime_config(
+	otel_exporter: InMemorySpanExporter,
+	reset_config: None,
+) -> None:
+	"""Generated adapters must honor app-local RuntimeConfig metrics."""
+
+	adapter = _import_generated_adapter()
+	global_metrics = ff_config.metrics
+	scoped_metrics = InMemoryMetrics()
+	runtime_config = ff_config.snapshot_runtime_config()
+	runtime_config.metrics = scoped_metrics
+	principal = Principal(user_id="test-user", roles=("claims-officer",), is_system=False)
+	with ff_config.use_runtime_config(runtime_config):
+		await adapter.fire_event(
+			"submit",
+			payload={"claimant_name": "Cara", "loss_date": "2026-01-01", "claim_amount": 2.0},
+			principal=principal,
+			tenant_id="tenant-scoped-metrics",
+		)
+
+	assert isinstance(global_metrics, InMemoryMetrics)
+	assert not global_metrics.histograms
+	tenant_obs = [
+		(name, value, labels)
+		for (name, value, labels) in scoped_metrics.histograms
+		if name == FIRE_DURATION_HISTOGRAM
+	]
+	assert tenant_obs, "scoped runtime config did not receive fire-duration metrics"
+	_, value, labels = tenant_obs[0]
+	assert value >= 0
+	assert labels.get("tenant_id") == "tenant-scoped-metrics"

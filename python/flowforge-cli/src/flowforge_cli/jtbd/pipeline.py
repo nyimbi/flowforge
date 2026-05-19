@@ -9,6 +9,7 @@ can assert on byte content without touching a filesystem.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from ._types import GeneratedFile
@@ -106,6 +107,7 @@ _PER_BUNDLE_GENERATORS = (
 def generate(
 	bundle: dict[str, Any],
 	overrides: JtbdCopyOverrides | None = None,
+	i18n_catalogs: Mapping[str, Mapping[str, str]] | None = None,
 ) -> list[GeneratedFile]:
 	"""End-to-end: parse → normalize → run every generator → sort.
 
@@ -118,6 +120,10 @@ def generate(
 	so pre-W4b bundles regen byte-identically. When passed in, it is
 	applied at normalize time — see :mod:`flowforge_cli.jtbd.overrides`
 	for the lookup contract.
+
+	*i18n_catalogs* is an optional authoring sidecar keyed by language.
+	It fills non-default generated catalogs without adding translation
+	fields to the canonical JTBD bundle.
 	"""
 
 	parse_bundle(bundle)
@@ -129,7 +135,10 @@ def generate(
 			files.extend(_coerce(gen(norm, jt)))
 
 	for gen in _PER_BUNDLE_GENERATORS:
-		files.extend(_coerce(gen(norm)))
+		if gen is i18n.generate:
+			files.extend(_coerce(i18n.generate(norm, translations=i18n_catalogs)))
+		else:
+			files.extend(_coerce(gen(norm)))
 
 	# Deduplicate (later wins) on path so per-JTBD generators that touch
 	# the same shared file are predictable. None today, but cheap insurance.
@@ -139,7 +148,10 @@ def generate(
 	return sorted(dedup.values(), key=lambda f: f.path)
 
 
-def generate_for_bundle(norm: NormalizedBundle) -> list[GeneratedFile]:
+def generate_for_bundle(
+	norm: NormalizedBundle,
+	i18n_catalogs: Mapping[str, Mapping[str, str]] | None = None,
+) -> list[GeneratedFile]:
 	"""Skip parse/validate (callers already normalized). Test-only shortcut."""
 
 	files: list[GeneratedFile] = []
@@ -147,7 +159,10 @@ def generate_for_bundle(norm: NormalizedBundle) -> list[GeneratedFile]:
 		for gen in _PER_JTBD_GENERATORS:
 			files.extend(_coerce(gen(norm, jt)))
 	for gen in _PER_BUNDLE_GENERATORS:
-		files.extend(_coerce(gen(norm)))
+		if gen is i18n.generate:
+			files.extend(_coerce(i18n.generate(norm, translations=i18n_catalogs)))
+		else:
+			files.extend(_coerce(gen(norm)))
 	dedup: dict[str, GeneratedFile] = {}
 	for f in files:
 		dedup[f.path] = f

@@ -11,12 +11,10 @@ import hmac
 import json
 from dataclasses import dataclass
 from typing import Any
-from unittest.mock import AsyncMock
 
 import pytest
 
 from flowforge_notify_multichannel.transports import (
-	DeliveryResult,
 	EmailAdapter,
 	FCMPushAdapter,
 	FakeInAppAdapter,
@@ -161,10 +159,21 @@ class TestSESEmailAdapter:
 		assert result.ok
 		assert result.provider_id == "ses-123"
 		assert len(fake.calls) == 1
+		headers = fake.calls[0]["headers"]
+		assert headers["Authorization"].startswith("AWS4-HMAC-SHA256 ")
+		assert "X-Amz-Access-Key-Id" not in headers
+
+	async def test_deliver_requires_credentials(self) -> None:
+		fake = FakeHTTPClient(FakeResponse(500, "Internal Error"))
+		adapter = SESEmailAdapter(_http_client=fake)
+		result = await adapter.deliver("to@ses.test", "S", "B", {})
+		assert not result.ok
+		assert "credentials" in (result.error or "")
+		assert fake.calls == []
 
 	async def test_deliver_http_error(self) -> None:
 		fake = FakeHTTPClient(FakeResponse(500, "Internal Error"))
-		adapter = SESEmailAdapter(_http_client=fake)
+		adapter = SESEmailAdapter(access_key="AKID", secret_key="SECRET", _http_client=fake)
 		result = await adapter.deliver("to@ses.test", "S", "B", {})
 		assert not result.ok
 		assert "500" in (result.error or "")
@@ -244,7 +253,11 @@ class TestFCMPushAdapter:
 class TestWebhookAdapter:
 	async def test_deliver_signs_payload(self) -> None:
 		fake = FakeHTTPClient(FakeResponse(200, "ok"))
-		adapter = WebhookAdapter(secret="test-secret", _http_client=fake)
+		adapter = WebhookAdapter(
+			secret="test-secret",
+			allowed_hosts={"hook.example.com"},
+			_http_client=fake,
+		)
 		result = await adapter.deliver(
 			"https://hook.example.com/recv",
 			"Event",
@@ -264,7 +277,7 @@ class TestWebhookAdapter:
 
 	async def test_deliver_payload_is_valid_json(self) -> None:
 		fake = FakeHTTPClient(FakeResponse(200, "ok"))
-		adapter = WebhookAdapter(secret="s", _http_client=fake)
+		adapter = WebhookAdapter(secret="s", allowed_hosts={"h.com"}, _http_client=fake)
 		await adapter.deliver("https://h.com/", "Subj", "Bod", {"x": 1})
 		raw = fake.calls[0]["content"]
 		data = json.loads(raw)
@@ -273,9 +286,29 @@ class TestWebhookAdapter:
 
 	async def test_deliver_http_error(self) -> None:
 		fake = FakeHTTPClient(FakeResponse(500, "err"))
-		adapter = WebhookAdapter(secret="s", _http_client=fake)
+		adapter = WebhookAdapter(secret="s", allowed_hosts={"h.com"}, _http_client=fake)
 		result = await adapter.deliver("https://h.com/", "S", "B", {})
 		assert not result.ok
+
+	async def test_requires_explicit_secret(self) -> None:
+		with pytest.raises(ValueError):
+			WebhookAdapter()
+
+	async def test_rejects_unlisted_webhook_url(self) -> None:
+		fake = FakeHTTPClient(FakeResponse(200, "ok"))
+		adapter = WebhookAdapter(secret="s", allowed_hosts={"trusted.example.com"}, _http_client=fake)
+		result = await adapter.deliver("https://evil.example.com/", "S", "B", {})
+		assert not result.ok
+		assert "not allowed" in (result.error or "")
+		assert fake.calls == []
+
+	async def test_rejects_private_webhook_url(self) -> None:
+		fake = FakeHTTPClient(FakeResponse(200, "ok"))
+		adapter = WebhookAdapter(secret="s", allow_any_public_host=True, _http_client=fake)
+		result = await adapter.deliver("https://127.0.0.1/hook", "S", "B", {})
+		assert not result.ok
+		assert "private" in (result.error or "")
+		assert fake.calls == []
 
 	def test_channel_name(self) -> None:
 		assert WebhookAdapter.channel == "webhook"
@@ -315,8 +348,16 @@ class TestSlackAdapter:
 	async def test_deliver_http_non_ok(self) -> None:
 		fake = FakeHTTPClient(FakeResponse(400, "bad_payload"))
 		adapter = SlackAdapter(_http_client=fake)
+		result = await adapter.deliver("https://hooks.slack.com/bad", "S", "B", {})
+		assert not result.ok
+
+	async def test_rejects_non_slack_url(self) -> None:
+		fake = FakeHTTPClient(FakeResponse(200, "ok"))
+		adapter = SlackAdapter(_http_client=fake)
 		result = await adapter.deliver("https://h.com/", "S", "B", {})
 		assert not result.ok
+		assert "not allowed" in (result.error or "")
+		assert fake.calls == []
 
 	def test_channel_name(self) -> None:
 		assert SlackAdapter.channel == "slack"

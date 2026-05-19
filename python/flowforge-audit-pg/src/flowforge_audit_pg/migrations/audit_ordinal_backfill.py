@@ -80,6 +80,13 @@ _ADD_CONSTRAINT_SQL = (
 	"UNIQUE (tenant_id, ordinal)"
 )
 
+_ADD_INDEXES_SQL = (
+	"CREATE INDEX IF NOT EXISTS ix_ff_audit_tenant_ordinal "
+	"ON ff_audit_events (tenant_id, ordinal)",
+	"CREATE INDEX IF NOT EXISTS ix_ff_audit_tenant_occurred_event "
+	"ON ff_audit_events (tenant_id, occurred_at, event_id)",
+)
+
 _VERIFY_SQL = """
 SELECT
 	(SELECT COUNT(*) FROM ff_audit_events) AS total_rows,
@@ -87,7 +94,15 @@ SELECT
 	EXISTS(
 		SELECT 1 FROM information_schema.table_constraints
 		WHERE constraint_name = 'uq_ff_audit_tenant_ordinal'
-	) AS constraint_present
+	) AS constraint_present,
+	EXISTS(
+		SELECT 1 FROM pg_indexes
+		WHERE indexname = 'ix_ff_audit_tenant_ordinal'
+	) AS tenant_ordinal_index_present,
+	EXISTS(
+		SELECT 1 FROM pg_indexes
+		WHERE indexname = 'ix_ff_audit_tenant_occurred_event'
+	) AS tenant_occurred_index_present
 """
 
 
@@ -133,8 +148,10 @@ async def _add_constraint(engine: Any) -> None:
 		)
 		if exists.scalar():
 			log.info("step=add-constraint already present, skipping")
-			return
-		await conn.execute(sa.text(_ADD_CONSTRAINT_SQL))
+		else:
+			await conn.execute(sa.text(_ADD_CONSTRAINT_SQL))
+		for sql in _ADD_INDEXES_SQL:
+			await conn.execute(sa.text(sql))
 	log.info("step=add-constraint done")
 
 
@@ -147,6 +164,8 @@ async def _verify(engine: Any) -> dict[str, Any]:
 		"total_rows": int(row[0]),
 		"null_ordinals": int(row[1]),
 		"constraint_present": bool(row[2]),
+		"tenant_ordinal_index_present": bool(row[3]),
+		"tenant_occurred_index_present": bool(row[4]),
 	}
 
 
@@ -170,6 +189,12 @@ async def _run(dsn: str, step: str, batch_size: int) -> int:
 				return 2
 			if not report["constraint_present"]:
 				log.error("verify FAIL: uq_ff_audit_tenant_ordinal not present")
+				return 2
+			if not report["tenant_ordinal_index_present"]:
+				log.error("verify FAIL: ix_ff_audit_tenant_ordinal not present")
+				return 2
+			if not report["tenant_occurred_index_present"]:
+				log.error("verify FAIL: ix_ff_audit_tenant_occurred_event not present")
 				return 2
 			log.info("verify OK: 0 null ordinals, constraint present")
 		else:

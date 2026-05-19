@@ -7,7 +7,7 @@
   "scripts": {
     "test": "vitest run",
     "lint": "tsc --noEmit",
-    "build": "echo 'no build step — source-first package'"
+    "build": "tsc --noEmit"
   },
   "dependencies": {
     "@flowforge/types": "workspace:*",

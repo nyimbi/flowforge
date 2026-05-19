@@ -45,6 +45,7 @@ CONSUMES: tuple[str, ...] = (
 LIFECYCLE_SUFFIXES: tuple[str, ...] = (
 	"field_focused",
 	"field_completed",
+	"pii_revealed",
 	"validation_failed",
 	"submission_started",
 	"submission_succeeded",

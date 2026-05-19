@@ -1,0 +1,60 @@
+# Audit 2026 external release evidence
+
+Use this template for each critical-system release qualification run. Store the
+completed copy next to the release candidate notes or attach it to the release
+approval record.
+
+## Release candidate
+
+- Flowforge commit:
+- UMS backend repository/ref:
+- Operator:
+- Date/time UTC:
+- Environment:
+
+## Preconditions
+
+- DOM baseline commit:
+- DOM baseline generation workflow run URL:
+- DOM baseline candidate artifact URL:
+- `examples/*/screenshots/**/*.dom.html` reviewed by:
+- `VISREG_ALLOW_SKIP` unset for release commands:
+- `BROWSER_E2E_ALLOW_SKIP` unset for release commands:
+- `uv run python -c "import anthropic"` result:
+- Sidecar authoring workflow run URL:
+- Sidecar candidate artifact URL:
+- `examples/insurance_claim/jtbd-bundle.json.overrides.json` reviewed by:
+- LLM provider/model recorded in sidecar:
+- `prompt_sha256` recorded in sidecar:
+- `uv run flowforge polish-copy --require-llm --commit` command output reviewed:
+
+## Commands / workflow evidence
+
+- `make audit-2026-release-local` result:
+- `make audit-2026-release-external-preflight` result:
+- Preflight caveat acknowledged: preflight does not prove browser execution;
+  browser proof is the `audit-2026-browser-e2e` result below.
+- Manual workflow:
+  - Workflow file: `.github/workflows/audit-2026-release-external.yml`
+  - Workflow run URL:
+  - Artifact URL:
+  - `backend_repository` input:
+  - `backend_ref` input:
+- `make audit-2026-release-external` result:
+
+## Required passing evidence
+
+- DOM visual regression:
+- Browser full-stack Playwright:
+- Real-key polish-copy sidecar gate (`make audit-2026-polish-copy-sidecar`):
+- UMS workflow-def parity:
+- Live Postgres stale snapshot rejection:
+- Live Postgres SKIP LOCKED outbox drain:
+- Live Postgres interleaved-tenant audit verification:
+- Live Postgres tenant/ordinal index plan:
+
+## Residual risks / exceptions
+
+- Exceptions granted:
+- Follow-up ticket(s):
+- Release approver:

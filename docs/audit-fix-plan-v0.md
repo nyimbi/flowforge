@@ -16,7 +16,7 @@
 | # | Principle | Why it matters here |
 |---|---|---|
 | P-1 | **Security defects ship first, behaviour changes ship later.** | 6 P0 findings include hard-coded HMAC secret, two SQL-injection sinks, audit-chain race, replay-determinism break, hub auth-bypass — these are ship-blockers. |
-| P-2 | **Smallest viable diff per fix; verify behaviour preserved.** | 77 findings against 45 Python + 7 JS packages must not become a refactor festival. Every PR must be small and reviewable. |
+| P-2 | **Smallest viable diff per fix; verify behaviour preserved.** | 77 findings against 46 Python + 7 JS packages must not become a refactor festival. Every PR must be small and reviewable. |
 | P-3 | **Each fix carries a regression test that fails on the unfixed code and passes on the fix.** | We need an audit trail proving each ticket was actually closed. Generic tests are not acceptable. |
 | P-4 | **Architectural invariants in arch §17 are testable contracts, not aspirations.** | Replay determinism, two-phase fire, idempotency, saga, elevation isolation — each invariant gets an explicit conformance test. |
 | P-5 | **Domain content is content, not code.** | The 30 domain-library scaffolds (D-01) are a documentation/content workstream, not framework engineering — staffed and tracked separately so they don't block GA on engineering. |
@@ -117,8 +117,8 @@ Every finding gets an entry. Acceptance criteria are testable; "test exists, fai
 | D-01 | All 30 domains × ~5 jtbds = 150 yaml | Either: (E-48a path) packages renamed `flowforge-jtbd-*-starter`, README disclaimer, lint badge "scaffold-only"; OR (E-48b path) each domain has real JTBD content (`incident_date`, `claimant_id`, etc.) signed off by domain SME, with edge_cases, documents_required, approvals, notifications, sla, data_sensitivity, compliance |
 | IT-01 | (no file) | `hypothesis` dependency added; 5 properties shipped: lockfile round-trip, conflict-solver determinism, evaluator literal-passthrough, manifest signing-payload stability, money arithmetic |
 | IT-02 | `tests/integration/` | Three E2E suites green: fire→audit→hash-chain-verify; fire→outbox-dispatch→handler→ack; fork→migrate→replay-determinism |
-| DOC-01 | root `pyproject.toml` | Workspace lists all 45 Python pkgs; `uv build` from root produces all wheels |
-| DOC-02 | `framework/README.md` | README package count matches reality (45); layout diagram updated |
+| DOC-01 | root `pyproject.toml` | Workspace lists all 46 Python pkgs; `uv build` from root produces all wheels |
+| DOC-02 | `framework/README.md` | README package count matches reality (46); layout diagram updated |
 | NM-01 | `notify_multichannel/transports.py:422` | All HMAC verify paths use `hmac.compare_digest`; static check via grep gate in CI |
 | CL-01 | `flowforge_cli/jtbd/generators/{domain_router,audit_taxonomy,sa_model}.py` | Files implemented OR deleted; if deleted, callers updated; no file <30 LoC unless explicit `__init__.py` |
 | SK-02 | `signing-kms/hmac_dev.py:73-74` | Key map `dict[str,str]`; `verify(key_id="unknown", ...)` raises `UnknownKeyId`; rotation test verifies pre-rotation sigs against pre-rotation key still valid |
@@ -234,7 +234,7 @@ Calendar: with 4 engineers + 6 domain SMEs in parallel, ~7 weeks (rebrand) or ~1
 | **E-43** | TS↔Python expr conformance suite: align unknown-operator + equality semantics | P1 | `js/flowforge-renderer/src/expr.ts:88-99`, `flowforge-core/src/flowforge/expr/evaluator.py` | S1 | M | Yes | sonnet | JS-01, JS-02 |
 | **E-44** | Hypothesis property tests: lockfile, hash-chain, evaluator, manifest, money | P1 | new `tests/property/` | S1 | M | Yes | sonnet | IT-01 |
 | **E-45** | E2E suite: fire→audit→verify; fire→outbox→ack; fork→migrate→replay | P1 | new `tests/integration/e2e/` | S1 | L | Yes | sonnet | IT-02 |
-| **E-46** | Workspace + docs alignment: register all 45 pkgs; README package count; doc paths | P1/P2/P3 | root `pyproject.toml`, `framework/README.md`, `docs/flowforge-evolution.md`, per-pkg READMEs | S1 | S | Yes | haiku | DOC-01, DOC-02, DOC-04, DOC-05, D-05 |
+| **E-46** | Workspace + docs alignment: register all 46 pkgs; README package count; doc paths | P1/P2/P3 | root `pyproject.toml`, `framework/README.md`, `docs/flowforge-evolution.md`, per-pkg READMEs | S1 | S | Yes | haiku | DOC-01, DOC-02, DOC-04, DOC-05, D-05 |
 | **E-47** | JTBD intelligence quality: lint perf, recommender fit/transform, NL guard, dead code | P1 | `lint/conflicts.py:144-269`, `ai/recommender.py:171-247`, `ai/nl_to_jtbd.py:101-379`, `dsl/lockfile.py:140-157`, `dsl/spec.py:95-113` | S1 | M | Yes | opus | J-02, J-03, J-04, J-05, J-06, J-07, J-08, J-09 |
 | **E-48a** | Domain-library rebrand to "starter scaffolds" | P1 | all 30 `flowforge-jtbd-*` packages, READMEs, `pyproject.toml` `name` field | S2 | S × 30 | Yes | haiku | D-01 (rebrand path) |
 | **E-48b** | Domain-library real content authoring (alternative to E-48a) | P1 | all 30 × 5 yaml files | S2 | L × 30 | Yes (per domain) | sonnet (review by SME) | D-01 (real-content path) |

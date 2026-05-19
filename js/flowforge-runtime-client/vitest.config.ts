@@ -5,6 +5,7 @@ export default defineConfig({
     // Use node environment: native fetch + AbortSignal work correctly with msw/node.
     // mock-socket's Server can replace globalThis.WebSocket freely in node.
     environment: "node",
+    setupFiles: ["./vitest.setup.ts"],
     globals: false,
     include: ["__tests__/**/*.test.ts"],
     testTimeout: 10_000,

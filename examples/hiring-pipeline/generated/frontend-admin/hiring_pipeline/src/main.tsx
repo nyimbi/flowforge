@@ -4,6 +4,7 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
+import "./admin.css";
 // v0.3.0 W3 / item 18 — design-token side-effect import. Mirrors the
 // customer-facing tree so the admin console reads the same CSS
 // variables (`--color-primary`, `--font-family`, `--radius-*`). A

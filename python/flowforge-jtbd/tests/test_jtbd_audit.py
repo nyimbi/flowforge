@@ -5,8 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-import pytest
-
+from flowforge import config
 from flowforge_jtbd.audit import (
 	JtbdAuditLogger,
 	JtbdEditAction,
@@ -32,7 +31,21 @@ def _spec(jtbd_id: str = "claim_intake", **overrides: Any) -> dict[str, Any]:
 
 
 def _run(coro: Any) -> Any:
-	return asyncio.get_event_loop().run_until_complete(coro)
+	try:
+		loop = asyncio.get_event_loop()
+	except RuntimeError:
+		loop = asyncio.new_event_loop()
+		asyncio.set_event_loop(loop)
+	return loop.run_until_complete(coro)
+
+
+class _RecordingAuditSink:
+	def __init__(self) -> None:
+		self.events: list[Any] = []
+
+	async def record(self, event: Any) -> str:
+		self.events.append(event)
+		return f"event-{len(self.events)}"
 
 
 # ---------------------------------------------------------------------------
@@ -224,6 +237,29 @@ def test_logger_tenant_id_in_every_event() -> None:
 	logger = JtbdAuditLogger(tenant_id="my-tenant")
 	_run(logger.record(JtbdEditAction.submitted, "x", "1.0.0", "user-1"))
 	assert logger.buffered[0].tenant_id == "my-tenant"
+
+
+def test_logger_uses_scoped_runtime_audit_sink() -> None:
+	config.reset_to_fakes()
+	global_sink = _RecordingAuditSink()
+	scoped_sink = _RecordingAuditSink()
+	config.audit = global_sink
+	runtime_config = config.snapshot_runtime_config()
+	runtime_config.audit = scoped_sink
+
+	logger = JtbdAuditLogger(tenant_id="tenant-scoped")
+	with config.use_runtime_config(runtime_config):
+		event_id = _run(logger.record_created(
+			"claim_intake",
+			"1.0.0",
+			"user-1",
+			spec=_spec(),
+		))
+
+	assert event_id == "event-1"
+	assert global_sink.events == []
+	assert len(scoped_sink.events) == 1
+	assert scoped_sink.events[0].tenant_id == "tenant-scoped"
 
 
 # ---------------------------------------------------------------------------

@@ -20,9 +20,15 @@ import re
 from pathlib import Path
 
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_FRAMEWORK = _REPO_ROOT / "framework"
-_DOCS = _FRAMEWORK / "docs"
+def _repo_root() -> Path:
+	for parent in Path(__file__).resolve().parents:
+		if (parent / "pyproject.toml").is_file() and (parent / "docs").is_dir():
+			return parent
+	raise AssertionError("could not locate flowforge repo root")
+
+
+_REPO_ROOT = _repo_root()
+_DOCS = _REPO_ROOT / "docs"
 
 
 # ---------------------------------------------------------------------------

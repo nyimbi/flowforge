@@ -6,6 +6,8 @@ export interface PlanReviewStepProps {
 	instanceId: string;
 	state: string;
 	onEvent: (event: string, payload?: Record<string, unknown>) => Promise<void> | void;
+	/** Explicitly exposes workflow state / instance diagnostics for developer tools. */
+	developerMode?: boolean;
 }
 
 const FIELDS: ReadonlyArray<{ id: string; label: string; required: boolean; pii: boolean }> = [
@@ -27,7 +29,7 @@ export function PlanReviewStep(props: PlanReviewStepProps): React.ReactElement {
 			if (busy) return;
 			setBusy(true);
 			try {
-				await props.onEvent(event, {});
+				await props.onEvent(event, { instance_id: props.instanceId });
 			} finally {
 				setBusy(false);
 			}
@@ -39,8 +41,14 @@ export function PlanReviewStep(props: PlanReviewStepProps): React.ReactElement {
 		<section data-testid="plan_review-step" aria-labelledby="plan_review-step-title">
 			<header>
 				<h2 id="plan_review-step-title">Review Building Plans for Code Compliance</h2>
-				<p>State: <code>{props.state}</code></p>
-				<p>Instance: <code>{props.instanceId}</code></p>
+				{props.developerMode ? (
+					<dl aria-label="Workflow diagnostics">
+						<dt>State</dt>
+						<dd><code>{props.state}</code></dd>
+						<dt>Instance</dt>
+						<dd><code>{props.instanceId}</code></dd>
+					</dl>
+				) : null}
 			</header>
 			<dl>
 				{FIELDS.map((field) => (

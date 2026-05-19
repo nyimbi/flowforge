@@ -22,6 +22,7 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { test, expect } from "@playwright/test";
 
@@ -30,11 +31,13 @@ import {
 	EXAMPLES,
 	VIEWPORTS,
 	baselinePaths,
+	harnessUrl,
 	selectExamples,
 	type PageSpec,
 	type ViewportSpec,
 } from "../lib/page_catalog";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
 const CADENCE = (process.env.VISREG_CADENCE ?? "full") as "smoke" | "full";
 const UPDATE_BASELINES = process.env.UPDATE_BASELINES === "1";
@@ -75,7 +78,7 @@ function describePage(
 			width: viewport.width,
 			height: viewport.height,
 		});
-		const url = new URL(page.url, DEV_SERVER_BASE).toString();
+		const url = new URL(harnessUrl(exampleName, page), DEV_SERVER_BASE).toString();
 		await pwPage.goto(url, { waitUntil: "networkidle" });
 		if (page.waitFor) {
 			await pwPage.waitForSelector(page.waitFor, { state: "attached" });
@@ -127,5 +130,27 @@ test.describe("@meta", () => {
 			.filter((d) => fs.existsSync(path.join(REPO_ROOT, "examples", d, "jtbd-bundle.json")));
 		const missing = checkedIn.filter((d) => !present.has(d));
 		expect(missing).toEqual([]);
+	});
+
+	test("[meta] harness URLs are unique per example/page", () => {
+		const seen = new Map<string, string>();
+		for (const example of EXAMPLES) {
+			for (const page of example.pages) {
+				const url = harnessUrl(example.name, page);
+				const owner = `${example.name}/${page.flavor}/${page.id}`;
+				expect(seen.get(url), `${url} reused by ${owner}`).toBeUndefined();
+				seen.set(url, owner);
+			}
+		}
+	});
+
+	test("[meta] harness URLs encode example identity, not only shared page path", () => {
+		for (const example of EXAMPLES) {
+			for (const page of example.pages) {
+				const url = harnessUrl(example.name, page);
+				expect(url).toContain(encodeURIComponent(example.name));
+				expect(url).not.toBe(page.url);
+			}
+		}
 	});
 });

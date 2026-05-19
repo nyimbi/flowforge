@@ -21,11 +21,17 @@ import tomllib
 from pathlib import Path
 
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_FRAMEWORK = _REPO_ROOT / "framework"
-_PYTHON_DIR = _FRAMEWORK / "python"
-_EVOLUTION = _FRAMEWORK / "docs" / "flowforge-evolution.md"
-_ROOT_PYPROJECT = _FRAMEWORK / "pyproject.toml"
+def _repo_root() -> Path:
+	for parent in Path(__file__).resolve().parents:
+		if (parent / "pyproject.toml").is_file() and (parent / "python").is_dir():
+			return parent
+	raise AssertionError("could not locate flowforge repo root")
+
+
+_REPO_ROOT = _repo_root()
+_PYTHON_DIR = _REPO_ROOT / "python"
+_EVOLUTION = _REPO_ROOT / "docs" / "flowforge-evolution.md"
+_ROOT_PYPROJECT = _REPO_ROOT / "pyproject.toml"
 
 
 # ---------------------------------------------------------------------------
@@ -41,7 +47,7 @@ def test_DOC_E_31_reconciled_listed_in_evolution() -> None:
 		r"^##\s.*[Aa]udit[- ]2026", text, flags=re.MULTILINE
 	), "evolution doc missing an Audit 2026 section heading"
 
-	# Every audit ticket id (E-32..E-72, plus E-37b and E-48a/b variants)
+	# Every audit ticket id (E-32 onward, plus E-37b and E-48a/b variants)
 	# must appear at least once in the section.
 	for ticket in (
 		"E-32", "E-33", "E-34", "E-35", "E-36", "E-37", "E-37b",
@@ -72,6 +78,7 @@ _TIER_1: frozenset[str] = frozenset({
 	"flowforge-money",
 	"flowforge-signing-kms",
 	"flowforge-notify-multichannel",
+	"flowforge-otel",
 	"flowforge-cli",
 	"flowforge-jtbd",
 	"flowforge-jtbd-hub",

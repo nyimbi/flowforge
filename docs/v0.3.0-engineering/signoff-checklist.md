@@ -1162,9 +1162,9 @@ green before the wave's row(s) here are signed.
     acceptance_tests:
       - "tests/visual_regression/ ADR-001 normaliser — 5/5 unit tests pass (strip data-react-*, collapse whitespace, sort class tokens, sort attributes, idempotence)"
     pre_deploy_checks:
-      - "make audit-2026-visual-regression-dom — exits 0 with [SKIP] reason: tests/visual_regression/node_modules missing — pnpm install blocked on the pre-existing pnpm-ignored-builds issue (the wrapper detects missing prerequisites and skips with a human-readable reason)"
-      - "make audit-2026-visual-regression-ssim — exits 0 with [SKIP] reason (same blocker)"
-      - "scripts/check_all.sh step 9 — exits 0 with [SKIP] reason"
+      - "Historical closeout: make audit-2026-visual-regression-dom exited 0 with [SKIP] reason while pnpm install was blocked on the pre-existing pnpm-ignored-builds issue."
+      - "Current status: pnpm is unblocked; the DOM wrapper is fail-closed by default and only skips under explicit local VISREG_ALLOW_SKIP=1. Release qualification still requires generated/reviewed/committed DOM baselines in a Chromium-capable environment."
+      - "Current status: scripts/check_all.sh step 9 is a release failure unless DOM baselines exist or a local bootstrap explicitly sets VISREG_ALLOW_SKIP=1."
     determinism_proof: |
       DOM-snapshot byte-equality is the CI-gating contract per ADR-001.
       The four normalisation rules (strip `data-react-*`, collapse
@@ -1183,12 +1183,12 @@ green before the wave's row(s) here are signed.
       using the runner fall back to no per-PR visual-regression CI
       until they re-adopt.
   follow_ups:
-    - "pnpm-install blocker: once `pnpm approve-builds` is run for the workspace, baseline files land in a follow-up PR with no further changes to the runner."
+    - "Current status: the pnpm-install blocker is remediated. Baseline files still need to land from a Chromium-capable DOM-baseline generation run."
   architecture_lead_signoff:
     signer: Nyimbi Odero
     date: 2026-05-10
     commit_sha: TBD
-    note: "single-stakeholder approval pattern (see roles header). DOM-snapshot CI gate green-by-skip-with-clear-reason; baselines and full per-page assertions land in follow-up once pnpm-install is unblocked."
+    note: "single-stakeholder approval pattern (see roles header). Historical closeout used a skip-with-clear-reason; current release qualification requires fail-closed DOM baselines and browser execution without VISREG_ALLOW_SKIP=1."
   qa_lead_signoff:
     signer: Nyimbi Odero
     date: 2026-05-10
@@ -1762,24 +1762,24 @@ green before the wave's row(s) here are signed.
   evidence:
     files_changed:
       - "python/flowforge-cli/src/flowforge_cli/jtbd/overrides.py (NEW — JtbdCopyOverrides Pydantic v2 schema with namespace-grammar validator; sidecar_path_for, load_sidecar, resolve_sidecar, validate_key_against_bundle, build_canonical_strings, dump_sidecar helpers)"
-      - "python/flowforge-cli/src/flowforge_cli/commands/polish_copy.py (NEW — `flowforge polish-copy --tone <profile> --bundle <path> [--commit|--dry-run] [--overrides <path>]` Typer command; anthropic provider gated via importlib.util.find_spec — no API key OR no anthropic install → no-op echo path; --commit skips writing the sidecar when polish output == canonical so git status stays clean)"
+      - "python/flowforge-cli/src/flowforge_cli/commands/polish_copy.py (NEW — `flowforge polish-copy --tone <profile> --bundle <path> [--commit|--dry-run] [--overrides <path>]` Typer command; anthropic provider gated via importlib.util.find_spec — no API key OR no anthropic install → no-op echo path; --commit skips writing the sidecar when polish output == canonical so git status stays clean. Current release-gate hardening adds `--require-llm`, provider-format failure handling, and preservation of existing reviewed sidecars when a polish pass returns canonical copy.)"
       - "python/flowforge-cli/src/flowforge_cli/jtbd/pipeline.py (generate() takes optional overrides=None; threaded through normalize())"
       - "python/flowforge-cli/src/flowforge_cli/jtbd/normalize.py (normalize() and _norm_field() take optional overrides; field.label overrides applied at normalize time so every downstream emit — form_spec.json, Step.tsx FIELDS array — picks them up without re-implementing the lookup)"
       - "python/flowforge-cli/src/flowforge_cli/commands/jtbd_generate.py (--overrides <path> flag; resolve_sidecar applies ADR-002 lookup precedence — flag > co-located <bundle>.overrides.json > none)"
       - "python/flowforge-cli/src/flowforge_cli/main.py (registers polish_copy command)"
       - "python/flowforge-cli/pyproject.toml ([project.optional-dependencies] llm = [\"anthropic>=0.40\"] — opt-in soft dep)"
-      - "python/flowforge-cli/tests/test_polish_copy.py (NEW — 23 tests: schema validation, namespace key grammar, lookup precedence, CLI no-op echo, --dry-run baseline diff, --commit-no-write-when-canonical, --overrides flag threads into jtbd-generate, co-located sidecar auto-pickup, smoke test against examples/insurance_claim)"
+      - "python/flowforge-cli/tests/test_polish_copy.py (NEW at closeout — 23 tests: schema validation, namespace key grammar, lookup precedence, CLI no-op echo, --dry-run baseline diff, --commit-no-write-when-canonical, --overrides flag threads into jtbd-generate, co-located sidecar auto-pickup, smoke test against examples/insurance_claim; current suite has 29 tests after release-gate hardening)"
       - "tests/v0_3_0/__init__.py (NEW — establishes the v0_3_0 layered test root per docs/v0.3.0-engineering-plan.md §7)"
       - "tests/v0_3_0/test_polish_copy_committed_overrides.py (NEW — CI gate: `flowforge polish-copy --commit` with no API key MUST NOT dirty examples/; any committed sidecar must be tracked by git)"
       - "tests/audit_2026/test_E_68_test_location_convention.py (allowed `v0_3_0` layer; added `.omc` skip segment for OMC tooling scratch state)"
       - "tests/README.md (documented the v0_3_0 layer in the 9-layer table; bumped '8 audit-2026 layers' → '9 layers')"
     acceptance_tests:
-      - "uv run pytest python/flowforge-cli/tests/test_polish_copy.py — 23/23 green"
+      - "Historical closeout: uv run pytest python/flowforge-cli/tests/test_polish_copy.py — 23/23 green. Current status: focused polish-copy suite is 29/29 green after release-gate hardening."
       - "uv run pytest tests/v0_3_0/test_polish_copy_committed_overrides.py — 6/6 green (3 examples × {commit-keeps-clean, no-committed-sidecar-drift})"
       - "uv run pytest tests/audit_2026/test_E_68_test_location_convention.py — 5/5 green (v0_3_0 layer accepted by lint + documented in README)"
     pre_deploy_checks:
       - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
-      - "uv run pytest python/flowforge-cli/tests/ -q — 585/585 green (existing 562 + 23 new polish-copy tests)"
+      - "Historical closeout: uv run pytest python/flowforge-cli/tests/ -q — 585/585 green (existing 562 + 23 new polish-copy tests). Current status: `uv run pytest python/flowforge-cli/tests -q --tb=short` reports 600 passed."
       - "uv run pytest tests/conformance -q — 11/11 invariants pass"
       - "bash scripts/ci/ratchets/check.sh — 7/7 PASS (no new ratchet added)"
       - "scripts/ci/regen_flag_flip.sh — 6/6 byte-identical (3 examples × 2 form_renderer flag values) — no sidecars present yet, so the (bundle, sidecar) tuple == bundle and the canonical regen-diff catches every drift"
@@ -1828,7 +1828,7 @@ green before the wave's row(s) here are signed.
       it), and re-applying W4b re-activates it.
   follow_ups:
     - "Once a host runs `flowforge polish-copy --commit` with a real ANTHROPIC_API_KEY against any example, the resulting `<bundle>.overrides.json` must be committed (the CI gate enforces this)."
-    - "Optional follow-on: emit `helper_text` / `button.<event>.text` / `notification.<topic>.template` / `error.<code>.message` overrides into form_spec.json and Step.tsx — the schema accepts these key kinds today; generator-side application is scoped to field labels in W4b to keep the change minimal."
+    - "Optional follow-on: emit `helper_text` / `button.<event>.text` / `notification.<topic>.template` / `error.<code>.message` overrides into generated artifacts before accepting those namespaces in the sidecar schema; the current v1.0 schema is fail-closed to field-label overrides because only field labels are applied today."
   architecture_lead_signoff:
     signer: Nyimbi Odero
     date: 2026-05-11
@@ -1864,10 +1864,11 @@ green before the wave's row(s) here are signed.
       - "CHANGELOG.md (## [0.3.0-engr.4b] entry for item 17 + the i18n-coverage gate)"
     acceptance_tests:
       - "uv run pytest python/flowforge-cli/tests/test_i18n_generator.py — 37/37 green"
-      - "make audit-2026-i18n-coverage — 0 errors / 20 warnings (no compliance-tagged JTBD untranslated; warnings document the Quebec follow-on)"
+      - "Historical closeout: make audit-2026-i18n-coverage — 0 errors / 20 warnings (no compliance-tagged JTBD untranslated; warnings documented the Quebec follow-on)"
+      - "Current status: fr-CA examples are filled and i18n coverage reports 0 errors / 0 warnings."
     pre_deploy_checks:
       - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
-      - "uv run pytest python/flowforge-cli/tests/ -q — 585/585 green"
+      - "Historical closeout: uv run pytest python/flowforge-cli/tests/ -q — 585/585 green. Current status: `uv run pytest python/flowforge-cli/tests -q --tb=short` reports 600 passed."
       - "make audit-2026-conformance — 11/11 invariants pass (no new invariant in W4b; i18n-coverage stays a gate, not an invariant)"
       - "bash scripts/ci/ratchets/check.sh — 7/7 PASS (no new ratchet added in W4b)"
       - "scripts/ci/regen_flag_flip.sh — 6/6 byte-identical (3 examples × 2 form_renderer flag values)"
@@ -1939,10 +1940,10 @@ green before the wave's row(s) here are signed.
       - "CHANGELOG.md (## [0.3.0-engr.4b] entry for item 20)"
     acceptance_tests:
       - "Byte-identical regen against examples/*/generated/docs/jtbd/ — covered by scripts/check_all.sh step 8 (regen-diff) and the cross-flag self-determinism harness scripts/ci/regen_flag_flip.sh"
-      - "Property-test coverage retrofit deferred to a follow-up (audit-2026-property-coverage REQUIRED_GENERATORS list does not include operator_manual today; future PR can promote it once the test pattern stabilises against the operator_manual.mdx.j2 template)"
+      - "Historical closeout: property-test coverage retrofit was deferred for operator_manual. Current status: operator_manual is included in the audit property-coverage gate and has hand-authored property coverage."
     pre_deploy_checks:
       - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
-      - "uv run pytest python/flowforge-cli/tests/ -q — 585/585 green (operator_manual exercised end-to-end via the pipeline-integration tests + regen-diff baseline)"
+      - "Historical closeout: uv run pytest python/flowforge-cli/tests/ -q — 585/585 green (operator_manual exercised end-to-end via the pipeline-integration tests + regen-diff baseline). Current status: `uv run pytest python/flowforge-cli/tests -q --tb=short` reports 600 passed."
       - "make audit-2026-conformance — 11/11 invariants pass"
       - "scripts/ci/regen_flag_flip.sh — 6/6 byte-identical (3 examples × 2 form_renderer flag values)"
     determinism_proof: |
@@ -1956,8 +1957,8 @@ green before the wave's row(s) here are signed.
       diagram never drift on regen. No clock, no random ids, no
       filesystem probe (the W3 visual-regression baseline path is
       referenced unconditionally; renderers fall back to
-      broken-image while the pnpm-install blocker keeps the
-      screenshots/ tree empty). Both ``form_renderer`` flag values
+      broken-image until browser-generated screenshot baselines
+      are generated and committed). Both ``form_renderer`` flag values
       produce identical MDX output (the manual is invariant to that
       flag); the cross-flag self-determinism check
       (``scripts/ci/regen_flag_flip.sh``) reports 6/6 byte-identical.
@@ -1974,8 +1975,8 @@ green before the wave's row(s) here are signed.
       consume them gracefully degrade to "no manual available"
       until re-applied.
   follow_ups:
-    - "Property-coverage retrofit: add `operator_manual` to `tests/audit_2026/test_property_coverage_gate.py::REQUIRED_GENERATORS` and emit a hand-authored `tests/property/generators/test_operator_manual_properties.py` once the MDX template stabilises. Deferred to a follow-up; today the generator is exercised end-to-end by the regen-diff baseline against three example bundles."
-    - "Visual-regression baselines: the MDX references `../../../screenshots/frontend/Step.<viewport>.png` unconditionally; once the W3 pnpm-install blocker clears and `pnpm approve-builds` runs, the baseline tree populates and the broken-image fallback disappears."
+    - "Current status: property-coverage retrofit is remediated; `operator_manual` is in `tests/audit_2026/test_property_coverage_gate.py::REQUIRED_GENERATORS` and has hand-authored property coverage."
+    - "Current status: visual-regression baselines are still open; the MDX references `../../../screenshots/frontend/Step.<viewport>.png` unconditionally, and the baseline tree must be populated by a Chromium-capable baseline generation run."
   architecture_lead_signoff:
     signer: Nyimbi Odero
     date: 2026-05-11
@@ -2011,7 +2012,8 @@ green before the wave's row(s) here are signed.
       without translating its strings fails the gate loud, with a
       message listing the missing keys per language.
     pre_deploy_checks:
-      - "make audit-2026-i18n-coverage — 0 errors / 20 warnings against examples/ (the warnings document the Quebec follow-on; no claim_intake.compliance block today)"
+      - "Historical closeout: make audit-2026-i18n-coverage — 0 errors / 20 warnings against examples/ (the warnings documented the Quebec follow-on; no claim_intake.compliance block then)"
+      - "Current status: fr-CA examples are filled and i18n coverage reports 0 errors / 0 warnings."
       - "make audit-2026-conformance — 11/11 invariants pass"
       - "bash scripts/ci/ratchets/check.sh — 7/7 PASS (no new ratchet in W4b)"
     rollback_plan: |
@@ -2047,14 +2049,15 @@ green before the wave's row(s) here are signed.
       - "docs/v0.3.0-engineering/close-out.md (NEW — capstone close-out report following the docs/audit-2026/close-out.md pattern: wave-by-wave summary, per-item evidence trail, port + generator + invariant + ratchet inventory, pre-mortem mitigation outcomes, carry-forwards, reviewer signoff)"
     acceptance_tests:
       - "scripts/ci/regen_flag_flip.sh — 6/6 byte-identical (3 examples × 2 form_renderer flag values) at closeout time"
-      - "make audit-2026-i18n-coverage — 0 errors / 20 warnings"
+      - "Historical closeout: make audit-2026-i18n-coverage — 0 errors / 20 warnings"
+      - "Current status: fr-CA examples are filled and i18n coverage reports 0 errors / 0 warnings."
     pre_deploy_checks:
       - "bash scripts/ci/ratchets/check.sh — 7/7 PASS (no new ratchet in W4b)"
       - "make audit-2026-conformance — 11/11 invariants pass"
       - "make audit-2026-property-coverage — 3/3 green (13 W0-W3 generators retrofitted; 3 seed-uniqueness checks pass)"
-      - "uv run pytest tests/cross_runtime/ -q — Python-side 253/253 green; JS-side skip-with-reason on the pre-existing pnpm-install blocker (carried over from W3)"
+      - "Historical closeout: uv run pytest tests/cross_runtime/ -q — Python-side 253/253 green; JS-side skipped with reason on the pre-existing pnpm-install blocker (carried over from W3). Current status: pnpm is unblocked; remaining release blockers are browser execution and committed DOM baselines, not pnpm install."
       - "uv run pyright python/flowforge-cli/src --pythonversion 3.11 — 0 errors, 0 warnings"
-      - "uv run pytest python/flowforge-cli/tests/ -q — 585/585 green"
+      - "Historical closeout: uv run pytest python/flowforge-cli/tests/ -q — 585/585 green. Current status: `uv run pytest python/flowforge-cli/tests -q --tb=short` reports 600 passed."
       - "uv run pytest tests/v0_3_0/ tests/audit_2026/test_E_68_test_location_convention.py -q — 11/11 green"
       - "Examples regen-diff via scripts/ci/regen_flag_flip.sh — 6/6 byte-identical at closeout time"
     determinism_proof: |
@@ -2075,10 +2078,10 @@ green before the wave's row(s) here are signed.
       rows for items 17, 20, 22 plus the i18n-coverage-gate row
       live above and survive a closeout-only revert).
   follow_ups:
-    - "pnpm-install unblock (carried over from W3): once `pnpm approve-builds` runs for the workspace, the JS-side cross-runtime parity green run completes and the W3 visual-regression baseline catalogs land in a follow-up PR. The W4b operator-manual MDX references the W3 baseline paths unconditionally so this unblock retroactively fills the broken-image fallbacks."
-    - "Quebec deployment follow-on: the i18n-coverage gate ships at 0 errors / 20 warnings against examples/insurance_claim today (20 fr-CA strings empty, no compliance tag). Flipping `claim_intake.compliance: [...]` non-empty would convert the warnings to errors; the host responsible for the Quebec deployment owns the fr-CA translation work + the compliance-tag flip."
+    - "Current status: pnpm-install unblock is remediated. The visual baseline catalogs still need to be generated, reviewed, and committed from a Chromium-capable environment."
+    - "Current status: Quebec fr-CA example translations are filled and i18n coverage reports 0 errors / 0 warnings. New compliance-tagged JTBDs still need translated strings before release."
     - "Sidecar authoring follow-on: item 22 ships the loader + CLI but no overrides are committed in W4b. A host that runs `flowforge polish-copy --commit` with a real ANTHROPIC_API_KEY against any example must commit the resulting `<bundle>.overrides.json`; the `tests/v0_3_0/test_polish_copy_committed_overrides.py` gate enforces this."
-    - "Property-coverage retrofit for the W4b generators (i18n, operator_manual): add to `tests/audit_2026/test_property_coverage_gate.py::REQUIRED_GENERATORS` and emit hand-authored `tests/property/generators/test_<gen>_properties.py` for each. Deferred to a follow-up; today the generators are exercised end-to-end by the regen-diff baseline against three example bundles plus item 17's 37 unit tests."
+    - "Current status: property-coverage retrofit for the W4b generators (i18n, operator_manual) is remediated and covered by hand-authored property tests plus the audit property-coverage gate."
     - "Final-pass reviewer signoff on the close-out report (`docs/v0.3.0-engineering/close-out.md`) is marked `pending architect verification by user` — the project owner runs the architect dispatch."
   architecture_lead_signoff:
     signer: Nyimbi Odero

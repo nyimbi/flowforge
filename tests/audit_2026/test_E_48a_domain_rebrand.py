@@ -20,8 +20,15 @@ import tomllib
 from pathlib import Path
 
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_PYTHON_DIR = _REPO_ROOT / "framework" / "python"
+def _repo_root() -> Path:
+	for parent in Path(__file__).resolve().parents:
+		if (parent / "pyproject.toml").is_file() and (parent / "python").is_dir():
+			return parent
+	raise AssertionError("could not locate flowforge repo root")
+
+
+_REPO_ROOT = _repo_root()
+_PYTHON_DIR = _REPO_ROOT / "python"
 
 # Strategic verticals carry real JTBD content; they keep their original name.
 _STRATEGIC = frozenset({
@@ -114,3 +121,24 @@ def test_D_01_strategic_pkgs_keep_original_name() -> None:
 		assert not got.endswith("-starter"), (
 			f"strategic pkg {pkg} must not be a starter"
 		)
+
+
+def test_D_01_strategic_readmes_disclose_workspace_only_status() -> None:
+	"""Strategic packages must disclose that real content is not ship-ready."""
+	required_phrases = (
+		"Status: strategic domain content candidate",
+		"Package state: workspace-only",
+		"not publishable",
+		"not SME-reviewed",
+		"not part of the critical-system support matrix",
+		"package = true",
+	)
+	for pkg in _STRATEGIC:
+		readme = _PYTHON_DIR / pkg / "README.md"
+		assert readme.is_file(), f"{pkg}/README.md missing"
+		head = readme.read_text(encoding="utf-8")[:2048]
+		head_normalized = " ".join(head.split())
+		for phrase in required_phrases:
+			assert phrase in head_normalized, (
+				f"{pkg}/README.md: missing {phrase!r} in first 2KB"
+			)

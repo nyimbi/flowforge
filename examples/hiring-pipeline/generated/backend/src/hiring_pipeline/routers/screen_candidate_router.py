@@ -11,7 +11,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import Any, Iterator
 
-from fastapi import APIRouter, Body, Header, HTTPException, status
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, status
 from pydantic import BaseModel, ConfigDict
 
 from flowforge.ports.types import Principal
@@ -51,16 +51,32 @@ class EventBody(BaseModel):
 	model_config = ConfigDict(extra="forbid")
 
 	event: str
+	instance_id: str | None = None
 	payload: dict[str, Any] = {}
+
+
+async def require_principal() -> Principal:
+	"""Host auth seam for generated routers.
+
+	The generated scaffold is fail-closed: applications must override this
+	dependency with their authenticated principal extractor before serving
+	the router.
+	"""
+
+	raise HTTPException(
+		status_code=status.HTTP_401_UNAUTHORIZED,
+		detail="configure require_principal dependency before mounting generated router",
+	)
 
 
 @router.post("/events")
 async def post_event(
 	body: EventBody = Body(...),
 	idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
-	tenant_id: str = Header(default="default", alias="X-Tenant-Id"),
+	tenant_id: str = Header(..., alias="X-Tenant-Id"),
+	principal: Principal = Depends(require_principal),
 ) -> dict[str, Any]:
-	"""Fire an event — caller injects auth via dependency overrides in tests.
+	"""Fire an event using host-supplied auth and tenant context.
 
 	v0.3.0 W2 / item 6: ``Idempotency-Key`` is required on every event
 	POST. Replay within the configured TTL (``IDEMPOTENCY_TTL_HOURS``)
@@ -96,14 +112,12 @@ async def post_event(
 				_span.set_attribute("flowforge.idempotent_replay", True)
 			return {**hit.response_body, "_idempotent_replay": True}
 
-		# Tests inject a real Principal via dependency override; this default
-		# keeps the route runnable without auth wiring.
-		principal = Principal(user_id="anonymous", roles=("anonymous",), is_system=False)
 		if _span is not None:
 			_span.set_attribute("flowforge.principal_user_id", principal.user_id)
 		result = await _service.transition(
 			body.event,
 			body.payload,
+			instance_id=body.instance_id,
 			principal=principal,
 			tenant_id=tenant_id,
 		)

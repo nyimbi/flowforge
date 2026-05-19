@@ -15,7 +15,6 @@ Multi-backend example::
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Any
 
 from flowforge.ports.types import OutboxEnvelope
 
@@ -24,6 +23,10 @@ OutboxHandler = Callable[[OutboxEnvelope], Awaitable[None]]
 
 class DispatchError(Exception):
     """Raised when no handler is registered for a (backend, kind) pair."""
+
+
+class PermanentDispatchError(Exception):
+    """Raised by handlers when retrying the envelope cannot succeed."""
 
 
 class HandlerRegistry:
@@ -130,4 +133,4 @@ class HandlerRegistry:
         return f"<HandlerRegistry backends={backends} total_handlers={total}>"
 
 
-__all__ = ["DispatchError", "HandlerRegistry", "OutboxHandler"]
+__all__ = ["DispatchError", "HandlerRegistry", "OutboxHandler", "PermanentDispatchError"]

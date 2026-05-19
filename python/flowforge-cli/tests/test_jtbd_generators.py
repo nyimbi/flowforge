@@ -33,7 +33,6 @@ import pytest
 from flowforge_cli.jtbd import generate
 from flowforge_cli.jtbd.normalize import normalize
 from flowforge_cli.jtbd.parse import parse_bundle
-from flowforge_cli.jtbd.pipeline import GeneratedFile
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +170,7 @@ def test_generate_emits_at_least_12_files_for_one_jtbd() -> None:
 		"backend/tests/claim_intake/test_simulation.py",
 		"frontend/src/components/claim-intake/ClaimIntakeStep.tsx",
 		"frontend/src/app/claim-intake/page.tsx",
+		"frontend/src/claims_demo/runtimeClient.ts",
 		"backend/src/claims_demo/permissions.py",
 		"backend/src/claims_demo/audit_taxonomy.py",
 		"backend/src/claims_demo/notifications.py",

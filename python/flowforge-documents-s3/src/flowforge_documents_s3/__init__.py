@@ -2,12 +2,11 @@
 
 Two implementations of :class:`flowforge.ports.DocumentPort`:
 
-* :class:`S3DocumentPortInMemory` — buckets documents in S3, keeps an
-  **in-memory** index of ``(subject_id -> [doc_id])`` plus per-doc
-  metadata (kind, classification, content-type, uploaded-at) so the
-  Protocol surface is satisfied without a separate database. The
-  ``InMemory`` suffix advertises that the index is process-local; the
-  blob layer itself is durable.
+* :class:`S3DocumentPortInMemory` — buckets documents in S3 and defaults
+  to an in-memory metadata/subject index.
+* :class:`SQLiteDocumentIndex` — optional stdlib-SQLite durable index
+  usable with ``S3DocumentPortInMemory(index_store=...)`` when hosts need
+  metadata and subject attachments to survive process restarts.
 * :class:`NoopDocumentPort` — returns empty lists for hosts that have
   no document subsystem.
 
@@ -32,9 +31,12 @@ from .noop import NoopDocumentPort
 from .port import (
 	DEFAULT_MAGIC_BYTES,
 	DocumentMeta,
+	DocumentIndexStore,
+	InMemoryDocumentIndex,
 	InvalidDocIdError,
 	MagicBytesValidator,
 	S3DocumentPortInMemory,
+	SQLiteDocumentIndex,
 	UnsupportedMimeError,
 	sniff_filetype,
 )
@@ -57,10 +59,13 @@ def __getattr__(name: str) -> Any:
 __all__ = [
 	"DEFAULT_MAGIC_BYTES",
 	"DocumentMeta",
+	"DocumentIndexStore",
+	"InMemoryDocumentIndex",
 	"InvalidDocIdError",
 	"MagicBytesValidator",
 	"NoopDocumentPort",
 	"S3DocumentPortInMemory",
+	"SQLiteDocumentIndex",
 	"UnsupportedMimeError",
 	"sniff_filetype",
 ]

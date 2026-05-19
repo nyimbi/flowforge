@@ -23,6 +23,8 @@ Covers:
 from __future__ import annotations
 
 import compileall
+import importlib.util
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -151,6 +153,8 @@ def test_idempotency_helper_emitted_per_jtbd() -> None:
 	assert "fingerprint_request" in helper.content
 	assert "check_idempotency_key" in helper.content
 	assert "record_idempotency_response" in helper.content
+	assert "configure_idempotency_session_factory" in helper.content
+	assert "NotImplementedError" not in helper.content
 
 
 def test_idempotency_ttl_overrides_default() -> None:
@@ -171,6 +175,54 @@ def test_idempotency_helper_compiles(tmp_path: Path) -> None:
 	assert compileall.compile_file(str(dst), quiet=1)
 
 
+def test_idempotency_helper_replays_from_generated_memory_store(tmp_path: Path) -> None:
+	files = generate(_bundle())
+	(helper,) = [
+		f for f in files if f.path.endswith("/claim_intake/idempotency.py")
+	]
+	dst = tmp_path / "idempotency.py"
+	dst.write_text(helper.content, encoding="utf-8")
+	spec = importlib.util.spec_from_file_location("generated_idempotency", dst)
+	assert spec is not None and spec.loader is not None
+	module = importlib.util.module_from_spec(spec)
+	sys.modules[spec.name] = module
+	spec.loader.exec_module(module)
+
+	import asyncio
+
+	async def _drive() -> None:
+		module.reset_idempotency_store()
+		fingerprint = module.fingerprint_request({"event": "submit"})
+		miss = await module.check_idempotency_key(
+			tenant_id="t",
+			idempotency_key="k",
+			request_fingerprint=fingerprint,
+		)
+		assert miss.kind == "miss"
+		dupe = await module.check_idempotency_key(
+			tenant_id="t",
+			idempotency_key="k",
+			request_fingerprint=fingerprint,
+		)
+		assert dupe.kind == "in_flight"
+		await module.record_idempotency_response(
+			tenant_id="t",
+			idempotency_key="k",
+			request_fingerprint=fingerprint,
+			response_status=200,
+			response_body={"state": "review"},
+		)
+		replay = await module.check_idempotency_key(
+			tenant_id="t",
+			idempotency_key="k",
+			request_fingerprint=fingerprint,
+		)
+		assert replay.kind == "replay"
+		assert replay.response_body == {"state": "review"}
+
+	asyncio.run(_drive())
+
+
 # ---------------------------------------------------------------------------
 # router gate
 # ---------------------------------------------------------------------------
@@ -189,6 +241,40 @@ def test_router_enforces_idempotency_key_header() -> None:
 	assert "HTTP_409_CONFLICT" in router.content
 	# Replay surfaces the cached body with the marker
 	assert "_idempotent_replay" in router.content
+
+
+def test_router_requires_host_auth_and_explicit_tenant() -> None:
+	files = generate(_bundle())
+	(router,) = [
+		f for f in files if f.path.endswith("/routers/claim_intake_router.py")
+	]
+	assert "async def require_principal()" in router.content
+	assert "HTTP_401_UNAUTHORIZED" in router.content
+	assert 'Header(..., alias="X-Tenant-Id")' in router.content
+	assert "instance_id: str | None = None" in router.content
+	assert "instance_id=body.instance_id" in router.content
+	assert 'Principal(user_id="anonymous"' not in router.content
+
+
+def test_generated_workflow_adapter_keeps_stable_instance_when_id_supplied() -> None:
+	files = generate(_bundle())
+	(adapter,) = [
+		f for f in files if f.path.endswith("/adapters/claim_intake_adapter.py")
+	]
+	(service,) = [
+		f for f in files if f.path.endswith("/services/claim_intake_service.py")
+	]
+	assert "_INSTANCES: dict[tuple[str, str], Instance] = {}" in adapter.content
+	assert "def configure_runtime_session_factory(" in adapter.content
+	assert "SqlAlchemySnapshotStore(" in adapter.content
+	assert "await store.fire_and_commit(" in adapter.content
+	assert "async def _ensure_workflow_instance_row(" in adapter.content
+	assert 'parents[4] / "workflows" / WORKFLOW_KEY / "definition.json"' in adapter.content
+	assert "def reset_runtime_state()" in adapter.content
+	assert "instance_id: str | None = None" in adapter.content
+	assert "new_instance(wd, instance_id=instance_id)" in adapter.content
+	assert "_save_instance(instance, tenant_id=tenant_id, instance_id=instance_id)" in adapter.content
+	assert "instance_id=instance_id or _payload_instance_id(payload)" in service.content
 
 
 def test_router_imports_helper_from_per_jtbd_module() -> None:

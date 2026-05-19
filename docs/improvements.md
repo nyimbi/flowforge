@@ -146,7 +146,7 @@ A second generated frontend: per-instance browser, audit-log viewer with hash-ch
 
 ### 16. Closed analytics-event taxonomy
 
-Generate `analytics.py` (and a TS sibling) with a `StrEnum` of every analytics event the JTBD emits: `claim_intake.field_focused`, `claim_intake.field_completed`, `claim_intake.validation_failed`, `claim_intake.submission_started`, `claim_intake.submission_succeeded`, `claim_intake.form_abandoned`. Step-component lifecycle hooks fire the events through an `AnalyticsPort` (Segment / Mixpanel / Amplitude / noop).
+Generate `analytics.py` (and a TS sibling) with a `StrEnum` of every analytics event the JTBD emits: `claim_intake.field_focused`, `claim_intake.field_completed`, `claim_intake.pii_revealed`, `claim_intake.validation_failed`, `claim_intake.submission_started`, `claim_intake.submission_succeeded`, `claim_intake.form_abandoned`. Step-component lifecycle hooks fire the events through an `AnalyticsPort` (Segment / Mixpanel / Amplitude / noop).
 
 **Justification.** Product analytics taxonomies drift from workflow taxonomies in every system that doesn't generate both. Generating both from the same bundle keeps them locked. Closed enums also let dashboards be statically validated.
 

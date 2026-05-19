@@ -7,8 +7,5 @@
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
     "build": "pnpm -r build"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "msw"]
   }
 }

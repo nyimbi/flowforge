@@ -27,6 +27,7 @@ from flowforge.ports.types import Principal
 
 from flowforge_fastapi import (
 	StaticPrincipalExtractor,
+	StaticTenantResolver,
 	WorkflowEventsHub,
 	build_ws_router,
 	get_events_hub,
@@ -70,6 +71,7 @@ def test_ws_pushes_state_change(claim_workflow_def: WorkflowDef) -> None:
 		principal_extractor=StaticPrincipalExtractor(
 			Principal(user_id="alice", roles=("staff",))
 		),
+		tenant_resolver=StaticTenantResolver("t-1"),
 	)
 
 	with TestClient(app) as tc:
@@ -166,3 +168,46 @@ async def test_hub_queue_yields_in_order() -> None:
 		except asyncio.TimeoutError:
 			break
 	assert got == [0, 1, 2, 3, 4]
+
+
+@pytest.mark.asyncio
+async def test_hub_uses_bounded_subscriber_queues() -> None:
+	hub = WorkflowEventsHub(max_queue_size=1)
+	q = await hub.subscribe()
+
+	assert await hub.publish({"type": "demo", "n": 1}) == 1
+	assert await hub.publish({"type": "demo", "n": 2}) == 0
+	assert q.qsize() == 1
+	assert q.get_nowait() == {"type": "demo", "n": 1}
+	assert hub.metrics()["dropped_total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_hub_exposes_drop_metrics_and_prometheus_text() -> None:
+	hub = WorkflowEventsHub(max_queue_size=1)
+	q = await hub.subscribe()
+
+	assert hub.metrics() == {
+		"subscribers": 1,
+		"max_queue_size": 1,
+		"published_total": 0,
+		"delivered_total": 0,
+		"dropped_total": 0,
+	}
+
+	assert await hub.publish({"type": "demo", "n": 1}) == 1
+	assert await hub.publish({"type": "demo", "n": 2}) == 0
+
+	assert q.get_nowait() == {"type": "demo", "n": 1}
+	assert hub.metrics() == {
+		"subscribers": 1,
+		"max_queue_size": 1,
+		"published_total": 2,
+		"delivered_total": 1,
+		"dropped_total": 1,
+	}
+	text = hub.prometheus_text()
+	assert "flowforge_fastapi_ws_subscribers 1" in text
+	assert "flowforge_fastapi_ws_published_envelopes_total 2" in text
+	assert "flowforge_fastapi_ws_delivered_envelopes_total 1" in text
+	assert "flowforge_fastapi_ws_dropped_envelopes_total 1" in text

@@ -18,15 +18,23 @@
 
 JS_DIR := js
 PYTEST := uv run pytest -v --tb=short
+BACKEND_ROOT ?= $(abspath ../backend)
 
 .PHONY: help
 help:
 	@echo "audit-2026 targets (see docs/audit-fix-plan.md §5.2):"
 	@echo "  audit-2026                full layered suite (everything below)"
+	@echo "  audit-2026-release-local  fail-closed local release gate; excludes documented visual/browser/LLM/UMS/Postgres-live checks"
+	@echo "  audit-2026-release-external  fail-closed external release checks"
+	@echo "  audit-2026-release-external-preflight  summarize missing external release prerequisites"
+	@echo "  audit-2026-polish-copy-sidecar  real-key polish-copy sidecar release evidence"
 	@echo "  audit-2026-unit           per-finding regression tests"
 	@echo "  audit-2026-property       hypothesis property tests"
 	@echo "  audit-2026-integration    cross-package integration tests"
 	@echo "  audit-2026-e2e            end-to-end suites (3 flows)"
+	@echo "  audit-2026-browser-e2e    Playwright browser full-stack generated workflow"
+	@echo "  audit-2026-ums-parity     UMS workflow-def parity against BACKEND_ROOT"
+	@echo "  audit-2026-live-postgres  live Postgres contention/drain/audit-chain release checks"
 	@echo "  audit-2026-conformance    arch §17 invariants (P0+P1)"
 	@echo "  audit-2026-conformance-p0 arch §17 invariants (P0 only)"
 	@echo "  audit-2026-cross-runtime  TS↔Python evaluator parity"
@@ -48,6 +56,9 @@ audit-2026: \
 		audit-2026-property \
 		audit-2026-integration \
 		audit-2026-e2e \
+		audit-2026-browser-e2e \
+		audit-2026-ums-parity \
+		audit-2026-live-postgres \
 		audit-2026-cross-runtime \
 		audit-2026-edge \
 		audit-2026-chaos \
@@ -56,6 +67,52 @@ audit-2026: \
 		audit-2026-signoff
 	@echo ""
 	@echo "audit-2026: all audit-2026 layered suites passed."
+
+.PHONY: audit-2026-release-local
+audit-2026-release-local: \
+		audit-2026-ratchets \
+		audit-2026-conformance \
+		audit-2026-unit \
+		audit-2026-property \
+		audit-2026-integration \
+		audit-2026-e2e \
+		audit-2026-cross-runtime \
+		audit-2026-edge \
+		audit-2026-chaos \
+		audit-2026-observability \
+		audit-2026-property-coverage \
+		audit-2026-i18n-coverage \
+		audit-2026-signoff
+	@echo ""
+	@echo "audit-2026-release-local: fail-closed local release gate passed."
+	@echo "Documented external release checks still required: visual DOM baselines, browser Playwright full-stack, real-key polish-copy sidecar, UMS parity, and live Postgres contention/drain verification."
+
+.PHONY: audit-2026-release-external
+audit-2026-release-external:
+	@if [ "$${VISREG_ALLOW_SKIP:-}" = "1" ]; then \
+		echo "audit-2026-release-external: VISREG_ALLOW_SKIP=1 is forbidden for release qualification" >&2; \
+		exit 1; \
+	fi
+	@if [ "$${BROWSER_E2E_ALLOW_SKIP:-}" = "1" ]; then \
+		echo "audit-2026-release-external: BROWSER_E2E_ALLOW_SKIP=1 is forbidden for release qualification" >&2; \
+		exit 1; \
+	fi
+	$(MAKE) audit-2026-release-external-preflight
+	$(MAKE) audit-2026-visual-regression-dom
+	$(MAKE) audit-2026-browser-e2e
+	$(MAKE) audit-2026-polish-copy-sidecar
+	$(MAKE) audit-2026-ums-parity
+	$(MAKE) audit-2026-live-postgres
+	@echo ""
+	@echo "audit-2026-release-external: browser, visual, polish-copy, UMS parity, and live Postgres release checks passed."
+
+.PHONY: audit-2026-release-external-preflight
+audit-2026-release-external-preflight:
+	uv run python scripts/audit_2026/check_external_release_preflight.py
+
+.PHONY: audit-2026-polish-copy-sidecar
+audit-2026-polish-copy-sidecar:
+	uv run python scripts/audit_2026/check_polish_copy_sidecar.py
 
 .PHONY: audit-2026-unit
 audit-2026-unit:
@@ -75,17 +132,37 @@ audit-2026-property:
 
 .PHONY: audit-2026-integration
 audit-2026-integration:
-	@if [ -d tests/integration/python ] && [ -n "$$(find tests/integration/python -name 'test_*.py' 2>/dev/null | head -1)" ]; then \
-		$(PYTEST) tests/integration/python/ ; \
-	fi
+	bash scripts/run_integration.sh
 
 .PHONY: audit-2026-e2e
 audit-2026-e2e:
 	@if [ -d tests/integration/e2e ] && [ -n "$$(find tests/integration/e2e -name 'test_*.py' 2>/dev/null | head -1)" ]; then \
 		$(PYTEST) tests/integration/e2e/ ; \
 	else \
-		echo "audit-2026-e2e: no e2e suites yet (E-45 lands in S1)"; \
+		echo "audit-2026-e2e: missing required tests/integration/e2e suite" >&2; \
+		exit 1; \
 	fi
+
+.PHONY: audit-2026-browser-e2e
+audit-2026-browser-e2e:
+	bash scripts/run_browser_full_stack.sh
+
+.PHONY: audit-2026-ums-parity
+audit-2026-ums-parity:
+	@if [ ! -d "$${BACKEND_ROOT:-$(BACKEND_ROOT)}" ]; then \
+		echo "audit-2026-ums-parity: BACKEND_ROOT not found at $${BACKEND_ROOT:-$(BACKEND_ROOT)}" >&2; \
+		echo "Set BACKEND_ROOT=/path/to/backend for the adjacent UMS checkout." >&2; \
+		exit 1; \
+	fi
+	cd "$${BACKEND_ROOT:-$(BACKEND_ROOT)}" && uv run pytest tests/test_workflow_def_parity.py -v --tb=short
+
+.PHONY: audit-2026-live-postgres
+audit-2026-live-postgres:
+	@if [ -z "$${FLOWFORGE_TEST_PG_URL:-$${FLOWFORGE_LIVE_PG_URL:-}}" ]; then \
+		echo "audit-2026-live-postgres: set FLOWFORGE_TEST_PG_URL to a disposable Postgres database" >&2; \
+		exit 1; \
+	fi
+	uv run --with asyncpg pytest -v --tb=short tests/integration/postgres/
 
 .PHONY: audit-2026-conformance
 audit-2026-conformance:
@@ -100,11 +177,14 @@ audit-2026-cross-runtime:
 	@if [ -d tests/cross_runtime ] && [ -n "$$(find tests/cross_runtime -name 'test_*.py' 2>/dev/null | head -1)" ]; then \
 		$(PYTEST) tests/cross_runtime/ ; \
 	else \
-		echo "audit-2026-cross-runtime: no fixture yet (E-43 lands in S1)"; \
+		echo "audit-2026-cross-runtime: missing required tests/cross_runtime suite" >&2; \
+		exit 1; \
 	fi
-	@if [ -d $(JS_DIR) ]; then \
-		cd $(JS_DIR) && pnpm -r --if-present test:cross-runtime || \
-			echo "audit-2026-cross-runtime: pnpm cross-runtime script not yet wired (E-43 lands in S1)" ; \
+	@if [ -f $(JS_DIR)/flowforge-integration-tests/expr-parity.test.ts ]; then \
+		cd $(JS_DIR)/flowforge-integration-tests && pnpm exec vitest run expr-parity.test.ts ; \
+	else \
+		echo "audit-2026-cross-runtime: missing JS expr-parity.test.ts" >&2; \
+		exit 1; \
 	fi
 
 .PHONY: audit-2026-edge
@@ -135,7 +215,10 @@ audit-2026-observability:
 			promtool check rules "$$rule" ; \
 		done ; \
 	else \
-		echo "audit-2026-observability: promtool not installed — skipping rule lint" ; \
+		if [ -n "$$(find tests/observability/promql -name '*.yml' 2>/dev/null | head -1)" ]; then \
+			echo "audit-2026-observability: promtool not installed but PromQL rules exist" >&2 ; \
+			exit 1 ; \
+		fi ; \
 	fi
 
 .PHONY: audit-2026-ratchets
@@ -202,10 +285,9 @@ seed:
 # the DOM snapshot is the *CI-gating* artifact; the pixel SSIM is
 # advisory only. The DOM gate runs the smoke subset (canonical example
 # only) per-PR and the full suite nightly. The wrapper script
-# `scripts/visual_regression/run_dom_snapshots.sh` skips with a clear
-# reason if `pnpm install` is blocked or the dev-server harness has
-# not yet landed; in that mode it exits 0 (the W3 brief authorises
-# skip-with-reason while the pnpm cleanup PR is in flight).
+# `scripts/visual_regression/run_dom_snapshots.sh` fails when prerequisites
+# or checked-in baselines are missing. Local workstation bootstrap may opt
+# into VISREG_ALLOW_SKIP=1; release gates must not set it.
 #
 # Cadence selection:
 #   make audit-2026-visual-regression-dom            -> smoke (per-PR)
@@ -267,9 +349,9 @@ audit-2026-reachability:
 
 # v0.3.0 W4a (item 3 / ADR-003): property-coverage gate.
 #
-# Asserts every generator added in W0-W3 has at least one hypothesis
+# Asserts every generator added in W0-W4b has at least one hypothesis
 # property test under ``tests/property/generators/test_<gen>_properties.py``.
-# The canonical list of 13 generators lives in
+# The canonical list of required generators lives in
 # ``tests/audit_2026/test_property_coverage_gate.py`` (REQUIRED_GENERATORS).
 #
 # Also runs the ADR-003 seed-uniqueness checks: every emitted

@@ -16,8 +16,15 @@ import aiosqlite
 import pytest
 
 from flowforge.ports.types import OutboxEnvelope
-from flowforge_outbox_pg.registry import HandlerRegistry
-from flowforge_outbox_pg.worker import DrainResult, DrainWorker, OutboxRow, OutboxStatus, _pg_to_sqlite
+from flowforge_outbox_pg.health import prometheus_text, readiness_payload
+from flowforge_outbox_pg.registry import HandlerRegistry, PermanentDispatchError
+from flowforge_outbox_pg.worker import (
+    DrainResult,
+    DrainWorker,
+    DrainWorkerHealth,
+    OutboxStatus,
+    _pg_to_sqlite,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -69,7 +76,7 @@ def _env(kind: str = "test.event", tenant: str = "t1", body: dict[str, Any] | No
 
 async def test_setup_creates_table() -> None:
     async with aiosqlite.connect(":memory:") as conn:
-        worker = await _make_worker(conn)
+        await _make_worker(conn)
         cursor = await conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='outbox'")
         row = await cursor.fetchone()
         await cursor.close()
@@ -142,6 +149,22 @@ async def test_run_once_dispatches_pending_row() -> None:
 
         info = await _row_status(conn, row_id)
         assert info["status"] == "dispatched"
+        health = worker.health()
+        assert isinstance(health, DrainWorkerHealth)
+        assert health.status == "ok"
+        assert health.total_dispatched == 1
+        assert health.total_retried == 0
+        assert health.total_dead == 0
+        assert health.total_no_handler == 0
+        assert health.run_errors == 0
+        assert health.last_result.dispatched == 1
+        assert health.as_dict()["last_result"]["dispatched"] == 1
+        status_code, payload = readiness_payload(worker)
+        assert status_code == 200
+        assert payload["status"] == "ok"
+        metrics = prometheus_text(worker, labels={"backend": "default"})
+        assert 'flowforge_outbox_worker_degraded{backend="default"} 0' in metrics
+        assert 'flowforge_outbox_worker_dispatched_total{backend="default"} 1' in metrics
 
 
 async def test_run_once_empty_outbox_returns_zeros() -> None:
@@ -187,6 +210,14 @@ async def test_run_once_no_handler_marks_dead() -> None:
         info = await _row_status(conn, row_id)
         assert info["status"] == "dead"
         assert "no handler" in (info["last_error"] or "")
+        health = worker.health()
+        assert health.status == "ok"
+        assert health.total_no_handler == 1
+        assert health.total_dead == 0
+        assert health.last_result.no_handler == 1
+        status_code, payload = readiness_payload(health)
+        assert status_code == 200
+        assert payload["total_no_handler"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -239,6 +270,55 @@ async def test_run_once_moves_to_dlq_after_max_retries() -> None:
 
         info = await _row_status(conn, row_id)
         assert info["status"] == "dead"
+
+
+async def test_run_once_dead_letters_permanent_dispatch_error_without_retry() -> None:
+    reg = HandlerRegistry()
+
+    async def permanent(env: OutboxEnvelope) -> None:
+        raise PermanentDispatchError("recipient does not exist")
+
+    reg.register("bad.event", permanent)
+
+    async with aiosqlite.connect(":memory:") as conn:
+        worker = await _make_worker(conn, reg, max_retries=10)
+        row_id = await worker.enqueue(_env("bad.event"))
+
+        result = await worker.run_once()
+
+        assert result.dead == 1
+        assert result.retried == 0
+        info = await _row_status(conn, row_id)
+        assert info["status"] == "dead"
+        assert info["retries"] == 0
+        assert "PermanentDispatchError" in (info["last_error"] or "")
+        health = worker.health()
+        assert health.status == "ok"
+        assert health.total_dead == 1
+        assert health.total_retried == 0
+        assert health.total_no_handler == 0
+
+
+async def test_run_once_records_claim_errors_in_health() -> None:
+    async with aiosqlite.connect(":memory:") as conn:
+        worker = await _make_worker(conn)
+        await conn.close()
+
+        with pytest.raises(Exception):
+            await worker.run_once()
+
+        health = worker.health()
+        assert health.status == "degraded"
+        assert health.run_errors == 1
+        assert health.last_error is not None
+        assert health.last_run_at is not None
+        assert health.total_dispatched == 0
+        status_code, payload = readiness_payload(health)
+        assert status_code == 503
+        assert payload["status"] == "degraded"
+        metrics = prometheus_text(health)
+        assert "flowforge_outbox_worker_degraded 1" in metrics
+        assert "flowforge_outbox_worker_run_errors_total 1" in metrics
 
 
 async def test_run_once_dlq_on_old_row() -> None:

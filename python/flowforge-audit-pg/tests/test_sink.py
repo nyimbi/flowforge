@@ -9,7 +9,8 @@ trigger and JSON column behaviour.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import pytest
 import pytest_asyncio
@@ -38,6 +39,7 @@ def _make_event(
 	tenant_id: str = "tenant-a",
 	actor_user_id: str | None = "user-1",
 	payload: dict | None = None,
+	occurred_at: datetime | None = None,
 ) -> AuditEvent:
 	return AuditEvent(
 		kind=kind,
@@ -46,7 +48,7 @@ def _make_event(
 		tenant_id=tenant_id,
 		actor_user_id=actor_user_id,
 		payload=payload or {},
-		occurred_at=datetime.now(timezone.utc),
+		occurred_at=occurred_at or datetime.now(timezone.utc),
 	)
 
 
@@ -75,7 +77,7 @@ async def pg_sink():
 		url = url.replace("postgres://", "postgresql+asyncpg://", 1)
 	engine = create_async_engine(url, echo=False)
 	# Drop and recreate for a clean slate.
-	from flowforge_audit_pg.sink import ff_audit_events, _METADATA
+	from flowforge_audit_pg.sink import _METADATA
 	async with engine.begin() as conn:
 		await conn.run_sync(_METADATA.drop_all)
 		await create_tables(conn)
@@ -88,13 +90,13 @@ async def pg_sink():
 # Helpers
 # ---------------------------------------------------------------------------
 
-async def _fetch_all_rows(sink: PgAuditSink) -> list:
+async def _fetch_all_rows(sink: PgAuditSink) -> list[Any]:
 	from flowforge_audit_pg.sink import ff_audit_events
 	async with sink._engine.connect() as conn:
 		result = await conn.execute(
 			sa.select(ff_audit_events).order_by(ff_audit_events.c.occurred_at.asc())
 		)
-		return result.fetchall()
+		return list(result.fetchall())
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +149,14 @@ async def test_verify_chain_single_row(sqlite_sink):
 	assert verdict.checked_count == 1
 
 
+async def test_audit_read_path_indexes_created(sqlite_sink):
+	async with sqlite_sink._engine.connect() as conn:
+		rows = (await conn.execute(sa.text("PRAGMA index_list('ff_audit_events')"))).fetchall()
+	names = {row[1] for row in rows}
+	assert "ix_ff_audit_tenant_ordinal" in names
+	assert "ix_ff_audit_tenant_occurred_event" in names
+
+
 async def test_verify_chain_multiple_rows(sqlite_sink):
 	for i in range(5):
 		await sqlite_sink.record(_make_event(kind=f"event.{i}"))
@@ -172,7 +182,7 @@ async def test_verify_chain_detects_tampering(sqlite_sink):
 
 async def test_redact_tombstones_paths(sqlite_sink):
 	payload = {"name": "Alice", "email": "alice@example.com", "score": 99}
-	event_id = await sqlite_sink.record(_make_event(payload=payload))
+	await sqlite_sink.record(_make_event(payload=payload))
 	count = await sqlite_sink.redact(["name", "email"], reason="GDPR erasure")
 	assert count == 1
 	rows = await _fetch_all_rows(sqlite_sink)
@@ -237,6 +247,36 @@ async def test_multiple_tenants_independent_chains(sqlite_sink):
 	assert rows_b[0].prev_sha256 is None
 	assert rows_a[1].prev_sha256 == rows_a[0].row_sha256
 
+	verdict = await sqlite_sink.verify_chain()
+	assert verdict.ok is True
+	assert verdict.checked_count == 3
+
+
+async def test_verify_chain_interleaved_tenants(sqlite_sink):
+	"""Global verification tracks one prev hash per tenant."""
+	base = datetime(2026, 5, 18, 12, 0, tzinfo=timezone.utc)
+	await sqlite_sink.record(
+		_make_event(tenant_id="tenant-a", kind="a.1", occurred_at=base)
+	)
+	await sqlite_sink.record(
+		_make_event(
+			tenant_id="tenant-b",
+			kind="b.1",
+			occurred_at=base + timedelta(microseconds=1),
+		)
+	)
+	await sqlite_sink.record(
+		_make_event(
+			tenant_id="tenant-a",
+			kind="a.2",
+			occurred_at=base + timedelta(microseconds=2),
+		)
+	)
+
+	verdict = await sqlite_sink.verify_chain()
+	assert verdict.ok is True
+	assert verdict.checked_count == 3
+
 
 async def test_verify_chain_since_event_id(sqlite_sink):
 	id1 = await sqlite_sink.record(_make_event(kind="e1"))
@@ -250,7 +290,7 @@ async def test_verify_chain_since_event_id(sqlite_sink):
 
 async def test_record_null_actor(sqlite_sink):
 	event = _make_event(actor_user_id=None)
-	event_id = await sqlite_sink.record(event)
+	await sqlite_sink.record(event)
 	rows = await _fetch_all_rows(sqlite_sink)
 	assert rows[0].actor_user_id is None
 

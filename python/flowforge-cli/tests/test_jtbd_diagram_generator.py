@@ -31,6 +31,7 @@ embeds each diagram into the per-bundle README. Verification covers:
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -481,6 +482,15 @@ def test_mmdc_parses_every_emitted_diagram(tmp_path: Path) -> None:
 				capture_output=True,
 				text=True,
 			)
+			if (
+				result.returncode != 0
+				and "Failed to launch the browser process" in result.stderr
+				and os.environ.get("FLOWFORGE_REQUIRE_MMDC") != "1"
+			):
+				pytest.skip(
+					"mmdc is installed but Chromium cannot launch in this environment; "
+					"set FLOWFORGE_REQUIRE_MMDC=1 in browser-capable CI to make this fatal"
+				)
 			assert result.returncode == 0, (
 				f"mmdc failed for {f.path}: {result.stderr}"
 			)

@@ -13,13 +13,16 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import json
 import os
 import time
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any, Protocol, runtime_checkable
+from urllib.parse import urlparse
 
 
 # ---------------------------------------------------------------------------
@@ -56,6 +59,49 @@ class ChannelAdapter(Protocol):
 	) -> DeliveryResult:
 		"""Deliver a pre-rendered (subject, body) to recipient."""
 		...
+
+
+def _parse_allowed_hosts(value: str | None) -> frozenset[str]:
+	if not value:
+		return frozenset()
+	return frozenset(part.strip().lower() for part in value.split(",") if part.strip())
+
+
+def _url_host(url: str) -> str | None:
+	parsed = urlparse(url)
+	if parsed.scheme != "https" or not parsed.hostname:
+		return None
+	return parsed.hostname.lower()
+
+
+def _is_private_host(host: str) -> bool:
+	if host in {"localhost", "localhost.localdomain"}:
+		return True
+	try:
+		addr = ipaddress.ip_address(host)
+	except ValueError:
+		return False
+	return addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_multicast
+
+
+def _url_allowed(url: str, *, allowed_hosts: frozenset[str], allow_any_public_host: bool) -> str | None:
+	host = _url_host(url)
+	if host is None:
+		return "url must be https and include a host"
+	if _is_private_host(host):
+		return "private, loopback, link-local, and localhost webhook hosts are not allowed"
+	if allowed_hosts and host not in allowed_hosts:
+		return f"host {host!r} is not in the allowed host set"
+	if not allowed_hosts and not allow_any_public_host:
+		return "no webhook host allow-list configured"
+	return None
+
+
+def _aws_signature_key(secret_key: str, date_stamp: str, region: str, service: str) -> bytes:
+	k_date = hmac.new(("AWS4" + secret_key).encode(), date_stamp.encode(), hashlib.sha256).digest()
+	k_region = hmac.new(k_date, region.encode(), hashlib.sha256).digest()
+	k_service = hmac.new(k_region, service.encode(), hashlib.sha256).digest()
+	return hmac.new(k_service, b"aws4_request", hashlib.sha256).digest()
 
 
 # ---------------------------------------------------------------------------
@@ -201,12 +247,14 @@ class SESEmailAdapter:
 		self,
 		access_key: str | None = None,
 		secret_key: str | None = None,
+		session_token: str | None = None,
 		region: str | None = None,
 		from_addr: str | None = None,
 		_http_client: Any = None,
 	) -> None:
 		self._access_key = access_key or os.environ.get("AWS_ACCESS_KEY_ID", "")
 		self._secret_key = secret_key or os.environ.get("AWS_SECRET_ACCESS_KEY", "")
+		self._session_token = session_token or os.environ.get("AWS_SESSION_TOKEN", "")
 		self._region = region or os.environ.get("AWS_REGION", "us-east-1")
 		self._from = from_addr or os.environ.get("SES_FROM_ADDRESS", "noreply@example.com")
 		self._http_client = _http_client
@@ -220,7 +268,11 @@ class SESEmailAdapter:
 	) -> DeliveryResult:
 		import httpx
 
+		if not self._access_key or not self._secret_key:
+			return DeliveryResult(ok=False, error="SES credentials not configured (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)")
+
 		url = f"https://email.{self._region}.amazonaws.com/v2/email/outbound-emails"
+		host = f"email.{self._region}.amazonaws.com"
 		payload = {
 			"FromEmailAddress": self._from,
 			"Destination": {"ToAddresses": [recipient]},
@@ -231,17 +283,60 @@ class SESEmailAdapter:
 				}
 			},
 		}
-		headers = {"Content-Type": "application/json"}
-		# Simplified auth — real use should sign with SigV4.
-		if self._access_key:
-			headers["X-Amz-Access-Key-Id"] = self._access_key
+		raw_payload = json.dumps(payload, separators=(",", ":")).encode()
+		payload_hash = hashlib.sha256(raw_payload).hexdigest()
+		now = datetime.now(UTC)
+		amz_date = now.strftime("%Y%m%dT%H%M%SZ")
+		date_stamp = now.strftime("%Y%m%d")
+		canonical_headers = (
+			"content-type:application/json\n"
+			f"host:{host}\n"
+			f"x-amz-content-sha256:{payload_hash}\n"
+			f"x-amz-date:{amz_date}\n"
+		)
+		signed_headers = "content-type;host;x-amz-content-sha256;x-amz-date"
+		canonical_request = "\n".join(
+			[
+				"POST",
+				"/v2/email/outbound-emails",
+				"",
+				canonical_headers,
+				signed_headers,
+				payload_hash,
+			]
+		)
+		scope = f"{date_stamp}/{self._region}/ses/aws4_request"
+		string_to_sign = "\n".join(
+			[
+				"AWS4-HMAC-SHA256",
+				amz_date,
+				scope,
+				hashlib.sha256(canonical_request.encode()).hexdigest(),
+			]
+		)
+		signing_key = _aws_signature_key(self._secret_key, date_stamp, self._region, "ses")
+		signature = hmac.new(signing_key, string_to_sign.encode(), hashlib.sha256).hexdigest()
+		headers = {
+			"Authorization": (
+				"AWS4-HMAC-SHA256 "
+				f"Credential={self._access_key}/{scope}, "
+				f"SignedHeaders={signed_headers}, "
+				f"Signature={signature}"
+			),
+			"Content-Type": "application/json",
+			"Host": host,
+			"X-Amz-Content-Sha256": payload_hash,
+			"X-Amz-Date": amz_date,
+		}
+		if self._session_token:
+			headers["X-Amz-Security-Token"] = self._session_token
 
 		try:
 			if self._http_client is not None:
-				resp = await self._http_client.post(url, json=payload, headers=headers)
+				resp = await self._http_client.post(url, content=raw_payload, headers=headers)
 			else:
 				async with httpx.AsyncClient(timeout=10.0) as client:
-					resp = await client.post(url, json=payload, headers=headers)
+					resp = await client.post(url, content=raw_payload, headers=headers)
 
 			if resp.status_code in (200, 201, 202):
 				data = resp.json() if resp.content else {}
@@ -411,7 +506,8 @@ class WebhookAdapter:
 	in the ``X-Flowforge-Signature`` header as ``sha256=<hex>``.
 
 	Env vars:
-	    WEBHOOK_HMAC_SECRET   (default: dev-secret)
+	    WEBHOOK_HMAC_SECRET
+	    WEBHOOK_ALLOWED_HOSTS (comma-separated HTTPS host allow-list)
 
 	For testing, pass ``_http_client`` to inject a fake httpx client.
 	"""
@@ -421,9 +517,20 @@ class WebhookAdapter:
 	def __init__(
 		self,
 		secret: str | None = None,
+		allowed_hosts: set[str] | frozenset[str] | tuple[str, ...] | list[str] | None = None,
+		allow_any_public_host: bool = False,
 		_http_client: Any = None,
 	) -> None:
-		self._secret = (secret or os.environ.get("WEBHOOK_HMAC_SECRET", "dev-secret")).encode()
+		resolved_secret = secret or os.environ.get("WEBHOOK_HMAC_SECRET", "")
+		if not resolved_secret:
+			raise ValueError("WEBHOOK_HMAC_SECRET is required for WebhookAdapter")
+		self._secret = resolved_secret.encode()
+		env_allowed_hosts = _parse_allowed_hosts(os.environ.get("WEBHOOK_ALLOWED_HOSTS"))
+		explicit_allowed_hosts = (
+			frozenset(host.lower() for host in allowed_hosts) if allowed_hosts is not None else frozenset()
+		)
+		self._allowed_hosts = explicit_allowed_hosts or env_allowed_hosts
+		self._allow_any_public_host = allow_any_public_host
 		self._http_client = _http_client
 
 	def _sign(self, payload: bytes) -> str:
@@ -437,6 +544,14 @@ class WebhookAdapter:
 		metadata: dict[str, Any],
 	) -> DeliveryResult:
 		import httpx
+
+		url_error = _url_allowed(
+			recipient,
+			allowed_hosts=self._allowed_hosts,
+			allow_any_public_host=self._allow_any_public_host,
+		)
+		if url_error:
+			return DeliveryResult(ok=False, error=f"webhook.url not allowed: {url_error}")
 
 		envelope = {"subject": subject, "body": body, "metadata": metadata}
 		raw = json.dumps(envelope, separators=(",", ":")).encode()
@@ -477,6 +592,7 @@ class SlackAdapter:
 
 	Env vars:
 	    SLACK_WEBHOOK_URL   (optional fallback)
+	    SLACK_ALLOWED_HOSTS (comma-separated HTTPS host allow-list; defaults to Slack webhook hosts)
 
 	For testing, pass ``_http_client`` to inject a fake httpx client.
 	"""
@@ -486,9 +602,17 @@ class SlackAdapter:
 	def __init__(
 		self,
 		webhook_url: str | None = None,
+		allowed_hosts: set[str] | frozenset[str] | tuple[str, ...] | list[str] | None = None,
 		_http_client: Any = None,
 	) -> None:
 		self._default_url = webhook_url or os.environ.get("SLACK_WEBHOOK_URL", "")
+		env_allowed_hosts = _parse_allowed_hosts(os.environ.get("SLACK_ALLOWED_HOSTS"))
+		explicit_allowed_hosts = (
+			frozenset(host.lower() for host in allowed_hosts) if allowed_hosts is not None else frozenset()
+		)
+		self._allowed_hosts = explicit_allowed_hosts or env_allowed_hosts or frozenset(
+			{"hooks.slack.com", "hooks.slack-gov.com"}
+		)
 		self._http_client = _http_client
 
 	async def deliver(
@@ -503,6 +627,13 @@ class SlackAdapter:
 		url = metadata.get("webhook_url") or recipient or self._default_url
 		if not url:
 			return DeliveryResult(ok=False, error="slack.webhook_url not configured")
+		url_error = _url_allowed(
+			str(url),
+			allowed_hosts=self._allowed_hosts,
+			allow_any_public_host=False,
+		)
+		if url_error:
+			return DeliveryResult(ok=False, error=f"slack.webhook_url not allowed: {url_error}")
 
 		payload = {"text": f"*{subject}*\n{body}"}
 

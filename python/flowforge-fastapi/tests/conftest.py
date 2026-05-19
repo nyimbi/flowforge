@@ -24,6 +24,7 @@ from flowforge.ports.types import Principal
 
 from flowforge_fastapi import (
 	StaticPrincipalExtractor,
+	StaticTenantResolver,
 	get_events_hub,
 	get_registry,
 	mount_routers,
@@ -101,6 +102,7 @@ def app(claim_workflow_def: WorkflowDef) -> FastAPI:
 		principal_extractor=StaticPrincipalExtractor(
 			Principal(user_id="alice", roles=("staff",))
 		),
+		tenant_resolver=StaticTenantResolver("t-1"),
 	)
 	return app
 

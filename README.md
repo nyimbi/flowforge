@@ -118,13 +118,13 @@ Tests use the in-memory fakes under `flowforge.testing.port_fakes`. Production w
 
 ## Repository layout
 
-This is a `uv` + `pnpm` monorepo: 45 Python workspace members, 7 npm workspace members.
+This is a `uv` + `pnpm` monorepo: 46 Python workspace members, 7 npm workspace members.
 
 ```
 flowforge/
-├── python/                          # uv workspace (45 packages)
+├── python/                          # uv workspace (46 packages)
 │   │
-│   │ # Strategic / shipping packages (15, package=true)
+│   │ # Strategic / shipping packages (16, package=true)
 │   ├── flowforge-core/               # DSL, compiler, engine, simulator, port ABCs
 │   ├── flowforge-fastapi/            # HTTP/WS adapter
 │   ├── flowforge-sqlalchemy/         # snapshot store, saga ledger, RLS binder, alembic bundle
@@ -136,6 +136,7 @@ flowforge/
 │   ├── flowforge-money/
 │   ├── flowforge-signing-kms/
 │   ├── flowforge-notify-multichannel/
+│   ├── flowforge-otel/              # OpenTelemetry tracing + metrics adapter
 │   ├── flowforge-cli/                # `flowforge` typer CLI
 │   ├── flowforge-jtbd/               # canonical spec, lockfile, linter
 │   ├── flowforge-jtbd-hub/           # registry, mirroring, signing, per-user RBAC
@@ -224,7 +225,9 @@ uv sync                                     # install Python workspace
 (cd js && pnpm install --frozen-lockfile)   # install JS workspace
 
 bash scripts/check_all.sh                   # full local gate (≈10 min)
-make audit-2026                             # layered audit-2026 suites
+make audit-2026-release-local               # fail-closed local release gate
+make audit-2026-release-external-preflight  # summarize missing external evidence
+make audit-2026-release-external            # browser/LLM/UMS/Postgres release evidence
 ```
 
 Narrower loops:
@@ -239,10 +242,11 @@ uv run pyright python/flowforge-core/src --pythonversion 3.11
 (cd js && pnpm -F @flowforge/designer test)         # one package
 ```
 
-CI runs three independent gates on every PR, each blocking merge to `main`:
+CI runs independent gates on every PR, each blocking merge to `main`:
 
-- `flowforge-gate.yml` — wraps `scripts/check_all.sh` (sync, typecheck, per-package pytest, JS build, JTBD regen determinism, UMS parity, integration). Single source of truth for local-vs-CI parity.
+- `flowforge-gate.yml` — wraps `scripts/check_all.sh` (sync, typecheck, per-package pytest, JS build, JTBD regen determinism, visual DOM gate, standalone-safe UMS parity check, integration). UMS parity skips only when `BACKEND_ROOT` is absent in a standalone flowforge checkout.
 - `audit-2026.yml` — six-target matrix over `make audit-2026-{unit,conformance,property,edge,cross-runtime,e2e}` plus the ratchet and signoff gates.
+- `audit-2026-release-external.yml` — manual external release workflow for browser visual baselines, browser full-stack Playwright, reviewed real-key `polish-copy` sidecar evidence, UMS workflow-def parity with `BACKEND_ROOT`, and live Postgres checks with `FLOWFORGE_TEST_PG_URL`; this is required before critical-system release qualification. See `docs/audit-2026/external-release-runbook.md` for the exact browser/LLM/DB evidence sequence.
 - `jtbd-lint.yml` — runs `flowforge jtbd lint` against every `jtbd-bundle.{json,yaml}` in the tree. Set `JTBD_LINT_STRICT=true` to treat warnings as errors.
 
 ### CLI
@@ -288,7 +292,7 @@ A 24-hour soak runner lives at `scripts/ops/audit-2026-soak.sh`; the runbook is 
 
 Two tiers, both enforced by `tests/audit_2026/test_E_69_evolution_reconciliation.py`:
 
-- **Tier 1** — engine and adapters (15 packages). Pinned at `0.1.x`; patch bump per audit-fix release; `0.2.0` reserved for the post-audit GA. Public APIs stable within `0.1.x`. Any SECURITY-flagged removal follows the F-7 two-version deprecation rule with an opt-in bridge env-var (e.g. `FLOWFORGE_ALLOW_INSECURE_DEFAULT=1` for E-34).
+- **Tier 1** — engine and adapters (16 packages). Pinned at `0.1.x`; patch bump per audit-fix release; `0.2.0` reserved for the post-audit GA. Public APIs stable within `0.1.x`. Any SECURITY-flagged removal follows the F-7 two-version deprecation rule with an opt-in bridge env-var (e.g. `FLOWFORGE_ALLOW_INSECURE_DEFAULT=1` for E-34).
 - **Tier 2** — domain JTBD libraries (30 packages). Pinned at `0.0.1` until the package flips to `[tool.uv] package = true`, at which point it jumps to `0.1.0` in lockstep with tier 1.
 
 ## Conventions

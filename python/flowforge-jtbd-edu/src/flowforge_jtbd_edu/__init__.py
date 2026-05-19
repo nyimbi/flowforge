@@ -14,7 +14,7 @@ from importlib.resources import files
 from typing import Any
 
 
-DOMAIN: str = "education"
+DOMAIN: str = "edu"
 DISPLAY_NAME: str = "Education"
 SUBDOMAINS: str = "Admissions, grading, LMS"
 
@@ -28,12 +28,12 @@ def load_bundle() -> dict[str, Any]:
 	"""
 	import yaml  # local import keeps base import cheap
 
-	resource = files(__package__) / "examples" / "bundle.yaml"
+	resource = files(__name__) / "examples" / "bundle.yaml"
 	with resource.open("rb") as fh:
 		data = yaml.safe_load(fh)
 	if not isinstance(data, dict):
 		raise ValueError(
-			f"{__package__}/examples/bundle.yaml did not parse to a dict"
+			f"{__name__}/examples/bundle.yaml did not parse to a dict"
 		)
 	return data
 

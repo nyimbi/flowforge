@@ -534,26 +534,26 @@
     commit_sha: 61a4aff
 
 - ticket: E-46
-  title: "Workspace + docs alignment (45 pkgs registered, README count, doc paths)"
+  title: "Workspace + docs alignment (46 pkgs registered, README count, doc paths)"
   findings: [DOC-01, DOC-02]
   phase: S1
   worker: worker-eng-4
   status: implementation_landed_pending_signoff
   evidence:
     files_changed:
-      - "framework/pyproject.toml ([tool.uv.workspace] members: 15 → 45)"
+      - "framework/pyproject.toml ([tool.uv.workspace] members: 15 → 46)"
       - "framework/python/flowforge-jtbd-*/pyproject.toml × 30 ([tool.uv] package=false)"
-      - "framework/README.md (12 → 45 layout + workspace policy section)"
+      - "framework/README.md (12 → 46 layout + workspace policy section)"
       - "framework/docs/flowforge-evolution.md (apps/jtbd-hub paths → framework/python/flowforge-jtbd-hub)"
       - "framework/tests/audit_2026/test_E_46_workspace_docs_alignment.py (NEW, 5 tests)"
     f5_mitigation_two_step:
-      step_a: "[tool.uv.workspace] members lists all 45 pkgs. The 30 jtbd-* domain libs carry [tool.uv] package=false so uv treats them as virtual workspace members — `uv build` discovers them but produces no wheel."
-      step_b: "E-48a / E-48b owners flip package=false → true per pkg as the rebrand or real-content review lands. Test test_DOC_01_strategic_pkgs_remain_package_true guards against accidental flip on the 15 strategic pkgs."
+      step_a: "[tool.uv.workspace] members lists all 46 pkgs. The 30 jtbd-* domain libs carry [tool.uv] package=false so uv treats them as virtual workspace members — `uv build` discovers them but produces no wheel."
+      step_b: "E-48a / E-48b owners flip package=false → true per pkg as the rebrand or real-content review lands. Test test_DOC_01_strategic_pkgs_remain_package_true guards against accidental flip on the 16 strategic pkgs."
     acceptance_tests:
-      - "test_DOC_01_workspace_complete — green (45 on-disk == 45 registered)"
+      - "test_DOC_01_workspace_complete — green (46 on-disk == 46 registered)"
       - "test_DOC_01_unreviewed_pkgs_marked_package_false — green (30 jtbd-* domain pkgs all package=false)"
-      - "test_DOC_01_strategic_pkgs_remain_package_true — green (15 strategic pkgs unaffected)"
-      - "test_DOC_02_readme_pkg_count_matches_filesystem — green (no '12 PyPI packages' string; '45' present)"
+      - "test_DOC_01_strategic_pkgs_remain_package_true — green (16 strategic pkgs unaffected)"
+      - "test_DOC_02_readme_pkg_count_matches_filesystem — green (no '12 PyPI packages' string; '46' present)"
       - "test_DOC_02_handbook_path_drift_fixed — green (no apps/jtbd-* paths)"
     pre_deploy_checks:
       - "uv run pytest framework/tests/audit_2026/test_E_46_workspace_docs_alignment.py — 5 passed"

@@ -21,7 +21,9 @@ Usage::
 from __future__ import annotations
 
 import base64
-from typing import Any
+from typing import Any, cast
+
+from flowforge.ports.signing import SigningPort
 
 from .manifest import JtbdManifest
 
@@ -43,11 +45,12 @@ async def sign_manifest(
 	key_id_fn = getattr(signer, "current_key_id", None)
 	assert callable(sign_fn), "signer must implement sign_payload(bytes) -> bytes"
 	assert callable(key_id_fn), "signer must implement current_key_id() -> str"
+	signer_port = cast(SigningPort, signer)
 
 	payload = manifest.signing_payload()
-	sig_bytes: bytes = await sign_fn(payload)
+	sig_bytes = await signer_port.sign_payload(payload)
 	sig_b64 = base64.b64encode(sig_bytes).decode("ascii")
-	key_id: str = key_id_fn()
+	key_id = signer_port.current_key_id()
 
 	return manifest.with_signature(sig_b64, key_id)
 
@@ -71,10 +74,11 @@ async def verify_manifest(
 
 	verify_fn = getattr(signer, "verify", None)
 	assert callable(verify_fn), "signer must implement verify(bytes, bytes, str) -> bool"
+	signer_port = cast(SigningPort, signer)
 
 	payload = manifest.signing_payload()
 	sig_bytes = base64.b64decode(manifest.signature)
-	return bool(await verify_fn(payload, sig_bytes, manifest.key_id))
+	return bool(await signer_port.verify(payload, sig_bytes, manifest.key_id))
 
 
 __all__ = [

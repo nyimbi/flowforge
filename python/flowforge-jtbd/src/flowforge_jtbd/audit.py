@@ -207,8 +207,9 @@ class JtbdAuditLogger:
 		)
 
 		import flowforge.config as _cfg
-		if _cfg.audit is not None:
-			return await _cfg.audit.record(evt)
+		audit = _cfg.current().audit
+		if audit is not None:
+			return await audit.record(evt)
 
 		# Fallback: buffer for testing / dev.
 		self.buffered.append(evt)

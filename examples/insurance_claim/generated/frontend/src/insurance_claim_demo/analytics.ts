@@ -11,6 +11,7 @@
 export const ANALYTICS_EVENTS = {
 	CLAIM_INTAKE_FIELD_FOCUSED: "claim_intake.field_focused",
 	CLAIM_INTAKE_FIELD_COMPLETED: "claim_intake.field_completed",
+	CLAIM_INTAKE_PII_REVEALED: "claim_intake.pii_revealed",
 	CLAIM_INTAKE_VALIDATION_FAILED: "claim_intake.validation_failed",
 	CLAIM_INTAKE_SUBMISSION_STARTED: "claim_intake.submission_started",
 	CLAIM_INTAKE_SUBMISSION_SUCCEEDED: "claim_intake.submission_succeeded",

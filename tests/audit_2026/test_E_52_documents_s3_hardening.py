@@ -111,10 +111,11 @@ def test_DS_01_doc_id_validated_accepts_legitimate_ids() -> None:
 
 	async def _run() -> None:
 		for good in good_ids:
-			# put, get, presigned_* must not raise on legit id
+			# put/get/presigned GET must not raise on legit id.
+			# Presigned PUT is explicitly opt-in because it bypasses
+			# magic-byte validation.
 			await port.put(good, b"data", content_type="application/octet-stream")
 			await port.presigned_get_url(good)
-			await port.presigned_put_url(good)
 
 	loop = asyncio.new_event_loop()
 	try:
@@ -174,9 +175,10 @@ def test_DS_02_inmemory_suffix_in_class_name() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_DS_03_presigned_put_url_signs_content_type() -> None:
-	"""The presigned URL passes Content-Type into ``generate_presigned_url``
-	so S3 rejects uploads with a mismatched header."""
+def test_DS_03_presigned_put_url_requires_explicit_unvalidated_opt_in() -> None:
+	"""Presigned PUT bypasses magic-byte validation, so it is disabled
+	unless the host opts in explicitly. When enabled, Content-Type is
+	still signed into the URL."""
 
 	from flowforge_documents_s3.port import S3DocumentPortInMemory
 
@@ -184,9 +186,16 @@ def test_DS_03_presigned_put_url_signs_content_type() -> None:
 
 	stub = _StubS3()
 	port = S3DocumentPortInMemory(bucket="b", client=stub)
+	opted_in = S3DocumentPortInMemory(
+		bucket="b",
+		client=stub,
+		allow_unvalidated_presigned_put=True,
+	)
 
 	async def _run() -> None:
-		await port.presigned_put_url("doc-1", content_type="application/pdf")
+		with pytest.raises(RuntimeError):
+			await port.presigned_put_url("doc-1", content_type="application/pdf")
+		await opted_in.presigned_put_url("doc-1", content_type="application/pdf")
 
 	loop = asyncio.new_event_loop()
 	try:

@@ -14,6 +14,8 @@ from flowforge_documents_s3 import (
 	DocumentMeta,
 	NoopDocumentPort,
 	S3DocumentPort,
+	S3DocumentPortInMemory,
+	SQLiteDocumentIndex,
 	UnsupportedMimeError,
 )
 
@@ -155,6 +157,32 @@ async def test_attach_is_idempotent(port: S3DocumentPort) -> None:
 	assert len(rows) == 1
 
 
+async def test_sqlite_index_persists_metadata_and_subjects(tmp_path, s3_client) -> None:
+	index_path = tmp_path / "documents.sqlite3"
+	first_index = SQLiteDocumentIndex(index_path)
+	first = S3DocumentPortInMemory(BUCKET, client=s3_client, index_store=first_index)
+	await first.put(
+		"p1",
+		PDF_HEADER,
+		kind="passport",
+		classification="restricted",
+		content_type="application/pdf",
+	)
+	await first.attach("user-1", "p1")
+	first_index.close()
+
+	second_index = SQLiteDocumentIndex(index_path)
+	second = S3DocumentPortInMemory(BUCKET, client=s3_client, index_store=second_index)
+	try:
+		rows = await second.list_for_subject("user-1")
+		assert [row["id"] for row in rows] == ["p1"]
+		assert rows[0]["kind"] == "passport"
+		assert await second.get_classification("p1") == "restricted"
+		assert await second.get("p1") == PDF_HEADER
+	finally:
+		second_index.close()
+
+
 async def test_classification_and_freshness(port: S3DocumentPort) -> None:
 	await port.put(
 		"d1",
@@ -238,6 +266,16 @@ async def test_presigned_get_url(port: S3DocumentPort) -> None:
 
 
 async def test_presigned_put_url(port: S3DocumentPort) -> None:
+	with pytest.raises(RuntimeError):
+		await port.presigned_put_url(
+			"d2",
+			content_type="application/pdf",
+			expires_in=600,
+		)
+
+
+async def test_presigned_put_url_requires_explicit_unvalidated_opt_in(s3_client) -> None:
+	port = S3DocumentPort(BUCKET, client=s3_client, allow_unvalidated_presigned_put=True)
 	url = await port.presigned_put_url(
 		"d2",
 		content_type="application/pdf",

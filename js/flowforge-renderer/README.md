@@ -9,6 +9,7 @@ and pluggable async lookup hooks. See `docs/workflow-framework-portability.md`
 
 ```tsx
 import { FormRenderer } from "@flowforge/renderer";
+import "@flowforge/renderer/styles.css";
 
 const spec = {
   id: "claim_intake",

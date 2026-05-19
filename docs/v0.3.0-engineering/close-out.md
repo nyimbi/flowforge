@@ -9,7 +9,21 @@
 
 ## Executive summary
 
-All 22 items from `docs/improvements.md` landed across six dependency-respecting waves (W0..W4b). All 11 architectural invariants stay required-green on every PR. Ratchets 7/7 PASS with non-decreasing baseline. Cross-runtime parity holds Python-side 253/253 against the canonical `expr_parity_v2.json` fixture; the JS-side carries a documented skip-with-reason on the pre-existing pnpm-ignored-builds blocker. Regen-diff is 6/6 byte-identical (3 example bundles × 2 `form_renderer` flag values) at closeout time.
+> **Current-status addendum (2026-05-19):** this close-out report is historical
+> evidence for the v0.3.0-engineering wave, not current release qualification.
+> The current source of truth is
+> [`docs/audit-2026/critical-system-gap-audit-2026-05-18.md`](../audit-2026/critical-system-gap-audit-2026-05-18.md).
+> Current local evidence: `scripts/check_all.sh` passes in a standalone
+> checkout only with the explicit local bootstrap flag `VISREG_ALLOW_SKIP=1`;
+> `make audit-2026-release-local` passes but prints the remaining external
+> release checks: browser DOM baselines, browser Playwright full-stack e2e,
+> UMS parity, and live Postgres contention/drain verification. The visual
+> blocker is now missing browser-generated DOM baselines, not pnpm install.
+> i18n coverage is now `0 error(s), 0 warning(s)` across the three examples
+> after fr-CA translations were filled. Do not use the original close-out
+> table below as an unconditional "critical-system ready" claim.
+
+All 22 items from `docs/improvements.md` landed across six dependency-respecting waves (W0..W4b). All 11 architectural invariants stay required-green on every PR. Ratchets 7/7 PASS with non-decreasing baseline. At original closeout, cross-runtime parity held Python-side 253/253 against the canonical `expr_parity_v2.json` fixture and the JS-side carried a documented skip-with-reason on the then-open pnpm-ignored-builds blocker. Current release evidence supersedes that original skip: pnpm is unblocked, and remaining visual/browser evidence is blocked by Chromium-capable execution plus missing committed DOM baselines. Regen-diff was 6/6 byte-identical (3 example bundles × 2 `form_renderer` flag values) at closeout time.
 
 The plan was end-to-end deterministic. Item 22 (LLM copy polish) is the only LLM touchpoint in the framework and is deliberately scoped outside the regen pipeline as a sidecar authoring step per ADR-002 — Principle 1 (determinism non-negotiable) is preserved.
 
@@ -19,15 +33,15 @@ The plan was end-to-end deterministic. Item 22 (LLM copy polish) is the only LLM
 
 | # | Criterion | Status | Evidence |
 |---|---|---|---|
-| 1 | `bash scripts/check_all.sh` (full local gate) passes | ✅ | Step 8 regen-diff 3/3 byte-identical at closeout; step 9 DOM-snapshot gate exits 0 with documented skip-reason (pnpm-install blocker carried from W3). |
-| 2 | `make audit-2026` (layered audit suites) passes | ✅ | Conformance 11/11; ratchets 7/7; property-coverage gate green; i18n-coverage gate 0 errors / 20 warnings; cross-runtime Python 253/253. |
+| 1 | `bash scripts/check_all.sh` (full local gate) passes | ✅ historical / ⚠️ current qualification caveat | At original closeout, step 8 regen-diff was byte-identical and step 9 DOM-snapshot exited 0 with a pnpm-related skip reason. Current standalone evidence passes only with explicit local `VISREG_ALLOW_SKIP=1`; release qualification must run without that flag after DOM baselines are generated and committed. |
+| 2 | `make audit-2026` (layered audit suites) passes | ✅ historical / ⚠️ current qualification caveat | Original closeout evidence: conformance 11/11, ratchets 7/7, property-coverage green, i18n coverage 0 errors / 20 warnings, cross-runtime Python 253/253. Current i18n coverage is 0 errors / 0 warnings after fr-CA fill; release qualification still requires the external browser, sidecar, UMS, and live Postgres gates. |
 | 3 | `flowforge jtbd-generate` regen byte-identical for every example × `form_renderer` flag value | ✅ | `scripts/ci/regen_flag_flip.sh` → 6/6 byte-identical at closeout. |
 | 4 | Every new generator has a generator-test; in-memory port fakes ship under `flowforge.testing.port_fakes` | ✅ | 20 new generators + 3 new ports (TracingPort W2, HistogramMetricsPort W2, AnalyticsPort W2) + 3 new in-memory fakes (InMemoryTracingPort, InMemoryHistogramMetricsPort, InMemoryAnalyticsPort). |
 | 5 | CHANGELOG entry per feature with property-served tag; SECURITY-flagged items get SECURITY-NOTE.md | ✅ | Six wave headings (`[0.3.0-engr.{0,1,2,3,4a,4b}]`) with per-item rows tagged Reliable / Capable / Functional / Beautiful. No SECURITY-flagged items in v0.3.0-engineering (the track is purely generation-pipeline). |
 | 6 | Per-feature row populated in `docs/v0.3.0-engineering/signoff-checklist.md` | ✅ | 22 implementation rows + 6 closeout rows + 4 invariant/ratchet/fixture/retirement rows + 1 docstring-fix row + this W4b-closeout row. |
-| 7 | UI items (13, 18, 19, 20, 21): manual smoke test in browser before declaring complete | ⚠️ | Item 13 real-form path locked baseline + a11y wiring verified; items 18/19/20 emitted artifacts byte-identical against checked-in baseline. Item 21 visual-regression gate skips-with-reason (pnpm-install blocker). Browser smoke deferred to host-side once pnpm-install clears — tracked under carry-forwards. |
+| 7 | UI items (13, 18, 19, 20, 21): manual smoke test in browser before declaring complete | ⚠️ | Item 13 real-form path locked baseline + a11y wiring verified; items 18/19/20 emitted artifacts byte-identical against checked-in baseline. Item 21 visual-regression is now fail-closed by default, but DOM baselines and browser full-stack e2e still need a Chromium-capable release environment. |
 
-Item 7 is the single residual: the W3 visual-regression gate is structurally complete but skips with a clear reason while the workspace-level pnpm-install blocker stays open. The W4b operator manual MDX references the W3 baseline paths unconditionally, so once `pnpm approve-builds` runs the baseline tree populates and the manuals' broken-image fallbacks resolve.
+Item 7 remains a residual for current release qualification, but not because of pnpm. The runner and local dev-server harness are wired; the unresolved work is to generate/review/commit DOM baselines and run the browser full-stack Playwright lane in a Chromium-capable environment.
 
 ---
 
@@ -133,7 +147,7 @@ Property-served tag follows the `docs/improvements.md` convention (Reliable / Ca
 | 18. Design-token-driven theming | Beautiful | W3 | `6751c66` | additive `bundle.project.design` block + per-bundle `design_tokens` generator emitting CSS + Tailwind config + TS theme; ratchet `no_design_token_hardcode`; `W3-item-18` |
 | 19. State-machine diagram emission | Beautiful, Functional | W1 | `942ff22` | per-JTBD `diagram` generator emitting `workflows/<id>/diagram.mmd` (mermaid `stateDiagram-v2` source, deterministic); README mermaid embed; `W1-item-19` |
 | 20. Per-JTBD operator manual | Beautiful, Functional | W4b | this commit | per-JTBD `operator_manual` generator emitting `docs/jtbd/<id>.mdx` (pure markdown + fenced mermaid; reuses W1 `diagram.build_mmd` so manual + workflow never drift); `W4b-item-20` |
-| 21. Visual regression as a CI gate | Beautiful, Reliable | W3 | `6751c66` | `tests/visual_regression/` Playwright runner + ADR-001 DOM-snapshot normaliser + `audit-2026-visual-regression-{dom,ssim}` Make targets; skip-with-clear-reason while pnpm-install blocker stays open; `W3-item-21` |
+| 21. Visual regression as a CI gate | Beautiful, Reliable | W3 | `6751c66` | `tests/visual_regression/` Playwright runner + ADR-001 DOM-snapshot normaliser + `audit-2026-visual-regression-{dom,ssim}` Make targets; current gate fails closed unless DOM baselines and browser prerequisites exist, with `VISREG_ALLOW_SKIP=1` reserved for local bootstrap; `W3-item-21` |
 | 22. Last-mile copy polish via opt-in LLM | Beautiful | W4b | this commit | `flowforge_cli.jtbd.overrides.JtbdCopyOverrides` Pydantic v2 schema + `flowforge polish-copy --tone <profile> --bundle <path>` Typer CLI; anthropic opt-in soft dep via `[project.optional-dependencies] llm`; ADR-002 sidecar pattern; lookup precedence explicit flag > co-located `<bundle>.overrides.json` > none; `tests/v0_3_0/test_polish_copy_committed_overrides.py` enforces commit-clean; `W4b-item-22` |
 
 ---
@@ -219,8 +233,8 @@ Per-PR CI gates the layered audit suites per `.github/workflows/audit-2026.yml`.
 - `audit-2026-property-coverage` ~0.15s (3 tests)
 - `audit-2026-ratchets` ~5s (7 ratchets, shell greps)
 - `audit-2026-i18n-coverage` ~0.6s (3 example bundles regenerated in memory)
-- `audit-2026-cross-runtime` ~0.4s Python (253 tests) + JS skip-with-reason
-- `audit-2026-visual-regression-dom` (smoke per-PR, canonical example only) — exits 0 with skip-reason while pnpm-install blocker stays open
+- `audit-2026-cross-runtime` ~0.4s Python (253 tests) plus JS parity in the JS workspace once dependencies are installed
+- `audit-2026-visual-regression-dom` (smoke per-PR, canonical example only) — now fail-closed by default when DOM baselines or browser prerequisites are missing; `VISREG_ALLOW_SKIP=1` is local bootstrap only
 - `audit-2026-sla-stress` — nightly only via `schedule:` cron
 - `audit-2026-visual-regression-ssim` — nightly only
 
@@ -230,19 +244,19 @@ The cumulative-invariant gate's 5-minute budget includes the P0 invariants 1/5/1
 
 ## Carry-forwards / follow-ups
 
-The plan closes with four named carry-forwards, each tracked under a signoff `follow_ups:` block in `docs/v0.3.0-engineering/signoff-checklist.md`:
+The original plan closed with four named carry-forwards, each tracked under a signoff `follow_ups:` block in `docs/v0.3.0-engineering/signoff-checklist.md`. Current status is shown inline:
 
-1. **pnpm-install unblock (W3)** — the workspace-level `pnpm approve-builds` blocker stays open at closeout; the W3 visual-regression DOM-snapshot gate, the W3 visual-regression SSIM nightly run, and the JS-side cross-runtime parity test all skip-with-clear-reason. Once unblocked, baseline screenshots land in a follow-up PR with no further changes to the runner; the W4b operator-manual MDX broken-image fallbacks retroactively resolve. Tracked at signoff rows `W3-item-21`, `W3-fixture-retirement`, `W3-closeout`, `W4a-closeout`, `W4b-closeout`.
+1. **pnpm-install unblock (W3)** — remediated after original closeout. The remaining visual blocker is not pnpm; it is missing browser-generated DOM baselines plus Chromium-capable execution. Tracked at signoff rows `W3-item-21`, `W3-fixture-retirement`, `W3-closeout`, `W4a-closeout`, `W4b-closeout`.
 
-2. **Quebec deployment translation** — the i18n-coverage gate ships at 0 errors / 20 warnings against `examples/insurance_claim` (no `claim_intake.compliance` block today). Flipping the compliance tag non-empty converts warnings to errors; the host responsible for the Quebec deployment owns the fr-CA translation work + the compliance-tag flip. Tracked at signoff row `W4b-item-17`.
+2. **Quebec deployment translation** — remediated for the examples in this repository. Current i18n coverage is 0 errors / 0 warnings after fr-CA fill. Future compliance-tagged JTBDs still need translated strings before release. Tracked at signoff row `W4b-item-17`.
 
-3. **Sidecar authoring follow-on (W4b item 22)** — no overrides are committed in W4b. Once a host runs `flowforge polish-copy --commit` with a real `ANTHROPIC_API_KEY` against any example, the resulting `<bundle>.overrides.json` must be committed; the `tests/v0_3_0/test_polish_copy_committed_overrides.py` gate enforces this. Tracked at signoff row `W4b-item-22`.
+3. **Sidecar authoring follow-on (W4b item 22)** — still open. Release authors must run `uv run flowforge polish-copy --bundle examples/insurance_claim/jtbd-bundle.json --require-llm --commit` with `ANTHROPIC_API_KEY` or `CLAUDE_API_KEY` plus the `flowforge-cli[llm]` extra, review the generated `<bundle>.overrides.json`, and commit it if accepted. Tracked at signoff row `W4b-item-22`.
 
-4. **Property-coverage retrofit for W4b generators (i18n, operator_manual)** — add to `tests/audit_2026/test_property_coverage_gate.py::REQUIRED_GENERATORS` and emit hand-authored `tests/property/generators/test_<gen>_properties.py` for each. Today the generators are exercised end-to-end by the regen-diff baseline against three example bundles plus item 17's 37 unit tests. Tracked at signoff rows `W4b-item-17`, `W4b-item-20`, `W4b-closeout`.
+4. **Property-coverage retrofit for W4b generators (i18n, operator_manual)** — remediated. The W4b generators are now included in the audit property-coverage gate and have hand-authored property tests. Tracked at signoff rows `W4b-item-17`, `W4b-item-20`, `W4b-closeout`.
 
 Two finer follow-ons sit under the W4b-item-22 row:
 
-- Emit `helper_text` / `button.<event>.text` / `notification.<topic>.template` / `error.<code>.message` overrides into `form_spec.json` and `Step.tsx` — the `JtbdCopyOverrides` schema accepts these key kinds today; generator-side application is scoped to field labels in W4b to keep the change minimal.
+- Emit `helper_text` / `button.<event>.text` / `notification.<topic>.template` / `error.<code>.message` overrides into generated artifacts before accepting those namespaces in `JtbdCopyOverrides`; the current v1.0 schema is fail-closed to field-label overrides because only field labels are applied today.
 - Optional v0.4.0 promotion: lift the property-coverage and i18n-coverage gates to `@invariant_p2` markers in `tests/conformance/test_arch_invariants.py` once the conformance-suite owner judges them stable.
 
 No items added to `backlog.md` during execution. Zero deferrals on the 22-item set.
@@ -286,7 +300,7 @@ Plan §11 executor residual risks all mitigated:
 | CHANGELOG entries per wave (6 headings) | ✅ landed |
 | Regen-diff 6/6 byte-identical | ✅ |
 | Property-coverage gate (13 generators retrofitted) | ✅ |
-| i18n-coverage gate (0 errors / 20 warnings) | ✅ |
+| i18n-coverage gate | ✅ historical 0 errors / 20 warnings; current 0 errors / 0 warnings |
 | Cross-runtime parity Python-side 253/253 | ✅ |
 | pyright on `python/flowforge-cli/src` | ✅ 0 errors, 0 warnings |
 | `python/flowforge-cli/tests/` | ✅ 585 passed |

@@ -6,6 +6,8 @@ export interface PermitDecisionStepProps {
 	instanceId: string;
 	state: string;
 	onEvent: (event: string, payload?: Record<string, unknown>) => Promise<void> | void;
+	/** Explicitly exposes workflow state / instance diagnostics for developer tools. */
+	developerMode?: boolean;
 }
 
 const FIELDS: ReadonlyArray<{ id: string; label: string; required: boolean; pii: boolean }> = [
@@ -28,7 +30,7 @@ export function PermitDecisionStep(props: PermitDecisionStepProps): React.ReactE
 			if (busy) return;
 			setBusy(true);
 			try {
-				await props.onEvent(event, {});
+				await props.onEvent(event, { instance_id: props.instanceId });
 			} finally {
 				setBusy(false);
 			}
@@ -40,8 +42,14 @@ export function PermitDecisionStep(props: PermitDecisionStepProps): React.ReactE
 		<section data-testid="permit_decision-step" aria-labelledby="permit_decision-step-title">
 			<header>
 				<h2 id="permit_decision-step-title">Approve or Deny Building Permit</h2>
-				<p>State: <code>{props.state}</code></p>
-				<p>Instance: <code>{props.instanceId}</code></p>
+				{props.developerMode ? (
+					<dl aria-label="Workflow diagnostics">
+						<dt>State</dt>
+						<dd><code>{props.state}</code></dd>
+						<dt>Instance</dt>
+						<dd><code>{props.instanceId}</code></dd>
+					</dl>
+				) : null}
 			</header>
 			<dl>
 				{FIELDS.map((field) => (

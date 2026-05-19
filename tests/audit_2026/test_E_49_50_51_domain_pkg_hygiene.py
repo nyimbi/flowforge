@@ -27,8 +27,15 @@ import tomllib
 from pathlib import Path
 
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_PYTHON_DIR = _REPO_ROOT / "framework" / "python"
+def _repo_root() -> Path:
+	for parent in Path(__file__).resolve().parents:
+		if (parent / "pyproject.toml").is_file() and (parent / "python").is_dir():
+			return parent
+	raise AssertionError("could not locate flowforge repo root")
+
+
+_REPO_ROOT = _repo_root()
+_PYTHON_DIR = _REPO_ROOT / "python"
 
 
 def _domain_pkgs() -> list[str]:

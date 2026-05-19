@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# framework/scripts/check_all.sh — U24 end-to-end quality gate
+# scripts/check_all.sh — U24 end-to-end quality gate
 #
 # Runs the full flowforge framework quality gate + UMS migration parity check.
 # Every step is fail-fast (set -e). Exit 0 = all green.
 #
 # Usage (from repo root):
-#   bash framework/scripts/check_all.sh
+#   bash scripts/check_all.sh
 #
 # Env overrides:
-#   FLOWFORGE_ROOT  — path to framework/ dir (default: repo_root/framework)
-#   BACKEND_ROOT    — path to backend/ dir   (default: repo_root/backend)
+#   FLOWFORGE_ROOT  — path to flowforge repo root (default: this script's parent)
+#   BACKEND_ROOT    — path to backend/ dir (default: parent/backend; skipped when absent)
+#   FLOWFORGE_CHECK_JOBS — package-level pyright/pytest parallelism (default: 4)
 
 set -euo pipefail
 
@@ -19,6 +20,11 @@ REPO_ROOT="$(cd "$FRAMEWORK_ROOT/.." && pwd)"
 BACKEND_ROOT="${BACKEND_ROOT:-$REPO_ROOT/backend}"
 
 START_TS=$(date +%s)
+FLOWFORGE_CHECK_JOBS="${FLOWFORGE_CHECK_JOBS:-4}"
+if ! [[ "$FLOWFORGE_CHECK_JOBS" =~ ^[0-9]+$ ]] || [[ "$FLOWFORGE_CHECK_JOBS" -lt 1 ]]; then
+    echo "FLOWFORGE_CHECK_JOBS must be a positive integer, got: $FLOWFORGE_CHECK_JOBS" >&2
+    exit 1
+fi
 
 # ---------- helpers --------------------------------------------------
 
@@ -34,32 +40,28 @@ step() { echo -e "\n${BOLD}${CYAN}==> $*${RESET}"; }
 
 TOTAL_TESTS=0
 TOTAL_PKGS=0
+TMP_DIRS=()
 
-# ---------- Python package list (matches pyproject.toml workspace) ----
+cleanup_tmp_dirs() {
+    for dir in "${TMP_DIRS[@]:-}"; do
+        if [[ -n "$dir" ]]; then
+            rm -rf "$dir"
+        fi
+    done
+}
+trap cleanup_tmp_dirs EXIT
 
-PY_PKGS=(
-    flowforge-core
-    flowforge-fastapi
-    flowforge-sqlalchemy
-    flowforge-tenancy
-    flowforge-audit-pg
-    flowforge-outbox-pg
-    flowforge-rbac-static
-    flowforge-rbac-spicedb
-    flowforge-documents-s3
-    flowforge-money
-    flowforge-signing-kms
-    flowforge-notify-multichannel
-    flowforge-cli
-)
+# ---------- Package lists (derived from workspace manifests) ----------
 
-JS_PKGS=(
-    flowforge-types
-    flowforge-renderer
-    flowforge-runtime-client
-    flowforge-step-adapters
-    flowforge-designer
-)
+cd "$FRAMEWORK_ROOT"
+PY_PKGS=()
+while IFS= read -r pkg; do
+    PY_PKGS+=("$pkg")
+done < <(python scripts/check_workspace.py --list-python)
+JS_PKGS=()
+while IFS= read -r pkg; do
+    JS_PKGS+=("$pkg")
+done < <(python scripts/check_workspace.py --list-js)
 
 EXAMPLES=(
     building-permit
@@ -71,64 +73,158 @@ TOTAL_PKGS=$(( ${#PY_PKGS[@]} + ${#JS_PKGS[@]} ))
 
 # ---------- Step 1: uv sync ------------------------------------------
 
-step "1/12  uv sync (framework workspace)"
+step "1/14  uv sync (framework workspace)"
 cd "$FRAMEWORK_ROOT"
 uv sync --quiet
 ok "uv sync complete"
 
 # ---------- Step 2: pnpm install -------------------------------------
 
-step "2/12  pnpm install (framework/js)"
+step "2/14  pnpm install (framework/js + visual regression runner)"
 cd "$FRAMEWORK_ROOT/js"
-pnpm install --frozen-lockfile
+CI="${CI:-true}" pnpm install --frozen-lockfile
+cd "$FRAMEWORK_ROOT/tests/visual_regression"
+CI="${CI:-true}" pnpm install --frozen-lockfile
 ok "pnpm install complete"
 cd "$FRAMEWORK_ROOT"
 
 # ---------- Step 3: check_workspace.py -------------------------------
 
-step "3/12  python check_workspace.py"
+step "3/14  python check_workspace.py"
 cd "$FRAMEWORK_ROOT"
 python scripts/check_workspace.py
 ok "workspace structural check passed"
 
 # ---------- Step 4: pyright on each python/*/src ---------------------
 
-step "4/12  pyright on each Python package"
+step "4/14  pyright on each Python package"
+PYRIGHT_TMP=$(mktemp -d)
+TMP_DIRS+=("$PYRIGHT_TMP")
+pids=()
+pid_pkgs=()
+pid_logs=()
+
+flush_pyright_batch() {
+    local failed=0
+    local idx
+    for idx in "${!pids[@]}"; do
+        if ! wait "${pids[$idx]}"; then
+            failed=1
+        fi
+    done
+    for idx in "${!pids[@]}"; do
+        cat "${pid_logs[$idx]}"
+    done
+    if [[ "$failed" -ne 0 ]]; then
+        fail "pyright failed for one or more packages in batch: ${pid_pkgs[*]}"
+    fi
+    pids=()
+    pid_pkgs=()
+    pid_logs=()
+}
+
 for pkg in "${PY_PKGS[@]}"; do
     src_dir="$FRAMEWORK_ROOT/python/$pkg/src"
     if [[ -d "$src_dir" ]]; then
-        echo "    pyright: $pkg"
-        uv run pyright "$src_dir" --pythonversion 3.11 2>&1 | tail -3
+        log="$PYRIGHT_TMP/$pkg.log"
+        (
+            echo "    pyright: $pkg"
+            uv run pyright "$src_dir" --pythonversion 3.11
+        ) > "$log" 2>&1 &
+        pids+=("$!")
+        pid_pkgs+=("$pkg")
+        pid_logs+=("$log")
+        if [[ "${#pids[@]}" -ge "$FLOWFORGE_CHECK_JOBS" ]]; then
+            flush_pyright_batch
+        fi
     else
         fail "src dir missing: $src_dir"
     fi
 done
+if [[ "${#pids[@]}" -gt 0 ]]; then
+    flush_pyright_batch
+fi
 ok "pyright clean on all ${#PY_PKGS[@]} Python packages"
 
 # ---------- Step 5: pytest on each python/*/tests --------------------
 
-step "5/12  pytest on each Python package"
+step "5/14  pytest on each Python package"
 PY_TEST_COUNT=0
+PYTEST_TMP=$(mktemp -d)
+TMP_DIRS+=("$PYTEST_TMP")
+pids=()
+pid_pkgs=()
+pid_logs=()
+
+flush_pytest_batch() {
+    local failed=0
+    local idx
+    local passed
+    for idx in "${!pids[@]}"; do
+        if ! wait "${pids[$idx]}"; then
+            failed=1
+        fi
+    done
+    for idx in "${!pids[@]}"; do
+        cat "${pid_logs[$idx]}"
+        passed=$(grep -E "^[0-9]+ passed" "${pid_logs[$idx]}" | grep -oE "^[0-9]+" || true)
+        PY_TEST_COUNT=$(( PY_TEST_COUNT + ${passed:-0} ))
+    done
+    if [[ "$failed" -ne 0 ]]; then
+        fail "pytest failed for one or more packages in batch: ${pid_pkgs[*]}"
+    fi
+    pids=()
+    pid_pkgs=()
+    pid_logs=()
+}
+
 for pkg in "${PY_PKGS[@]}"; do
     test_dir="$FRAMEWORK_ROOT/python/$pkg/tests"
     if [[ -d "$test_dir" ]]; then
-        echo "    pytest: $pkg"
-        # capture output to count tests; still fail-fast on error
-        result=$(uv run pytest "$test_dir" -q --tb=short 2>&1)
-        echo "$result" | tail -3
-        # extract "X passed" line
-        passed=$(echo "$result" | grep -E "^[0-9]+ passed" | grep -oE "^[0-9]+")
-        PY_TEST_COUNT=$(( PY_TEST_COUNT + ${passed:-0} ))
+        log="$PYTEST_TMP/$pkg.log"
+        src_dir="$FRAMEWORK_ROOT/python/$pkg/src"
+        (
+            echo "    pytest: $pkg"
+            PYTHONPATH="$src_dir:${PYTHONPATH:-}" uv run pytest "$test_dir" -q --tb=short
+        ) > "$log" 2>&1 &
+        pids+=("$!")
+        pid_pkgs+=("$pkg")
+        pid_logs+=("$log")
+        if [[ "${#pids[@]}" -ge "$FLOWFORGE_CHECK_JOBS" ]]; then
+            flush_pytest_batch
+        fi
     else
         fail "tests dir missing: $test_dir"
     fi
 done
+if [[ "${#pids[@]}" -gt 0 ]]; then
+    flush_pytest_batch
+fi
 TOTAL_TESTS=$(( TOTAL_TESTS + PY_TEST_COUNT ))
 ok "pytest: $PY_TEST_COUNT tests passed across ${#PY_PKGS[@]} Python packages"
 
-# ---------- Step 6: JS typecheck (pnpm -r build covers all pkgs) -----
+# ---------- Step 6: Python dependency CVE audit ----------------------
 
-step "6/12  pnpm -r typecheck (JS workspace)"
+step "6/14  pip-audit on Python dependencies"
+AUDIT_TMP="${TMPDIR:-/tmp}/flowforge-pip-audit-cache"
+UV_AUDIT_CACHE="${UV_CACHE_DIR:-${TMPDIR:-/tmp}/flowforge-uv-cache}"
+mkdir -p "$AUDIT_TMP" "$UV_AUDIT_CACHE"
+UV_CACHE_DIR="$UV_AUDIT_CACHE" \
+	PIP_CACHE_DIR="$AUDIT_TMP" \
+	uv run --with pip-audit pip-audit --skip-editable --cache-dir "$AUDIT_TMP"
+ok "Python dependency CVE audit clean"
+
+# ---------- Step 7: JS dependency CVE audit --------------------------
+
+step "7/14  pnpm audit (JS production dependencies)"
+cd "$FRAMEWORK_ROOT/js"
+pnpm audit --prod
+ok "JS production dependency audit clean"
+cd "$FRAMEWORK_ROOT"
+
+# ---------- Step 8: JS typecheck (pnpm -r build covers all pkgs) -----
+
+step "8/14  pnpm -r typecheck (JS workspace)"
 cd "$FRAMEWORK_ROOT/js"
 # run typecheck where defined; fall back to build (tsc --noEmit) for others
 pnpm -r --if-present typecheck
@@ -136,23 +232,26 @@ pnpm -r build
 ok "JS typecheck/build clean"
 cd "$FRAMEWORK_ROOT"
 
-# ---------- Step 7: pnpm -r test (JS workspace) ----------------------
+# ---------- Step 9: pnpm -r test (JS workspace) ----------------------
 
-step "7/12  pnpm -r test (JS workspace)"
+step "9/14  pnpm -r test (JS workspace)"
 cd "$FRAMEWORK_ROOT/js"
-JS_TEST_OUTPUT=$(pnpm -r test 2>&1)
-echo "$JS_TEST_OUTPUT" | tail -10
+JS_TEST_LOG=$(mktemp)
+if ! pnpm -r test 2>&1 | tee "$JS_TEST_LOG"; then
+    fail "pnpm -r test failed"
+fi
 # vitest outputs "X tests passed"; sum them
-JS_TEST_COUNT=$(echo "$JS_TEST_OUTPUT" | grep -oE '[0-9]+ (tests? )?(passed)' | grep -oE '^[0-9]+' | awk '{s+=$1}END{print s+0}')
+JS_TEST_COUNT=$(grep -oE '[0-9]+ (tests? )?(passed)' "$JS_TEST_LOG" | grep -oE '^[0-9]+' | awk '{s+=$1}END{print s+0}' || true)
+rm -f "$JS_TEST_LOG"
 TOTAL_TESTS=$(( TOTAL_TESTS + JS_TEST_COUNT ))
 ok "JS tests: $JS_TEST_COUNT assertions passed across ${#JS_PKGS[@]} packages"
 cd "$FRAMEWORK_ROOT"
 
-# ---------- Step 8: JTBD deterministic regen check -------------------
+# ---------- Step 10: JTBD deterministic regen check ------------------
 
-step "8/12  JTBD deterministic regen check (${#EXAMPLES[@]} examples)"
+step "10/14  JTBD deterministic regen check (${#EXAMPLES[@]} examples)"
 REGEN_TMP=$(mktemp -d)
-trap 'rm -rf "$REGEN_TMP"' EXIT
+TMP_DIRS+=("$REGEN_TMP")
 
 for example in "${EXAMPLES[@]}"; do
     bundle="$FRAMEWORK_ROOT/examples/$example/jtbd-bundle.json"
@@ -190,27 +289,30 @@ for example in "${EXAMPLES[@]}"; do
 done
 ok "JTBD deterministic regen: all examples match"
 
-# ---------- Step 9: Visual regression DOM-snapshot gate ---------------
+# ---------- Step 11: Visual regression DOM-snapshot gate --------------
 #
 # Per ADR-001 (`docs/v0.3.0-engineering/adr/ADR-001-visual-regression-invariants.md`),
 # DOM snapshots are the CI-gating artifact for the visual regression
 # suite (item 21). The wrapper script runs the smoke subset (canonical
-# example only) per-PR and SKIPS WITH A CLEAR REASON when prerequisites
-# are missing — i.e. when `pnpm install` is blocked on the pre-existing
-# pnpm-ignored-builds issue, or when the dev-server harness has not yet
-# landed. The W3 task brief explicitly authorises skip-with-reason here
-# until the pnpm cleanup PR lands.
+# example only) per-PR and fails when prerequisites or checked-in DOM
+# baselines are missing. Local workstation bootstrap may opt into
+# VISREG_ALLOW_SKIP=1, but release gates must not set it.
 #
 # Pixel SSIM is advisory only; it runs nightly via
 # `make audit-2026-visual-regression-ssim`, never per-PR.
 
-step "9/12  Visual regression DOM-snapshot gate (ADR-001)"
+step "11/14  Visual regression DOM-snapshot gate (ADR-001)"
 bash "$FRAMEWORK_ROOT/scripts/visual_regression/run_dom_snapshots.sh" smoke
 ok "visual-regression-dom: gate run"
 
-# ---------- Step 10: UMS parity test ---------------------------------
+# ---------- Step 12: UMS parity test ---------------------------------
 
-step "10/12  UMS workflow-def parity (backend)"
+step "12/14  UMS workflow-def parity (backend)"
+if [[ ! -d "$BACKEND_ROOT" ]]; then
+    echo "    SKIP UMS parity: BACKEND_ROOT not found at $BACKEND_ROOT"
+    echo "    Set BACKEND_ROOT=/path/to/backend when running from a UMS monorepo checkout."
+    ok "parity: skipped (standalone flowforge checkout)"
+else
 cd "$BACKEND_ROOT"
 PARITY_OUTPUT=$(uv run pytest tests/test_workflow_def_parity.py -v --tb=short 2>&1)
 echo "$PARITY_OUTPUT" | tail -10
@@ -223,23 +325,26 @@ fi
 TOTAL_TESTS=$(( TOTAL_TESTS + ${PARITY_COUNT:-0} ))
 ok "parity: ${PARITY_COUNT:-0} parity tests passed (22-def target)"
 cd "$REPO_ROOT"
+fi
 
-# ---------- Step 11: Cross-package integration tests ------------------
+# ---------- Step 13: Cross-package integration tests ------------------
 
-step "11/12  Cross-package integration tests"
+step "13/14  Cross-package integration tests"
 cd "$FRAMEWORK_ROOT"
-bash "$FRAMEWORK_ROOT/scripts/run_integration.sh"
-INT_PASS=$(uv run pytest "$FRAMEWORK_ROOT/tests/integration/python/tests/" -q --tb=no 2>&1 | grep -oE '^[0-9]+ passed' | grep -oE '^[0-9]+' || echo 0)
+INT_OUT=$(mktemp)
+bash "$FRAMEWORK_ROOT/scripts/run_integration.sh" 2>&1 | tee "$INT_OUT"
+INT_PASS=$(grep -oE 'Total passed  : [0-9]+' "$INT_OUT" | grep -oE '[0-9]+' | tail -1 || echo 0)
+rm -f "$INT_OUT"
 TOTAL_TESTS=$(( TOTAL_TESTS + ${INT_PASS:-0} ))
-ok "integration tests: ${INT_PASS:-0} Python tests passed"
+ok "integration tests: ${INT_PASS:-0} cross-package tests/assertions passed"
 cd "$REPO_ROOT"
 
-# ---------- Step 12: Summary -----------------------------------------
+# ---------- Step 14: Summary -----------------------------------------
 
 END_TS=$(date +%s)
 ELAPSED=$(( END_TS - START_TS ))
 
-step "12/12  Summary"
+step "14/14  Summary"
 echo ""
 echo -e "${BOLD}flowforge gate — all steps green${RESET}"
 echo "  Python packages : ${#PY_PKGS[@]}"

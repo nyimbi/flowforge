@@ -23,7 +23,7 @@ On PostgreSQL the worker claims rows with `FOR UPDATE SKIP LOCKED`, which lets m
 ```python
 import aiosqlite
 from flowforge.ports.types import OutboxEnvelope
-from flowforge_outbox_pg import HandlerRegistry, DrainWorker
+from flowforge_outbox_pg import HandlerRegistry, DrainWorker, readiness_payload, prometheus_text
 
 reg = HandlerRegistry()
 
@@ -38,9 +38,19 @@ async with aiosqlite.connect(":memory:") as conn:
 	env = OutboxEnvelope(kind="order.created", tenant_id="t1", body={"id": 42})
 	await worker.enqueue(env)
 
-	result = await worker.run_once()
-	print(result.as_dict())
-	# {'dispatched': 1, 'retried': 0, 'dead': 0, 'no_handler': 0}
+result = await worker.run_once()
+print(result.as_dict())
+# {'dispatched': 1, 'retried': 0, 'dead': 0, 'no_handler': 0}
+print(worker.health().as_dict()["status"])
+# 'ok'
+
+status_code, body = readiness_payload(worker)
+print(status_code, body["status"])
+# 200 ok
+
+print(prometheus_text(worker))
+# flowforge_outbox_worker_degraded 0
+# flowforge_outbox_worker_dispatched_total 1
 ```
 
 For PostgreSQL pass an asyncpg connection and omit `sqlite_compat`:
@@ -67,6 +77,9 @@ await task
 
 - `HandlerRegistry` — register handlers by `(backend, kind)`, dispatch envelopes
 - `DrainWorker` — claim-and-drain loop with retry, DLQ, and reconnect support
+- `DrainWorkerHealth` — readiness/metrics snapshot from `worker.health()`
+- `readiness_payload` — convert worker health to `(http_status, JSON payload)`
+- `prometheus_text` — dependency-free Prometheus text exposition for worker health
 - `OutboxRow` — dataclass for one outbox table row
 - `OutboxStatus` — enum: `PENDING`, `IN_FLIGHT`, `DISPATCHED`, `DEAD`
 
@@ -96,6 +109,7 @@ pending -> in_flight -> dead         (max retries exceeded, or row too old, or n
 - **OB-02** (E-42): `DrainWorker(sqlite_compat=True, pool_size>1)` raises `RuntimeError`; SQLite is single-writer and cannot serialise concurrent drain workers
 - **OB-03** (E-42): `reconnect_factory` callback fires on connection-loss exceptions inside `run_loop`; the worker swaps in a fresh connection and resumes; `worker.reconnects` exposes the count for metrics
 - **OB-04** (E-42): `last_error` is truncated to a UTF-8 byte budget, never mid-codepoint, before being written to the database column
+- **HIGH-08** (audit-2026): `worker.health()` exposes `ok`/`degraded` status, last error, last run timestamp, reconnects, run errors, cumulative dispatched/retried/dead/no-handler counters, and the latest `DrainResult`
 
 ## Compatibility
 

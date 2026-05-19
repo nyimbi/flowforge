@@ -55,8 +55,9 @@ class PermitIssuanceService:
 
 		assert isinstance(payload, dict)
 		now = datetime.now(timezone.utc)
+		instance_id = str(payload.get("instance_id") or payload.get("id") or "")
 		entity = PermitIssuance(
-			id=payload.get("id", ""),
+			id=instance_id,
 			tenant_id=tenant_id,
 			state="intake",
 			created_at=now,
@@ -73,13 +74,14 @@ class PermitIssuanceService:
 			result = await fire_event(
 				"submit",
 				payload=payload,
+				instance_id=instance_id or None,
 				principal=principal,
 				tenant_id=tenant_id,
 			)
 			if _span is not None:
 				_span.set_attribute("flowforge.new_state", result.new_state)
 		return {
-			"id": entity.id,
+			"id": entity.id or result.instance.id,
 			"state": result.new_state,
 			"audit": [
 				evt.model_dump() if hasattr(evt, "model_dump") else dict(evt)
@@ -92,6 +94,7 @@ class PermitIssuanceService:
 		event: str,
 		payload: dict[str, Any],
 		*,
+		instance_id: str | None = None,
 		principal: Principal,
 		tenant_id: str = "default",
 	) -> dict[str, Any]:
@@ -107,9 +110,18 @@ class PermitIssuanceService:
 			result = await fire_event(
 				event,
 				payload=payload,
+				instance_id=instance_id or _payload_instance_id(payload),
 				principal=principal,
 				tenant_id=tenant_id,
 			)
 			if _span is not None:
 				_span.set_attribute("flowforge.new_state", result.new_state)
 		return {"state": result.new_state, "matched": bool(result.matched_transition_id)}
+
+
+def _payload_instance_id(payload: dict[str, Any]) -> str | None:
+	raw = payload.get("instance_id") or payload.get("id")
+	if raw is None:
+		return None
+	value = str(raw)
+	return value or None

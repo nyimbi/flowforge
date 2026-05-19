@@ -23,6 +23,7 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { test, expect } from "@playwright/test";
 
@@ -30,11 +31,13 @@ import { computeSsim, SSIM_THRESHOLD } from "../lib/ssim";
 import {
 	VIEWPORTS,
 	baselinePaths,
+	harnessUrl,
 	selectExamples,
 	type PageSpec,
 	type ViewportSpec,
 } from "../lib/page_catalog";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
 const CADENCE = (process.env.VISREG_CADENCE ?? "full") as "smoke" | "full";
 const UPDATE_BASELINES = process.env.UPDATE_BASELINES === "1";
@@ -69,7 +72,7 @@ function describePixel(
 			width: viewport.width,
 			height: viewport.height,
 		});
-		const url = new URL(page.url, DEV_SERVER_BASE).toString();
+		const url = new URL(harnessUrl(exampleName, page), DEV_SERVER_BASE).toString();
 		await pwPage.goto(url, { waitUntil: "networkidle" });
 		if (page.waitFor) {
 			await pwPage.waitForSelector(page.waitFor, { state: "attached" });

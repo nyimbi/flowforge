@@ -14,6 +14,7 @@ import typer
 
 from .._io import load_structured
 from ..jtbd import generate
+from ..jtbd.i18n_sidecars import load_i18n_sidecars
 from ..jtbd.overrides import resolve_sidecar
 from ..jtbd.parse import JTBDParseError
 
@@ -51,9 +52,13 @@ def jtbd_generate_cmd(
 	# <bundle>.overrides.json > none (canonical). ``resolve_sidecar``
 	# centralises that contract.
 	overrides = resolve_sidecar(jtbd, overrides_path)
+	project = bundle.get("project", {}) if isinstance(bundle, dict) else {}
+	languages = project.get("languages") if isinstance(project, dict) else None
+	declared_languages = languages if isinstance(languages, list) else ["en"]
+	i18n_catalogs = load_i18n_sidecars(jtbd, declared_languages=declared_languages)
 	try:
-		files = generate(bundle, overrides=overrides)
-	except JTBDParseError as exc:
+		files = generate(bundle, overrides=overrides, i18n_catalogs=i18n_catalogs)
+	except (JTBDParseError, ValueError) as exc:
 		raise typer.BadParameter(str(exc)) from exc
 
 	if out.exists() and any(out.iterdir()) and not force:

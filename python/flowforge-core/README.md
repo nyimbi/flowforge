@@ -14,11 +14,11 @@ pip install flowforge
 
 ## What it does
 
-`flowforge` is the I/O-free kernel of the framework. It defines 14 port ABCs (`tenancy`, `rbac`, `audit`, `outbox`, `documents`, `money`, `settings`, `signing`, `notification`, `rls`, `entity_registry`, `metrics`, `tasks`, `grants`) that host applications wire to their own infrastructure. The core never imports a database driver, web framework, or cloud SDK — those all live in separate adapter packages.
+`flowforge` is the storage-agnostic kernel of the framework. It defines 14 port ABCs (`tenancy`, `rbac`, `audit`, `outbox`, `documents`, `money`, `settings`, `signing`, `notification`, `rls`, `entity_registry`, `metrics`, `tasks`, `grants`) that host applications wire to their own infrastructure. The core never imports a database driver, web framework, or cloud SDK — those all live in separate adapter packages.
 
 The DSL layer (`flowforge.dsl`) gives you Pydantic v2 models for `WorkflowDef`, `FormSpec`, and the JTBD bundle schema, plus JSON schemas for cross-runtime validation. The compiler (`flowforge.compiler`) validates a `WorkflowDef` at load time: unreachable states, dead-end transitions, duplicate priorities, subworkflow cycles.
 
-The engine (`flowforge.engine`) runs the two-phase fire loop: Phase 1 evaluates guards (via the whitelisted `flowforge.expr` evaluator — no `eval`, no arbitrary Python) and picks a transition; Phase 2 commits effects, appends saga steps, dispatches outbox envelopes, and records audit events. After the audit-2026 sprint the engine serialises concurrent fires per instance and rolls back the snapshot on any dispatch failure.
+The engine (`flowforge.engine`) runs the two-phase fire loop: Phase 1 evaluates guards (via the whitelisted `flowforge.expr` evaluator — no `eval`, no arbitrary Python) and picks a transition; Phase 2 mutates the in-memory instance and produces audit/outbox effects. The direct `fire(..., dispatch_ports=True)` path calls global audit/outbox ports and is not itself a durable transaction boundary. Critical SQLAlchemy hosts should use `SqlAlchemySnapshotStore.fire_and_commit(...)`, which calls `fire(..., dispatch_ports=False)` and writes the event log, snapshot, audit rows, and durable outbox rows in one database transaction.
 
 ## Quick start
 
@@ -59,6 +59,8 @@ print(result.new_state)  # "submitted"
 ## Public API
 
 - `flowforge.config` — mutable global port registry; wire adapters here at startup.
+- `flowforge.config.RuntimeConfig` / `use_runtime_config()` — context-local port wiring for multi-app processes.
+- `flowforge.config.validate_production_config()` — fail-closed startup check for missing or in-memory/noop critical ports.
 - `flowforge.config.reset_to_fakes()` — reinitialise every port to its in-memory fake; call this in test fixtures.
 - `flowforge.engine.fire(instance, event, payload, wf)` — two-phase fire; returns `FireResult`.
 - `flowforge.engine.new_instance(wf)` — create a fresh `Instance` from a `WorkflowDef`.
@@ -84,7 +86,7 @@ All tunables live directly on `flowforge.config`:
 | `max_nesting_depth` | `5` | Maximum sub-workflow nesting depth. |
 | `lookup_rate_limit_per_minute` | `600` | Entity-catalog lookup rate cap. |
 
-Port attributes (`config.tenancy`, `config.rbac`, etc.) default to `None`; call `reset_to_fakes()` or assign adapter instances before running the engine.
+Port attributes (`config.tenancy`, `config.rbac`, etc.) default to `None`; call `reset_to_fakes()` in tests or assign adapter instances before running the engine. Production hosts should call `config.validate_production_config()` after wiring critical ports. Multi-app hosts can build a `config.RuntimeConfig` and install it with `config.use_runtime_config(...)` so engine fire reads app-local audit/outbox ports instead of process globals.
 
 ## Audit-2026 hardening
 

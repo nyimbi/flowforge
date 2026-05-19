@@ -8,17 +8,23 @@ with each user/system event.
 
 from __future__ import annotations
 
+import copy
 import json
 import time
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
 from flowforge import config as _flowforge_config
 from flowforge.dsl import WorkflowDef
-from flowforge.engine.fire import FireResult, fire as _fire, new_instance
+from flowforge.engine.fire import FireResult, Instance, fire as _fire, new_instance
 from flowforge.ports.metrics import FIRE_DURATION_HISTOGRAM
 from flowforge.ports.types import Principal
+from flowforge_sqlalchemy import SqlAlchemySnapshotStore, WorkflowInstance
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 {% if _compensate_transitions %}
 from flowforge.engine.saga import CompensationWorker
 from ..{{ jtbd.module_name }}.compensation_handlers import (
@@ -28,7 +34,7 @@ from ..{{ jtbd.module_name }}.compensation_handlers import (
 
 
 WORKFLOW_KEY = "{{ jtbd.id }}"
-_DEF_PATH = Path(__file__).resolve().parents[3] / "workflows" / WORKFLOW_KEY / "definition.json"
+_DEF_PATH = Path(__file__).resolve().parents[4] / "workflows" / WORKFLOW_KEY / "definition.json"
 
 
 # v0.3.0 W2 / item 12 — OpenTelemetry by construction. The OTel import
@@ -61,6 +67,9 @@ def load_definition() -> WorkflowDef:
 
 
 _DEF: WorkflowDef | None = None
+_INSTANCES: dict[tuple[str, str], Instance] = {}
+_SESSION_FACTORY: async_sessionmaker[AsyncSession] | None = None
+_AUDIT_SINK: Any | None = None
 
 
 def _definition() -> WorkflowDef:
@@ -70,21 +79,81 @@ def _definition() -> WorkflowDef:
 	return _DEF
 
 
+def configure_runtime_session_factory(
+	session_factory: async_sessionmaker[AsyncSession],
+	*,
+	audit_sink: Any | None = None,
+) -> None:
+	"""Use a host-provided SQLAlchemy async session factory for runtime state.
+
+	The generated adapter defaults to an in-memory tenant-scoped snapshot
+	map for local demos/tests. Calling this at application boot switches
+	``fire_event`` to ``SqlAlchemySnapshotStore.fire_and_commit(...)`` so
+	workflow instance rows, snapshots, workflow events, audit rows, and
+	durable outbox rows share the existing transactional persistence path.
+	"""
+
+	assert session_factory is not None, "session_factory is required"
+	global _SESSION_FACTORY, _AUDIT_SINK
+	_SESSION_FACTORY = session_factory
+	_AUDIT_SINK = audit_sink
+
+
+def reset_runtime_state() -> None:
+	"""Clear the generated in-memory runtime store.
+
+	The default store exists so generated examples can drive multi-event
+	flows without silently creating a fresh instance on every event.
+	Durable SQLAlchemy rows are owned by the host database and are not
+	affected by this helper.
+	"""
+
+	_INSTANCES.clear()
+
+
+def _load_instance(wd: WorkflowDef, *, tenant_id: str, instance_id: str | None) -> Instance:
+	if not instance_id:
+		return new_instance(wd)
+	key = (tenant_id, instance_id)
+	existing = _INSTANCES.get(key)
+	if existing is None:
+		return new_instance(wd, instance_id=instance_id)
+	return copy.deepcopy(existing)
+
+
+def _save_instance(instance: Instance, *, tenant_id: str, instance_id: str | None) -> None:
+	if not instance_id:
+		return
+	_INSTANCES[(tenant_id, instance_id)] = copy.deepcopy(instance)
+
+
 async def fire_event(
 	event: str,
 	*,
 	payload: dict[str, Any] | None = None,
+	instance_id: str | None = None,
 	principal: Principal,
 	tenant_id: str = "default",
 ) -> FireResult:
-	"""Fire one event against a fresh instance (testing default).
+	"""Fire one event against a stable generated instance.
 
-	Production callers replace this shim with a snapshot-store-backed
-	instance lookup; the signature stays stable.
+	When ``instance_id`` is provided, the generated testing/runtime shim
+	keeps the latest snapshot in a tenant-scoped in-memory map so a
+	submit/review/approve sequence advances the same instance. When the
+	host calls :func:`configure_runtime_session_factory`, this same
+	signature uses the SQLAlchemy snapshot store's transactional
+	``fire_and_commit`` path instead.
 	"""
 
 	wd = _definition()
-	instance = new_instance(wd)
+	if _SESSION_FACTORY is None:
+		instance = _load_instance(wd, tenant_id=tenant_id, instance_id=instance_id)
+	else:
+		instance = await _load_sqlalchemy_instance(
+			wd,
+			tenant_id=tenant_id,
+			instance_id=instance_id,
+		)
 	span_attrs: dict[str, Any] = {
 		"flowforge.tenant_id": tenant_id,
 		"flowforge.jtbd_id": WORKFLOW_KEY,
@@ -94,18 +163,38 @@ async def fire_event(
 	}
 	started = time.perf_counter()
 	with _otel_span("flowforge.fire", span_attrs) as _span:
-		result = await _fire(
-			wd,
-			instance,
-			event,
-			payload=payload or {},
-			principal=principal,
-			tenant_id=tenant_id,
-		)
+		if _SESSION_FACTORY is None:
+			result = await _fire(
+				wd,
+				instance,
+				event,
+				payload=payload or {},
+				principal=principal,
+				tenant_id=tenant_id,
+			)
+		else:
+			store = SqlAlchemySnapshotStore(
+				_SESSION_FACTORY,
+				tenant_id=tenant_id,
+				audit_sink=_AUDIT_SINK,
+			)
+			await _ensure_workflow_instance_row(wd, instance, tenant_id=tenant_id)
+			result = await store.fire_and_commit(
+				wd=wd,
+				instance=instance,
+				event=event,
+				payload=payload or {},
+				principal=principal,
+				tenant_id=tenant_id,
+				jtbd_id=WORKFLOW_KEY,
+				jtbd_version=wd.version,
+			)
 		if _span is not None:
 			_span.set_attribute("flowforge.new_state", result.new_state)
+	if _SESSION_FACTORY is None:
+		_save_instance(instance, tenant_id=tenant_id, instance_id=instance_id)
 	duration_seconds = time.perf_counter() - started
-	metrics = getattr(_flowforge_config, "metrics", None)
+	metrics = getattr(_flowforge_config.current(), "metrics", None)
 	if metrics is not None:
 		labels = {
 			"tenant_id": tenant_id,
@@ -120,6 +209,59 @@ async def fire_event(
 		else:
 			metrics.emit(FIRE_DURATION_HISTOGRAM, duration_seconds, labels)
 	return result
+
+
+async def _load_sqlalchemy_instance(
+	wd: WorkflowDef,
+	*,
+	tenant_id: str,
+	instance_id: str | None,
+) -> Instance:
+	assert _SESSION_FACTORY is not None
+	if not instance_id:
+		return new_instance(wd)
+	store = SqlAlchemySnapshotStore(_SESSION_FACTORY, tenant_id=tenant_id, audit_sink=_AUDIT_SINK)
+	existing = await store.get(instance_id)
+	if existing is not None:
+		return existing
+	return new_instance(wd, instance_id=instance_id)
+
+
+async def _ensure_workflow_instance_row(
+	wd: WorkflowDef,
+	instance: Instance,
+	*,
+	tenant_id: str,
+) -> None:
+	assert _SESSION_FACTORY is not None
+	now = datetime.now(timezone.utc)
+	async with _SESSION_FACTORY() as session:
+		existing = await session.scalar(
+			select(WorkflowInstance.id).where(
+				WorkflowInstance.tenant_id == tenant_id,
+				WorkflowInstance.id == instance.id,
+			)
+		)
+		if existing is not None:
+			return
+		session.add(
+			WorkflowInstance(
+				id=instance.id,
+				tenant_id=tenant_id,
+				def_key=wd.key,
+				def_version=wd.version,
+				subject_kind=wd.subject_kind,
+				state=instance.state,
+				terminal=False,
+				context=dict(instance.context),
+				created_at=now,
+				updated_at=now,
+			)
+		)
+		try:
+			await session.commit()
+		except IntegrityError:
+			await session.rollback()
 {% if _compensate_transitions %}
 
 

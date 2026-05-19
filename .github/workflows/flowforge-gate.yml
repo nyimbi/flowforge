@@ -39,7 +39,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: "9"
+          version: "11.1.3"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -52,4 +52,5 @@ jobs:
         run: bash scripts/check_all.sh
         env:
           ENV: test
+          FLOWFORGE_CHECK_JOBS: "4"
           DATABASE_URL: "sqlite+aiosqlite:///:memory:"

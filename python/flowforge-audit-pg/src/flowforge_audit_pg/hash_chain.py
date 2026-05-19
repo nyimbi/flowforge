@@ -140,7 +140,7 @@ def verify_chain_in_memory(rows: list["AuditRow"]) -> tuple[bool, str | None]:
 # Lightweight row dataclass (used by both sink and tests)
 # ---------------------------------------------------------------------------
 
-from dataclasses import dataclass, field  # noqa: E402
+from dataclasses import dataclass  # noqa: E402
 
 
 @dataclass

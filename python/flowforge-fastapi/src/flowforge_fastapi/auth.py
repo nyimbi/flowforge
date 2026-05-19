@@ -113,6 +113,69 @@ class StaticPrincipalExtractor:
 		return self._principal
 
 
+@runtime_checkable
+class TenantResolver(Protocol):
+	"""Protocol for resolving the effective tenant for an HTTP request.
+
+	The tenant must come from host-trusted auth/session context, not from
+	the runtime JSON body. Implementations receive the already-authenticated
+	principal so hosts can bind tenant membership to their identity model.
+	"""
+
+	async def __call__(self, request: Request, principal: Principal) -> str:
+		...
+
+
+class StaticTenantResolver:
+	"""Always returns one tenant. Used by tests, demos, and single-tenant hosts."""
+
+	def __init__(self, tenant_id: str = "default") -> None:
+		if not tenant_id:
+			raise ConfigError("StaticTenantResolver requires a non-empty tenant_id")
+		self._tenant_id = tenant_id
+
+	async def __call__(self, request: Request, principal: Principal) -> str:
+		return self._tenant_id
+
+
+def resolve_principal_extractor(
+	principal_extractor: PrincipalExtractor | None,
+	*,
+	allow_test_defaults: bool,
+	surface: str,
+) -> PrincipalExtractor:
+	"""Return an extractor or raise when production wiring is incomplete."""
+
+	if principal_extractor is not None:
+		return principal_extractor
+	if allow_test_defaults:
+		return StaticPrincipalExtractor()
+	raise ConfigError(
+		f"{surface}: principal_extractor is required. "
+		"Pass StaticPrincipalExtractor explicitly for demos/tests, or set "
+		"allow_test_defaults=True in test-only wiring."
+	)
+
+
+def resolve_tenant_resolver(
+	tenant_resolver: TenantResolver | None,
+	*,
+	allow_test_defaults: bool,
+	surface: str,
+) -> TenantResolver:
+	"""Return a tenant resolver or raise when production wiring is incomplete."""
+
+	if tenant_resolver is not None:
+		return tenant_resolver
+	if allow_test_defaults:
+		return StaticTenantResolver()
+	raise ConfigError(
+		f"{surface}: tenant_resolver is required. "
+		"Resolve tenant_id from trusted auth/session context; runtime request "
+		"bodies are not an authority source."
+	)
+
+
 class CookiePrincipalExtractor:
 	"""Reads a signed cookie and reconstructs a :class:`Principal`.
 
@@ -270,6 +333,7 @@ async def csrf_protect(request: Request) -> None:
 # Convenience type aliases used by router builders.
 PrincipalExtractorCallable = Callable[[Request], Awaitable[Principal]]
 WSPrincipalExtractorCallable = Callable[[WebSocket], Awaitable[Principal]]
+TenantResolverCallable = Callable[[Request, Principal], Awaitable[str]]
 
 
 __all__ = [
@@ -277,6 +341,9 @@ __all__ = [
 	"CookiePrincipalExtractor",
 	"PrincipalExtractor",
 	"PrincipalExtractorCallable",
+	"StaticTenantResolver",
+	"TenantResolver",
+	"TenantResolverCallable",
 	"StaticPrincipalExtractor",
 	"WSPrincipalExtractor",
 	"WSPrincipalExtractorCallable",
@@ -284,4 +351,6 @@ __all__ = [
 	"csrf_header_name",
 	"csrf_protect",
 	"issue_csrf_token",
+	"resolve_principal_extractor",
+	"resolve_tenant_resolver",
 ]

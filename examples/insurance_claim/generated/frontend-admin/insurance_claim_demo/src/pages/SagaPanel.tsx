@@ -62,12 +62,12 @@ export function SagaPanel(props: SagaPanelProps): React.ReactElement {
 
 	return (
 		<section aria-labelledby="saga-heading">
-			<h2 id="saga-heading">Saga compensations</h2>
-			<p className="ff-admin-hint">
-				Pending compensations recorded by the engine's saga ledger. The per-saga
-				span list is empty until the OTel adapter (item 12) ships — the panel
-				will display "no spans recorded" for entries created before that.
-			</p>
+			<h2
+				id="saga-heading"
+				title="Pending compensation steps recorded by the saga ledger"
+			>
+				Saga compensations
+			</h2>
 			{error ? (
 				<p role="alert" className="ff-admin-error">
 					{error}
@@ -106,7 +106,7 @@ export function SagaPanel(props: SagaPanelProps): React.ReactElement {
 									<time dateTime={row.created_at}>{row.created_at}</time>
 								</td>
 								<td>
-									<em className="ff-admin-muted">no spans recorded</em>
+									<em className="ff-admin-muted">none</em>
 								</td>
 								<td>
 									<button

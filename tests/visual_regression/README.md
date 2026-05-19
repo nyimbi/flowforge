@@ -34,6 +34,7 @@ tests/visual_regression/
 ├── playwright.config.ts          # two projects: dom (gating), ssim (advisory)
 ├── package.json                  # @flowforge/visual-regression
 ├── tsconfig.json
+├── harness/                      # local Vite server for generated examples
 ├── lib/
 │   ├── page_catalog.ts           # (example, flavor, page, viewport) tuples
 │   ├── dom_normalize.ts          # ADR-001 normalisation rules
@@ -74,6 +75,11 @@ bash scripts/visual_regression/run_dom_snapshots.sh full
 bash scripts/visual_regression/run_ssim.sh
 ```
 
+The DOM wrapper is fail-closed by default. Missing Playwright packages,
+missing harness dependencies, or missing checked-in DOM baselines fail
+the command. Use `VISREG_ALLOW_SKIP=1` only while bootstrapping a local
+checkout; CI and release gates must not set it.
+
 Or via Make:
 
 ```bash
@@ -88,9 +94,7 @@ design-token theme bump), the baselines need to be regenerated:
 
 ```bash
 cd tests/visual_regression
-UPDATE_BASELINES=1 \
-VISREG_DEV_SERVER_URL=http://localhost:5173 \
-pnpm test
+UPDATE_BASELINES=1 pnpm test
 git add ../../examples/*/screenshots/
 git commit -m "chore(visreg): refresh DOM + pixel baselines"
 ```
@@ -99,28 +103,16 @@ Per ADR-001 §"Implementation notes", baseline rebases also happen
 weekly via a scheduled GitHub Action that opens a PR with new
 baselines for reviewer judgement.
 
-## Status: deferred-but-structurally-complete
+## Dev-server harness
 
-The runner is structurally complete (config, helpers, specs, baseline
-catalog) but **does not currently execute end-to-end** because:
+The shell wrappers start `tests/visual_regression/harness/` automatically
+when `VISREG_DEV_SERVER_URL` is unset. The harness is a small Vite app
+that mounts the checked-in generated Next-style Step pages and generated
+admin page components directly from `examples/*/generated/`.
 
-1. **`pnpm install` is gated** on the pre-existing pnpm-ignored-builds
-   issue (`esbuild` / `msw` build scripts blocked at workspace root).
-   Until the pnpm cleanup PR lands, the Playwright deps under this
-   directory cannot be installed in CI. Both shell wrappers detect
-   this and skip-with-clear-reason rather than failing the suite.
-
-2. **The dev-server harness is deferred** to a follow-up PR. The
-   "frontend" flavor (Step.tsx pages) needs a small Vite harness
-   that mounts each Step against an in-memory props stub; the
-   "frontend-admin" SPAs already self-host via their generated Vite
-   configs. The `VISREG_DEV_SERVER_URL` env var feeds the runner
-   the harness URL once it's wired up. Tests skip-with-reason when
-   the env var is unset.
-
-When the pnpm cleanup PR lands (worker-tokens / W3 closeout owns the
-unblock), the runner becomes live with no further changes to this
-directory — only baseline files need to be checked in.
+Set `VISREG_DEV_SERVER_URL` only when you want to point Playwright at an
+already-running host app. Otherwise, run the wrapper and let it manage
+the local server lifecycle.
 
 ## See also
 

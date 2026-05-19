@@ -231,6 +231,7 @@ def test_NM_02_webhook_swallows_httpx_request_error_only() -> None:
 
 	adapter = WebhookAdapter(
 		secret="s",
+		allowed_hosts={"example"},
 		_http_client=_StubHttpClient(exc=httpx.ConnectError("refused")),
 	)
 	r = _drive(adapter.deliver("https://example", "s", "b", {}))
@@ -238,6 +239,7 @@ def test_NM_02_webhook_swallows_httpx_request_error_only() -> None:
 
 	adapter_kaboom = WebhookAdapter(
 		secret="s",
+		allowed_hosts={"example"},
 		_http_client=_StubHttpClient(exc=RuntimeError("synthetic")),
 	)
 	with pytest.raises(RuntimeError):

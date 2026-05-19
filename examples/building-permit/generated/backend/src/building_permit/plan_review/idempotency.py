@@ -19,13 +19,20 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
+
 
 IDEMPOTENCY_TABLE: str = "plan_review_idempotency_keys"
 IDEMPOTENCY_TTL_HOURS: int = 24
+_SESSION_FACTORY: Callable[[], Any] | None = None
+_MEMORY_ROWS: dict[tuple[str, str], dict[str, Any]] = {}
 
 
 @dataclass(frozen=True)
@@ -37,6 +44,30 @@ class IdempotencyHit:
 	kind: str
 	response_status: int | None = None
 	response_body: dict[str, Any] | None = None
+
+
+def configure_idempotency_session_factory(session_factory: Callable[[], Any]) -> None:
+	"""Use a host-provided SQLAlchemy async session factory.
+
+	The generated module defaults to an in-memory idempotency table so
+	the scaffold can run deterministic demo/test flows immediately. Hosts
+	that deploy this router must call this function at boot with their
+	``async_sessionmaker`` to make the idempotency gate durable.
+	"""
+
+	assert session_factory is not None, "session_factory is required"
+	global _SESSION_FACTORY
+	_SESSION_FACTORY = session_factory
+
+
+def reset_idempotency_store() -> None:
+	"""Clear generated in-memory idempotency rows.
+
+	Intended for generated tests and local demos. Durable SQLAlchemy rows
+	are owned by the host database and are not affected.
+	"""
+
+	_MEMORY_ROWS.clear()
 
 
 def fingerprint_request(body: dict[str, Any]) -> str:
@@ -59,23 +90,24 @@ async def check_idempotency_key(
 	request_fingerprint: str,
 	now: datetime | None = None,
 ) -> IdempotencyHit:
-	"""Look up *idempotency_key* for *tenant_id*; classify the hit.
-
-	Stub for the generated host: real adapters provide a SQLAlchemy
-	session via dependency-injection. The host project supplies the
-	concrete query in its wiring layer; this stub raises so missing
-	wiring fails loudly at runtime instead of silently bypassing the
-	dedupe gate.
-	"""
+	"""Look up and reserve *idempotency_key* for *tenant_id*."""
 
 	assert isinstance(tenant_id, str) and tenant_id, "tenant_id required"
 	assert isinstance(idempotency_key, str) and idempotency_key, "idempotency_key required"
 	assert isinstance(request_fingerprint, str), "request_fingerprint required"
-	_ = now or datetime.now(timezone.utc)
-	raise NotImplementedError(
-		"check_idempotency_key: host must wire the SQLAlchemy session. "
-		"See backend/src/building_permit/plan_review/idempotency.py "
-		"for the table schema and TTL contract."
+	clock = now or datetime.now(timezone.utc)
+	if _SESSION_FACTORY is None:
+		return _check_memory(
+			tenant_id=tenant_id,
+			idempotency_key=idempotency_key,
+			request_fingerprint=request_fingerprint,
+			now=clock,
+		)
+	return await _check_sqlalchemy(
+		tenant_id=tenant_id,
+		idempotency_key=idempotency_key,
+		request_fingerprint=request_fingerprint,
+		now=clock,
 	)
 
 
@@ -88,22 +120,203 @@ async def record_idempotency_response(
 	response_body: dict[str, Any],
 	now: datetime | None = None,
 ) -> None:
-	"""Persist the cached response for *idempotency_key* under *tenant_id*.
-
-	Stub for the generated host — see :func:`check_idempotency_key`.
-	The host's wiring layer writes a row with::
-
-		expires_at = now + timedelta(hours=IDEMPOTENCY_TTL_HOURS)
-
-	so subsequent calls within the TTL window get the cached body back.
-	"""
+	"""Persist the cached response for *idempotency_key* under *tenant_id*."""
 
 	assert isinstance(tenant_id, str) and tenant_id, "tenant_id required"
 	assert isinstance(idempotency_key, str) and idempotency_key, "idempotency_key required"
 	assert isinstance(response_status, int), "response_status required"
 	assert isinstance(response_body, dict), "response_body must be a dict"
-	_ = now or datetime.now(timezone.utc)
-	_ = timedelta(hours=IDEMPOTENCY_TTL_HOURS)
-	raise NotImplementedError(
-		"record_idempotency_response: host must wire the SQLAlchemy session."
+	clock = now or datetime.now(timezone.utc)
+	if _SESSION_FACTORY is None:
+		row = _MEMORY_ROWS.setdefault(
+			(tenant_id, idempotency_key),
+			{
+				"request_fingerprint": request_fingerprint,
+				"expires_at": _expires_at(clock),
+			},
+		)
+		row.update(
+			{
+				"request_fingerprint": request_fingerprint,
+				"response_status": response_status,
+				"response_body": dict(response_body),
+				"in_flight": False,
+				"expires_at": _expires_at(clock),
+			}
+		)
+		return
+	await _record_sqlalchemy(
+		tenant_id=tenant_id,
+		idempotency_key=idempotency_key,
+		request_fingerprint=request_fingerprint,
+		response_status=response_status,
+		response_body=response_body,
+		now=clock,
 	)
+
+
+def _expires_at(now: datetime) -> datetime:
+	return now + timedelta(hours=IDEMPOTENCY_TTL_HOURS)
+
+
+def _check_memory(
+	*,
+	tenant_id: str,
+	idempotency_key: str,
+	request_fingerprint: str,
+	now: datetime,
+) -> IdempotencyHit:
+	key = (tenant_id, idempotency_key)
+	row = _MEMORY_ROWS.get(key)
+	if row is None or _is_expired(row.get("expires_at"), now):
+		_MEMORY_ROWS[key] = {
+			"request_fingerprint": request_fingerprint,
+			"response_status": None,
+			"response_body": None,
+			"in_flight": True,
+			"expires_at": _expires_at(now),
+		}
+		return IdempotencyHit(kind="miss")
+	if row.get("request_fingerprint") != request_fingerprint:
+		return IdempotencyHit(kind="in_flight")
+	if row.get("in_flight"):
+		return IdempotencyHit(kind="in_flight")
+	return IdempotencyHit(
+		kind="replay",
+		response_status=int(row.get("response_status") or 200),
+		response_body=dict(row.get("response_body") or {}),
+	)
+
+
+async def _check_sqlalchemy(
+	*,
+	tenant_id: str,
+	idempotency_key: str,
+	request_fingerprint: str,
+	now: datetime,
+) -> IdempotencyHit:
+	assert _SESSION_FACTORY is not None
+	async with _SESSION_FACTORY() as session:
+		try:
+			await session.execute(
+				text(
+					f"insert into {IDEMPOTENCY_TABLE} "
+					"(id, tenant_id, idempotency_key, request_fingerprint, "
+					"response_status, response_body, in_flight, created_at, expires_at) "
+					"values (:id, :tenant_id, :idempotency_key, :request_fingerprint, "
+					":response_status, :response_body, :in_flight, :created_at, :expires_at)"
+				),
+				{
+					"id": str(uuid.uuid4()),
+					"tenant_id": tenant_id,
+					"idempotency_key": idempotency_key,
+					"request_fingerprint": request_fingerprint,
+					"response_status": None,
+					"response_body": None,
+					"in_flight": True,
+					"created_at": now,
+					"expires_at": _expires_at(now),
+				},
+			)
+			await session.commit()
+			return IdempotencyHit(kind="miss")
+		except IntegrityError:
+			await session.rollback()
+
+	async with _SESSION_FACTORY() as session:
+		result = await session.execute(
+			text(
+				f"select request_fingerprint, response_status, response_body, "
+				f"in_flight, expires_at from {IDEMPOTENCY_TABLE} "
+				"where tenant_id = :tenant_id and idempotency_key = :idempotency_key"
+			),
+			{"tenant_id": tenant_id, "idempotency_key": idempotency_key},
+		)
+		row = result.mappings().first()
+		if row is None or _is_expired(row.get("expires_at"), now):
+			await session.execute(
+				text(
+					f"update {IDEMPOTENCY_TABLE} set "
+					"request_fingerprint = :request_fingerprint, "
+					"response_status = :response_status, response_body = :response_body, "
+					"in_flight = :in_flight, created_at = :created_at, expires_at = :expires_at "
+					"where tenant_id = :tenant_id and idempotency_key = :idempotency_key"
+				),
+				{
+					"tenant_id": tenant_id,
+					"idempotency_key": idempotency_key,
+					"request_fingerprint": request_fingerprint,
+					"response_status": None,
+					"response_body": None,
+					"in_flight": True,
+					"created_at": now,
+					"expires_at": _expires_at(now),
+				},
+			)
+			await session.commit()
+			return IdempotencyHit(kind="miss")
+		if row["request_fingerprint"] != request_fingerprint or row["in_flight"]:
+			return IdempotencyHit(kind="in_flight")
+		return IdempotencyHit(
+			kind="replay",
+			response_status=int(row["response_status"] or 200),
+			response_body=_decode_response_body(row["response_body"]),
+		)
+
+
+async def _record_sqlalchemy(
+	*,
+	tenant_id: str,
+	idempotency_key: str,
+	request_fingerprint: str,
+	response_status: int,
+	response_body: dict[str, Any],
+	now: datetime,
+) -> None:
+	assert _SESSION_FACTORY is not None
+	async with _SESSION_FACTORY() as session:
+		await session.execute(
+			text(
+				f"update {IDEMPOTENCY_TABLE} set "
+				"request_fingerprint = :request_fingerprint, "
+				"response_status = :response_status, response_body = :response_body, "
+				"in_flight = :in_flight, expires_at = :expires_at "
+				"where tenant_id = :tenant_id and idempotency_key = :idempotency_key"
+			),
+			{
+				"tenant_id": tenant_id,
+				"idempotency_key": idempotency_key,
+				"request_fingerprint": request_fingerprint,
+				"response_status": response_status,
+				"response_body": json.dumps(response_body, sort_keys=True, separators=(",", ":")),
+				"in_flight": False,
+				"expires_at": _expires_at(now),
+			},
+		)
+		await session.commit()
+
+
+def _decode_response_body(raw: Any) -> dict[str, Any]:
+	if raw is None:
+		return {}
+	if isinstance(raw, dict):
+		return dict(raw)
+	if isinstance(raw, str):
+		decoded = json.loads(raw)
+		assert isinstance(decoded, dict), "cached response body must be an object"
+		return decoded
+	return {}
+
+
+def _is_expired(raw: Any, now: datetime) -> bool:
+	if raw is None:
+		return True
+	if isinstance(raw, datetime):
+		expires_at = raw
+	elif isinstance(raw, str):
+		expires_at = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+	else:
+		return True
+	if expires_at.tzinfo is None:
+		expires_at = expires_at.replace(tzinfo=timezone.utc)
+	return expires_at <= now

@@ -29,6 +29,8 @@ from .auth import (
 	CookiePrincipalExtractor,
 	PrincipalExtractor,
 	StaticPrincipalExtractor,
+	StaticTenantResolver,
+	TenantResolver,
 	WSPrincipalExtractor,
 	csrf_cookie_name,
 	csrf_header_name,
@@ -54,8 +56,10 @@ def mount_routers(
 	*,
 	prefix: str = "",
 	principal_extractor: "PrincipalExtractor | None" = None,
+	tenant_resolver: "TenantResolver | None" = None,
 	tags: Sequence[str] | None = None,
 	require_csrf: bool = False,
+	allow_test_defaults: bool = False,
 ) -> None:
 	"""Attach designer + runtime + WS routers to *app*.
 
@@ -64,9 +68,11 @@ def mount_routers(
 	* ``prefix`` — common path prefix; designer mounts under
 	  ``{prefix}`` and runtime under ``{prefix}``; WS mounts at
 	  ``{prefix}/ws``.
-	* ``principal_extractor`` — pluggable identity. Defaults to a
-	  :class:`StaticPrincipalExtractor` returning a "system" principal so
-	  unit tests work out of the box.
+	* ``principal_extractor`` — pluggable identity. Required by default;
+	  tests and demos may pass ``StaticPrincipalExtractor`` explicitly or
+	  set ``allow_test_defaults=True``.
+	* ``tenant_resolver`` — resolves tenant_id from trusted host context.
+	  Runtime request bodies are not an authority source.
 	* ``require_csrf`` — when True, mutating runtime endpoints require a
 	  matching CSRF token (cookie + ``X-CSRF-Token`` header).
 	"""
@@ -79,13 +85,19 @@ def mount_routers(
 	designer = build_designer_router(
 		principal_extractor=principal_extractor,
 		tags=tags,
+		allow_test_defaults=allow_test_defaults,
 	)
 	runtime = build_runtime_router(
 		principal_extractor=principal_extractor,
+		tenant_resolver=tenant_resolver,
 		tags=tags,
 		require_csrf=require_csrf,
+		allow_test_defaults=allow_test_defaults,
 	)
-	ws = build_ws_router(principal_extractor=principal_extractor)
+	ws = build_ws_router(
+		principal_extractor=principal_extractor,
+		allow_test_defaults=allow_test_defaults,
+	)
 
 	# E-41 / FA-04: hub is request-scoped at the app level.  Each
 	# ``mount_routers`` call attaches a fresh :class:`WorkflowEventsHub`
@@ -107,6 +119,8 @@ __all__ = [
 	"InstanceStore",
 	"PrincipalExtractor",
 	"StaticPrincipalExtractor",
+	"StaticTenantResolver",
+	"TenantResolver",
 	"WSPrincipalExtractor",
 	"WorkflowDefRegistry",
 	"WorkflowEventsHub",

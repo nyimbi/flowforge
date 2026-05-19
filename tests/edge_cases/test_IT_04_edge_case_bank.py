@@ -22,10 +22,8 @@ Classes:
 from __future__ import annotations
 
 import asyncio
-import os
 import tempfile
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -238,7 +236,6 @@ def test_class_6_lockfile_compose_duplicate_pin_rejected() -> None:
 @_async
 async def test_class_7_hash_chain_one_byte_flip_detected() -> None:
 	"""Flipping one byte of a stored row's payload triggers verifier failure."""
-	import sqlalchemy as sa
 	from sqlalchemy.ext.asyncio import create_async_engine
 
 	from flowforge.ports.types import AuditEvent
@@ -290,7 +287,7 @@ async def test_class_7_hash_chain_one_byte_flip_detected() -> None:
 
 
 @_async
-async def test_class_8_outbox_failure_rolls_back_audit() -> None:
+async def test_class_8_outbox_failure_rolls_back_state_and_records_audit() -> None:
 	"""Outbox raise during ``fire`` rolls back the audit row + state transition.
 
 	Surrogate for "saga crash mid-tx": engine's two-phase commit semantics
@@ -343,10 +340,12 @@ async def test_class_8_outbox_failure_rolls_back_audit() -> None:
 	with pytest.raises(OutboxDispatchError):
 		await fire(wd, inst, "submit", principal=Principal(user_id="u", is_system=True))
 
-	# Rollback: state, context, audit count are all unchanged.
+	# Rollback: state and context are unchanged. The hardened in-memory path
+	# records audit before immediate outbox dispatch, so an escaped outbox
+	# failure is still auditable.
 	assert inst.state == pre_state
 	assert inst.context == pre_ctx
-	assert len(_config.audit.events) == 0
+	assert len(_config.audit.events) > 0
 
 
 # ---------------------------------------------------------------------------

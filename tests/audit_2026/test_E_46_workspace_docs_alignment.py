@@ -7,7 +7,7 @@ Audit findings (audit-fix-plan §4.x DOC-01/DOC-02, §7 E-46, §2 F-5):
   in two steps — first as ``package=false`` build-only members, then flip
   to ``package=true`` per pkg as it's reviewed.
 - **DOC-02 (P2)** — ``framework/README.md`` package count matches the
-  filesystem (no drift like "12 PyPI packages" while there are 45).
+  filesystem (no drift like "12 PyPI packages" while there are 46).
 - **DOC-02 (P2)** — ``framework/docs/flowforge-evolution.md`` paths match
   the actual layout (no ``apps/jtbd-hub/`` artefacts; the package lives
   at ``framework/python/flowforge-jtbd-hub/``).
@@ -22,12 +22,18 @@ import tomllib
 from pathlib import Path
 
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_FRAMEWORK = _REPO_ROOT / "framework"
-_PYTHON_DIR = _FRAMEWORK / "python"
-_ROOT_PYPROJECT = _FRAMEWORK / "pyproject.toml"
-_README = _FRAMEWORK / "README.md"
-_EVOLUTION = _FRAMEWORK / "docs" / "flowforge-evolution.md"
+def _repo_root() -> Path:
+	for parent in Path(__file__).resolve().parents:
+		if (parent / "pyproject.toml").is_file() and (parent / "python").is_dir():
+			return parent
+	raise AssertionError("could not locate flowforge repo root")
+
+
+_REPO_ROOT = _repo_root()
+_PYTHON_DIR = _REPO_ROOT / "python"
+_ROOT_PYPROJECT = _REPO_ROOT / "pyproject.toml"
+_README = _REPO_ROOT / "README.md"
+_EVOLUTION = _REPO_ROOT / "docs" / "flowforge-evolution.md"
 
 
 def _list_python_packages() -> list[str]:
@@ -87,7 +93,7 @@ def test_DOC_01_unreviewed_pkgs_marked_package_false() -> None:
 
 
 def test_DOC_01_strategic_pkgs_remain_package_true() -> None:
-	"""The 15 originally-registered pkgs keep their default (package=true).
+	"""The 16 strategic/shipping pkgs keep their default (package=true).
 
 	If any of these flips to ``package=false`` it means a regression in the
 	build pipeline — they ship today and must continue to do so.
@@ -105,6 +111,7 @@ def test_DOC_01_strategic_pkgs_remain_package_true() -> None:
 		"flowforge-money",
 		"flowforge-signing-kms",
 		"flowforge-notify-multichannel",
+		"flowforge-otel",
 		"flowforge-cli",
 		"flowforge-jtbd",
 		"flowforge-jtbd-hub",
@@ -126,16 +133,16 @@ def test_DOC_01_strategic_pkgs_remain_package_true() -> None:
 
 
 def test_DOC_02_readme_pkg_count_matches_filesystem() -> None:
-	"""``framework/README.md`` must reference 45 (not the stale 12)."""
+	"""``README.md`` must reference 46 (not stale historical totals)."""
 	text = _README.read_text(encoding="utf-8")
 	on_disk = len(_list_python_packages())
-	assert on_disk == 45, f"unexpected package count on disk: {on_disk}"
+	assert on_disk == 46, f"unexpected package count on disk: {on_disk}"
 	# Reject the historical "12" claim outright.
 	assert not re.search(r"\b12\s+(PyPI\s+)?packages\b", text, re.IGNORECASE), (
-		"README still claims '12 PyPI packages' — update to 45"
+		"README still claims '12 PyPI packages' — update to 46"
 	)
 	# Positive: the README mentions the real total.
-	assert re.search(r"\b45\b", text), "README does not reference the real 45-package total"
+	assert re.search(r"\b46\b", text), "README does not reference the real 46-package total"
 
 
 def test_DOC_02_handbook_path_drift_fixed() -> None:

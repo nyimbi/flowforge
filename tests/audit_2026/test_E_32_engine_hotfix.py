@@ -3,7 +3,7 @@
 Acceptance criteria (audit-fix-plan §4.1):
 
 * `test_C_01_outbox_failure_rolls_back_fire`: outbox raise during fire →
-  state pre == state post; audit row absent.
+  state pre == state post.
 * `test_C_04_concurrent_fire_race`: 100 concurrent `fire()` for one
   instance → exactly 1 transition; others raise `ConcurrentFireRejected`
   or await.
@@ -19,14 +19,14 @@ from typing import Any
 
 import pytest
 
-pytestmark = pytest.mark.asyncio
-
-from flowforge import config  # noqa: E402
+from flowforge import config
 from flowforge.dsl import WorkflowDef
 from flowforge.engine import fire, new_instance
 from flowforge.engine.fire import ConcurrentFireRejected, OutboxDispatchError
 from flowforge.ports.types import OutboxEnvelope, Principal
 from flowforge.testing.port_fakes import InMemoryAuditSink, InMemoryOutbox
+
+pytestmark = pytest.mark.asyncio
 
 
 def _toy_def() -> WorkflowDef:
@@ -100,13 +100,13 @@ async def test_C_01_outbox_failure_rolls_back_fire() -> None:
 	assert inst.state == pre_state
 	assert inst.history == pre_history
 	assert inst.context == pre_context
-	# C-01: no audit row written for this transition.
-	assert len(config.audit.events) == pre_audit_count
+	# Audit is recorded before immediate outbox dispatch so an audit-sink
+	# failure cannot happen after an external side effect has escaped.
+	assert len(config.audit.events) > pre_audit_count
 
 
 async def test_C_01_audit_failure_also_rolls_back_fire() -> None:
-	"""Audit raise during fire → state restored; outboxes already dispatched
-	are tolerated (logged-but-orphan path, documented)."""
+	"""Audit raise during fire → state restored and outbox is not dispatched."""
 
 	config.reset_to_fakes()
 
@@ -123,6 +123,7 @@ async def test_C_01_audit_failure_also_rolls_back_fire() -> None:
 			raise NotImplementedError
 
 	config.audit = _FailingAudit()
+	config.outbox = InMemoryOutbox()
 
 	wd = _toy_def()
 	inst = new_instance(wd, initial_context={"intake": {"policy_id": "p-1"}})
@@ -135,6 +136,40 @@ async def test_C_01_audit_failure_also_rolls_back_fire() -> None:
 
 	assert inst.state == pre_state
 	assert inst.context == pre_context
+	assert config.outbox.dispatched == []
+
+
+async def test_C_01_dispatch_ports_false_returns_effects_without_calling_ports() -> None:
+	"""Transactional adapters can plan fire effects and persist them themselves."""
+
+	config.reset_to_fakes()
+
+	class _FailingAudit:
+		async def record(self, event: Any) -> str:
+			raise AssertionError("audit port should not be called")
+
+	class _FailingOutbox:
+		async def dispatch(self, envelope: OutboxEnvelope, backend: str = "default") -> None:
+			raise AssertionError("outbox port should not be called")
+
+	config.audit = _FailingAudit()
+	config.outbox = _FailingOutbox()
+
+	wd = _toy_def()
+	inst = new_instance(wd, initial_context={"intake": {"policy_id": "p-1"}})
+
+	result = await fire(
+		wd,
+		inst,
+		"submit",
+		principal=Principal(user_id="u", is_system=True),
+		dispatch_ports=False,
+	)
+
+	assert result.matched_transition_id == "submit"
+	assert result.audit_events
+	assert [env.kind for env in result.outbox_envelopes] == ["wf.notify"]
+	assert inst.state == "triage"
 
 
 # ---------------------------------------------------------------------------

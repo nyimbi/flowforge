@@ -89,6 +89,7 @@ _ROOT_TEMPLATES: tuple[tuple[str, str], ...] = (
 # Template files emitted under ``src/``. Same shape as ``_ROOT_TEMPLATES``.
 _SRC_TEMPLATES: tuple[tuple[str, str], ...] = (
 	("frontend_admin/src/main.tsx.j2", "src/main.tsx"),
+	("frontend_admin/src/admin.css.j2", "src/admin.css"),
 	("frontend_admin/src/App.tsx.j2", "src/App.tsx"),
 	("frontend_admin/src/api.ts.j2", "src/api.ts"),
 	("frontend_admin/src/permissions.ts.j2", "src/permissions.ts"),

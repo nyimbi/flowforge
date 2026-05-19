@@ -14,6 +14,9 @@ from flowforge_sqlalchemy import (
 	BusinessCalendar,
 	PendingSignal,
 	SagaQueries,
+	SagaTenantMismatch,
+	SnapshotConflict,
+	SnapshotTenantMismatch,
 	SqlAlchemySnapshotStore,
 	WorkflowDefinition,
 	WorkflowDefinitionVersion,
@@ -233,6 +236,66 @@ async def test_snapshot_store_roundtrips_state(
 	assert loaded.saga == [{"kind": "release_lock", "args": {}}]
 	assert loaded.history == ["intake-(submit:submit)->triage"]
 
+
+async def test_snapshot_store_filters_reads_by_tenant(
+	session_factory: async_sessionmaker[AsyncSession], tenant_id: str
+) -> None:
+	inst_row = await _seed_instance(session_factory, tenant_id)
+	store = SqlAlchemySnapshotStore(session_factory, tenant_id=tenant_id)
+	other_store = SqlAlchemySnapshotStore(session_factory, tenant_id="other-tenant")
+
+	engine_inst = Instance(
+		id=inst_row.id,
+		def_key="claim_intake",
+		def_version="1.0.0",
+		state="triage",
+		context={},
+		created_entities=[],
+		saga=[],
+		history=["intake-(submit:submit)->triage"],
+	)
+	await store.put(engine_inst)
+
+	assert await store.get(inst_row.id) is not None
+	assert await other_store.get(inst_row.id) is None
+
+
+async def test_snapshot_store_cross_tenant_put_does_not_overwrite(
+	session_factory: async_sessionmaker[AsyncSession], tenant_id: str
+) -> None:
+	inst_row = await _seed_instance(session_factory, tenant_id)
+	store = SqlAlchemySnapshotStore(session_factory, tenant_id=tenant_id)
+	other_store = SqlAlchemySnapshotStore(session_factory, tenant_id="other-tenant")
+
+	engine_inst = Instance(
+		id=inst_row.id,
+		def_key="claim_intake",
+		def_version="1.0.0",
+		state="triage",
+		context={},
+		created_entities=[],
+		saga=[],
+		history=["intake-(submit:submit)->triage"],
+	)
+	await store.put(engine_inst)
+	with pytest.raises(SnapshotTenantMismatch):
+		await other_store.put(
+			Instance(
+				id=inst_row.id,
+				def_key="claim_intake",
+				def_version="1.0.0",
+				state="hijacked",
+				context={},
+				created_entities=[],
+				saga=[],
+				history=["bad"],
+			)
+		)
+
+	loaded = await store.get(inst_row.id)
+	assert loaded is not None
+	assert loaded.state == "triage"
+
 	# overwrite path
 	engine_inst.state = "approved"
 	engine_inst.history.append("triage-(approve:approve)->approved")
@@ -241,6 +304,102 @@ async def test_snapshot_store_roundtrips_state(
 	assert loaded2 is not None
 	assert loaded2.state == "approved"
 	assert len(loaded2.history) == 2
+
+
+async def test_snapshot_store_compare_and_put_rejects_stale_seq(
+	session_factory: async_sessionmaker[AsyncSession], tenant_id: str
+) -> None:
+	inst_row = await _seed_instance(session_factory, tenant_id)
+	store = SqlAlchemySnapshotStore(session_factory, tenant_id=tenant_id)
+
+	engine_inst = Instance(
+		id=inst_row.id,
+		def_key="claim_intake",
+		def_version="1.0.0",
+		state="intake",
+		context={},
+		created_entities=[],
+		saga=[],
+		history=[],
+	)
+	await store.compare_and_put(engine_inst, expected_seq=0)
+
+	engine_inst.state = "triage"
+	engine_inst.history.append("intake-(submit:submit)->triage")
+	await store.compare_and_put(engine_inst, expected_seq=0)
+
+	stale = Instance(
+		id=inst_row.id,
+		def_key="claim_intake",
+		def_version="1.0.0",
+		state="approved",
+		context={},
+		created_entities=[],
+		saga=[],
+		history=["intake-(submit:submit)->triage", "triage-(approve:approve)->approved"],
+	)
+	with pytest.raises(SnapshotConflict) as excinfo:
+		await store.compare_and_put(stale, expected_seq=0)
+	assert excinfo.value.actual_seq == 1
+
+	loaded = await store.get(inst_row.id)
+	assert loaded is not None
+	assert loaded.state == "triage"
+	assert len(loaded.history) == 1
+
+
+async def test_snapshot_store_compare_and_put_accepts_current_seq(
+	session_factory: async_sessionmaker[AsyncSession], tenant_id: str
+) -> None:
+	inst_row = await _seed_instance(session_factory, tenant_id)
+	store = SqlAlchemySnapshotStore(session_factory, tenant_id=tenant_id)
+
+	engine_inst = Instance(
+		id=inst_row.id,
+		def_key="claim_intake",
+		def_version="1.0.0",
+		state="intake",
+		context={},
+		created_entities=[],
+		saga=[],
+		history=[],
+	)
+	await store.compare_and_put(engine_inst, expected_seq=0)
+
+	engine_inst.state = "triage"
+	engine_inst.history.append("intake-(submit:submit)->triage")
+	await store.compare_and_put(engine_inst, expected_seq=0)
+
+	engine_inst.state = "approved"
+	engine_inst.history.append("triage-(approve:approve)->approved")
+	await store.compare_and_put(engine_inst, expected_seq=1)
+
+	loaded = await store.get(inst_row.id)
+	assert loaded is not None
+	assert loaded.state == "approved"
+	assert len(loaded.history) == 2
+
+
+async def test_snapshot_store_compare_and_put_rejects_wrong_tenant(
+	session_factory: async_sessionmaker[AsyncSession], tenant_id: str
+) -> None:
+	inst_row = await _seed_instance(session_factory, tenant_id)
+	other_store = SqlAlchemySnapshotStore(session_factory, tenant_id="other-tenant")
+
+	with pytest.raises(SnapshotTenantMismatch):
+		await other_store.compare_and_put(
+			Instance(
+				id=inst_row.id,
+				def_key="claim_intake",
+				def_version="1.0.0",
+				state="intake",
+				context={},
+				created_entities=[],
+				saga=[],
+				history=[],
+			),
+			expected_seq=0,
+		)
 
 
 async def test_saga_queries_append_list_mark(
@@ -269,3 +428,34 @@ async def test_saga_queries_append_list_mark(
 	rows_after = await q.list_for_instance(inst.id)
 	assert rows_after[1].status == "compensated"
 	assert rows_after[0].status == "pending"
+
+
+async def test_saga_queries_filter_by_tenant(
+	session_factory: async_sessionmaker[AsyncSession], tenant_id: str
+) -> None:
+	inst = await _seed_instance(session_factory, tenant_id)
+	q = SagaQueries(session_factory, tenant_id=tenant_id)
+	other_q = SagaQueries(session_factory, tenant_id="other-tenant")
+
+	await q.append(inst.id, kind="release_lock", args={"k": "a"})
+
+	assert [r.kind for r in await q.list_for_instance(inst.id)] == ["release_lock"]
+	assert await other_q.list_for_instance(inst.id) == []
+	assert await other_q.list_pending_for_compensation(inst.id) == []
+	assert await other_q.mark(inst.id, 0, "compensated") is False
+	assert [r.status for r in await q.list_for_instance(inst.id)] == ["pending"]
+
+
+async def test_saga_queries_cross_tenant_append_does_not_share_idx(
+	session_factory: async_sessionmaker[AsyncSession], tenant_id: str
+) -> None:
+	inst = await _seed_instance(session_factory, tenant_id)
+	q = SagaQueries(session_factory, tenant_id=tenant_id)
+	other_q = SagaQueries(session_factory, tenant_id="other-tenant")
+
+	await q.append(inst.id, kind="release_lock")
+	with pytest.raises(SagaTenantMismatch):
+		await other_q.append(inst.id, kind="refund")
+
+	assert [r.kind for r in await q.list_for_instance(inst.id)] == ["release_lock"]
+	assert await other_q.list_for_instance(inst.id) == []

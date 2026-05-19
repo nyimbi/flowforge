@@ -74,6 +74,7 @@ def upgrade() -> None:
 		sa.Column("correlation_id", sa.String(128), nullable=True, index=True),
 		sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
 		sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+		sa.UniqueConstraint("tenant_id", "id", name="uq_workflow_instances_tenant_id"),
 	)
 	op.create_index(
 		"ix_workflow_instances_tenant_def",
@@ -88,7 +89,6 @@ def upgrade() -> None:
 		sa.Column(
 			"instance_id",
 			UuidStr(),
-			sa.ForeignKey("workflow_instances.id", ondelete="CASCADE"),
 			nullable=False,
 			index=True,
 		),
@@ -96,6 +96,12 @@ def upgrade() -> None:
 		sa.Column("state", sa.String(128), nullable=False),
 		sa.Column("context", JsonB(), nullable=False),
 		sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+		sa.ForeignKeyConstraint(
+			["tenant_id", "instance_id"],
+			["workflow_instances.tenant_id", "workflow_instances.id"],
+			ondelete="CASCADE",
+			name="fk_workflow_instance_tokens_tenant_instance",
+		),
 	)
 
 	op.create_table(
@@ -105,7 +111,6 @@ def upgrade() -> None:
 		sa.Column(
 			"instance_id",
 			UuidStr(),
-			sa.ForeignKey("workflow_instances.id", ondelete="CASCADE"),
 			nullable=False,
 			index=True,
 		),
@@ -117,12 +122,23 @@ def upgrade() -> None:
 		sa.Column("actor_user_id", sa.String(128), nullable=True),
 		sa.Column("payload", JsonB(), nullable=False),
 		sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
-		sa.UniqueConstraint("instance_id", "seq", name="uq_workflow_events_instance_seq"),
+		sa.ForeignKeyConstraint(
+			["tenant_id", "instance_id"],
+			["workflow_instances.tenant_id", "workflow_instances.id"],
+			ondelete="CASCADE",
+			name="fk_workflow_events_tenant_instance",
+		),
+		sa.UniqueConstraint(
+			"tenant_id",
+			"instance_id",
+			"seq",
+			name="uq_workflow_events_tenant_instance_seq",
+		),
 	)
 	op.create_index(
-		"ix_workflow_events_instance_occurred",
+		"ix_workflow_events_tenant_instance_occurred",
 		"workflow_events",
-		["instance_id", "occurred_at"],
+		["tenant_id", "instance_id", "occurred_at"],
 	)
 
 	op.create_table(
@@ -132,7 +148,6 @@ def upgrade() -> None:
 		sa.Column(
 			"instance_id",
 			UuidStr(),
-			sa.ForeignKey("workflow_instances.id", ondelete="CASCADE"),
 			nullable=False,
 			index=True,
 		),
@@ -142,7 +157,18 @@ def upgrade() -> None:
 		sa.Column("status", sa.String(32), nullable=False, server_default="pending"),
 		sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
 		sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-		sa.UniqueConstraint("instance_id", "idx", name="uq_workflow_saga_steps_instance_idx"),
+		sa.ForeignKeyConstraint(
+			["tenant_id", "instance_id"],
+			["workflow_instances.tenant_id", "workflow_instances.id"],
+			ondelete="CASCADE",
+			name="fk_workflow_saga_steps_tenant_instance",
+		),
+		sa.UniqueConstraint(
+			"tenant_id",
+			"instance_id",
+			"idx",
+			name="uq_workflow_saga_steps_tenant_instance_idx",
+		),
 	)
 
 	op.create_table(
@@ -152,15 +178,24 @@ def upgrade() -> None:
 		sa.Column(
 			"instance_id",
 			UuidStr(),
-			sa.ForeignKey("workflow_instances.id", ondelete="CASCADE"),
 			nullable=False,
-			unique=True,
 		),
 		sa.Column("reason", sa.Text(), nullable=False),
 		sa.Column("details", JsonB(), nullable=False),
 		sa.Column("quarantined_by", sa.String(128), nullable=True),
 		sa.Column("quarantined_at", sa.DateTime(timezone=True), nullable=False),
 		sa.Column("cleared_at", sa.DateTime(timezone=True), nullable=True),
+		sa.ForeignKeyConstraint(
+			["tenant_id", "instance_id"],
+			["workflow_instances.tenant_id", "workflow_instances.id"],
+			ondelete="CASCADE",
+			name="fk_workflow_instance_quarantine_tenant_instance",
+		),
+		sa.UniqueConstraint(
+			"tenant_id",
+			"instance_id",
+			name="uq_workflow_instance_quarantine_tenant_instance",
+		),
 	)
 
 	op.create_table(
@@ -202,9 +237,7 @@ def upgrade() -> None:
 		sa.Column(
 			"instance_id",
 			UuidStr(),
-			sa.ForeignKey("workflow_instances.id", ondelete="CASCADE"),
 			nullable=False,
-			unique=True,
 		),
 		sa.Column("def_key", sa.String(255), nullable=False),
 		sa.Column("def_version", sa.String(64), nullable=False),
@@ -213,17 +246,52 @@ def upgrade() -> None:
 		sa.Column("seq", sa.BigInteger(), nullable=False, server_default="0"),
 		sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
 		sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+		sa.ForeignKeyConstraint(
+			["tenant_id", "instance_id"],
+			["workflow_instances.tenant_id", "workflow_instances.id"],
+			ondelete="CASCADE",
+			name="fk_workflow_instance_snapshots_tenant_instance",
+		),
+		sa.UniqueConstraint(
+			"tenant_id",
+			"instance_id",
+			name="uq_workflow_instance_snapshots_tenant_instance",
+		),
 	)
+
+	op.create_table(
+		"outbox",
+		sa.Column("id", UuidStr(), primary_key=True),
+		sa.Column("kind", sa.String(255), nullable=False),
+		sa.Column("tenant_id", sa.String(64), nullable=False),
+		sa.Column("body", JsonB(), nullable=False),
+		sa.Column("status", sa.String(32), nullable=False, server_default="pending"),
+		sa.Column("retries", sa.Integer(), nullable=False, server_default="0"),
+		sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+		sa.Column("locked_until", sa.DateTime(timezone=True), nullable=True),
+		sa.Column("last_error", sa.Text(), nullable=True),
+		sa.Column("correlation_id", sa.String(128), nullable=True),
+		sa.Column("dedupe_key", sa.String(255), nullable=True),
+	)
+	op.create_index("ix_outbox_kind", "outbox", ["kind"])
+	op.create_index("ix_outbox_tenant_id", "outbox", ["tenant_id"])
+	op.create_index("ix_outbox_correlation_id", "outbox", ["correlation_id"])
+	op.create_index("ix_outbox_status_created", "outbox", ["status", "created_at"])
 
 
 def downgrade() -> None:
+	op.drop_index("ix_outbox_status_created", table_name="outbox")
+	op.drop_index("ix_outbox_correlation_id", table_name="outbox")
+	op.drop_index("ix_outbox_tenant_id", table_name="outbox")
+	op.drop_index("ix_outbox_kind", table_name="outbox")
+	op.drop_table("outbox")
 	op.drop_table("workflow_instance_snapshots")
 	op.drop_index("ix_pending_signals_lookup", table_name="pending_signals")
 	op.drop_table("pending_signals")
 	op.drop_table("business_calendars")
 	op.drop_table("workflow_instance_quarantine")
 	op.drop_table("workflow_saga_steps")
-	op.drop_index("ix_workflow_events_instance_occurred", table_name="workflow_events")
+	op.drop_index("ix_workflow_events_tenant_instance_occurred", table_name="workflow_events")
 	op.drop_table("workflow_events")
 	op.drop_table("workflow_instance_tokens")
 	op.drop_index("ix_workflow_instances_tenant_def", table_name="workflow_instances")

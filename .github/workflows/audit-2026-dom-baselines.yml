@@ -1,0 +1,76 @@
+name: Audit 2026 DOM baseline generation
+
+# Manual helper for the release blocker that cannot run in local sandboxes:
+# generate candidate DOM baselines in a Chromium-capable GitHub runner and
+# upload them for human review. This does not replace
+# audit-2026-release-external; reviewed baselines must still be committed and
+# the release gate must pass without local visual skip flags.
+
+on:
+  workflow_dispatch:
+    inputs:
+      cadence:
+        description: "Visual-regression cadence to generate"
+        required: true
+        default: "full"
+        type: choice
+        options:
+          - smoke
+          - full
+
+concurrency:
+  group: audit-2026-dom-baselines-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  generate-dom-baselines:
+    name: generate-dom-baselines
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout flowforge
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "11.1.3"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: |
+            js/pnpm-lock.yaml
+            tests/visual_regression/pnpm-lock.yaml
+
+      - name: Install JS workspace dependencies
+        working-directory: js
+        run: pnpm install --frozen-lockfile
+
+      - name: Install visual-regression dependencies
+        working-directory: tests/visual_regression
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium for Playwright
+        working-directory: tests/visual_regression
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Generate DOM baseline candidates
+        env:
+          UPDATE_BASELINES: "1"
+        run: bash scripts/visual_regression/run_dom_snapshots.sh "${{ inputs.cadence }}"
+
+      - name: Upload DOM baseline candidates
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-2026-dom-baseline-candidates
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            examples/**/screenshots/**/*.dom.html
+            tests/visual_regression/playwright-report/**
+            tests/visual_regression/test-results/**

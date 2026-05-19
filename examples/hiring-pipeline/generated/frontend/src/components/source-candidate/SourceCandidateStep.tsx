@@ -6,6 +6,8 @@ export interface SourceCandidateStepProps {
 	instanceId: string;
 	state: string;
 	onEvent: (event: string, payload?: Record<string, unknown>) => Promise<void> | void;
+	/** Explicitly exposes workflow state / instance diagnostics for developer tools. */
+	developerMode?: boolean;
 }
 
 const FIELDS: ReadonlyArray<{ id: string; label: string; required: boolean; pii: boolean }> = [
@@ -31,7 +33,7 @@ export function SourceCandidateStep(props: SourceCandidateStepProps): React.Reac
 			if (busy) return;
 			setBusy(true);
 			try {
-				await props.onEvent(event, {});
+				await props.onEvent(event, { instance_id: props.instanceId });
 			} finally {
 				setBusy(false);
 			}
@@ -43,8 +45,14 @@ export function SourceCandidateStep(props: SourceCandidateStepProps): React.Reac
 		<section data-testid="source_candidate-step" aria-labelledby="source_candidate-step-title">
 			<header>
 				<h2 id="source_candidate-step-title">Source a candidate</h2>
-				<p>State: <code>{props.state}</code></p>
-				<p>Instance: <code>{props.instanceId}</code></p>
+				{props.developerMode ? (
+					<dl aria-label="Workflow diagnostics">
+						<dt>State</dt>
+						<dd><code>{props.state}</code></dd>
+						<dt>Instance</dt>
+						<dd><code>{props.instanceId}</code></dd>
+					</dl>
+				) : null}
 			</header>
 			<dl>
 				{FIELDS.map((field) => (

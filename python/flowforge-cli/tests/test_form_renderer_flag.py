@@ -81,6 +81,16 @@ def _step_tsx(files: list[Any]) -> str:
 	return step.content
 
 
+def _page_tsx(files: list[Any]) -> str:
+	(page,) = [f for f in files if f.path.endswith("app/claim-intake/page.tsx")]
+	return page.content
+
+
+def _runtime_client_ts(files: list[Any]) -> str:
+	(client,) = [f for f in files if f.path.endswith("claims_demo/runtimeClient.ts")]
+	return client.content
+
+
 def test_default_flag_matches_skeleton_path() -> None:
 	"""No frontend block → "skeleton" → byte-identical to explicit skeleton."""
 
@@ -95,6 +105,10 @@ def test_skeleton_path_emits_dd_placeholder() -> None:
 	tsx = _step_tsx(generate(_bundle("skeleton")))
 	assert "<dd>—</dd>" in tsx, tsx
 	assert "@flowforge/renderer" not in tsx, tsx
+	assert "developerMode?: boolean" in tsx, tsx
+	assert 'aria-label="Workflow diagnostics"' in tsx, tsx
+	assert "<p>State:" not in tsx, tsx
+	assert "<p>Instance:" not in tsx, tsx
 
 
 def test_real_path_emits_form_renderer_import() -> None:
@@ -102,14 +116,45 @@ def test_real_path_emits_form_renderer_import() -> None:
 
 	tsx = _step_tsx(generate(_bundle("real")))
 	assert "@flowforge/renderer" in tsx, tsx
+	assert '@flowforge/renderer/styles.css' in tsx, tsx
 	assert "FormRenderer" in tsx, tsx
 	assert "form_spec.json" in tsx, tsx
-	# PII visual treatment is wired (eye-toggle + masked default).
+	# PII visual treatment is wired (reason-gated icon reveal + masked default).
 	assert "PII_FIELD_IDS" in tsx, tsx
+	assert "onPiiReveal?: (detail: PiiRevealDetail)" in tsx, tsx
+	assert "EVT_PII_REVEALED" in tsx, tsx
+	assert "Reason for revealing" in tsx, tsx
+	assert "<PiiRevealIcon revealed={revealed} />" in tsx, tsx
+	assert '{revealed ? "Hide" : "Show"}' not in tsx, tsx
+	# Raw workflow diagnostics are opt-in only.
+	assert "developerMode?: boolean" in tsx, tsx
+	assert 'aria-label="Workflow diagnostics"' in tsx, tsx
+	assert "<p>State:" not in tsx, tsx
+	assert "<p>Instance:" not in tsx, tsx
 	# aria-describedby links inline errors to their field ids.
 	assert "aria-describedby" in tsx, tsx
 	# Skeleton placeholder has been replaced — no `<dd>—</dd>` left over.
 	assert "<dd>—</dd>" not in tsx, tsx
+
+
+def test_frontend_page_uses_runtime_client_with_explicit_demo_mode() -> None:
+	"""Generated pages default to API-backed events with opt-in demo mode."""
+
+	files = generate(_bundle("real"))
+	page = _page_tsx(files)
+	client = _runtime_client_ts(files)
+	assert 'import { fireWorkflowEvent } from "../../claims_demo/runtimeClient";' in page
+	assert 'NEXT_PUBLIC_FLOWFORGE_DEMO_MODE === "1"' in page
+	assert "data-flowforge-runtime-mode={RUNTIME_MODE}" in page
+	assert 'const instanceId = "demo"' not in page
+	assert 'setState("review")' not in page
+	assert 'setState("done")' not in page
+	assert 'workflowPath: "claim-intake"' in page
+	assert "Idempotency-Key" in client
+	assert "X-Tenant-Id" in client
+	assert "/events" in client
+	assert client.count("{") == client.count("}"), client
+	assert client.count("(") == client.count(")"), client
 
 
 def test_both_paths_are_byte_deterministic() -> None:

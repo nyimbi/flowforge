@@ -36,7 +36,9 @@ To verify catalogue coverage after a deploy::
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, Callable, Coroutine
+from typing import Any, Callable, Coroutine, cast
+
+from flowforge.ports.rbac import RbacResolver
 
 
 # ---------------------------------------------------------------------------
@@ -177,9 +179,10 @@ async def seed_jtbd_permissions(rbac: object) -> None:
 		f"{type(rbac).__name__!r} does not implement register_permission(); "
 		"ensure it satisfies the RbacResolver protocol"
 	)
+	resolver = cast(RbacResolver, rbac)
 
 	for perm in JTBD_PERMISSIONS:
-		await register(
+		await resolver.register_permission(
 			perm.name,
 			perm.description,
 			deprecated_aliases=list(perm.deprecated_aliases) or None,

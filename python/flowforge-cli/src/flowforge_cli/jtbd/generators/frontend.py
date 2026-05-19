@@ -54,6 +54,12 @@ def generate(bundle: NormalizedBundle, jtbd: NormalizedJTBD) -> list[GeneratedFi
 		jtbd=jtbd,
 		form_renderer=form_renderer,
 	)
+	runtime_client = render(
+		"frontend/runtimeClient.ts.j2",
+		project=bundle.project,
+		jtbd=jtbd,
+		form_renderer=form_renderer,
+	)
 	return [
 		GeneratedFile(
 			path=f"frontend/src/components/{jtbd.url_segment}/{jtbd.class_name}Step.tsx",
@@ -62,5 +68,9 @@ def generate(bundle: NormalizedBundle, jtbd: NormalizedJTBD) -> list[GeneratedFi
 		GeneratedFile(
 			path=f"frontend/src/app/{jtbd.url_segment}/page.tsx",
 			content=page,
+		),
+		GeneratedFile(
+			path=f"frontend/src/{bundle.project.package}/runtimeClient.ts",
+			content=runtime_client,
 		),
 	]

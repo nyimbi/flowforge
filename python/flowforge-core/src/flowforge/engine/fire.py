@@ -5,20 +5,22 @@ transitions whose ``from_state`` matches, run their guards in priority
 order, return the highest-priority match plus a planned-effect list.
 
 Phase 2 (commit): apply effects to the in-memory instance, append to the
-saga ledger when ``compensate`` effects fire, record audit events through
-:mod:`flowforge.config` ports, push outbox envelopes for ``notify`` /
-signal effects.
+saga ledger when ``compensate`` effects fire, and collect audit events
+plus outbox envelopes for ``notify`` / signal effects.
 
-The engine does NOT do storage — it operates on the snapshot store
-abstraction. Hosts wire ``InMemorySnapshotStore`` (default) or a
-``flowforge-sqlalchemy`` impl.
+The direct engine path does NOT do durable storage. With the default
+``dispatch_ports=True`` it also calls :mod:`flowforge.config` audit and
+outbox ports after in-memory mutation; hosts must treat that immediate
+port-dispatch path as non-atomic unless the configured ports are
+transactional enqueue adapters. Critical SQLAlchemy hosts should use
+``SqlAlchemySnapshotStore.fire_and_commit(...)``, which invokes
+``fire(..., dispatch_ports=False)`` and persists state, event log, audit
+rows, and outbox rows in one database transaction.
 
 E-32 / audit-fix-plan §4.1 (C-01, C-04): fire is per-instance serialised
 and rolls back the Instance snapshot if outbox or audit dispatch raises.
-The outbox-dispatch-then-audit-record order is deliberate: outbox is the
-failure-prone phase, so an outbox raise leaves the audit log free of an
-orphan transition row. See :class:`ConcurrentFireRejected` and
-:class:`OutboxDispatchError` for the failure surfaces.
+See :class:`ConcurrentFireRejected` and :class:`OutboxDispatchError` for
+the direct-dispatch failure surfaces.
 """
 
 from __future__ import annotations
@@ -330,6 +332,7 @@ async def fire(
 	tenant_id: str = "default",
 	jtbd_id: str | None = None,
 	jtbd_version: str | None = None,
+	dispatch_ports: bool = True,
 ) -> FireResult:
 	"""Plan + commit *event* against *instance* per *wd*.
 
@@ -341,6 +344,13 @@ async def fire(
 	and outbox envelope produced during this fire (E-10). Tracing consumers
 	use these to group events by originating JTBD spec. Pass ``None`` for
 	workflows not originating from a JTBD bundle (backwards-compatible).
+
+	When ``dispatch_ports`` is ``False``, the returned
+	:class:`FireResult` still contains the audit events and outbox
+	envelopes, but the engine does not call ``config.audit`` or
+	``config.outbox``. Durable adapters use this mode to persist state,
+	event log, audit rows, and transactional outbox rows in one database
+	transaction.
 	"""
 
 	if instance.state.startswith("terminal_") or _is_terminal(wd, instance.state):
@@ -362,6 +372,7 @@ async def fire(
 			tenant_id=tenant_id,
 			jtbd_id=jtbd_id,
 			jtbd_version=jtbd_version,
+			dispatch_ports=dispatch_ports,
 		)
 	finally:
 		_FIRING_INSTANCES.discard(instance.id)
@@ -377,6 +388,7 @@ async def _fire_locked(
 	tenant_id: str,
 	jtbd_id: str | None,
 	jtbd_version: str | None,
+	dispatch_ports: bool,
 ) -> FireResult:
 	"""Body of :func:`fire` after the per-instance gate has been claimed.
 
@@ -445,27 +457,27 @@ async def _fire_locked(
 		),
 	)
 
-	# E-32 / C-01: dispatch order is outbox → audit. Outbox is the
-	# failure-prone phase (network, broker); raising here leaves the
-	# audit sink untouched, so "audit row absent" is naturally true on
-	# rollback. Audit raises (rare) also rollback Instance state — the
-	# already-dispatched outbox envelopes are tolerated as orphans
-	# (documented; recovered by the outbox worker idempotency contract).
-	if config.outbox is not None:
-		for env in outboxes:
-			try:
-				await config.outbox.dispatch(env)
-			except Exception as e:
-				_restore_instance(instance, pre_snapshot)
-				raise OutboxDispatchError(instance.id, env.kind) from e
-
-	if config.audit is not None:
+	# Direct port dispatch is intentionally retained for tests, demos, and
+	# custom hosts. It is not a durable transaction boundary. Critical
+	# SQLAlchemy hosts use SqlAlchemySnapshotStore.fire_and_commit(), which
+	# calls fire(..., dispatch_ports=False) and writes audit/outbox rows in
+	# the same database transaction as the snapshot/event log.
+	cfg = config.current()
+	if dispatch_ports and cfg.audit is not None:
 		try:
 			for evt in audits:
-				await config.audit.record(evt)
+				await cfg.audit.record(evt)
 		except Exception:
 			_restore_instance(instance, pre_snapshot)
 			raise
+
+	if dispatch_ports and cfg.outbox is not None:
+		for env in outboxes:
+			try:
+				await cfg.outbox.dispatch(env)
+			except Exception as e:
+				_restore_instance(instance, pre_snapshot)
+				raise OutboxDispatchError(instance.id, env.kind) from e
 
 	terminal = _is_terminal(wd, instance.state)
 	return FireResult(

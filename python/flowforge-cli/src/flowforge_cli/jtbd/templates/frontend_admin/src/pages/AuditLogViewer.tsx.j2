@@ -59,14 +59,18 @@ export function AuditLogViewer(): React.ReactElement {
 
 	return (
 		<section aria-labelledby="audit-heading">
-			<h2 id="audit-heading">Audit log</h2>
-			<p className="ff-admin-hint">
-				Verifies the audit hash-chain by calling <code>AuditSink.verify_chain()</code>{" "}
-				on the host (Postgres-backed by <code>flowforge-audit-pg</code>). A red status
-				means the chain is broken — investigate immediately.
-			</p>
+			<h2
+				id="audit-heading"
+				title="Audit hash-chain verification by topic"
+			>
+				Audit log
+			</h2>
 			<div className="ff-admin-toolbar">
-				<button type="button" onClick={verifyAll}>
+				<button
+					type="button"
+					onClick={verifyAll}
+					title="Run hash-chain verification for every audit topic"
+				>
 					Verify all topics
 				</button>
 			</div>

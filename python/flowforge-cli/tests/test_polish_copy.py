@@ -3,7 +3,7 @@
 Covers:
 
 * :class:`JtbdCopyOverrides` schema — ``extra='forbid'`` at the top level,
-  namespace-pattern validation for ``strings`` keys.
+  namespace-pattern validation for applied ``strings`` keys.
 * Sidecar lookup precedence (``--overrides`` flag wins, then co-located,
   then ``None``).
 * :mod:`flowforge_cli.commands.polish_copy` no-op behaviour when no
@@ -26,6 +26,7 @@ import pytest
 from pydantic import ValidationError
 from typer.testing import CliRunner
 
+from flowforge_cli.commands import polish_copy as polish_copy_module
 from flowforge_cli.jtbd import generate
 from flowforge_cli.jtbd.overrides import (
 	JtbdCopyOverrides,
@@ -95,20 +96,22 @@ def _bundle() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def test_schema_accepts_valid_namespace_keys() -> None:
-	"""Each documented key kind validates cleanly."""
+def test_schema_accepts_valid_field_label_namespace_keys() -> None:
+	"""The applied field-label namespace validates cleanly."""
 
 	model = JtbdCopyOverrides(
 		tone_profile="formal-professional",
 		strings={
 			"claim_intake.field.claimant_name.label": "Claimant full name",
-			"claim_intake.field.claimant_name.helper_text": "As shown on policy.",
-			"claim_intake.button.submit.text": "File claim",
-			"claim_intake.notification.claim.created.template": "Hello {{ name }}.",
-			"claim_intake.error.lapsed.message": "Policy lapsed.",
 		},
+		llm_provider="anthropic",
+		llm_model="claude-3-5-sonnet-latest",
+		prompt_sha256="a" * 64,
 	)
 	assert model.tone_profile == "formal-professional"
+	assert model.llm_provider == "anthropic"
+	assert model.llm_model == "claude-3-5-sonnet-latest"
+	assert model.prompt_sha256 == "a" * 64
 	assert model.version == "1.0"
 	# Round-trip through dump → parse → equality.
 	rendered = dump_sidecar(model)
@@ -127,13 +130,15 @@ def test_schema_rejects_unknown_namespace() -> None:
 	assert "override keys must match" in str(exc.value)
 
 
-def test_schema_rejects_typo_suffix() -> None:
-	"""``labels`` (plural) and ``msg`` typos fail — leaf suffix is locked down."""
+def test_schema_rejects_unapplied_or_typo_suffixes() -> None:
+	"""Only field labels are accepted until other namespaces are wired."""
 
 	for bad in (
 		"claim_intake.field.claimant_name.labels",  # plural
-		"claim_intake.button.submit.label",  # wrong leaf for button
-		"claim_intake.notification.x.body",  # wrong leaf for notification
+		"claim_intake.field.claimant_name.helper_text",  # not applied by generators
+		"claim_intake.button.submit.text",  # not applied by generators
+		"claim_intake.notification.x.template",  # not applied by generators
+		"claim_intake.error.lapsed.message",  # not applied by generators
 	):
 		with pytest.raises(ValidationError):
 			JtbdCopyOverrides(
@@ -166,9 +171,9 @@ def test_schema_locks_tone_profile() -> None:
 
 
 def test_kinds_constants_align() -> None:
-	"""``OVERRIDE_KEY_KINDS`` matches the four documented namespaces."""
+	"""``OVERRIDE_KEY_KINDS`` matches the namespaces generators apply."""
 
-	assert set(OVERRIDE_KEY_KINDS) == {"field", "button", "notification", "error"}
+	assert set(OVERRIDE_KEY_KINDS) == {"field"}
 	assert "formal-professional" in TONE_PROFILES
 	assert "friendly-direct" in TONE_PROFILES
 	assert "regulator-compliant" in TONE_PROFILES
@@ -428,6 +433,231 @@ def test_cli_commit_no_api_key_does_not_write_sidecar(tmp_path: Path) -> None:
 	assert result.exit_code == 0, result.output
 	assert "no-op" in result.output
 	assert not sidecar_path_for(path).exists()
+
+
+def test_cli_require_llm_no_api_key_fails_without_sidecar(tmp_path: Path) -> None:
+	"""Release authoring can opt into fail-closed LLM detection."""
+
+	path = _write_bundle(tmp_path)
+	result = runner.invoke(
+		app,
+		[
+			"polish-copy",
+			"--bundle",
+			str(path),
+			"--tone",
+			"formal-professional",
+			"--require-llm",
+			"--commit",
+		],
+	)
+	assert result.exit_code == 1, result.output
+	assert "--require-llm needs ANTHROPIC_API_KEY" in result.output
+	assert not sidecar_path_for(path).exists()
+
+
+def test_cli_require_llm_missing_llm_extra_fails_without_sidecar(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""--require-llm also fails when credentials exist but the LLM extra is absent."""
+
+	monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+	monkeypatch.setattr(
+		polish_copy_module,
+		"_detect_polish_fn",
+		lambda: (
+			polish_copy_module._noop_polish,
+			"anthropic package not installed (extras: 'flowforge-cli[llm]') — no-op echo",
+			None,
+			None,
+		),
+	)
+
+	path = _write_bundle(tmp_path)
+	result = runner.invoke(
+		app,
+		[
+			"polish-copy",
+			"--bundle",
+			str(path),
+			"--tone",
+			"formal-professional",
+			"--require-llm",
+			"--commit",
+		],
+	)
+	assert result.exit_code == 1, result.output
+	assert "flowforge-cli[llm]" in result.output
+	assert not sidecar_path_for(path).exists()
+
+
+def test_cli_require_llm_noop_polish_fails_without_new_sidecar(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""Release authoring cannot silently pass when the LLM produces no sidecar diff."""
+
+	monkeypatch.setattr(
+		polish_copy_module,
+		"_detect_polish_fn",
+		lambda: (
+			lambda strings, _tone: dict(strings),
+			"test LLM returned canonical copy",
+			"anthropic",
+			"claude-test-model-20260518",
+		),
+	)
+
+	path = _write_bundle(tmp_path)
+	result = runner.invoke(
+		app,
+		[
+			"polish-copy",
+			"--bundle",
+			str(path),
+			"--tone",
+			"formal-professional",
+			"--require-llm",
+			"--commit",
+		],
+	)
+	assert result.exit_code == 1, result.output
+	assert "produced no sidecar-worthy changes" in result.output
+	assert not sidecar_path_for(path).exists()
+
+
+def test_cli_commit_noop_preserves_existing_reviewed_sidecar(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""A canonical/no-op polish must not erase an existing reviewed sidecar."""
+
+	monkeypatch.setattr(
+		polish_copy_module,
+		"_detect_polish_fn",
+		lambda: (
+			lambda strings, _tone: dict(strings),
+			"test LLM returned canonical copy",
+			"anthropic",
+			"claude-test-model-20260518",
+		),
+	)
+
+	path = _write_bundle(tmp_path)
+	sidecar = sidecar_path_for(path)
+	original = dump_sidecar(
+		JtbdCopyOverrides(
+			tone_profile="formal-professional",
+			strings={
+				"claim_intake.field.claimant_name.label": "Reviewed claimant name",
+			},
+			llm_provider="anthropic",
+			llm_model="claude-review-model",
+			prompt_sha256="b" * 64,
+		)
+	)
+	sidecar.write_text(original, encoding="utf-8")
+
+	result = runner.invoke(
+		app,
+		[
+			"polish-copy",
+			"--bundle",
+			str(path),
+			"--tone",
+			"formal-professional",
+			"--commit",
+		],
+	)
+	assert result.exit_code == 0, result.output
+	assert "reviewed sidecars" in result.output
+	assert sidecar.read_text(encoding="utf-8") == original
+
+
+def test_cli_provider_error_fails_without_writing_sidecar(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""Malformed provider output is a failed authoring run, not a canonical rewrite."""
+
+	def broken_polish(_strings: dict[str, str], _tone: str) -> dict[str, str]:
+		raise polish_copy_module.PolishProviderError("provider returned non-JSON")
+
+	monkeypatch.setattr(
+		polish_copy_module,
+		"_detect_polish_fn",
+		lambda: (
+			broken_polish,
+			"test LLM polish",
+			"anthropic",
+			"claude-test-model-20260518",
+		),
+	)
+
+	path = _write_bundle(tmp_path)
+	result = runner.invoke(
+		app,
+		[
+			"polish-copy",
+			"--bundle",
+			str(path),
+			"--tone",
+			"formal-professional",
+			"--commit",
+		],
+	)
+	assert result.exit_code == 1, result.output
+	assert "LLM polish failed: provider returned non-JSON" in result.output
+	assert not sidecar_path_for(path).exists()
+
+
+def test_cli_commit_llm_polish_records_model_and_prompt_checksum(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""Committed LLM sidecars carry enough metadata for audit review."""
+
+	def fake_polish(strings: dict[str, str], _tone: str) -> dict[str, str]:
+		out = dict(strings)
+		out["claim_intake.field.claimant_name.label"] = "Policyholder legal name"
+		return out
+
+	monkeypatch.setattr(
+		polish_copy_module,
+		"_detect_polish_fn",
+		lambda: (
+			fake_polish,
+			"test LLM polish",
+			"anthropic",
+			"claude-test-model-20260518",
+		),
+	)
+
+	path = _write_bundle(tmp_path)
+	result = runner.invoke(
+		app,
+		[
+			"polish-copy",
+			"--bundle",
+			str(path),
+			"--tone",
+			"formal-professional",
+			"--commit",
+		],
+	)
+	assert result.exit_code == 0, result.output
+	sidecar = load_sidecar(path)
+	assert sidecar is not None
+	assert sidecar.strings["claim_intake.field.claimant_name.label"] == (
+		"Policyholder legal name"
+	)
+	assert sidecar.llm_provider == "anthropic"
+	assert sidecar.llm_model == "claude-test-model-20260518"
+	assert sidecar.prompt_sha256 == polish_copy_module._prompt_sha256(
+		build_canonical_strings(_bundle()),
+		"formal-professional",
+	)
 
 
 def test_cli_rejects_invalid_tone(tmp_path: Path) -> None:

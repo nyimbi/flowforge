@@ -2,6 +2,7 @@
 // Re-run the generator to regenerate; do not edit by hand.
 import * as React from "react";
 import { FormRenderer, type FormErrors, type FormValues, type RendererFormSpec } from "@flowforge/renderer";
+import "@flowforge/renderer/styles.css";
 
 import formSpec from "../../../../workflows/claim_intake/form_spec.json";
 import { ANALYTICS_EVENTS, type AnalyticsEvent } from "../../insurance_claim_demo/analytics";
@@ -28,6 +29,13 @@ export interface AnalyticsTracker {
 	track(eventName: AnalyticsEvent, properties: Record<string, unknown>): void | Promise<void>;
 }
 
+export interface PiiRevealDetail {
+	instanceId: string;
+	jtbdId: "claim_intake";
+	fieldId: string;
+	reason: string;
+}
+
 export interface ClaimIntakeStepProps {
 	instanceId: string;
 	state: string;
@@ -36,6 +44,10 @@ export interface ClaimIntakeStepProps {
 	context?: Record<string, unknown>;
 	/** Optional analytics sink; closed-taxonomy events fire through here when provided. */
 	analytics?: AnalyticsTracker;
+	/** Explicitly exposes workflow state / instance diagnostics for developer tools. */
+	developerMode?: boolean;
+	/** Optional audit hook; PII is revealed only after this hook succeeds. */
+	onPiiReveal?: (detail: PiiRevealDetail) => void | Promise<void>;
 }
 
 interface FieldMeta {
@@ -64,6 +76,7 @@ const PII_FIELD_IDS: ReadonlyArray<string> = FIELDS.filter((f) => f.pii).map((f)
 // the TS compiler a closed set to type-check against.
 const EVT_FIELD_FOCUSED: AnalyticsEvent = ANALYTICS_EVENTS.CLAIM_INTAKE_FIELD_FOCUSED;
 const EVT_FIELD_COMPLETED: AnalyticsEvent = ANALYTICS_EVENTS.CLAIM_INTAKE_FIELD_COMPLETED;
+const EVT_PII_REVEALED: AnalyticsEvent = ANALYTICS_EVENTS.CLAIM_INTAKE_PII_REVEALED;
 const EVT_VALIDATION_FAILED: AnalyticsEvent = ANALYTICS_EVENTS.CLAIM_INTAKE_VALIDATION_FAILED;
 const EVT_SUBMISSION_STARTED: AnalyticsEvent = ANALYTICS_EVENTS.CLAIM_INTAKE_SUBMISSION_STARTED;
 const EVT_SUBMISSION_SUCCEEDED: AnalyticsEvent = ANALYTICS_EVENTS.CLAIM_INTAKE_SUBMISSION_SUCCEEDED;
@@ -75,9 +88,10 @@ const EVT_FORM_ABANDONED: AnalyticsEvent = ANALYTICS_EVENTS.CLAIM_INTAKE_FORM_AB
  * data_capture.validation; show_if uses the engine's whitelisted `var` operator
  * (no new operators introduced).
  *
- * PII fields default to a masked text node with an eye-toggle, keeping screen
- * leaks to a minimum during shoulder-surfing demos. Inline errors link via
- * `aria-describedby` so assistive tech surfaces them next to the offending field.
+ * PII fields default to a masked text node with a reason-gated icon button,
+ * keeping screen leaks to a minimum during shoulder-surfing demos. Inline
+ * errors link via `aria-describedby` so assistive tech surfaces them next to
+ * the offending field.
  *
  * Analytics: the Step fires the closed taxonomy events from
  * `insurance_claim_demo/analytics.ts` through an optional `analytics` prop
@@ -90,6 +104,9 @@ export function ClaimIntakeStep(props: ClaimIntakeStepProps): React.ReactElement
 	const [values, setValues] = React.useState<FormValues>({});
 	const [errors, setErrors] = React.useState<FormErrors>({});
 	const [revealedPii, setRevealedPii] = React.useState<ReadonlyArray<string>>([]);
+	const [piiRevealReasons, setPiiRevealReasons] = React.useState<Record<string, string>>({});
+	const [piiRevealErrors, setPiiRevealErrors] = React.useState<Record<string, string>>({});
+	const [pendingPiiReveal, setPendingPiiReveal] = React.useState<ReadonlyArray<string>>([]);
 
 	// Analytics bookkeeping. Refs avoid useEffect re-runs and keep the
 	// `emit` closure stable across renders.
@@ -122,16 +139,46 @@ export function ClaimIntakeStep(props: ClaimIntakeStepProps): React.ReactElement
 		[],
 	);
 
-	const togglePii = React.useCallback((id: string) => {
-		setRevealedPii((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+	const updatePiiRevealReason = React.useCallback((id: string, reason: string) => {
+		setPiiRevealReasons((prev) => ({ ...prev, [id]: reason }));
 	}, []);
+
+	const togglePii = React.useCallback(
+		async (id: string) => {
+			if (revealedPii.includes(id)) {
+				setRevealedPii((prev) => prev.filter((x) => x !== id));
+				return;
+			}
+
+			const reason = (piiRevealReasons[id] ?? "").trim();
+			if (reason.length === 0 || pendingPiiReveal.includes(id)) return;
+
+			setPendingPiiReveal((prev) => (prev.includes(id) ? prev : [...prev, id]));
+			setPiiRevealErrors((prev) => ({ ...prev, [id]: "" }));
+			try {
+				await props.onPiiReveal?.({
+					instanceId: props.instanceId,
+					jtbdId: "claim_intake",
+					fieldId: id,
+					reason,
+				});
+				setRevealedPii((prev) => (prev.includes(id) ? prev : [...prev, id]));
+				emit(EVT_PII_REVEALED, { fieldId: id, reasonLength: reason.length });
+			} catch {
+				setPiiRevealErrors((prev) => ({ ...prev, [id]: "Reveal audit failed" }));
+			} finally {
+				setPendingPiiReveal((prev) => prev.filter((x) => x !== id));
+			}
+		},
+		[emit, pendingPiiReveal, piiRevealReasons, props, revealedPii],
+	);
 
 	const fire = React.useCallback(
 		async (event: string, payload: Record<string, unknown>) => {
 			if (busy) return;
 			setBusy(true);
 			try {
-				await props.onEvent(event, payload);
+				await props.onEvent(event, { instance_id: props.instanceId, ...payload });
 			} finally {
 				setBusy(false);
 			}
@@ -210,8 +257,14 @@ export function ClaimIntakeStep(props: ClaimIntakeStepProps): React.ReactElement
 			style={{ fontFamily: "var(--font-family)", borderRadius: "var(--radius-md)", padding: "var(--density-padding)" }}		>
 			<header>
 				<h2 id="claim_intake-step-title" style={{ color: "var(--color-primary)" }}>{t("jtbd.claim_intake.title")}</h2>
-				<p>State: <code>{props.state}</code></p>
-				<p>Instance: <code>{props.instanceId}</code></p>
+				{props.developerMode ? (
+					<dl aria-label="Workflow diagnostics">
+						<dt>State</dt>
+						<dd><code>{props.state}</code></dd>
+						<dt>Instance</dt>
+						<dd><code>{props.instanceId}</code></dd>
+					</dl>
+				) : null}
 			</header>
 			<FormRenderer
 				spec={SPEC}
@@ -229,24 +282,55 @@ export function ClaimIntakeStep(props: ClaimIntakeStepProps): React.ReactElement
 					<h3>Sensitive fields</h3>
 					<ul>
 						{PII_FIELD_IDS.map((id) => {
-							const meta = FIELDS.find((f) => f.id === id)!;
 							const revealed = revealedPii.includes(id);
 							const raw = values[id];
 							const display = revealed ? (raw == null ? "" : String(raw)) : "••••••";
 							const errorId = errors[id] ? `${id}-error` : undefined;
+							const revealError = piiRevealErrors[id];
+							const revealErrorId = revealError ? `${id}-pii-reveal-error` : undefined;
+							const describedBy = [errorId, revealErrorId].filter((v): v is string => v != null).join(" ") || undefined;
 							const labelKey = `jtbd.claim_intake.field.${id}.label` as const;
+							const fieldLabel = t(labelKey as Parameters<typeof t>[0]);
+							const revealReason = piiRevealReasons[id] ?? "";
+							const revealPending = pendingPiiReveal.includes(id);
+							const canReveal = revealed || revealReason.trim().length > 0;
+							const revealTitle = revealed
+								? `Hide ${fieldLabel}`
+								: canReveal
+									? `Reveal ${fieldLabel}`
+									: `Enter a reason before revealing ${fieldLabel}`;
 							return (
 								<li key={id}>
-									<span>{t(labelKey as Parameters<typeof t>[0])}: </span>
-									<span aria-describedby={errorId} data-pii-revealed={revealed ? "true" : "false"}>
+									<span>{fieldLabel}: </span>
+									<span aria-describedby={describedBy} data-pii-revealed={revealed ? "true" : "false"}>
 										{display}
 									</span>
-									<button type="button" onClick={() => togglePii(id)} aria-pressed={revealed}>
-										{revealed ? "Hide" : "Show"}
+									<input
+										type="text"
+										value={revealReason}
+										onChange={(ev) => updatePiiRevealReason(id, ev.currentTarget.value)}
+										aria-label={`Reason for revealing ${fieldLabel}`}
+										autoComplete="off"
+										disabled={revealed || revealPending}
+									/>
+									<button
+										type="button"
+										onClick={() => void togglePii(id)}
+										aria-label={revealTitle}
+										title={revealTitle}
+										aria-pressed={revealed}
+										disabled={revealPending || !canReveal}
+									>
+										<PiiRevealIcon revealed={revealed} />
 									</button>
 									{errorId ? (
 										<span id={errorId} role="alert">
 											{errors[id]}
+										</span>
+									) : null}
+									{revealErrorId ? (
+										<span id={revealErrorId} role="alert">
+											{revealError}
 										</span>
 									) : null}
 								</li>
@@ -261,5 +345,29 @@ export function ClaimIntakeStep(props: ClaimIntakeStepProps): React.ReactElement
 				</button>
 			</footer>
 		</section>
+	);
+}
+
+function PiiRevealIcon({ revealed }: { revealed: boolean }): React.ReactElement {
+	return revealed ? (
+		<svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 16 16">
+			<path d="M2 2l12 12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+			<path
+				d="M1.5 8s2.4-4 6.5-4 6.5 4 6.5 4-2.4 4-6.5 4-6.5-4-6.5-4z"
+				fill="none"
+				stroke="currentColor"
+				strokeWidth="1.4"
+			/>
+		</svg>
+	) : (
+		<svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 16 16">
+			<path
+				d="M1.5 8s2.4-4 6.5-4 6.5 4 6.5 4-2.4 4-6.5 4-6.5-4-6.5-4z"
+				fill="none"
+				stroke="currentColor"
+				strokeWidth="1.4"
+			/>
+			<circle cx="8" cy="8" r="2" fill="currentColor" />
+		</svg>
 	);
 }

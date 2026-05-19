@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 from typing import Any
-from unittest import mock
 
 import pytest
 
@@ -396,12 +395,27 @@ def test_SA_01_uuid7_minted_on_put(tmp_path: Any) -> None:  # noqa: ARG001
 			await conn.run_sync(Base.metadata.create_all)
 		sf = async_sessionmaker(engine, expire_on_commit=False)
 
+		from sqlalchemy import select as _select
+		from flowforge_sqlalchemy.models import WorkflowInstance, WorkflowInstanceSnapshot
+
+		async with sf() as session:
+			session.add(
+				WorkflowInstance(
+					id="i-1",
+					tenant_id="t",
+					def_key="k",
+					def_version="1.0.0",
+					subject_kind="subject",
+					state="s",
+					terminal=False,
+					context={},
+				)
+			)
+			await session.commit()
+
 		store = SqlAlchemySnapshotStore(sf, tenant_id="t")
 		inst = Instance(id="i-1", def_key="k", def_version="1.0.0", state="s")
 		await store.put(inst)
-
-		from sqlalchemy import select as _select
-		from flowforge_sqlalchemy.models import WorkflowInstanceSnapshot
 
 		async with sf() as session:
 			row = await session.scalar(

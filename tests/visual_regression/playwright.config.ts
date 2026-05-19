@@ -4,6 +4,8 @@
  * Two projects:
  *   * ``dom``  — DOM-snapshot byte-equality (CI-gating per ADR-001).
  *   * ``ssim`` — pixel SSIM (advisory; nightly only per ADR-001).
+ *   * ``browser-full-stack`` — generated frontend through generated
+ *     FastAPI router, invoked by ``scripts/run_browser_full_stack.sh``.
  *
  * The runner is invoked from ``scripts/visual_regression/run_dom_snapshots.sh``
  * (per-PR DOM smoke + Make target ``audit-2026-visual-regression-dom``)
@@ -16,13 +18,10 @@
  *     both of which are deterministic outputs of the generator. Pixel
  *     bytes are NOT deterministic — font hinting / GPU compositing /
  *     antialiasing drift between Chromium minor versions.
- *   * The dev server is per-flavor: the generated frontends already
- *     emit per-bundle Vite + React 18 SPAs under
- *     ``examples/<example>/generated/frontend-admin/<package>/``. The
- *     "frontend" flavor (Step.tsx pages) requires a Vite harness that
- *     mounts each Step against an in-memory props stub — that harness
- *     lives at ``tests/visual_regression/harness/`` (not yet committed:
- *     follow-up PR that lands once ``pnpm install`` is unblocked).
+ *   * The shell wrappers start ``tests/visual_regression/harness/``
+ *     when ``VISREG_DEV_SERVER_URL`` is unset. That Vite harness mounts
+ *     generated Next-style Step pages and generated admin components
+ *     directly from the generated example trees.
  */
 import { defineConfig, devices } from "@playwright/test";
 
@@ -42,8 +41,7 @@ export default defineConfig({
 	retries: 0,
 	use: {
 		// We do not use baseURL — each test navigates by absolute URL via
-		// the dev server fixture (see lib/dev_server.ts; lands alongside
-		// the harness in the follow-up PR).
+		// VISREG_DEV_SERVER_URL, set by the shell wrapper's harness.
 		trace: "off",
 		video: "off",
 		screenshot: "off",
@@ -76,6 +74,18 @@ export default defineConfig({
 				cadence: "nightly-only",
 				ssimThreshold: 0.98,
 				requireBaselines: SHOULD_REQUIRE_BASELINES,
+			},
+		},
+		{
+			name: "browser-full-stack",
+			testMatch: /e2e_full_stack\.spec\.ts/,
+			use: {
+				...devices["Desktop Chrome"],
+			},
+			metadata: {
+				gate: "release-browser",
+				artifact: "generated-frontend-to-generated-fastapi-router",
+				cadence: "release + browser-capable CI",
 			},
 		},
 	],

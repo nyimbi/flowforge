@@ -35,8 +35,55 @@ fi
 if [[ ! -d "$VISREG_DIR/node_modules/pngjs" ]]; then
 	skip "pngjs not installed — SSIM helper cannot decode PNGs. The test specs themselves also skip-with-reason in this case (advisory; not a CI gate)."
 fi
+if [[ "${UPDATE_BASELINES:-}" != "1" ]]; then
+	if ! find "$REPO_ROOT/examples" -path "*/screenshots/*/*.png" -type f | grep -q .; then
+		skip "pixel baselines are not checked in yet — run with UPDATE_BASELINES=1 after Playwright can launch Chromium."
+	fi
+fi
+
+HARNESS_PID=""
+HARNESS_LOG=""
+HARNESS_URL_FILE=""
+cleanup() {
+	if [[ -n "$HARNESS_PID" ]] && kill -0 "$HARNESS_PID" >/dev/null 2>&1; then
+		kill "$HARNESS_PID" >/dev/null 2>&1 || true
+		wait "$HARNESS_PID" >/dev/null 2>&1 || true
+	fi
+	[[ -n "$HARNESS_LOG" ]] && rm -f "$HARNESS_LOG"
+	[[ -n "$HARNESS_URL_FILE" ]] && rm -f "$HARNESS_URL_FILE"
+}
+trap cleanup EXIT
+
 if [[ -z "${VISREG_DEV_SERVER_URL:-}" ]]; then
-	skip "VISREG_DEV_SERVER_URL not set — dev-server harness deferred until pnpm install is unblocked."
+	if ! (cd "$VISREG_DIR" && node -e "import('vite')" >/dev/null 2>&1); then
+		skip "vite is not installed in tests/visual_regression/node_modules — run pnpm install in tests/visual_regression."
+	fi
+	HARNESS_URL_FILE="$(mktemp)"
+	HARNESS_LOG="$(mktemp)"
+	(
+		cd "$VISREG_DIR"
+		node "$VISREG_DIR/harness/start-dev-server.mjs" "$HARNESS_URL_FILE"
+	) >"$HARNESS_LOG" 2>&1 &
+	HARNESS_PID="$!"
+	for _ in {1..100}; do
+		if [[ -s "$HARNESS_URL_FILE" ]]; then
+			VISREG_DEV_SERVER_URL="$(cat "$HARNESS_URL_FILE")"
+			export VISREG_DEV_SERVER_URL
+			echo "    harness: $VISREG_DEV_SERVER_URL"
+			break
+		fi
+		if ! kill -0 "$HARNESS_PID" >/dev/null 2>&1; then
+			cat "$HARNESS_LOG" >&2
+			echo "[FAIL] visual-regression harness failed to start" >&2
+			exit 1
+		fi
+		sleep 0.1
+	done
+	if [[ -z "${VISREG_DEV_SERVER_URL:-}" ]]; then
+		cat "$HARNESS_LOG" >&2
+		echo "[FAIL] visual-regression harness did not report a URL" >&2
+		exit 1
+	fi
 fi
 
 echo "==> visual-regression-ssim (advisory; nightly cadence)"

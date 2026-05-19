@@ -1257,7 +1257,7 @@ onward is the audit hardening.
 | E-43 | TS↔Python expr conformance suite | JS-01, JS-02, JS-03 | S1 |
 | E-44 | Hypothesis property tests (5 properties) | IT-01 | S1 |
 | E-45 | E2E suite: fire→audit→verify, fire→outbox→ack, fork→migrate→replay | IT-02 | S1 |
-| E-46 | Workspace + docs alignment (45 pkgs registered, README count, doc paths) | DOC-01, DOC-02 | S1 |
+| E-46 | Workspace + docs alignment (46 pkgs registered, README count, doc paths) | DOC-01, DOC-02 | S1 |
 | E-47 | JTBD intelligence quality | J-02..J-09 | S1 |
 
 ### 26.3 S2a — Domain rebrand (weeks 2–3, parallel)

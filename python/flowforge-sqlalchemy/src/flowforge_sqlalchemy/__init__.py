@@ -7,7 +7,7 @@ This package provides the durable storage layer for the flowforge engine:
   ``workflow_instances``, ``workflow_instance_tokens``,
   ``workflow_events``, ``workflow_saga_steps``,
   ``workflow_instance_quarantine``, ``business_calendars``,
-  ``pending_signals``, ``workflow_instance_snapshots``).
+  ``pending_signals``, ``workflow_instance_snapshots``, ``outbox``).
 * :class:`SqlAlchemySnapshotStore` — implements
   :class:`flowforge.engine.snapshots.SnapshotStore`.
 * :class:`SagaQueries` — read helpers for the saga ledger.
@@ -25,6 +25,7 @@ from __future__ import annotations
 from .base import Base, metadata
 from .models import (
 	BusinessCalendar,
+	OutboxMessage,
 	PendingSignal,
 	WorkflowDefinition,
 	WorkflowDefinitionVersion,
@@ -36,15 +37,24 @@ from .models import (
 	WorkflowSagaStep,
 )
 from .rls_pg import PgRlsBinder
-from .saga_queries import SagaQueries
-from .snapshot_store import SqlAlchemySnapshotStore
+from .saga_queries import SagaConflict, SagaQueries, SagaTenantMismatch
+from .snapshot_store import (
+	SnapshotConflict,
+	SnapshotTenantMismatch,
+	SqlAlchemySnapshotStore,
+)
 
 __all__ = [
 	"Base",
 	"BusinessCalendar",
+	"OutboxMessage",
 	"PendingSignal",
 	"PgRlsBinder",
+	"SagaConflict",
 	"SagaQueries",
+	"SagaTenantMismatch",
+	"SnapshotConflict",
+	"SnapshotTenantMismatch",
 	"SqlAlchemySnapshotStore",
 	"WorkflowDefinition",
 	"WorkflowDefinitionVersion",

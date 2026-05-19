@@ -17,19 +17,28 @@ output and the persistence schema. No HTTP layer.
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
 
+import aiosqlite
 import pytest
 from flowforge.dsl import WorkflowDef
 from flowforge.engine import fire, new_instance
+from flowforge.ports.types import OutboxEnvelope, Principal
+from flowforge_audit_pg import PgAuditSink, ff_audit_events
+from flowforge_audit_pg.sink import create_tables as create_audit_tables
+from flowforge_outbox_pg.registry import HandlerRegistry
+from flowforge_outbox_pg.worker import DrainWorker
 from flowforge_sqlalchemy import (
+	Base,
+	OutboxMessage,
 	SqlAlchemySnapshotStore,
 	WorkflowDefinition,
 	WorkflowDefinitionVersion,
 	WorkflowEvent,
 	WorkflowInstance,
 )
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 pytestmark = pytest.mark.asyncio
 
@@ -203,3 +212,195 @@ async def test_persisted_events_are_chained_by_monotonic_seq(
 		read = [(r.seq, r.event, r.to_state) for r in rows]
 
 	assert read == fired
+
+
+async def test_sqlalchemy_fire_and_commit_persists_audit_snapshot_event_and_outbox(
+	session_factory: async_sessionmaker[AsyncSession],
+	sqla_engine: AsyncEngine,
+	tenant_id: str,
+	claim_workflow_def: WorkflowDef,
+) -> None:
+	wd = claim_workflow_def
+	_, instance_id = await _persist_def_and_instance(session_factory, wd, tenant_id)
+	store = SqlAlchemySnapshotStore(
+		session_factory,
+		tenant_id=tenant_id,
+		audit_sink=PgAuditSink(sqla_engine),
+	)
+	engine_inst = new_instance(wd, instance_id=instance_id)
+	await store.put(engine_inst)
+
+	await store.fire_and_commit(
+		wd=wd,
+		instance=engine_inst,
+		event="submit",
+		principal=Principal(user_id="u-1"),
+	)
+	result = await store.fire_and_commit(
+		wd=wd,
+		instance=engine_inst,
+		event="approve",
+		principal=Principal(user_id="u-1"),
+	)
+
+	assert result.terminal is True
+	assert engine_inst.state == "approved"
+
+	async with session_factory() as session:
+		events = (
+			await session.scalars(
+				select(WorkflowEvent)
+				.where(
+					WorkflowEvent.tenant_id == tenant_id,
+					WorkflowEvent.instance_id == instance_id,
+				)
+				.order_by(WorkflowEvent.seq.asc())
+			)
+		).all()
+		assert [(row.seq, row.event, row.transition_id) for row in events] == [
+			(1, "submit", "submit"),
+			(2, "approve", "approve"),
+		]
+
+		outbox_rows = (
+			await session.scalars(
+				select(OutboxMessage).where(
+					OutboxMessage.tenant_id == tenant_id,
+					OutboxMessage.status == "pending",
+				)
+			)
+		).all()
+		assert [row.kind for row in outbox_rows] == ["wf.notify"]
+		assert outbox_rows[0].body["template"] == "claim.approved.email"
+
+		audit_count = await session.scalar(select(func.count()).select_from(ff_audit_events))
+		assert audit_count is not None
+		assert audit_count >= 4
+
+	loaded = await store.get(instance_id)
+	assert loaded is not None
+	assert loaded.state == "approved"
+	assert len(loaded.history) == 2
+
+
+async def test_sqlalchemy_fire_and_commit_outbox_rows_are_drain_worker_compatible(
+	tmp_path: Path,
+	tenant_id: str,
+	claim_workflow_def: WorkflowDef,
+) -> None:
+	"""Rows produced by the transactional fire path must drain through the worker."""
+	db_path = tmp_path / "flowforge-outbox.sqlite3"
+	engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}", future=True)
+	async with engine.begin() as conn:
+		await conn.run_sync(Base.metadata.create_all)
+		await create_audit_tables(conn)
+	session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
+	try:
+		wd = claim_workflow_def
+		_, instance_id = await _persist_def_and_instance(session_factory, wd, tenant_id)
+		store = SqlAlchemySnapshotStore(
+			session_factory,
+			tenant_id=tenant_id,
+			audit_sink=PgAuditSink(engine),
+		)
+		engine_inst = new_instance(wd, instance_id=instance_id)
+		await store.put(engine_inst)
+		await store.fire_and_commit(
+			wd=wd,
+			instance=engine_inst,
+			event="submit",
+			principal=Principal(user_id="u-1"),
+		)
+		await store.fire_and_commit(
+			wd=wd,
+			instance=engine_inst,
+			event="approve",
+			principal=Principal(user_id="u-1"),
+		)
+
+		received: list[OutboxEnvelope] = []
+		registry = HandlerRegistry()
+
+		async def _record(envelope: OutboxEnvelope) -> None:
+			received.append(envelope)
+
+		registry.register("wf.notify", _record)
+		async with aiosqlite.connect(db_path) as conn:
+			worker = DrainWorker(conn, registry, sqlite_compat=True)
+			result = await worker.run_once()
+
+		assert result.dispatched == 1
+		assert result.retried == 0
+		assert result.dead == 0
+		assert result.no_handler == 0
+		assert len(received) == 1
+		envelope = received[0]
+		assert envelope.kind == "wf.notify"
+		assert envelope.tenant_id == tenant_id
+		assert envelope.body["template"] == "claim.approved.email"
+
+		async with session_factory() as session:
+			status = await session.scalar(
+				select(OutboxMessage.status).where(
+					OutboxMessage.tenant_id == tenant_id,
+					OutboxMessage.kind == "wf.notify",
+				)
+			)
+			assert status == "dispatched"
+	finally:
+		await engine.dispose()
+
+
+async def test_sqlalchemy_fire_and_commit_rolls_back_everything_on_audit_failure(
+	session_factory: async_sessionmaker[AsyncSession],
+	tenant_id: str,
+	claim_workflow_def: WorkflowDef,
+) -> None:
+	class _FailingTransactionalAudit:
+		async def record_in_connection(
+			self,
+			conn: AsyncConnection,
+			event: object,
+		) -> str:
+			raise RuntimeError("audit unavailable")
+
+	wd = claim_workflow_def
+	_, instance_id = await _persist_def_and_instance(session_factory, wd, tenant_id)
+	store = SqlAlchemySnapshotStore(
+		session_factory,
+		tenant_id=tenant_id,
+		audit_sink=_FailingTransactionalAudit(),
+	)
+	engine_inst = new_instance(wd, instance_id=instance_id)
+	await store.put(engine_inst)
+
+	with pytest.raises(RuntimeError, match="audit unavailable"):
+		await store.fire_and_commit(
+			wd=wd,
+			instance=engine_inst,
+			event="submit",
+			principal=Principal(user_id="u-1"),
+		)
+
+	assert engine_inst.state == "intake"
+	assert engine_inst.history == []
+
+	async with session_factory() as session:
+		event_count = await session.scalar(
+			select(func.count())
+			.select_from(WorkflowEvent)
+			.where(WorkflowEvent.instance_id == instance_id)
+		)
+		outbox_count = await session.scalar(
+			select(func.count())
+			.select_from(OutboxMessage)
+			.where(OutboxMessage.tenant_id == tenant_id)
+		)
+		assert event_count == 0
+		assert outbox_count == 0
+
+	loaded = await store.get(instance_id)
+	assert loaded is not None
+	assert loaded.state == "intake"
+	assert loaded.history == []

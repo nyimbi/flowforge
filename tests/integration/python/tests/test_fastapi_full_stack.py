@@ -23,7 +23,6 @@ Drives a full HTTP round-trip:
 
 from __future__ import annotations
 
-import asyncio
 import json
 from typing import AsyncIterator
 
@@ -39,6 +38,7 @@ from flowforge_audit_pg import PgAuditSink
 from flowforge_documents_s3 import NoopDocumentPort
 from flowforge_fastapi import (
 	StaticPrincipalExtractor,
+	StaticTenantResolver,
 	get_events_hub,
 	get_registry,
 	mount_routers,
@@ -123,6 +123,7 @@ async def real_adapters_app(
 		principal_extractor=StaticPrincipalExtractor(
 			Principal(user_id="alice", roles=("staff",))
 		),
+		tenant_resolver=StaticTenantResolver("t-1"),
 	)
 
 	try:

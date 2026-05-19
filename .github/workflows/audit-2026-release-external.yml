@@ -1,0 +1,130 @@
+name: Audit 2026 external release
+
+# Manual release-qualification gate for evidence that cannot be proven by the
+# standalone local PR gate: committed DOM baselines, browser full-stack
+# Playwright, reviewed real-key polish-copy sidecar, UMS parity, and live
+# Postgres contention/drain checks.
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend_repository:
+        description: "GitHub repository containing the UMS backend checkout (owner/repo)"
+        required: true
+        type: string
+      backend_ref:
+        description: "Git ref for the UMS backend checkout"
+        required: true
+        default: "main"
+        type: string
+
+concurrency:
+  group: audit-2026-release-external-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-external:
+    name: audit-2026-release-external
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: flowforge_release
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d flowforge_release"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout flowforge
+        uses: actions/checkout@v4
+        with:
+          path: flowforge
+
+      - name: Checkout UMS backend
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.backend_repository }}
+          ref: ${{ inputs.backend_ref }}
+          path: backend
+          token: ${{ secrets.UMS_BACKEND_TOKEN || github.token }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: |
+            flowforge/uv.lock
+            backend/uv.lock
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "11.1.3"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: |
+            flowforge/js/pnpm-lock.yaml
+            flowforge/tests/visual_regression/pnpm-lock.yaml
+
+      - name: Install flowforge Python workspace
+        working-directory: flowforge
+        run: uv sync --all-packages --all-extras
+
+      - name: Install UMS backend Python workspace
+        working-directory: backend
+        run: uv sync
+
+      - name: Install JS workspace dependencies
+        working-directory: flowforge/js
+        run: pnpm install --frozen-lockfile
+
+      - name: Install visual-regression dependencies
+        working-directory: flowforge/tests/visual_regression
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium for Playwright
+        working-directory: flowforge/tests/visual_regression
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run external release gate
+        working-directory: flowforge
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BACKEND_ROOT: ${{ github.workspace }}/backend
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          FLOWFORGE_TEST_PG_URL: postgresql://postgres:postgres@127.0.0.1:5432/flowforge_release
+        run: make audit-2026-release-external
+
+      - name: Upload external release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-2026-release-external-evidence
+          if-no-files-found: ignore
+          retention-days: 30
+          path: |
+            flowforge/docs/audit-2026/external-release-evidence-template.md
+            flowforge/docs/audit-2026/external-release-runbook.md
+            flowforge/examples/**/screenshots/**/*.dom.html
+            flowforge/examples/insurance_claim/jtbd-bundle.json.overrides.json
+            flowforge/tests/visual_regression/playwright-report/**
+            flowforge/tests/visual_regression/test-results/**

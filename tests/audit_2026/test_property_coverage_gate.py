@@ -1,12 +1,15 @@
-"""W4a / item 3 — property-coverage audit gate.
+"""W4a / item 3 + W4b retrofit — property-coverage audit gate.
 
-Asserts that every generator added in W0-W3 has at least one
-hypothesis property test under ``tests/property/generators/``. The
-list is the 13-generator canon documented in the W4a task brief:
+Asserts that every generator in the W0-W4b property-coverage canon has
+at least one hypothesis property test under
+``tests/property/generators/``. The base 13-generator canon came from
+the W4a task brief:
 
   compensation_handlers, migration_safety, openapi, diagram,
   frontend_admin, restore_runbook, idempotency, analytics_taxonomy,
   frontend_cli, frontend_email, frontend_slack, lineage, design_tokens.
+
+The W4b retrofit adds ``i18n`` and ``operator_manual``.
 
 The Makefile target ``audit-2026-property-coverage`` runs this test in
 isolation so a missing retrofit fails fast in CI; the regular
@@ -22,7 +25,7 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-# The 13 W0-W3 generators that MUST own a retrofit property test under
+# The W0-W4b generators that MUST own a retrofit property test under
 # ``tests/property/generators/test_<generator>_properties.py``. Sorted
 # for byte-stable failure messages.
 REQUIRED_GENERATORS: tuple[str, ...] = (
@@ -35,9 +38,11 @@ REQUIRED_GENERATORS: tuple[str, ...] = (
 	"frontend_email",
 	"frontend_slack",
 	"idempotency",
+	"i18n",
 	"lineage",
 	"migration_safety",
 	"openapi",
+	"operator_manual",
 	"restore_runbook",
 )
 

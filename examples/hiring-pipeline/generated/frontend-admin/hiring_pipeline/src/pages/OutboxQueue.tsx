@@ -55,14 +55,12 @@ export function OutboxQueue(props: OutboxQueueProps): React.ReactElement {
 
 	return (
 		<section aria-labelledby="outbox-heading">
-			<h2 id="outbox-heading">Outbox queue</h2>
-			<p className="ff-admin-hint">
-				Envelopes the engine deferred to the outbox but the dispatcher hasn't
-				delivered yet. Backed by <code>OutboxRegistry</code>{" "}
-				(<code>flowforge-outbox-pg</code> on Postgres hosts). A non-zero attempt
-				count + recent <code>last_error</code> means the dispatcher is
-				back-off-throttled — review the error before forcing a retry.
-			</p>
+			<h2
+				id="outbox-heading"
+				title="Deferred envelopes pending dispatcher delivery"
+			>
+				Outbox queue
+			</h2>
 			{error ? (
 				<p role="alert" className="ff-admin-error">
 					{error}

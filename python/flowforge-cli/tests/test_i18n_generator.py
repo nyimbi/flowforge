@@ -29,6 +29,7 @@ import pytest
 from flowforge_cli.jtbd import generate
 from flowforge_cli.jtbd.generators import _fixture_registry
 from flowforge_cli.jtbd.generators import i18n as gen
+from flowforge_cli.jtbd.i18n_sidecars import load_i18n_sidecars
 from flowforge_cli.jtbd.normalize import normalize
 
 
@@ -207,6 +208,54 @@ def test_non_english_catalog_values_are_all_empty() -> None:
 	assert fr  # non-empty (i.e. has keys)
 	for value in fr.values():
 		assert value == "", value
+
+
+def test_translation_sidecar_populates_non_english_catalog() -> None:
+	"""Author-provided sidecars fill values without changing the keyset."""
+
+	norm = normalize(_bundle(languages=["en", "fr-CA"]))
+	files = {
+		f.path: f.content
+		for f in gen.generate(
+			norm,
+			translations={"fr-CA": {"jtbd.claim_intake.title": "Déposer une réclamation"}},
+		)
+	}
+	fr = json.loads(files["frontend/src/claims_demo/i18n/fr-CA.json"])
+	assert fr["jtbd.claim_intake.title"] == "Déposer une réclamation"
+	assert fr["jtbd.claim_intake.button.submit"] == ""
+
+
+def test_translation_sidecar_rejects_unknown_keys() -> None:
+	norm = normalize(_bundle(languages=["en", "fr-CA"]))
+	with pytest.raises(ValueError, match="unknown key"):
+		gen.generate(norm, translations={"fr-CA": {"jtbd.claim_intake.nope": "X"}})
+
+
+def test_translation_sidecar_rejects_undeclared_locale(tmp_path: Path) -> None:
+	bundle = tmp_path / "jtbd-bundle.json"
+	bundle.write_text(json.dumps(_bundle(languages=["en", "fr-CA"])), encoding="utf-8")
+	sidecars = tmp_path / "i18n"
+	sidecars.mkdir()
+	(sidecars / "fr_CA.json").write_text("{}", encoding="utf-8")
+
+	with pytest.raises(ValueError, match="undeclared i18n sidecar locale"):
+		load_i18n_sidecars(bundle, declared_languages=["en", "fr-CA"])
+
+
+def test_translation_sidecar_accepts_declared_locale(tmp_path: Path) -> None:
+	bundle = tmp_path / "jtbd-bundle.json"
+	bundle.write_text(json.dumps(_bundle(languages=["en", "fr-CA"])), encoding="utf-8")
+	sidecars = tmp_path / "i18n"
+	sidecars.mkdir()
+	(sidecars / "fr-CA.json").write_text(
+		json.dumps({"jtbd.claim_intake.title": "Déposer une réclamation"}),
+		encoding="utf-8",
+	)
+
+	assert load_i18n_sidecars(bundle, declared_languages=["en", "fr-CA"]) == {
+		"fr-CA": {"jtbd.claim_intake.title": "Déposer une réclamation"}
+	}
 
 
 def test_english_catalog_values_are_never_empty() -> None:

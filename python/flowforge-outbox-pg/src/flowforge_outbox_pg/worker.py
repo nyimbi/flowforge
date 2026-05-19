@@ -65,7 +65,7 @@ from typing import Any, Protocol, runtime_checkable
 
 from flowforge.ports.types import OutboxEnvelope
 
-from .registry import DispatchError, HandlerRegistry
+from .registry import DispatchError, HandlerRegistry, PermanentDispatchError
 
 log = logging.getLogger(__name__)
 
@@ -166,6 +166,36 @@ class DrainResult:
         }
 
 
+@dataclass
+class DrainWorkerHealth:
+    """Observable worker health and cumulative outcome counters."""
+
+    status: str
+    last_run_at: datetime | None
+    last_error: str | None
+    reconnects: int
+    run_errors: int
+    total_dispatched: int
+    total_retried: int
+    total_dead: int
+    total_no_handler: int
+    last_result: DrainResult
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "last_run_at": self.last_run_at.isoformat() if self.last_run_at else None,
+            "last_error": self.last_error,
+            "reconnects": self.reconnects,
+            "run_errors": self.run_errors,
+            "total_dispatched": self.total_dispatched,
+            "total_retried": self.total_retried,
+            "total_dead": self.total_dead,
+            "total_no_handler": self.total_no_handler,
+            "last_result": self.last_result.as_dict(),
+        }
+
+
 # ---------------------------------------------------------------------------
 # DB protocol
 # ---------------------------------------------------------------------------
@@ -255,6 +285,35 @@ class DrainWorker:
         # swaps in a fresh connection from `reconnect_factory`. Read-only for
         # callers (e.g. exposed via Prometheus collector).
         self.reconnects: int = 0
+        self._run_errors: int = 0
+        self._last_error: str | None = None
+        self._last_run_at: datetime | None = None
+        self._last_result = DrainResult()
+        self._total_dispatched: int = 0
+        self._total_retried: int = 0
+        self._total_dead: int = 0
+        self._total_no_handler: int = 0
+
+    def health(self) -> DrainWorkerHealth:
+        """Return a snapshot suitable for readiness probes or metrics export."""
+
+        return DrainWorkerHealth(
+            status="degraded" if self._last_error else "ok",
+            last_run_at=self._last_run_at,
+            last_error=self._last_error,
+            reconnects=self.reconnects,
+            run_errors=self._run_errors,
+            total_dispatched=self._total_dispatched,
+            total_retried=self._total_retried,
+            total_dead=self._total_dead,
+            total_no_handler=self._total_no_handler,
+            last_result=DrainResult(
+                dispatched=self._last_result.dispatched,
+                retried=self._last_result.retried,
+                dead=self._last_result.dead,
+                no_handler=self._last_result.no_handler,
+            ),
+        )
 
     # ------------------------------------------------------------------
     # Schema bootstrap (tests)
@@ -315,7 +374,7 @@ class DrainWorker:
         sql = (
             f"INSERT INTO {self._table}"
             " (id, kind, tenant_id, body, status, retries, created_at, correlation_id, dedupe_key)"
-            " VALUES (?, ?, ?, ?, 'pending', 0, ?, ?, ?)"
+            " VALUES ($1, $2, $3, $4, 'pending', 0, $5, $6, $7)"
         )
         await self._exec(
             sql,
@@ -341,13 +400,29 @@ class DrainWorker:
         bs = batch_size if batch_size is not None else self._batch_size
         result = DrainResult()
 
-        rows = await self._claim_batch(bs)
-        if not rows:
-            return result
+        try:
+            rows = await self._claim_batch(bs)
+            if rows:
+                for row in rows:
+                    await self._process_row(row, result)
+        except Exception as exc:
+            self._run_errors += 1
+            self._last_error = f"{type(exc).__name__}: {exc}"
+            self._last_run_at = datetime.now(UTC)
+            raise
 
-        for row in rows:
-            await self._process_row(row, result)
-
+        self._last_error = None
+        self._last_run_at = datetime.now(UTC)
+        self._last_result = DrainResult(
+            dispatched=result.dispatched,
+            retried=result.retried,
+            dead=result.dead,
+            no_handler=result.no_handler,
+        )
+        self._total_dispatched += result.dispatched
+        self._total_retried += result.retried
+        self._total_dead += result.dead
+        self._total_no_handler += result.no_handler
         return result
 
     async def run_loop(
@@ -488,6 +563,10 @@ class DrainWorker:
             result.no_handler += 1
             await self._mark_dead(row.id, last_error=str(exc))
             return
+        except PermanentDispatchError as exc:
+            result.dead += 1
+            await self._mark_dead(row.id, last_error=f"PermanentDispatchError: {exc}")
+            return
         except Exception as exc:  # noqa: BLE001
             last_error = f"{type(exc).__name__}: {exc}"
             age = (datetime.now(UTC) - _ensure_aware(row.created_at)).total_seconds()
@@ -518,15 +597,15 @@ class DrainWorker:
         sql = (
             f"UPDATE {self._table}"
             " SET status = 'dispatched', locked_until = NULL, last_error = NULL"
-            " WHERE id = ?"
+            " WHERE id = $1"
         )
         await self._exec(sql, row_id)
 
     async def _mark_for_retry(self, row_id: str, retries: int, *, last_error: str) -> None:
         sql = (
             f"UPDATE {self._table}"
-            " SET status = 'pending', retries = ?, locked_until = NULL, last_error = ?"
-            " WHERE id = ?"
+            " SET status = 'pending', retries = $1, locked_until = NULL, last_error = $2"
+            " WHERE id = $3"
         )
         # audit-2026 OB-04: byte-budget UTF-8 truncation; never mid-codepoint.
         await self._exec(sql, retries, _truncate_utf8(last_error, 2000), row_id)
@@ -534,8 +613,8 @@ class DrainWorker:
     async def _mark_dead(self, row_id: str, *, last_error: str) -> None:
         sql = (
             f"UPDATE {self._table}"
-            " SET status = 'dead', locked_until = NULL, last_error = ?"
-            " WHERE id = ?"
+            " SET status = 'dead', locked_until = NULL, last_error = $1"
+            " WHERE id = $2"
         )
         # audit-2026 OB-04: byte-budget UTF-8 truncation; never mid-codepoint.
         await self._exec(sql, _truncate_utf8(last_error, 2000), row_id)
@@ -687,6 +766,7 @@ __all__ = [
     "DbConnection",
     "DrainResult",
     "DrainWorker",
+    "DrainWorkerHealth",
     "OutboxRow",
     "OutboxStatus",
 ]

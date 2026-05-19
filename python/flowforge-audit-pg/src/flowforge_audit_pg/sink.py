@@ -107,6 +107,13 @@ ff_audit_events = sa.Table(
 	# E-37 AU-01: per-tenant monotonic ordinal. NULL ⇒ legacy row pre-AU-01;
 	# the UNIQUE constraint ignores NULL ordinals so old data still loads.
 	sa.Column("ordinal", sa.BigInteger, nullable=True),
+	sa.Index("ix_ff_audit_tenant_ordinal", "tenant_id", "ordinal"),
+	sa.Index(
+		"ix_ff_audit_tenant_occurred_event",
+		"tenant_id",
+		"occurred_at",
+		"event_id",
+	),
 	sa.UniqueConstraint("tenant_id", "ordinal", name="uq_ff_audit_tenant_ordinal"),
 )
 
@@ -176,6 +183,20 @@ class PgAuditSink:
 
 	async def record(self, event: AuditEvent) -> str:
 		"""Append *event* and return the assigned event_id."""
+		async with self._engine.begin() as conn:
+			return await self.record_in_connection(conn, event)
+
+	async def record_in_connection(
+		self,
+		conn: AsyncConnection,
+		event: AuditEvent,
+	) -> str:
+		"""Append *event* using the caller's open transaction.
+
+		Transactional workflow stores use this hook to persist workflow
+		state, event rows, audit-chain rows, and outbox enqueue rows in the
+		same database transaction. The caller owns commit/rollback.
+		"""
 		event_id = _new_id()
 		occurred_at = event.occurred_at
 		if occurred_at.tzinfo is None:
@@ -198,24 +219,23 @@ class PgAuditSink:
 		# lock is the authoritative gate; on SQLite (tests) the asyncio.Lock
 		# is, since SQLite has no advisory locks.
 		async with py_lock:
-			async with self._engine.begin() as conn:
-				if _is_postgres(conn):
-					await conn.execute(
-						text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
-						{"k": tenant_key},
-					)
-				prev_sha = await self._chain_head(conn, event.tenant_id)
-				next_ordinal = await self._next_ordinal(conn, event.tenant_id)
-				row_sha = compute_row_sha(prev_sha, row_data)
+			if _is_postgres(conn):
 				await conn.execute(
-					ff_audit_events.insert().values(
-						event_id=event_id,
-						prev_sha256=prev_sha,
-						row_sha256=row_sha,
-						ordinal=next_ordinal,
-						**row_data,
-					)
+					text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
+					{"k": tenant_key},
 				)
+			prev_sha = await self._chain_head(conn, event.tenant_id)
+			next_ordinal = await self._next_ordinal(conn, event.tenant_id)
+			row_sha = compute_row_sha(prev_sha, row_data)
+			await conn.execute(
+				ff_audit_events.insert().values(
+					event_id=event_id,
+					prev_sha256=prev_sha,
+					row_sha256=row_sha,
+					ordinal=next_ordinal,
+					**row_data,
+				)
+			)
 		return event_id
 
 	async def verify_chain(self, since: str | None = None) -> Verdict:
@@ -241,32 +261,23 @@ class PgAuditSink:
 						if since_dt is not None and since_dt.tzinfo is None:
 							since_dt = since_dt.replace(tzinfo=timezone.utc)
 
-			prev_sha: str | None = None
+			prev_by_tenant: dict[str, str | None] = {}
 			checked = 0
-			cursor_dt: datetime | None = since_dt
-			cursor_id: str | None = None
+			offset = 0
 
 			while True:
 				stmt = sa.select(ff_audit_events)
-				if cursor_dt is not None and cursor_id is not None:
-					# keyset: strictly after (cursor_dt, cursor_id)
-					stmt = stmt.where(
-						sa.or_(
-							ff_audit_events.c.occurred_at > cursor_dt,
-							sa.and_(
-								ff_audit_events.c.occurred_at == cursor_dt,
-								ff_audit_events.c.event_id > cursor_id,
-							),
-						)
-					)
-				elif cursor_dt is not None:
-					stmt = stmt.where(ff_audit_events.c.occurred_at >= cursor_dt)
+				if since_dt is not None:
+					stmt = stmt.where(ff_audit_events.c.occurred_at >= since_dt)
 
 				stmt = (
 					stmt.order_by(
+						sa.func.coalesce(ff_audit_events.c.tenant_id, "").asc(),
+						ff_audit_events.c.ordinal.asc().nulls_last(),
 						ff_audit_events.c.occurred_at.asc(),
 						ff_audit_events.c.event_id.asc(),
 					)
+					.offset(offset)
 					.limit(VERIFY_CHUNK_SIZE)
 				)
 				rows_raw = (await conn.execute(stmt)).fetchall()
@@ -275,35 +286,45 @@ class PgAuditSink:
 
 				for raw in rows_raw:
 					row = _row_from_db(raw)
+					tenant_key = row.tenant_id or _NONE_TENANT_KEY
 					if row.row_sha256 is None:
-						# Legacy pre-chain row; skip without advancing prev_sha.
+						# Legacy pre-chain row; skip without advancing this tenant.
 						checked += 1
-						cursor_dt = row.occurred_at
-						cursor_id = row.event_id
 						continue
+					if tenant_key in prev_by_tenant:
+						prev_sha = prev_by_tenant[tenant_key]
+					elif since_dt is not None:
+						# Partial verification starts from the first row in the
+						# requested window for each tenant.  Its stored prev hash
+						# is the boundary anchor for that tenant.
+						prev_sha = row.prev_sha256
+					else:
+						prev_sha = None
+					if row.prev_sha256 != prev_sha:
+						return Verdict.supported_bad(row.event_id, checked + 1)
 					canonical = canonical_json(_row_to_canonical_dict(row))
 					expected = hashlib.sha256(
 						((prev_sha or "") + canonical).encode()
 					).hexdigest()
 					if row.row_sha256 != expected:
 						return Verdict.supported_bad(row.event_id, checked + 1)
-					prev_sha = row.row_sha256
+					prev_by_tenant[tenant_key] = row.row_sha256
 					checked += 1
-					cursor_dt = row.occurred_at
-					cursor_id = row.event_id
 
 				# If the chunk wasn't full we've consumed everything.
 				if len(rows_raw) < VERIFY_CHUNK_SIZE:
 					break
+				offset += len(rows_raw)
 
 		return Verdict.supported_ok(checked)
 
 	async def redact(self, paths: list[str], reason: str) -> int:
 		"""Tombstone *paths* across all rows that contain them; return count.
 
-		The sha256 chain columns are left intact so chain verification
-		continues to pass.  The payload is updated with ``__REDACTED__``
-		markers at each dotted path.
+		The sha256 chain columns are left intact, so verification can still
+		detect that a post-write payload mutation happened. The payload is
+		updated with ``__REDACTED__`` markers at each dotted path and a
+		redaction reason for operator/auditor cross-reference.
 		"""
 		count = 0
 		async with self._engine.begin() as conn:

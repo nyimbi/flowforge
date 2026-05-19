@@ -102,7 +102,7 @@ def test_per_bundle_aggregation_one_pair_for_multi_jtbd_bundle() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_closed_taxonomy_python_strenum_lists_six_events_per_jtbd() -> None:
+def test_closed_taxonomy_python_strenum_lists_events_per_jtbd() -> None:
 	norm = _load_normalized(_BUILDING_BUNDLE)
 	(py,) = [f for f in gen.generate(norm) if f.path.endswith("analytics.py")]
 	# Exactly one StrEnum line per (jtbd, suffix) tuple.
@@ -114,7 +114,7 @@ def test_closed_taxonomy_python_strenum_lists_six_events_per_jtbd() -> None:
 	assert len(enum_lines) == expected, py.content
 
 
-def test_closed_taxonomy_typescript_lists_six_events_per_jtbd() -> None:
+def test_closed_taxonomy_typescript_lists_events_per_jtbd() -> None:
 	norm = _load_normalized(_BUILDING_BUNDLE)
 	(ts,) = [f for f in gen.generate(norm) if f.path.endswith("analytics.ts")]
 	# Each event becomes one line of the form `\tNAME: "x.y",` inside ANALYTICS_EVENTS.
@@ -139,11 +139,12 @@ def test_python_and_typescript_share_the_same_event_set() -> None:
 
 
 def test_lifecycle_suffixes_match_spec() -> None:
-	"""Item 16's improvements.md spec lists six lifecycle suffixes."""
+	"""Item 16's improvements.md spec plus PII reveal auditing stay closed."""
 
 	assert gen.LIFECYCLE_SUFFIXES == (
 		"field_focused",
 		"field_completed",
+		"pii_revealed",
 		"validation_failed",
 		"submission_started",
 		"submission_succeeded",
@@ -156,6 +157,7 @@ def test_event_names_use_dotted_jtbd_id_lifecycle_shape() -> None:
 	(py,) = [f for f in gen.generate(norm) if f.path.endswith("analytics.py")]
 	# Insurance bundle's only JTBD is claim_intake.
 	assert "claim_intake.field_focused" in py.content
+	assert "claim_intake.pii_revealed" in py.content
 	assert "claim_intake.submission_succeeded" in py.content
 	assert "claim_intake.form_abandoned" in py.content
 
@@ -202,7 +204,7 @@ def test_real_path_imports_analytics_module_and_fires_lifecycle_hooks() -> None:
 	assert 'from "../../claims_demo/analytics"' in tsx, tsx
 	assert "ANALYTICS_EVENTS" in tsx, tsx
 	assert "AnalyticsTracker" in tsx, tsx
-	# All six lifecycle suffix hooks fire.
+	# All lifecycle suffix hooks fire.
 	for suffix in gen.LIFECYCLE_SUFFIXES:
 		const_name = f"EVT_{suffix.upper()}"
 		assert const_name in tsx, f"missing constant {const_name} in real-path Step.tsx"

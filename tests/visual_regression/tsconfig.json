@@ -8,10 +8,11 @@
 		"skipLibCheck": true,
 		"forceConsistentCasingInFileNames": true,
 		"resolveJsonModule": true,
+		"jsx": "react-jsx",
 		"isolatedModules": true,
 		"noEmit": true,
-		"types": ["node"],
+		"types": ["node", "vite/client"],
 		"lib": ["ES2022", "DOM"]
 	},
-	"include": ["lib/**/*.ts", "tests/**/*.ts", "playwright.config.ts"]
+	"include": ["harness/**/*.ts", "harness/**/*.tsx", "lib/**/*.ts", "tests/**/*.ts", "playwright.config.ts"]
 }

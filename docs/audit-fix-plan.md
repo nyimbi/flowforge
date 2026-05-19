@@ -35,7 +35,7 @@
 | # | Principle | Why it matters here |
 |---|---|---|
 | P-1 | Security defects ship first; behaviour changes ship later. | 6 P0 + escalated AU-03 + escalated C-07 = 8 ship-blockers. |
-| P-2 | Smallest viable diff per fix; verify behaviour preserved. | 77 findings against 45 Python + 7 JS pkgs must not become a refactor festival. |
+| P-2 | Smallest viable diff per fix; verify behaviour preserved. | 77 findings against 46 Python + 7 JS pkgs must not become a refactor festival. |
 | P-3 | Runtime-affecting fixes ship with a regression test (fails-before-passes-after). Metadata / docs / cosmetic fixes ship with a CI lint, doctest, or schema check. | (Softened from v0 per architect V-2 / critic CR-1.) |
 | P-4 | All 8 architectural invariants in arch §17 are testable contracts. | One conformance file `tests/conformance/test_arch_invariants.py` grows from S0 onwards. |
 | P-5 | Domain content is content, not code. Engineering and content tracks decouple. | Hybrid: 25 packages rebranded as starter scaffolds, 5 strategic verticals get real content. |
@@ -183,7 +183,7 @@ Acceptance test ID convention: `test_<FINDING_ID>_<short>` in `tests/audit_2026/
 | D-01 | All 30 domains | `test_D_01_starter_or_real` | (E-48a path) 25 packages renamed `*-starter` w/ README disclaimer + lint badge; (E-48b path) 5 verticals validated against full-schema lint (data_capture diversity ≥3 fields, edge_cases ≥1, documents_required ≥1, approvals ≥1, notifications ≥1, sla, data_sensitivity, compliance). | schema + manual SME | E-48a, E-48b |
 | IT-01 | (no file) | `test_IT_01_property_suite_green` | `hypothesis` dep added; 5 properties shipped: lockfile round-trip, conflict-solver determinism, evaluator literal-passthrough, manifest signing-payload stability, money arithmetic. | property | E-44 |
 | IT-02 | `tests/integration/` | `test_IT_02_e2e_three_suites` | Three E2E suites: fire→audit→verify; fire→outbox→ack; fork→migrate→replay-determinism. | e2e | E-45 |
-| DOC-01 | root `pyproject.toml` | `test_DOC_01_workspace_complete` | Workspace lists all 45 Python pkgs; `uv build` from root produces all wheels (run as CI step). | CI | E-46 |
+| DOC-01 | root `pyproject.toml` | `test_DOC_01_workspace_complete` | Workspace lists all 46 Python pkgs; `uv build` from root produces all wheels (run as CI step). | CI | E-46 |
 | DOC-02 | `framework/README.md` | `test_DOC_02_pkg_count_matches` | README pkg count == filesystem pkg count; layout diagram updated; doctest/markdown lint passes. | doctest | E-46 |
 | NM-01 | `notify_multichannel/transports.py:422` | `test_NM_01_compare_digest` | All HMAC verify paths use `hmac.compare_digest`; static grep gate in CI. | regression + ratchet | E-54 |
 | CL-01 | `flowforge_cli/jtbd/generators/{domain_router,audit_taxonomy,sa_model}.py` | `test_CL_01_stub_generators` | Files implemented OR deleted; no <30 LoC stubs in framework code paths. | regression | E-57 |
@@ -390,7 +390,7 @@ Per architect §5.1 (ticket count creep), tickets are consolidated where indepen
 | **E-43** | TS↔Python expr conformance suite | P1 | `js/flowforge-renderer/src/expr.ts:88-99`, `flowforge-core/src/flowforge/expr/evaluator.py` | S1 | M | Yes | sonnet | JS-01, JS-02, JS-03 |
 | **E-44** | Hypothesis property tests: lockfile, hash-chain, evaluator, manifest, money | P1 | new `tests/property/` | S1 | M | Yes | sonnet | IT-01 |
 | **E-45** | E2E suite: fire→audit→verify; fire→outbox→ack; fork→migrate→replay | P1 | new `tests/integration/e2e/` | S1 | L | Yes | sonnet | IT-02 |
-| **E-46** | Workspace + docs alignment: register all 45 pkgs (two-step package=false → true), README, doc paths | P1/P2/P3 | root `pyproject.toml`, `framework/README.md`, `docs/flowforge-evolution.md`, per-pkg READMEs | S1 | S | Yes | haiku | DOC-01, DOC-02 |
+| **E-46** | Workspace + docs alignment: register all 46 pkgs (two-step package=false → true), README, doc paths | P1/P2/P3 | root `pyproject.toml`, `framework/README.md`, `docs/flowforge-evolution.md`, per-pkg READMEs | S1 | S | Yes | haiku | DOC-01, DOC-02 |
 | **E-47** | JTBD intelligence quality: lint perf, recommender fit/transform, NL guard, dead code, semver | P1/P2 | `lint/conflicts.py:144-269`, `ai/recommender.py:171-247`, `ai/nl_to_jtbd.py:101-379`, `dsl/lockfile.py:140-157`, `dsl/spec.py:95-113` | S1 | M | Yes | opus | J-02, J-03, J-04, J-05, J-06, J-07, J-08, J-09 |
 | **E-48a** | Domain-library rebrand (25 non-strategic pkgs to `*-starter`) | P1 | 25 `flowforge-jtbd-*` packages, READMEs, `pyproject.toml` `name` | S2a | S × 25 (bundled) | Yes | haiku | D-01 (rebrand 25/30) |
 | **E-48b** | Domain-library real content (5 strategic verticals: insurance, healthcare, banking, gov, hr) | P1 | 5 × ~5 yaml files | S2b | L × 5 | Yes (per domain) | sonnet (review by SME) | D-01 (real 5/30), D-02 |

@@ -14,6 +14,9 @@ import pytest
 from fastapi import FastAPI, HTTPException, Request, status
 
 from flowforge_fastapi import (
+	ConfigError,
+	StaticPrincipalExtractor,
+	StaticTenantResolver,
 	get_registry,
 	mount_routers,
 	reset_state,
@@ -172,7 +175,12 @@ async def test_principal_extractor_is_pluggable(
 
 	extractor: PrincipalExtractor = HeaderExtractor()
 	app = FastAPI()
-	mount_routers(app, prefix=PREFIX, principal_extractor=extractor)
+	mount_routers(
+		app,
+		prefix=PREFIX,
+		principal_extractor=extractor,
+		tenant_resolver=StaticTenantResolver("t-1"),
+	)
 
 	transport = httpx.ASGITransport(app=app)
 	async with httpx.AsyncClient(
@@ -189,6 +197,113 @@ async def test_principal_extractor_is_pluggable(
 			headers={"X-User": "bob"},
 		)
 		assert ok.status_code == 201
+
+
+async def test_mount_routers_requires_explicit_auth_and_tenant(
+	claim_workflow_def: WorkflowDef,
+) -> None:
+	"""Production mounting must not silently install static auth/tenant defaults."""
+
+	reset_state()
+	from flowforge import config as ff_config
+
+	ff_config.reset_to_fakes()
+	get_registry().register(claim_workflow_def)
+
+	with pytest.raises(ConfigError, match="principal_extractor is required"):
+		mount_routers(FastAPI(), prefix=PREFIX)
+
+	with pytest.raises(ConfigError, match="tenant_resolver is required"):
+		mount_routers(
+			FastAPI(),
+			prefix=PREFIX,
+			principal_extractor=StaticPrincipalExtractor(
+				Principal(user_id="alice", roles=("staff",))
+			),
+		)
+
+
+async def test_runtime_uses_resolved_tenant_not_request_body(
+	claim_workflow_def: WorkflowDef,
+) -> None:
+	"""Tenant authority comes from host wiring; body tenant_id is ignored."""
+
+	reset_state()
+	from flowforge import config as ff_config
+
+	ff_config.reset_to_fakes()
+	get_registry().register(claim_workflow_def)
+
+	class HeaderExtractor:
+		async def __call__(self, request: Request) -> Principal:
+			user = request.headers.get("X-User")
+			if not user:
+				raise HTTPException(
+					status_code=status.HTTP_401_UNAUTHORIZED,
+					detail="no X-User header",
+				)
+			return Principal(user_id=user, roles=("staff",))
+
+	class HeaderTenantResolver:
+		async def __call__(self, request: Request, principal: Principal) -> str:
+			tenant = request.headers.get("X-Tenant")
+			if not tenant:
+				raise HTTPException(
+					status_code=status.HTTP_401_UNAUTHORIZED,
+					detail="no X-Tenant header",
+				)
+			return tenant
+
+	app = FastAPI()
+	mount_routers(
+		app,
+		prefix=PREFIX,
+		principal_extractor=HeaderExtractor(),
+		tenant_resolver=HeaderTenantResolver(),
+	)
+	hub = app.state.flowforge_events_hub
+	queue = await hub.subscribe()
+
+	transport = httpx.ASGITransport(app=app)
+	async with httpx.AsyncClient(
+		transport=transport, base_url="http://testserver"
+	) as ac:
+		create = await ac.post(
+			f"{PREFIX}/instances",
+			json={
+				"def_key": "demo_claim",
+				"tenant_id": "attacker-body-tenant",
+				"instance_id": "tenant-proof",
+			},
+			headers={"X-User": "alice", "X-Tenant": "tenant-a"},
+		)
+		assert create.status_code == 201, create.text
+		created = await asyncio.wait_for(queue.get(), timeout=1.0)
+		assert created["tenant_id"] == "tenant-a"
+
+		cross_read = await ac.get(
+			f"{PREFIX}/instances/tenant-proof",
+			headers={"X-User": "bob", "X-Tenant": "tenant-b"},
+		)
+		assert cross_read.status_code == 404
+
+		fire = await ac.post(
+			f"{PREFIX}/instances/tenant-proof/events",
+			json={"event": "submit", "tenant_id": "attacker-body-tenant"},
+			headers={"X-User": "alice", "X-Tenant": "tenant-a"},
+		)
+		assert fire.status_code == 200, fire.text
+		changed = await asyncio.wait_for(queue.get(), timeout=1.0)
+		assert changed["tenant_id"] == "tenant-a"
+
+		cross_fire = await ac.post(
+			f"{PREFIX}/instances/tenant-proof/events",
+			json={"event": "approve"},
+			headers={"X-User": "bob", "X-Tenant": "tenant-b"},
+		)
+		assert cross_fire.status_code == 404
+
+	await hub.unsubscribe(queue)
 
 
 async def test_csrf_protection_enforced_when_enabled(
@@ -218,7 +333,15 @@ async def test_csrf_protection_enforced_when_enabled(
 		response.headers["content-length"] = str(len(response.body))
 		return response
 
-	mount_routers(app, prefix=PREFIX, require_csrf=True)
+	mount_routers(
+		app,
+		prefix=PREFIX,
+		principal_extractor=StaticPrincipalExtractor(
+			Principal(user_id="alice", roles=("staff",))
+		),
+		tenant_resolver=StaticTenantResolver("t-1"),
+		require_csrf=True,
+	)
 
 	transport = httpx.ASGITransport(app=app)
 	async with httpx.AsyncClient(

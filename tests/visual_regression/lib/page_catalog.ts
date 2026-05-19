@@ -56,6 +56,10 @@ export interface PageSpec {
 	readonly waitFor?: string;
 }
 
+export function harnessUrl(exampleName: string, page: PageSpec): string {
+	return `/__flowforge_visreg/${encodeURIComponent(exampleName)}/${page.flavor}/${page.id}`;
+}
+
 export interface ExampleSpec {
 	readonly name: string;
 	readonly pages: readonly PageSpec[];

@@ -6,10 +6,7 @@ No database required — pure in-memory logic.
 from __future__ import annotations
 
 import hashlib
-import json
 from datetime import datetime, timezone
-
-import pytest
 
 from flowforge_audit_pg.hash_chain import (
 	TOMBSTONE,

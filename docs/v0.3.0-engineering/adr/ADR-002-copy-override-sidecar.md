@@ -10,7 +10,7 @@
 
 ## Context
 
-Item 22 introduces `flowforge polish-copy --tone <profile>`, an offline LLM pass over user-facing strings (field labels, helper text, button labels, error messages, notification templates). Two design questions need decisions before W4b opens:
+Item 22 introduces `flowforge polish-copy --tone <profile>`, an offline LLM pass over user-facing strings. The v1.0 sidecar schema accepts field-label overrides only, because those are the surfaces currently applied by the generators; helper text, button labels, error messages, and notification templates remain future namespaces until their generated artifacts are wired. Two design questions need decisions before W4b opens:
 
 1. **Where does the schema live?** The naive answer is "extend `JtbdBundle` with an `overrides` field". This pollutes the canonical content-addressable surface (`JtbdBundle.model_config = ConfigDict(extra='forbid')`) — every consumer of `JtbdBundle` would need to opt out of overrides handling, and `spec_hash` either changes (breaking content-addressing) or excludes overrides (creating a parallel address space).
 
@@ -47,13 +47,9 @@ class JtbdCopyOverrides(BaseModel):
 
 ```
 <jtbd_id>.field.<field_id>.label
-<jtbd_id>.field.<field_id>.helper_text
-<jtbd_id>.button.<event>.text
-<jtbd_id>.notification.<topic>.template
-<jtbd_id>.error.<code>.message
 ```
 
-Missing keys fall back to canonical bundle values. Keys not in the convention are rejected by the Pydantic validator (covered by `extra='forbid'` on inner string keys would be ideal, but `dict[str, str]` doesn't support per-key forbidding; instead, a separate `_validate_string_keys` `@model_validator` enforces the namespace pattern).
+Missing keys fall back to canonical bundle values. Keys not in the convention are rejected by the Pydantic validator (covered by `extra='forbid'` on inner string keys would be ideal, but `dict[str, str]` doesn't support per-key forbidding; instead, a separate `_validate_string_keys` `@model_validator` enforces the namespace pattern). This is deliberately fail-closed: the schema must not accept namespaces until generators apply them.
 
 ### Persistence
 

@@ -1,18 +1,18 @@
-name: Audit 2026 (E-32..E-72)
+name: Audit 2026
 
 # Runs the make audit-2026 macro target on every push/PR that touches
 # audit-relevant code. Required-green for merge to main.
 #
 # Layered subtargets:
 # - audit-2026-unit          per-finding regression tests
-# - audit-2026-conformance   arch §17 invariants (8/8 must pass)
+# - audit-2026-conformance   arch §17 invariants (11/11 must pass)
 # - audit-2026-property      hypothesis property suite
 # - audit-2026-edge          edge-case bank (9 classes)
-# - audit-2026-cross-runtime TS<->Py expr parity (200-tuple fixture)
+# - audit-2026-cross-runtime TS<->Py expr parity (v2 fixture)
 # - audit-2026-e2e           3 e2e flows (fire->audit, fire->outbox, fork->migrate)
 #
 # Plus the supporting CI gates that the plan demands:
-# - scripts/ci/ratchets/check.sh  security ratchets, 4/4
+# - scripts/ci/ratchets/check.sh  security/static ratchets
 # - scripts/ci/check_signoff.py   signoff checklist gate
 
 on:
@@ -78,7 +78,7 @@ jobs:
         if: matrix.target == 'audit-2026-cross-runtime'
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: "11.1.3"
 
       - name: Install workspace deps
         working-directory: .

@@ -31,6 +31,7 @@ on the sidecar so a reviewer can trace intent.
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -59,12 +60,37 @@ __all__ = ["register", "polish_copy_cmd"]
 # ``flowforge-cli`` package version so two sidecars produced by different
 # CLI builds are distinguishable in audit trails.
 _GENERATOR_VERSION = "flowforge polish-copy v0.3.0"
+_ANTHROPIC_MODEL = "claude-3-5-sonnet-latest"
+_PROMPT_TEMPLATE = (
+	"You are a UX copywriter. Rewrite each value in the JSON object "
+	"below in the requested tone. PRESERVE the keys exactly. PRESERVE "
+	"the meaning. Return only the JSON object, no commentary.\n\n"
+	"Tone: {tone}\n"
+	"Strings: {strings!r}\n"
+)
 
 
 # Polish function signature: (canonical-key→value, tone) → rewritten-key→value.
 # Pluggable so tests can inject a deterministic fake without needing an
 # LLM credential.
 PolishFn = Callable[[dict[str, str], ToneProfile], dict[str, str]]
+PolishRuntime = tuple[PolishFn, str, str | None, str | None]
+
+
+class PolishProviderError(RuntimeError):
+	"""Raised when a configured LLM provider returns unusable polish output."""
+
+
+def _build_prompt(strings: dict[str, str], tone: ToneProfile) -> str:
+	"""Build the exact prompt sent to the LLM provider."""
+
+	return _PROMPT_TEMPLATE.format(tone=tone, strings=strings)
+
+
+def _prompt_sha256(strings: dict[str, str], tone: ToneProfile) -> str:
+	"""Checksum the full prompt body for audit review."""
+
+	return hashlib.sha256(_build_prompt(strings, tone).encode("utf-8")).hexdigest()
 
 
 def _noop_polish(strings: dict[str, str], _tone: ToneProfile) -> dict[str, str]:
@@ -77,12 +103,12 @@ def _noop_polish(strings: dict[str, str], _tone: ToneProfile) -> dict[str, str]:
 	return dict(strings)
 
 
-def _detect_polish_fn() -> tuple[PolishFn, str]:
+def _detect_polish_fn() -> PolishRuntime:
 	"""Pick the polish callable based on what credentials are configured.
 
-	Returns ``(fn, reason)``. ``reason`` is a one-line human-readable
-	description that the CLI prints so an operator running the command
-	can see why it degraded to a no-op (the most common case in CI).
+	Returns ``(fn, reason, provider, model)``. ``reason`` is a one-line
+	human-readable description that the CLI prints so an operator running
+	the command can see why it degraded to a no-op (the most common case in CI).
 	"""
 
 	# Anthropic is the project's preferred LLM (project CLAUDE.md routes
@@ -91,7 +117,12 @@ def _detect_polish_fn() -> tuple[PolishFn, str]:
 	# installed, or if no key is set, we degrade to a no-op echo.
 	api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
 	if not api_key:
-		return _noop_polish, "no ANTHROPIC_API_KEY/CLAUDE_API_KEY set — no-op echo"
+		return (
+			_noop_polish,
+			"no ANTHROPIC_API_KEY/CLAUDE_API_KEY set — no-op echo",
+			None,
+			None,
+		)
 	# Existence check via ``importlib.util.find_spec`` — keeps
 	# ``flowforge-cli`` importable without the optional ``anthropic``
 	# dep installed (matches ADR-002 + plan §11 #3: the LLM is opt-in
@@ -101,6 +132,8 @@ def _detect_polish_fn() -> tuple[PolishFn, str]:
 		return (
 			_noop_polish,
 			"anthropic package not installed (extras: 'flowforge-cli[llm]') — no-op echo",
+			None,
+			None,
 		)
 
 	def _anthropic_polish(strings: dict[str, str], tone: ToneProfile) -> dict[str, str]:
@@ -118,15 +151,9 @@ def _detect_polish_fn() -> tuple[PolishFn, str]:
 		import anthropic  # type: ignore[import-not-found]
 
 		client = anthropic.Anthropic(api_key=api_key)
-		prompt = (
-			"You are a UX copywriter. Rewrite each value in the JSON object "
-			"below in the requested tone. PRESERVE the keys exactly. PRESERVE "
-			"the meaning. Return only the JSON object, no commentary.\n\n"
-			f"Tone: {tone}\n"
-			f"Strings: {strings!r}\n"
-		)
+		prompt = _build_prompt(strings, tone)
 		message = client.messages.create(
-			model="claude-3-5-sonnet-latest",
+			model=_ANTHROPIC_MODEL,
 			max_tokens=4096,
 			messages=[{"role": "user", "content": prompt}],
 		)
@@ -139,12 +166,14 @@ def _detect_polish_fn() -> tuple[PolishFn, str]:
 
 		try:
 			parsed = _json.loads(body)
-		except _json.JSONDecodeError:
-			# LLM returned something the validator can't accept — fall
-			# back to canonical and let the caller see an empty diff.
-			return dict(strings)
+		except _json.JSONDecodeError as exc:
+			raise PolishProviderError(
+				"anthropic response was not valid JSON"
+			) from exc
 		if not isinstance(parsed, dict):
-			return dict(strings)
+			raise PolishProviderError(
+				"anthropic response must be a JSON object"
+			)
 		# Keep only string-typed values to stay schema-clean.
 		out: dict[str, str] = {}
 		for k, v in parsed.items():
@@ -155,7 +184,12 @@ def _detect_polish_fn() -> tuple[PolishFn, str]:
 			out.setdefault(k, v)
 		return out
 
-	return _anthropic_polish, "anthropic API key detected — running LLM polish"
+	return (
+		_anthropic_polish,
+		"anthropic API key detected — running LLM polish",
+		"anthropic",
+		_ANTHROPIC_MODEL,
+	)
 
 
 def _diff_lines(
@@ -216,6 +250,13 @@ def polish_copy_cmd(
 			help="Print the diff vs the existing sidecar; do not write to disk.",
 		),
 	] = True,
+	require_llm: Annotated[
+		bool,
+		typer.Option(
+			"--require-llm",
+			help="Fail instead of using the no-op polish path when no real LLM is configured.",
+		),
+	] = False,
 	commit: Annotated[
 		bool,
 		typer.Option(
@@ -254,15 +295,27 @@ def polish_copy_cmd(
 	existing_strings: dict[str, str] = dict(existing.strings) if existing else {}
 
 	canonical = build_canonical_strings(raw_bundle)
+	prompt_sha256 = _prompt_sha256(canonical, tone_profile)
 
-	polish_fn, reason = _detect_polish_fn()
+	polish_fn, reason, llm_provider, llm_model = _detect_polish_fn()
 	typer.echo(f"flowforge polish-copy: {reason}")
+	if require_llm and llm_provider is None:
+		typer.echo(
+			"flowforge polish-copy: --require-llm needs ANTHROPIC_API_KEY or "
+			"CLAUDE_API_KEY plus the flowforge-cli[llm] extra.",
+			err=True,
+		)
+		raise typer.Exit(1)
 
 	# Polish the canonical map. The LLM sees only the canonical strings
 	# — we never feed it the existing overrides because authors may have
 	# hand-edited them and we don't want a second LLM pass to overwrite
 	# manual polish.
-	polished = polish_fn(canonical, tone_profile)
+	try:
+		polished = polish_fn(canonical, tone_profile)
+	except PolishProviderError as exc:
+		typer.echo(f"flowforge polish-copy: LLM polish failed: {exc}", err=True)
+		raise typer.Exit(1) from exc
 
 	# Cross-check every polished key resolves to a real bundle target —
 	# catches a bug in the polish function that emits a stray key.
@@ -299,11 +352,19 @@ def polish_copy_cmd(
 		else sidecar_path_for(bundle)
 	)
 
-	if is_noop and existing is None:
+	if is_noop:
 		typer.echo(
 			"flowforge polish-copy: no-op (canonical strings unchanged, no existing "
-			f"sidecar) — not writing {sidecar} so git status stays clean."
+			f"sidecar changes) — not writing {sidecar} so reviewed sidecars and "
+			"git status stay clean."
 		)
+		if require_llm and existing is None:
+			typer.echo(
+				"flowforge polish-copy: --require-llm produced no sidecar-worthy "
+				"changes; release evidence still needs a reviewed non-empty sidecar.",
+				err=True,
+			)
+			raise typer.Exit(1)
 		return
 
 	model = JtbdCopyOverrides(
@@ -312,6 +373,9 @@ def polish_copy_cmd(
 		strings=polished,
 		generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
 		generator_version=_GENERATOR_VERSION,
+		llm_provider=llm_provider,
+		llm_model=llm_model,
+		prompt_sha256=prompt_sha256 if llm_provider is not None else None,
 	)
 	# Write deterministically (sorted keys, 2-space indent, trailing newline).
 	new_text = dump_sidecar(model)
@@ -327,6 +391,9 @@ def polish_copy_cmd(
 				strings=existing.strings,
 				generated_at=None,
 				generator_version=None,
+				llm_provider=None,
+				llm_model=None,
+				prompt_sha256=None,
 			)
 		)
 		new_text_stable = dump_sidecar(
@@ -336,6 +403,9 @@ def polish_copy_cmd(
 				strings=model.strings,
 				generated_at=None,
 				generator_version=None,
+				llm_provider=None,
+				llm_model=None,
+				prompt_sha256=None,
 			)
 		)
 		if existing_text_stable == new_text_stable:

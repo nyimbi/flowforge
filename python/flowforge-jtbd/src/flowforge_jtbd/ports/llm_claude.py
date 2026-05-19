@@ -44,7 +44,8 @@ class LlmProviderClaude:
 		client: Any | None = None,
 	) -> None:
 		assert model, "model must be a non-empty string"
-		if client is None:
+		resolved_client = client
+		if resolved_client is None:
 			try:
 				from anthropic import AsyncAnthropic  # type: ignore[import-not-found]
 			except ModuleNotFoundError as exc:
@@ -53,8 +54,8 @@ class LlmProviderClaude:
 					"Install with `pip install anthropic` or use the "
 					"flowforge-jtbd[claude] extra."
 				) from exc
-			client = AsyncAnthropic(api_key=api_key) if api_key else AsyncAnthropic()
-		self._client = client
+			resolved_client = AsyncAnthropic(api_key=api_key) if api_key else AsyncAnthropic()
+		self._client = resolved_client
 		self._model = model
 
 	async def generate(
