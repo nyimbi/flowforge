@@ -23,8 +23,8 @@ release approval record.
 - `BACKEND_ROOT` points at the UMS backend checkout, for example
   `/Users/nyimbiodero/src/pjs/ums/backend`.
 - `FLOWFORGE_TEST_PG_URL` points at an isolated disposable Postgres database.
-- `ANTHROPIC_API_KEY` or `CLAUDE_API_KEY` is set for the real `polish-copy`
-  authoring pass.
+- A valid funded `ANTHROPIC_API_KEY` or `CLAUDE_API_KEY` is set for the real
+  `polish-copy` authoring pass.
 - The optional Anthropic client is installed for the authoring shell. Use
   `uv sync --all-packages --all-extras` or another environment where
   `uv run python -c "import anthropic"` succeeds; otherwise `polish-copy`
@@ -140,7 +140,7 @@ Launch it with:
 
 - `backend_repository`: the UMS backend repository in `owner/repo` form.
 - `backend_ref`: the UMS backend git ref to qualify against.
-- Repository secrets: `ANTHROPIC_API_KEY` or `CLAUDE_API_KEY`; use
+- Repository secrets: valid funded `ANTHROPIC_API_KEY` or `CLAUDE_API_KEY`; use
   `UMS_BACKEND_TOKEN` if the backend repository is private and `GITHUB_TOKEN`
   cannot read it.
 

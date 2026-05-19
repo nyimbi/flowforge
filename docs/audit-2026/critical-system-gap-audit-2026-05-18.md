@@ -70,11 +70,11 @@ Latest verification evidence:
   - Result: `uv run pytest python/flowforge-cli/tests/test_form_renderer_flag.py python/flowforge-cli/tests/test_analytics_taxonomy.py python/flowforge-cli/tests/test_jtbd_generators.py::test_generated_tsx_balances_braces_and_parses_with_tsc -q --tb=short` passed with `23 passed`.
   - Result: `uv run ruff check python/flowforge-cli/src/flowforge_cli/jtbd/generators/analytics_taxonomy.py python/flowforge-cli/tests/test_form_renderer_flag.py python/flowforge-cli/tests/test_analytics_taxonomy.py` passed.
 - Copy-polish sidecar auditability:
-  - Result: `uv sync --all-packages --all-extras` installed the optional LLM dependency set, and `uv run python -c "import anthropic; print('anthropic import ok')"` passed. The current local blocker is now the absent `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY` and absent reviewed sidecar, not a missing optional package.
+  - Result: `uv sync --all-packages --all-extras` installed the optional LLM dependency set, and `uv run python -c "import anthropic; print('anthropic import ok')"` passed. The current local blocker is now the absent reviewed sidecar plus no usable funded Anthropic/Claude key, not a missing optional package.
   - Result: `uv run pytest python/flowforge-cli/tests/test_polish_copy.py -q --tb=short` passed with `30 passed`, including LLM sidecar `llm_provider` / `llm_model` / `prompt_sha256` metadata coverage via an injected deterministic polish function, no-key / missing-extra `--require-llm` failure coverage, provider-format failure coverage, unexpected provider/auth failure coverage without a traceback, no-op `--require-llm` failure coverage, and preservation of existing reviewed sidecars when a polish pass returns canonical copy.
   - Result: `uv run pyright python/flowforge-cli/src/flowforge_cli/commands/polish_copy.py python/flowforge-cli/src/flowforge_cli/jtbd/overrides.py python/flowforge-cli/tests/test_polish_copy.py --pythonversion 3.11` reported `0 errors, 0 warnings, 0 informations`.
   - Result: the full local gate's `uv run pytest python/flowforge-cli/tests -q --tb=short` lane passed with `599 passed, 1 skipped`; the same package test command outside the full gate now passes with `601 passed, 1 skipped`.
-  - Result: `uv run pytest tests/audit_2026/test_E_75_polish_copy_release_gate.py -q --tb=short` passed with `7 passed`, covering release-bundle wiring, valid sidecar acceptance, empty strings, missing metadata, invalid prompt hash, and dead override keys; `uv run flowforge polish-copy --bundle examples/insurance_claim/jtbd-bundle.json --tone formal-professional --require-llm --commit` fails closed because no `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY` is set and writes no sidecar; `uv run python scripts/audit_2026/check_polish_copy_sidecar.py` and `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-polish-copy-sidecar` fail closed because `examples/insurance_claim/jtbd-bundle.json.overrides.json` is absent.
+  - Result: `uv run pytest tests/audit_2026/test_E_75_polish_copy_release_gate.py -q --tb=short` passed with `7 passed`, covering release-bundle wiring, valid sidecar acceptance, empty strings, missing metadata, invalid prompt hash, and dead override keys; `uv run flowforge polish-copy --bundle examples/insurance_claim/jtbd-bundle.json --tone formal-professional --require-llm --commit` fails closed when no usable funded Anthropic/Claude key is available and writes no sidecar. A discovered local config key reached Anthropic but failed with an insufficient-credit billing error, still writing no sidecar. `uv run python scripts/audit_2026/check_polish_copy_sidecar.py` and `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-polish-copy-sidecar` fail closed because `examples/insurance_claim/jtbd-bundle.json.overrides.json` is absent.
 - WebSocket hub drop-metrics hardening:
   - Result: `uv run pytest python/flowforge-fastapi/tests/test_ws.py tests/audit_2026/test_E_41_fastapi_ws_hardening.py -q --tb=short` passed with `24 passed`.
   - Result: `uv run pytest python/flowforge-fastapi/tests -q --tb=short` passed with `22 passed`.
@@ -114,7 +114,7 @@ Latest verification evidence:
 
 Remaining release blockers:
 
-- A real-key `polish-copy` authoring pass still needs to run with `ANTHROPIC_API_KEY` or `CLAUDE_API_KEY`, be reviewed, and commit its sidecar if accepted.
+- A real-key `polish-copy` authoring pass still needs to run with a valid funded `ANTHROPIC_API_KEY` or `CLAUDE_API_KEY`, be reviewed, and commit its sidecar if accepted.
 - The final `make audit-2026-release-external` / manual external-release workflow must run after the reviewed sidecar is committed so one retained release artifact ties together DOM, browser e2e, sidecar, UMS parity, and live Postgres evidence.
 - The exact external execution sequence is documented in `docs/audit-2026/external-release-runbook.md`.
 
@@ -935,7 +935,7 @@ Files:
 - `docs/v0.3.0-engineering/close-out.md:239`
 
 The current first sidecar run produced no committed `<bundle>.overrides.json`
-because no supported Anthropic/Claude key is present. In release-authoring mode,
+because no usable funded Anthropic/Claude key is available. In release-authoring mode,
 `--require-llm` fails closed before writing anything when credentials/extras are
 missing, invalid, or the provider returns unusable output, which makes the
 credential/dependency or provider failure explicit without treating it as a

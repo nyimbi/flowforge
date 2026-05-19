@@ -26,7 +26,7 @@ manual external-release bundle run with retained evidence.
 | Generate and commit DOM baselines | 21 reviewed smoke `.dom.html` baselines are committed under `examples/insurance_claim/screenshots/**`; PR evidence includes `flowforge gate (U24)` run `26078965998` and `Audit 2026 DOM baseline generation` run `26078965977` passing in GitHub Actions with Playwright Chromium | Done |
 | Run browser full-stack e2e | `.github/workflows/audit-2026-browser-e2e.yml` now runs `make audit-2026-browser-e2e` with Playwright Chromium; PR evidence includes GitHub run `26078965980` passing. Local `make audit-2026-browser-e2e` still reaches the generated backend/frontend harness and then fails only because this macOS sandbox blocks Chromium launch with `MachPortRendezvousServer ... Permission denied` | Done in browser-capable CI |
 | Fill fr-CA translations | `uv run python scripts/i18n/check_coverage.py` via release-local -> `0 error(s), 0 warning(s)` | Done |
-| Run first real `polish-copy` sidecar | `uv run flowforge polish-copy --bundle examples/insurance_claim/jtbd-bundle.json --tone formal-professional --require-llm --commit` fails closed because no `ANTHROPIC_API_KEY`/`CLAUDE_API_KEY` is set and writes no sidecar; `test -f examples/insurance_claim/jtbd-bundle.json.overrides.json` fails; `make audit-2026-polish-copy-sidecar` now fails closed while the sidecar is absent; `.github/workflows/audit-2026-polish-copy-sidecar.yml` now provides a manual real-key authoring path that uploads a reviewable sidecar candidate | Blocked |
+| Run first real `polish-copy` sidecar | `uv run flowforge polish-copy --bundle examples/insurance_claim/jtbd-bundle.json --tone formal-professional --require-llm --commit` fails closed because no usable funded `ANTHROPIC_API_KEY`/`CLAUDE_API_KEY` is available and writes no sidecar; a discovered local config key reaches Anthropic but fails with insufficient credits; `test -f examples/insurance_claim/jtbd-bundle.json.overrides.json` fails; `make audit-2026-polish-copy-sidecar` now fails closed while the sidecar is absent; `.github/workflows/audit-2026-polish-copy-sidecar.yml` now provides a manual real-key authoring path that uploads a reviewable sidecar candidate | Blocked |
 | Verify optional LLM extra is installable | `uv sync --all-packages --all-extras` installed `anthropic==0.100.0`; `uv run python -c "import anthropic; print('anthropic import ok')"` passed | Done |
 | Preserve `polish-copy` audit metadata and fail-closed authoring semantics | `uv run pytest python/flowforge-cli/tests/test_polish_copy.py -q --tb=short` -> `30 passed`, covering metadata stamping, provider-format failure, invalid provider/auth failure without traceback, no-op `--require-llm` failure, and preservation of existing reviewed sidecars; `uv run pytest tests/audit_2026/test_E_75_polish_copy_release_gate.py -q --tb=short` -> `7 passed`, covering release-gate metadata validation, bad-metadata rejection, empty-string rejection, and dead-key rejection; focused sidecar/audit suite `python/flowforge-cli/tests/test_polish_copy.py tests/audit_2026/test_E_75_polish_copy_release_gate.py tests/v0_3_0/test_polish_copy_committed_overrides.py` -> `44 passed` | Done |
 | Add W4b generator property coverage | `uv run pytest tests/audit_2026/test_property_coverage_gate.py` via release-local -> passed; W4b `i18n` and `operator_manual` included | Done |
@@ -76,12 +76,12 @@ Latest direct blocker verification:
 - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache BACKEND_ROOT=/Users/nyimbiodero/src/pjs/ums/backend FLOWFORGE_TEST_PG_URL=postgresql:///flowforge_release_codex_20260519_0506 uv run python scripts/audit_2026/check_external_release_preflight.py`
   fails during external preflight, reporting only the missing real-key sidecar.
 - `uv run flowforge polish-copy --bundle examples/insurance_claim/jtbd-bundle.json --tone formal-professional --require-llm --commit`
-  fails closed because no `ANTHROPIC_API_KEY` or `CLAUDE_API_KEY` is exported,
-  and writes no sidecar.
-- Discovered local credential candidates reached Anthropic but failed with
-  `AuthenticationError: invalid x-api-key`; commit `4c93da1` makes that path
-  fail closed with a concise CLI error instead of a traceback, still writing no
-  sidecar.
+  fails closed with no exported key and writes no sidecar.
+- Discovered local credential candidates either failed with
+  `AuthenticationError: invalid x-api-key` or reached Anthropic and failed with
+  an insufficient-credit billing error; commit `4c93da1` makes those provider
+  failures fail closed with concise CLI errors instead of tracebacks, still
+  writing no sidecar.
 - The remediation branch has been pushed as
   `audit-2026-critical-readiness`. `gh workflow list --repo nyimbi/flowforge`
   still shows only the older remote `Audit 2026`, `flowforge gate`, and `JTBD
