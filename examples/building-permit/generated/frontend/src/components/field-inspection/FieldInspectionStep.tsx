@@ -40,7 +40,11 @@ export function FieldInspectionStep(props: FieldInspectionStepProps): React.Reac
 	);
 
 	return (
-		<section data-testid="field_inspection-step" aria-labelledby="field_inspection-step-title">
+		<section
+			data-flowforge-form-root
+			data-testid="field_inspection-step"
+			aria-labelledby="field_inspection-step-title"
+		>
 			<header>
 				<h2 id="field_inspection-step-title">Conduct Field Inspection</h2>
 				{props.developerMode ? (

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+from click import unstyle
 from typer.testing import CliRunner
 
 from flowforge_cli.main import app
@@ -135,6 +136,7 @@ def test_tutorial_dry_run_step5_shows_lint_command(tmp_path: Path) -> None:
 def test_tutorial_help() -> None:
 	r = runner.invoke(app, ["tutorial", "--help"], terminal_width=140)
 	assert r.exit_code == 0
-	assert "--out" in r.output
-	assert "--step" in r.output
-	assert "--dry-run" in r.output
+	output = unstyle(r.output)
+	assert "--out" in output
+	assert "--step" in output
+	assert "--dry-run" in output

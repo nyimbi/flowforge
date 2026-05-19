@@ -251,6 +251,7 @@ export function ClaimIntakeStep(props: ClaimIntakeStepProps): React.ReactElement
 
 	return (
 		<section
+			data-flowforge-form-root
 			data-testid="claim_intake-step"
 			aria-labelledby="claim_intake-step-title"
 			onFocusCapture={handleFocusCapture}

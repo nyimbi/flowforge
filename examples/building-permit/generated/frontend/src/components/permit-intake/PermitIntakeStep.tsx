@@ -44,7 +44,11 @@ export function PermitIntakeStep(props: PermitIntakeStepProps): React.ReactEleme
 	);
 
 	return (
-		<section data-testid="permit_intake-step" aria-labelledby="permit_intake-step-title">
+		<section
+			data-flowforge-form-root
+			data-testid="permit_intake-step"
+			aria-labelledby="permit_intake-step-title"
+		>
 			<header>
 				<h2 id="permit_intake-step-title">Submit a Building Permit Application</h2>
 				{props.developerMode ? (

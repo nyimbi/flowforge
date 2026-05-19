@@ -40,7 +40,11 @@ export function ConductInterviewStep(props: ConductInterviewStepProps): React.Re
 	);
 
 	return (
-		<section data-testid="conduct_interview-step" aria-labelledby="conduct_interview-step-title">
+		<section
+			data-flowforge-form-root
+			data-testid="conduct_interview-step"
+			aria-labelledby="conduct_interview-step-title"
+		>
 			<header>
 				<h2 id="conduct_interview-step-title">Conduct interview loop</h2>
 				{props.developerMode ? (

@@ -42,7 +42,11 @@ export function CompleteHireStep(props: CompleteHireStepProps): React.ReactEleme
 	);
 
 	return (
-		<section data-testid="complete_hire-step" aria-labelledby="complete_hire-step-title">
+		<section
+			data-flowforge-form-root
+			data-testid="complete_hire-step"
+			aria-labelledby="complete_hire-step-title"
+		>
 			<header>
 				<h2 id="complete_hire-step-title">Complete hire and onboard</h2>
 				{props.developerMode ? (

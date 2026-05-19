@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from click import unstyle
 from typer.testing import CliRunner
 
 from flowforge_cli.main import app
@@ -198,6 +199,7 @@ def test_lint_warn_only_does_not_exit_1(bundle_with_missing_requires: Path) -> N
 def test_lint_help_lists_options() -> None:
 	r = runner.invoke(app, ["jtbd", "lint", "--help"], terminal_width=140)
 	assert r.exit_code == 0
-	assert "--bundle" in r.output
-	assert "--strict" in r.output
-	assert "--format" in r.output
+	output = unstyle(r.output)
+	assert "--bundle" in output
+	assert "--strict" in output
+	assert "--format" in output

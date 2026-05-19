@@ -40,7 +40,11 @@ export function PermitIssuanceStep(props: PermitIssuanceStepProps): React.ReactE
 	);
 
 	return (
-		<section data-testid="permit_issuance-step" aria-labelledby="permit_issuance-step-title">
+		<section
+			data-flowforge-form-root
+			data-testid="permit_issuance-step"
+			aria-labelledby="permit_issuance-step-title"
+		>
 			<header>
 				<h2 id="permit_issuance-step-title">Issue the Building Permit Certificate</h2>
 				{props.developerMode ? (

@@ -248,6 +248,7 @@ export function {{ jtbd.class_name }}Step(props: {{ jtbd.class_name }}StepProps)
 
 	return (
 		<section
+			data-flowforge-form-root
 			data-testid="{{ jtbd.id }}-step"
 			aria-labelledby="{{ jtbd.id }}-step-title"
 			onFocusCapture={handleFocusCapture}
@@ -408,7 +409,11 @@ export function {{ jtbd.class_name }}Step(props: {{ jtbd.class_name }}StepProps)
 	);
 
 	return (
-		<section data-testid="{{ jtbd.id }}-step" aria-labelledby="{{ jtbd.id }}-step-title">
+		<section
+			data-flowforge-form-root
+			data-testid="{{ jtbd.id }}-step"
+			aria-labelledby="{{ jtbd.id }}-step-title"
+		>
 			<header>
 				<h2 id="{{ jtbd.id }}-step-title">{{ jtbd.title }}</h2>
 				{props.developerMode ? (

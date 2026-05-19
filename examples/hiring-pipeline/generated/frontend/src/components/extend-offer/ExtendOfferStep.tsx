@@ -41,7 +41,11 @@ export function ExtendOfferStep(props: ExtendOfferStepProps): React.ReactElement
 	);
 
 	return (
-		<section data-testid="extend_offer-step" aria-labelledby="extend_offer-step-title">
+		<section
+			data-flowforge-form-root
+			data-testid="extend_offer-step"
+			aria-labelledby="extend_offer-step-title"
+		>
 			<header>
 				<h2 id="extend_offer-step-title">Extend an offer</h2>
 				{props.developerMode ? (

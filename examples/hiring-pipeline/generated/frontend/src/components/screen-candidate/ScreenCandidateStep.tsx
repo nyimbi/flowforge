@@ -40,7 +40,11 @@ export function ScreenCandidateStep(props: ScreenCandidateStepProps): React.Reac
 	);
 
 	return (
-		<section data-testid="screen_candidate-step" aria-labelledby="screen_candidate-step-title">
+		<section
+			data-flowforge-form-root
+			data-testid="screen_candidate-step"
+			aria-labelledby="screen_candidate-step-title"
+		>
 			<header>
 				<h2 id="screen_candidate-step-title">Screen a candidate</h2>
 				{props.developerMode ? (

@@ -103,6 +103,7 @@ def test_skeleton_path_emits_dd_placeholder() -> None:
 	"""Skeleton path keeps the legacy `<dd>—</dd>` rendering intact."""
 
 	tsx = _step_tsx(generate(_bundle("skeleton")))
+	assert "data-flowforge-form-root" in tsx, tsx
 	assert "<dd>—</dd>" in tsx, tsx
 	assert "@flowforge/renderer" not in tsx, tsx
 	assert "developerMode?: boolean" in tsx, tsx
@@ -117,6 +118,7 @@ def test_real_path_emits_form_renderer_import() -> None:
 	tsx = _step_tsx(generate(_bundle("real")))
 	assert "@flowforge/renderer" in tsx, tsx
 	assert '@flowforge/renderer/styles.css' in tsx, tsx
+	assert "data-flowforge-form-root" in tsx, tsx
 	assert "FormRenderer" in tsx, tsx
 	assert "form_spec.json" in tsx, tsx
 	# PII visual treatment is wired (reason-gated icon reveal + masked default).

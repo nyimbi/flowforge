@@ -38,7 +38,11 @@ export function PlanReviewStep(props: PlanReviewStepProps): React.ReactElement {
 	);
 
 	return (
-		<section data-testid="plan_review-step" aria-labelledby="plan_review-step-title">
+		<section
+			data-flowforge-form-root
+			data-testid="plan_review-step"
+			aria-labelledby="plan_review-step-title"
+		>
 			<header>
 				<h2 id="plan_review-step-title">Review Building Plans for Code Compliance</h2>
 				{props.developerMode ? (

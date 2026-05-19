@@ -39,7 +39,11 @@ export function PermitDecisionStep(props: PermitDecisionStepProps): React.ReactE
 	);
 
 	return (
-		<section data-testid="permit_decision-step" aria-labelledby="permit_decision-step-title">
+		<section
+			data-flowforge-form-root
+			data-testid="permit_decision-step"
+			aria-labelledby="permit_decision-step-title"
+		>
 			<header>
 				<h2 id="permit_decision-step-title">Approve or Deny Building Permit</h2>
 				{props.developerMode ? (

@@ -42,7 +42,11 @@ export function SourceCandidateStep(props: SourceCandidateStepProps): React.Reac
 	);
 
 	return (
-		<section data-testid="source_candidate-step" aria-labelledby="source_candidate-step-title">
+		<section
+			data-flowforge-form-root
+			data-testid="source_candidate-step"
+			aria-labelledby="source_candidate-step-title"
+		>
 			<header>
 				<h2 id="source_candidate-step-title">Source a candidate</h2>
 				{props.developerMode ? (
