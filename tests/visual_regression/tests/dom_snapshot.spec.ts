@@ -63,14 +63,13 @@ function describePage(
 			testInfo.skip(true, `entry missing (${page.entry}); likely skeleton regen`);
 			return;
 		}
-		// 2. Skip cleanly when no dev server is wired. ADR-001 / W3 brief:
-		//    the harness lands in the follow-up PR once `pnpm install` is
-		//    unblocked. Until then, the gate skip-with-clear-reason rather
-		//    than failing CI.
+		// 2. Skip cleanly when no dev server is wired. The shell wrapper
+		//    starts the local Vite harness automatically; direct Playwright
+		//    callers must provide VISREG_DEV_SERVER_URL themselves.
 		if (!DEV_SERVER_BASE) {
 			testInfo.skip(
 				true,
-				"VISREG_DEV_SERVER_URL not set; dev-server harness deferred until pnpm install is unblocked (see tests/visual_regression/README.md)",
+				"VISREG_DEV_SERVER_URL not set; run scripts/visual_regression/run_dom_snapshots.sh or set VISREG_DEV_SERVER_URL to an already-running harness.",
 			);
 			return;
 		}

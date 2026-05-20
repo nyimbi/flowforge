@@ -5,10 +5,11 @@
 	"description": "Project-level Playwright runner for the v0.3.0 W3 visual regression CI gate (item 21, ADR-001). DOM snapshots are CI-gating; pixel screenshots are advisory only with SSIM >= 0.98 threshold and run nightly.",
 	"type": "module",
 	"scripts": {
-		"test": "playwright test",
-		"test:dom": "playwright test --project=dom",
-		"test:ssim": "playwright test --project=ssim",
+		"test": "pnpm run test:dom && pnpm run test:ssim",
+		"test:dom": "../../scripts/visual_regression/run_dom_snapshots.sh full",
+		"test:ssim": "../../scripts/visual_regression/run_ssim.sh",
 		"test:browser-full-stack": "playwright test --project=browser-full-stack",
+		"test:playwright": "playwright test",
 		"update-baselines": "UPDATE_BASELINES=1 playwright test",
 		"typecheck": "tsc --noEmit"
 	},

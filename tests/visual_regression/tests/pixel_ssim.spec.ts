@@ -64,7 +64,7 @@ function describePixel(
 		if (!DEV_SERVER_BASE) {
 			testInfo.skip(
 				true,
-				"VISREG_DEV_SERVER_URL not set; dev-server harness deferred until pnpm install is unblocked (see tests/visual_regression/README.md)",
+				"VISREG_DEV_SERVER_URL not set; run scripts/visual_regression/run_ssim.sh or set VISREG_DEV_SERVER_URL to an already-running harness.",
 			);
 			return;
 		}
