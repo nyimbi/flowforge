@@ -2,7 +2,7 @@
 
 Signing adapters for the flowforge `SigningPort` protocol: HMAC-SHA256 for local development, AWS KMS and GCP Cloud KMS for production.
 
-Part of [flowforge](https://github.com/nyimbi/ums/tree/main/framework) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
+Part of [flowforge](https://github.com/nyimbi/flowforge) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
 
 ## Install
 
@@ -93,7 +93,7 @@ Apache-2.0 — see `LICENSE`.
 
 ## See also
 
-- [`flowforge`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-core)
-- [`flowforge-jtbd-hub`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-jtbd-hub) — uses this package to verify manifest signatures at install time
-- [`flowforge-cli`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-cli) — `flowforge pre-upgrade-check signing` validates SK-01 readiness
-- [audit-fix-plan](https://github.com/nyimbi/ums/blob/main/framework/docs/audit-fix-plan.md)
+- [`flowforge`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-core)
+- [`flowforge-jtbd-hub`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-jtbd-hub) — uses this package to verify manifest signatures at install time
+- [`flowforge-cli`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-cli) — `flowforge pre-upgrade-check signing` validates SK-01 readiness
+- [audit-fix-plan](https://github.com/nyimbi/flowforge/blob/main/docs/audit-fix-plan.md)

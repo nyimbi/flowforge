@@ -2,7 +2,7 @@
 
 FastAPI HTTP and WebSocket adapter for the flowforge workflow engine.
 
-Part of [flowforge](https://github.com/nyimbi/ums/tree/main/framework) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
+Part of [flowforge](https://github.com/nyimbi/flowforge) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
 
 ## Install
 
@@ -109,7 +109,7 @@ Apache-2.0 — see `LICENSE`.
 
 ## See also
 
-- [`flowforge`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-core) — ports, DSL, two-phase fire engine
-- [`flowforge-sqlalchemy`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-sqlalchemy) — durable Postgres/SQLite storage adapter
-- [`flowforge-tenancy`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-tenancy) — tenant resolver implementations
-- [audit-fix-plan](https://github.com/nyimbi/ums/blob/main/framework/docs/audit-fix-plan.md) for the security hardening rationale
+- [`flowforge`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-core) — ports, DSL, two-phase fire engine
+- [`flowforge-sqlalchemy`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-sqlalchemy) — durable Postgres/SQLite storage adapter
+- [`flowforge-tenancy`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-tenancy) — tenant resolver implementations
+- [audit-fix-plan](https://github.com/nyimbi/flowforge/blob/main/docs/audit-fix-plan.md) for the security hardening rationale

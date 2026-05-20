@@ -2,7 +2,7 @@
 
 Public registry service for signed JTBD packages: publish, install, search, rate, and demote with a trust-file verification gate.
 
-Part of [flowforge](https://github.com/nyimbi/ums/tree/main/framework) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
+Part of [flowforge](https://github.com/nyimbi/flowforge) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
 
 ## Install
 
@@ -117,8 +117,8 @@ Apache-2.0 — see `LICENSE`.
 
 ## See also
 
-- [`flowforge`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-core)
-- [`flowforge-jtbd`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-jtbd) — provides `JtbdManifest` and manifest signing primitives
-- [`flowforge-signing-kms`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-signing-kms) — `SigningPort` implementations used by `PackageRegistry`
-- [`flowforge-cli`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-cli) — `flowforge jtbd fork` and publish/install CLI commands talk to this service
-- [audit-fix-plan](https://github.com/nyimbi/ums/blob/main/framework/docs/audit-fix-plan.md)
+- [`flowforge`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-core)
+- [`flowforge-jtbd`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-jtbd) — provides `JtbdManifest` and manifest signing primitives
+- [`flowforge-signing-kms`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-signing-kms) — `SigningPort` implementations used by `PackageRegistry`
+- [`flowforge-cli`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-cli) — `flowforge jtbd fork` and publish/install CLI commands talk to this service
+- [audit-fix-plan](https://github.com/nyimbi/flowforge/blob/main/docs/audit-fix-plan.md)

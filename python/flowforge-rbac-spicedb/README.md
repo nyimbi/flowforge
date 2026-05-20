@@ -2,7 +2,7 @@
 
 SpiceDB-backed RBAC resolver for flowforge.
 
-Part of [flowforge](https://github.com/nyimbi/ums/tree/main/framework) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
+Part of [flowforge](https://github.com/nyimbi/flowforge) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
 
 ## Install
 
@@ -102,7 +102,7 @@ Apache-2.0 — see `LICENSE`.
 
 ## See also
 
-- [`flowforge-core`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-core)
-- [`flowforge-rbac-static`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-rbac-static) — file-based alternative for self-contained deployments
-- [`flowforge-tenancy`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-tenancy)
-- [audit-fix-plan](https://github.com/nyimbi/ums/blob/main/framework/docs/audit-fix-plan.md)
+- [`flowforge-core`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-core)
+- [`flowforge-rbac-static`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-rbac-static) — file-based alternative for self-contained deployments
+- [`flowforge-tenancy`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-tenancy)
+- [audit-fix-plan](https://github.com/nyimbi/flowforge/blob/main/docs/audit-fix-plan.md)

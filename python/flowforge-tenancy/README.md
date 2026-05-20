@@ -2,7 +2,7 @@
 
 Tenant resolver implementations for the flowforge framework — GUC-based single and multi-tenant, plus a no-op for single-org apps.
 
-Part of [flowforge](https://github.com/nyimbi/ums/tree/main/framework) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
+Part of [flowforge](https://github.com/nyimbi/flowforge) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
 
 ## Install
 
@@ -75,7 +75,7 @@ Apache-2.0 — see `LICENSE`.
 
 ## See also
 
-- [`flowforge`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-core) — ports, DSL, two-phase fire engine
-- [`flowforge-sqlalchemy`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-sqlalchemy) — `PgRlsBinder` that pairs with these resolvers
-- [`flowforge-fastapi`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-fastapi) — HTTP adapter that wires a `TenancyResolver` per request
-- [audit-fix-plan](https://github.com/nyimbi/ums/blob/main/framework/docs/audit-fix-plan.md) for the security hardening rationale
+- [`flowforge`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-core) — ports, DSL, two-phase fire engine
+- [`flowforge-sqlalchemy`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-sqlalchemy) — `PgRlsBinder` that pairs with these resolvers
+- [`flowforge-fastapi`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-fastapi) — HTTP adapter that wires a `TenancyResolver` per request
+- [audit-fix-plan](https://github.com/nyimbi/flowforge/blob/main/docs/audit-fix-plan.md) for the security hardening rationale

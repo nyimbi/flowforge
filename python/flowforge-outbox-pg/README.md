@@ -2,7 +2,7 @@
 
 Transactional outbox drain worker for PostgreSQL (and SQLite in tests).
 
-Part of [flowforge](https://github.com/nyimbi/ums/tree/main/framework) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
+Part of [flowforge](https://github.com/nyimbi/flowforge) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
 
 ## Install
 
@@ -124,7 +124,7 @@ Apache-2.0 — see `LICENSE`.
 
 ## See also
 
-- [`flowforge-core`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-core)
-- [`flowforge-audit-pg`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-audit-pg)
-- [`flowforge-sqlalchemy`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-sqlalchemy)
-- [audit-fix-plan](https://github.com/nyimbi/ums/blob/main/framework/docs/audit-fix-plan.md)
+- [`flowforge-core`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-core)
+- [`flowforge-audit-pg`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-audit-pg)
+- [`flowforge-sqlalchemy`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-sqlalchemy)
+- [audit-fix-plan](https://github.com/nyimbi/flowforge/blob/main/docs/audit-fix-plan.md)

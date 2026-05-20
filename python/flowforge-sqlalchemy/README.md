@@ -2,7 +2,7 @@
 
 Async SQLAlchemy 2.x storage adapter for the flowforge engine — snapshot store, transactional fire commits, saga ledger, RLS binder, durable outbox table, and Alembic migration bundle.
 
-Part of [flowforge](https://github.com/nyimbi/ums/tree/main/framework) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
+Part of [flowforge](https://github.com/nyimbi/flowforge) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
 
 ## Install
 
@@ -131,7 +131,7 @@ Apache-2.0 — see `LICENSE`.
 
 ## See also
 
-- [`flowforge`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-core) — ports, DSL, two-phase fire engine
-- [`flowforge-tenancy`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-tenancy) — tenant resolver implementations that call `PgRlsBinder`
-- [`flowforge-fastapi`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-fastapi) — HTTP/WebSocket adapter that uses this snapshot store
-- [audit-fix-plan](https://github.com/nyimbi/ums/blob/main/framework/docs/audit-fix-plan.md) for the security hardening rationale
+- [`flowforge`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-core) — ports, DSL, two-phase fire engine
+- [`flowforge-tenancy`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-tenancy) — tenant resolver implementations that call `PgRlsBinder`
+- [`flowforge-fastapi`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-fastapi) — HTTP/WebSocket adapter that uses this snapshot store
+- [audit-fix-plan](https://github.com/nyimbi/flowforge/blob/main/docs/audit-fix-plan.md) for the security hardening rationale

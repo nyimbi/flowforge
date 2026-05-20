@@ -1,6 +1,6 @@
 # flowforge-otel
 
-OpenTelemetry-backed `TracingPort` + `HistogramMetricsPort` adapter for [flowforge](https://github.com/nyimbi/ums/tree/main/framework). Ships in v0.3.0 W2 / item 12.
+OpenTelemetry-backed `TracingPort` + `HistogramMetricsPort` adapter for [flowforge](https://github.com/nyimbi/flowforge). Ships in v0.3.0 W2 / item 12.
 
 ## Install
 
@@ -63,5 +63,5 @@ Apache-2.0 — see `LICENSE`.
 
 ## See also
 
-- [`flowforge-core`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-core)
-- v0.3.0 engineering plan: [`docs/v0.3.0-engineering-plan.md`](https://github.com/nyimbi/ums/blob/main/framework/docs/v0.3.0-engineering-plan.md)
+- [`flowforge-core`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-core)
+- v0.3.0 engineering plan: [`docs/v0.3.0-engineering-plan.md`](https://github.com/nyimbi/flowforge/blob/main/docs/v0.3.0-engineering-plan.md)

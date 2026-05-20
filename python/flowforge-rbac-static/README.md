@@ -2,7 +2,7 @@
 
 Static RBAC resolver backed by a YAML or JSON role-permission map.
 
-Part of [flowforge](https://github.com/nyimbi/ums/tree/main/framework) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
+Part of [flowforge](https://github.com/nyimbi/flowforge) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
 
 ## Install
 
@@ -85,7 +85,7 @@ Apache-2.0 — see `LICENSE`.
 
 ## See also
 
-- [`flowforge-core`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-core)
-- [`flowforge-rbac-spicedb`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-rbac-spicedb) — SpiceDB-backed alternative for dynamic / relationship-based auth
-- [`flowforge-tenancy`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-tenancy)
-- [audit-fix-plan](https://github.com/nyimbi/ums/blob/main/framework/docs/audit-fix-plan.md)
+- [`flowforge-core`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-core)
+- [`flowforge-rbac-spicedb`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-rbac-spicedb) — SpiceDB-backed alternative for dynamic / relationship-based auth
+- [`flowforge-tenancy`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-tenancy)
+- [audit-fix-plan](https://github.com/nyimbi/flowforge/blob/main/docs/audit-fix-plan.md)

@@ -2,7 +2,7 @@
 
 JTBD canonical spec models, lockfile, SQLAlchemy storage tables, and linter core for the flowforge framework.
 
-Part of [flowforge](https://github.com/nyimbi/ums/tree/main/framework) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
+Part of [flowforge](https://github.com/nyimbi/flowforge) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
 
 ## Install
 
@@ -118,7 +118,7 @@ Apache-2.0 — see `LICENSE`.
 
 ## See also
 
-- [`flowforge`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-core)
-- [`flowforge-cli`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-cli) — `flowforge jtbd-generate` and `flowforge jtbd lint` consume this package
-- [`flowforge-jtbd-hub`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-jtbd-hub) — registry service that publishes and installs JTBD packages built on this spec
-- [audit-fix-plan](https://github.com/nyimbi/ums/blob/main/framework/docs/audit-fix-plan.md)
+- [`flowforge`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-core)
+- [`flowforge-cli`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-cli) — `flowforge jtbd-generate` and `flowforge jtbd lint` consume this package
+- [`flowforge-jtbd-hub`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-jtbd-hub) — registry service that publishes and installs JTBD packages built on this spec
+- [audit-fix-plan](https://github.com/nyimbi/flowforge/blob/main/docs/audit-fix-plan.md)

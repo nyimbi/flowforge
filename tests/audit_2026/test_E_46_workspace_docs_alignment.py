@@ -162,6 +162,40 @@ def test_DOC_01_strategic_pkg_urls_are_standalone_flowforge() -> None:
 			)
 
 
+def test_DOC_01_strategic_pkg_readmes_are_standalone_flowforge() -> None:
+	"""PyPI long descriptions must not send users back to the extracted UMS tree."""
+	strategic = {
+		"flowforge-core",
+		"flowforge-fastapi",
+		"flowforge-sqlalchemy",
+		"flowforge-tenancy",
+		"flowforge-audit-pg",
+		"flowforge-outbox-pg",
+		"flowforge-rbac-static",
+		"flowforge-rbac-spicedb",
+		"flowforge-documents-s3",
+		"flowforge-money",
+		"flowforge-signing-kms",
+		"flowforge-notify-multichannel",
+		"flowforge-otel",
+		"flowforge-cli",
+		"flowforge-jtbd",
+		"flowforge-jtbd-hub",
+	}
+	for pkg in strategic:
+		readme = _PYTHON_DIR / pkg / "README.md"
+		text = readme.read_text(encoding="utf-8")
+		assert "github.com/nyimbi/ums/tree/main/framework" not in text, (
+			f"{pkg} README still points users to the UMS framework tree"
+		)
+		assert "github.com/nyimbi/ums/blob/main/framework" not in text, (
+			f"{pkg} README still points users to UMS framework docs"
+		)
+		assert "github.com/nyimbi/flowforge/python/" not in text, (
+			f"{pkg} README has a malformed Flowforge package link missing /tree/main/"
+		)
+
+
 # ---------------------------------------------------------------------------
 # DOC-02 — README + handbook accuracy
 # ---------------------------------------------------------------------------
