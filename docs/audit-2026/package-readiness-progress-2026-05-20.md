@@ -979,3 +979,37 @@ Design audit 5 - operations, security, and reliability:
 - Result:
   - The audit finding is resolved for the new CLI coverage log entries, and
     the progress log now preserves replayable verification evidence.
+
+## CLI coverage slice - migration safety analyzer
+
+- Baseline measurement:
+  - After closing tutorial command coverage, rounded `flowforge-cli` package
+    coverage was 75%.
+  - `commands/migration_safety.py` was 79% covered; the remaining gaps were
+    defensive metadata parsing, size-hint loading, AST helper branches,
+    no-upgrade/no-parse rule exits, markdown rendering, direct CLI input
+    rejection, and baseline edge cases.
+- Action:
+  - Added focused tests for malformed migrations, AST-over-regex metadata,
+    branch labels, revision assignment extraction, size-hint decoding,
+    parser-error findings, missing migration directories, first-create NOT NULL
+    handling, dynamic table/column names, safe type-alter shapes, multi-head
+    helper fallbacks, markdown grouping, baseline parsing, unknown output
+    formats, and file-path rejection.
+  - Marked the final tuple-form `down_revision` regex branch as non-branching
+    for coverage because the regex only admits `None`, a quoted string, or a
+    tuple literal.
+- Result:
+  - `flowforge_cli.commands.migration_safety` now reaches 100% statement and
+    branch coverage.
+  - Overall `flowforge-cli` rounded package coverage improved from 75% to 77%.
+- Verification:
+  - `uv run pytest tests/test_migration_safety_cli.py -q --cov=flowforge_cli.commands.migration_safety --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `43 passed`, 100% statement and branch
+    coverage for `migration_safety.py`.
+  - `uv run ruff check src/flowforge_cli/commands/migration_safety.py tests/test_migration_safety_cli.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright src/flowforge_cli/commands/migration_safety.py tests/test_migration_safety_cli.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `760 passed`, overall package coverage 77%.

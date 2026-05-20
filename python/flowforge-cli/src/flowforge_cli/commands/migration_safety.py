@@ -159,7 +159,7 @@ def _parse_migration_file(path: Path) -> MigrationFile:
 			down_revision = None
 		elif raw.startswith(("'", '"')):
 			down_revision = raw.strip("'\"")
-		elif raw.startswith("("):
+		elif raw.startswith("("):  # pragma: no branch - regex only admits None, quoted str, or tuple
 			# tuple form for branch merges: ('a', 'b')
 			items = re.findall(r'["\']([^"\']+)["\']', raw)
 			down_revision = tuple(items) if items else None
