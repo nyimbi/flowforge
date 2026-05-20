@@ -1043,3 +1043,27 @@ Design audit 5 - operations, security, and reliability:
     from `python/flowforge-cli`: `0 errors`, `0 warnings`.
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `765 passed`, overall package coverage 77%.
+
+## CLI coverage slice - shared JTBD render helpers
+
+- Baseline measurement:
+  - After closing JTBD desktop command coverage, rounded `flowforge-cli`
+    package coverage was 77%.
+  - `jtbd/_render.py` was 90% covered; the uncovered lines were the shared
+    JSON and Python repr filters used by Jinja templates.
+- Action:
+  - Added focused tests for deterministic JSON key ordering, fallback string
+    conversion for non-JSON values, Python literal representation, and a real
+    `env.example.j2` render through the shared cached Jinja environment.
+- Result:
+  - `flowforge_cli.jtbd._render` now reaches 100% statement coverage.
+  - Overall `flowforge-cli` rounded package coverage remains 77%.
+- Verification:
+  - `uv run pytest tests/test_jtbd_render.py -q --cov=flowforge_cli.jtbd._render --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `3 passed`, 100% coverage for `_render.py`.
+  - `uv run ruff check tests/test_jtbd_render.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_jtbd_render.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `768 passed`, overall package coverage 77%.
