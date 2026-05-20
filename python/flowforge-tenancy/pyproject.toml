@@ -31,7 +31,7 @@ classifiers = [
 
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["flowforge>=0.1.0"]
+dependencies = ["flowforge>=0.1.0,<0.2.0"]
 
 [project.optional-dependencies]
 test = ["pytest>=7", "pytest-asyncio>=0.23"]

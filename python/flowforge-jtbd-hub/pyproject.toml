@@ -32,9 +32,9 @@ classifiers = [
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "flowforge",
-    "flowforge-jtbd",
-    "flowforge-signing-kms",
+    "flowforge>=0.1.0,<0.2.0",
+    "flowforge-jtbd>=0.1.0,<0.2.0",
+    "flowforge-signing-kms>=0.1.0,<0.2.0",
     "fastapi>=0.115",
     "pydantic>=2.5",
     "pyyaml>=6.0",

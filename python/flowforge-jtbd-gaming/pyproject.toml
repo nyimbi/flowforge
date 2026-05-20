@@ -2,7 +2,7 @@
 name = "flowforge-jtbd-gaming-starter"
 version = "0.0.1"
 description = "flowforge JTBD domain library — Gaming (Matchmaking, economy, moderation)"
-keywords = ["flowforge", "jtbd", "scaffold-only", "starter"]
+keywords = ["flowforge>=0.1.0,<0.2.0", "jtbd", "scaffold-only", "starter"]
 classifiers = [
     "Development Status :: 1 - Planning",
     "Intended Audience :: Developers",
@@ -14,7 +14,7 @@ classifiers = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "flowforge-jtbd>=0.1.0",
+    "flowforge-jtbd>=0.1.0,<0.2.0",
     "pyyaml>=6.0",
 ]
 

@@ -11,7 +11,7 @@ Steps:
 2. **Generate** — scaffold workflow definition + form spec from the bundle.
 3. **Validate** — validate the generated workflow definition.
 4. **Simulate** — simulate two events (submit → review → done).
-5. **Lint** — run the JTBD linter to show zero semantic issues.
+5. **Lint** — run the JTBD linter and show authoring feedback.
 
 Usage::
 
@@ -150,7 +150,9 @@ _STEPS = [
 		"title": "Lint the JTBD bundle",
 		"description": (
 			"The JTBD linter checks lifecycle completeness, dependency order, "
-			"actor consistency, and compliance coverage."
+			"actor consistency, and compliance coverage. The canonical generator "
+			"schema does not yet carry lint lifecycle-stage declarations, so "
+			"stage completeness may appear as authoring feedback."
 		),
 	},
 ]
@@ -250,7 +252,7 @@ def tutorial_cmd(
 
 	bundle_path = out / "bundle.json"
 	generated_dir = out / "generated"
-	wf_path = generated_dir / "claim_intake" / "definition.json"
+	wf_path = generated_dir / "workflows" / "claim_intake" / "definition.json"
 
 	errors: list[str] = []
 
@@ -289,7 +291,7 @@ def tutorial_cmd(
 		elif n == 3:
 			if wf_path.exists() or dry_run:
 				ok = _run_cmd(
-					["flowforge", "validate", str(wf_path)],
+					["flowforge", "validate", "--def", str(wf_path)],
 					cwd=Path.cwd(),
 					dry_run=dry_run,
 				)
@@ -303,9 +305,9 @@ def tutorial_cmd(
 			if wf_path.exists() or dry_run:
 				ok = _run_cmd(
 					[
-						"flowforge", "simulate", str(wf_path),
-						"--events", "submit:{}",
-						"--events", "approve:{}",
+						"flowforge", "simulate", "--def", str(wf_path),
+						"--events", "submit",
+						"--events", "approve",
 					],
 					cwd=Path.cwd(),
 					dry_run=dry_run,
@@ -345,6 +347,6 @@ def tutorial_cmd(
 		typer.echo(f"  Your demo project lives in: {out.resolve()}/")
 		typer.echo("")
 		typer.echo("  Next steps:")
-		typer.echo("    flowforge jtbd lint --bundle flowforge-demo/bundle.json")
-		typer.echo("    flowforge jtbd migrate --bundle flowforge-demo/bundle.json --from claim_intake")
-		typer.echo("    Read the docs: framework/docs/flowforge-handbook.md")
+		typer.echo(f"    flowforge jtbd lint --bundle {bundle_path}")
+		typer.echo(f"    flowforge jtbd migrate --bundle {bundle_path} --from claim_intake")
+		typer.echo("    Read the docs: docs/flowforge-handbook.md")

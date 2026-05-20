@@ -32,7 +32,7 @@ classifiers = [
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "flowforge",
+    "flowforge>=0.1.0,<0.2.0",
 ]
 
 [project.optional-dependencies]

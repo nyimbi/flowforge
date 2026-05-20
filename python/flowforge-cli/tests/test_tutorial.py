@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
 from click import unstyle
 from typer.testing import CliRunner
 
@@ -119,6 +118,24 @@ def test_tutorial_dry_run_step2_shows_command(tmp_path: Path) -> None:
 	assert "dry-run" in r.output
 
 
+def test_tutorial_dry_run_step3_and_step4_use_valid_cli_shapes(tmp_path: Path) -> None:
+	out = tmp_path / "demo"
+	r3 = runner.invoke(
+		app,
+		["tutorial", "--out", str(out), "--step", "3", "--no-pause", "--dry-run"],
+	)
+	assert "validate --def" in r3.output
+	assert "generated/workflows/claim_intake/definition.json" in r3.output
+
+	r4 = runner.invoke(
+		app,
+		["tutorial", "--out", str(out), "--step", "4", "--no-pause", "--dry-run"],
+	)
+	assert "simulate --def" in r4.output
+	assert "--events submit --events approve" in r4.output
+	assert "submit:{}" not in r4.output
+
+
 def test_tutorial_dry_run_step5_shows_lint_command(tmp_path: Path) -> None:
 	r = runner.invoke(
 		app,
@@ -126,6 +143,18 @@ def test_tutorial_dry_run_step5_shows_lint_command(tmp_path: Path) -> None:
 	)
 	assert "jtbd" in r.output
 	assert "lint" in r.output
+
+
+def test_tutorial_footer_uses_selected_out_and_current_docs_path(tmp_path: Path) -> None:
+	out = tmp_path / "custom-demo"
+	r = runner.invoke(
+		app,
+		["tutorial", "--out", str(out), "--no-pause", "--dry-run"],
+	)
+	assert f"flowforge jtbd lint --bundle {out / 'bundle.json'}" in r.output
+	assert "docs/flowforge-handbook.md" in r.output
+	assert "flowforge-demo/bundle.json" not in r.output
+	assert "framework/docs" not in r.output
 
 
 # ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 
 import yaml
@@ -208,6 +209,26 @@ def test_external_release_evidence_template_tracks_required_proofs() -> None:
 		"Live Postgres tenant/ordinal index plan",
 	]:
 		assert required in template
+
+
+def test_internal_python_dependencies_are_compatibly_bounded() -> None:
+	"""PyPI wheels must not publish bare internal FlowForge dependencies."""
+
+	internal_names = {
+		"flowforge",
+		"flowforge-audit-pg",
+		"flowforge-jtbd",
+		"flowforge-signing-kms",
+		"flowforge-sqlalchemy",
+	}
+	failures: list[str] = []
+	for pyproject in sorted((ROOT / "python").glob("flowforge*/pyproject.toml")):
+		data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+		for dep in data.get("project", {}).get("dependencies", []):
+			name = dep.split("[", 1)[0].split("<", 1)[0].split(">", 1)[0].split("=", 1)[0]
+			if name in internal_names and not (">=0.1.0" in dep and "<0.2.0" in dep):
+				failures.append(f"{pyproject.relative_to(ROOT)}: {dep}")
+	assert failures == []
 
 
 def test_dom_baselines_do_not_embed_ci_checkout_paths() -> None:
