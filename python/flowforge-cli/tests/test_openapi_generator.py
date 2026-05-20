@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 from pathlib import Path
 from typing import Any
@@ -10,7 +11,7 @@ import yaml  # type: ignore[import-untyped]
 
 from flowforge_cli.jtbd.generators import _fixture_registry
 from flowforge_cli.jtbd.generators import openapi as gen
-from flowforge_cli.jtbd.normalize import normalize
+from flowforge_cli.jtbd.normalize import NormalizedField, normalize
 
 
 _INSURANCE_BUNDLE = (
@@ -42,6 +43,25 @@ def _parse_yaml(content: str) -> dict[str, Any]:
 	doc = yaml.safe_load(content)
 	assert isinstance(doc, dict), "openapi.yaml top-level must be a mapping"
 	return doc
+
+
+def _field(
+	kind: str,
+	validation: dict[str, Any] | None = None,
+	*,
+	required: bool = False,
+) -> NormalizedField:
+	return NormalizedField(
+		id=f"{kind}_field",
+		kind=kind,
+		label=f"{kind.title()} Field",
+		required=required,
+		pii=False,
+		sa_type="String",
+		sql_type="TEXT",
+		ts_component="Input",
+		validation=validation or {},
+	)
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +132,52 @@ def test_request_body_payload_schema_is_derived_from_data_capture() -> None:
 	assert payload_schema["required"] == required
 
 
+def test_field_schema_maps_numeric_and_string_validations() -> None:
+	"""Validation bounds are translated according to JSON-schema type."""
+	numeric = gen._field_schema(
+		_field("number", {"min": 10, "max": 99, "pattern": "^[0-9]+$"})
+	)
+	assert numeric["minimum"] == 10
+	assert numeric["maximum"] == 99
+	assert "pattern" not in numeric
+
+	text = gen._field_schema(
+		_field("text", {"min": 3, "max": 12, "pattern": "^[a-z]+$", "enum": ["a"]})
+	)
+	assert text["minLength"] == 3
+	assert text["maxLength"] == 12
+	assert text["pattern"] == "^[a-z]+$"
+	assert text["enum"] == ["a"]
+
+
+def test_field_schema_ignores_bounds_for_array_and_defaults_unknown_kind() -> None:
+	"""Unsupported bound/type combinations are dropped deterministically."""
+	array_schema = gen._field_schema(
+		_field("multiselect", {"min": 1, "max": 3, "pattern": "x"})
+	)
+	assert array_schema["type"] == "array"
+	assert "minimum" not in array_schema
+	assert "minLength" not in array_schema
+	assert "maximum" not in array_schema
+	assert "maxLength" not in array_schema
+	assert "pattern" not in array_schema
+
+	unknown_schema = gen._field_schema(_field("custom"))
+	assert unknown_schema["type"] == "string"
+	assert unknown_schema["x-flowforge-kind"] == "custom"
+
+
+def test_payload_schema_omits_required_when_all_fields_optional() -> None:
+	"""Optional-only payloads do not emit an empty required list."""
+	bundle = _load_normalized(_INSURANCE_BUNDLE)
+	jtbd = replace(
+		bundle.jtbds[0],
+		fields=tuple(replace(field, required=False) for field in bundle.jtbds[0].fields),
+	)
+	schema = gen._payload_schema(jtbd)
+	assert "required" not in schema
+
+
 def test_request_body_example_uses_deterministic_placeholders() -> None:
 	bundle = _load_normalized(_INSURANCE_BUNDLE)
 	doc = _parse_yaml(gen.generate(bundle).content)
@@ -123,6 +189,13 @@ def test_request_body_example_uses_deterministic_placeholders() -> None:
 	assert payload["contact_email"] == "user@example.com"
 	assert payload["loss_date"] == "2024-01-01"
 	assert payload["loss_amount"] == 0
+
+
+def test_field_example_honors_numeric_min_and_enum_fallbacks() -> None:
+	assert gen._field_example(_field("integer", {"min": 5})) == 5
+	assert gen._field_example(_field("select", {"enum": ["first", "second"]})) == "first"
+	assert gen._field_example(_field("select", {"enum": []})) == "option_a"
+	assert gen._field_example(_field("custom")) == ""
 
 
 def test_responses_include_standard_status_codes() -> None:

@@ -1351,3 +1351,32 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: passed with one optional `mmdc` skip and
     overall package coverage 78%.
+
+## CLI coverage slice - OpenAPI generator
+
+- Baseline measurement:
+  - After closing reachability generator coverage, rounded `flowforge-cli`
+    package coverage was 78%.
+  - `jtbd/generators/openapi.py` was 71% covered in focused generator tests;
+    remaining gaps were validation-bound translation, unknown-kind defaults,
+    example selection for numeric mins and enums, and optional-only payloads.
+- Action:
+  - Added focused OpenAPI helper tests for numeric and string validation schema
+    mapping, ignored array bounds, unknown field-kind defaults, optional-only
+    payload schemas, numeric-min examples, enum examples, empty-enum fallback,
+    and unknown-kind example fallback.
+- Result:
+  - `flowforge_cli.jtbd.generators.openapi` now reaches 100% statement and
+    branch coverage.
+  - Overall `flowforge-cli` rounded package coverage remains 78%.
+- Verification:
+  - `uv run pytest tests/test_openapi_generator.py -q --cov=flowforge_cli.jtbd.generators.openapi --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `18 passed`, 100% statement and branch
+    coverage for `openapi.py`.
+  - `uv run ruff check tests/test_openapi_generator.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_openapi_generator.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: passed with one optional `mmdc` skip and
+    overall package coverage 78%.
