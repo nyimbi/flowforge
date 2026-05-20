@@ -690,3 +690,35 @@ Design audit 5 - operations, security, and reliability:
     clean.
   - `uv run pyright python/flowforge-cli/tests/test_audit_2026_health.py`:
     `0 errors`, `0 warnings`.
+
+## CLI coverage slice - IO helpers and AI assist command
+
+- Baseline measurement:
+  - After closing the audit-health command, `flowforge-cli` package coverage
+    was 72%.
+  - `_io.py` was 70% covered and `commands/ai_assist.py` was 67% covered,
+    leaving shared structured-file loading, safe generated path resolution,
+    workflow-definition discovery, and AI prompt write/error branches
+    under-tested.
+- Action:
+  - Added focused IO helper tests for YAML loading, unknown-suffix YAML
+    fallback, non-mapping JSON rejection, deterministic JSON writing, absolute
+    and parent-segment path rejection, symlink escape rejection, safe nested
+    path acceptance, and sorted workflow definition discovery.
+  - Added AI assist command tests for no-focus selection, non-mapping JTBD list
+    entries, unknown JTBD selection errors, prompt file output, stdout output,
+    and Typer error reporting.
+- Result:
+  - `flowforge_cli._io` and `flowforge_cli.commands.ai_assist` now both reach
+    100% statement and branch coverage.
+  - Overall `flowforge-cli` package coverage improved from 72% to 73%.
+- Verification:
+  - `uv run pytest tests/test_io_and_ai_assist.py -q --cov=flowforge_cli._io --cov=flowforge_cli.commands.ai_assist --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `17 passed`, 100% statement and branch
+    coverage for both targeted modules.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `676 passed`, overall package coverage 73%.
+  - `uv run ruff check python/flowforge-cli/tests/test_io_and_ai_assist.py`:
+    clean.
+  - `uv run pyright python/flowforge-cli/tests/test_io_and_ai_assist.py`:
+    `0 errors`, `0 warnings`.
