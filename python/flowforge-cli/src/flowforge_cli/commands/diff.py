@@ -1,8 +1,4 @@
-"""``flowforge diff`` — pretty diff of two workflow versions.
-
-Skeleton: a complete implementation is deferred to a follow-up unit; the
-command is mounted so the CLI surface matches §10.1.
-"""
+"""``flowforge diff`` — pretty diff of two workflow definition files."""
 
 from __future__ import annotations
 
@@ -10,17 +6,27 @@ from pathlib import Path
 
 import typer
 
+from flowforge.compiler.diff import diff_workflow_dicts
+
+from .._io import load_structured
+
 
 def register(app: typer.Typer) -> None:
-	app.command("diff", help="Pretty diff of two workflow definition versions (skeleton).")(diff_cmd)
+	app.command("diff", help="Pretty diff of two workflow definition versions.")(diff_cmd)
 
 
 def diff_cmd(
-	a: Path = typer.Argument(..., help="First definition / version id."),
-	b: Path = typer.Argument(..., help="Second definition / version id."),
+	a: Path = typer.Argument(..., exists=True, dir_okay=False, help="First workflow definition file."),
+	b: Path = typer.Argument(..., exists=True, dir_okay=False, help="Second workflow definition file."),
+	exit_zero: bool = typer.Option(False, "--exit-zero", help="Exit 0 even when a diff is present."),
 ) -> None:
-	"""Stub — raises NotImplementedError per the unit's complexity-split rule."""
+	"""Print a structural diff between two workflow definitions."""
 
-	raise NotImplementedError(
-		f"flowforge diff is not yet implemented (compared {a!s} vs {b!s})."
-	)
+	try:
+		diff = diff_workflow_dicts(load_structured(a), load_structured(b))
+	except Exception as exc:
+		typer.echo(f"error: {exc}", err=True)
+		raise typer.Exit(2) from exc
+	typer.echo(diff.summary())
+	if not exit_zero and not diff.is_empty():
+		raise typer.Exit(1)

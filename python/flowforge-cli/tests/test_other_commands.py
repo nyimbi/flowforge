@@ -1,5 +1,5 @@
-"""Tests for the remaining commands: add-jtbd, regen-catalog, migrate-fork,
-and the skeleton stubs.
+"""Tests for auxiliary commands: add-jtbd, regen-catalog, migrate-fork,
+diff, replay, audit verify, upgrade-deps, and ai-assist.
 """
 
 from __future__ import annotations
@@ -201,44 +201,70 @@ def test_migrate_fork_rejects_dot_segment_workflow_key_default_path(
 	assert "workflow key" in r.output
 
 
-# ---------- skeleton stubs ----------
+# ---------- implemented auxiliary commands ----------
 
 
-def test_diff_is_skeleton(tmp_path: Path) -> None:
-	a = tmp_path / "a.json"
+def test_diff_prints_workflow_structural_diff(workflow_ok: Path, tmp_path: Path) -> None:
 	b = tmp_path / "b.json"
-	a.write_text("{}")
-	b.write_text("{}")
-	r = runner.invoke(app, ["diff", str(a), str(b)])
-	assert r.exit_code != 0
-	# Click/Typer surfaces the exception trace; the message must mention NotImplemented.
-	assert isinstance(r.exception, NotImplementedError) or "not yet implemented" in r.output
+	data = json.loads(workflow_ok.read_text(encoding="utf-8"))
+	data["states"].append({"name": "rejected", "kind": "terminal_fail"})
+	b.write_text(json.dumps(data), encoding="utf-8")
+
+	r = runner.invoke(app, ["diff", str(workflow_ok), str(b)])
+
+	assert r.exit_code == 1
+	assert "+ state  rejected" in r.output
 
 
-def test_replay_is_skeleton() -> None:
-	r = runner.invoke(app, ["replay", "--event", "abc"])
-	assert r.exit_code != 0
-	assert isinstance(r.exception, NotImplementedError) or "not yet implemented" in r.output
+def test_replay_reconstructs_final_state(workflow_ok: Path) -> None:
+	r = runner.invoke(
+		app,
+		["replay", "--def", str(workflow_ok), "--event", "submit", "--event", "approve"],
+	)
+
+	assert r.exit_code == 0
+	assert "final state: done" in r.output
 
 
-def test_upgrade_deps_is_skeleton() -> None:
+def test_upgrade_deps_inspects_workspace() -> None:
 	r = runner.invoke(app, ["upgrade-deps"])
-	assert r.exit_code != 0
-	assert isinstance(r.exception, NotImplementedError) or "not yet implemented" in r.output
+	assert r.exit_code == 0
+	assert "Flowforge dependency inspection" in r.output
 
 
-def test_audit_verify_is_skeleton() -> None:
-	r = runner.invoke(app, ["audit", "verify", "--range", "2024-01..2024-02"])
-	assert r.exit_code != 0
-	assert isinstance(r.exception, NotImplementedError) or "not yet implemented" in r.output
+def test_audit_verify_checks_jsonl_export(tmp_path: Path) -> None:
+	from flowforge_audit_pg.hash_chain import compute_row_sha
+
+	body = {
+		"tenant_id": "t1",
+		"actor_user_id": "u1",
+		"kind": "workflow.event",
+		"subject_kind": "claim",
+		"subject_id": "c1",
+		"occurred_at": "2026-05-20T00:00:00",
+		"payload": {"state": "done"},
+	}
+	row = {
+		"event_id": "e1",
+		**body,
+		"prev_sha256": None,
+		"row_sha256": compute_row_sha(None, body),
+	}
+	export = tmp_path / "audit.jsonl"
+	export.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+	r = runner.invoke(app, ["audit", "verify", "--file", str(export)])
+
+	assert r.exit_code == 0
+	assert "audit chain ok" in r.output
 
 
-def test_ai_assist_is_skeleton(tmp_path: Path) -> None:
-	jtbd = tmp_path / "j.json"
-	jtbd.write_text("{}")
-	r = runner.invoke(app, ["ai-assist", str(jtbd)])
-	assert r.exit_code != 0
-	assert isinstance(r.exception, NotImplementedError) or "not yet implemented" in r.output
+def test_ai_assist_prints_authoring_prompt(jtbd_bundle: Path) -> None:
+	r = runner.invoke(app, ["ai-assist", str(jtbd_bundle), "--job", "claim_intake"])
+
+	assert r.exit_code == 0
+	assert "Selected JTBD JSON" in r.output
+	assert "claim_intake" in r.output
 
 
 # ---------- top-level help ----------

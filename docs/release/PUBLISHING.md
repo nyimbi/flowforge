@@ -31,7 +31,8 @@ Run from the repo root. Every check must be green before any release.
 
 ```bash
 # 1. Quality gate — runs pytest + pyright + JS test/typecheck +
-#    UMS-parity + cross-package integration. Exits 0 if green.
+#    standalone-safe regen, visual DOM, and cross-package integration.
+#    Downstream UMS parity is skipped unless BACKEND_ROOT is available.
 bash scripts/check_all.sh
 
 # 2. Security ratchets.

@@ -2,7 +2,7 @@
 
 Typer-based command-line tool for the flowforge framework: scaffold projects, generate JTBD app skeletons, validate and simulate workflow definitions.
 
-Part of [flowforge](https://github.com/nyimbi/ums/tree/main/framework) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
+Part of [flowforge](https://github.com/nyimbi/flowforge) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
 
 ## Install
 
@@ -18,7 +18,7 @@ The package installs a `flowforge` entry point.
 
 Two audit-2026 commands are also present: `flowforge pre-upgrade-check` audits the host for E-34 SK-01 readiness before a framework version bump, and `flowforge audit-2026 health` queries a Prometheus endpoint for the per-ticket SLI probes defined in the close-out criteria.
 
-Commands that are stubs (`diff`, `replay`, `upgrade-deps`, `audit verify`, `ai-assist`) raise `NotImplementedError` at call time and are documented as such below.
+The auxiliary commands (`diff`, `replay`, `upgrade-deps`, `audit verify`, `ai-assist`) are implemented as bounded local tools. Host-specific actions that need a database export or reviewed dependency bump fail with actionable input requirements instead of raising framework exceptions.
 
 ## Quick start
 
@@ -62,15 +62,16 @@ flowforge audit-2026 health --prom-url http://prometheus.local:9090
 | `flowforge simulate --def <path>` | Implemented | Plan/commit log shape per §10.4. |
 | `flowforge regen-catalog [--root <path>]` | Implemented | Regenerate `workflows/catalog.json` projection. |
 | `flowforge migrate-fork <upstream-def> --to <tenant>` | Implemented | Copy a workflow definition into a per-tenant fork. |
+| `flowforge diff <old-def> <new-def>` | Implemented | Print a structural workflow diff. |
+| `flowforge replay --def <definition> --event <event>` | Implemented | Replay recorded events through the deterministic reconstructor. |
+| `flowforge upgrade-deps` | Implemented | Inspect package dependency declarations and refuse unreviewed mutation. |
 | `flowforge pre-upgrade-check [all\|signing]` | Implemented | F-7 mitigation: audit SK-01 env readiness; exits non-zero on failure. |
 | `flowforge audit-2026 health` | Implemented | Query Prometheus for per-ticket SLI probes; exits non-zero on FAIL. |
+| `flowforge audit verify --file <audit.jsonl>` | Implemented | Verify a Flowforge audit hash-chain export. |
 | `flowforge generate-llmtxt` | Implemented | Emit an `llms.txt` index for the project. |
 | `flowforge tutorial` | Implemented | Interactive guided tutorial. |
-| `flowforge audit verify` | Skeleton | Raises `NotImplementedError`. |
-| `flowforge diff <vidA> <vidB>` | Skeleton | Raises `NotImplementedError`. |
-| `flowforge replay --event <uuid>` | Skeleton | Raises `NotImplementedError`. |
-| `flowforge upgrade-deps` | Skeleton | Raises `NotImplementedError`. |
-| `flowforge ai-assist <bundle>` | Skeleton | Raises `NotImplementedError`. |
+| `flowforge jtbd desktop [--bundle <bundle>] [--theme <theme.json>]` | Implemented | Launch the optional PyQt JTBD desktop editor. |
+| `flowforge ai-assist <bundle> [--job <id>]` | Implemented | Emit a copyable AI authoring/review prompt for a JTBD bundle. |
 
 ## JTBD generator (U19)
 
@@ -115,7 +116,7 @@ Apache-2.0 — see `LICENSE`.
 
 ## See also
 
-- [`flowforge`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-core)
-- [`flowforge-jtbd`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-jtbd) — linter and canonical spec models consumed by this CLI
-- [`flowforge-signing-kms`](https://github.com/nyimbi/ums/tree/main/framework/python/flowforge-signing-kms) — `pre-upgrade-check signing` checks readiness for its SK-01 change
-- [audit-fix-plan](https://github.com/nyimbi/ums/blob/main/framework/docs/audit-fix-plan.md)
+- [`flowforge`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-core)
+- [`flowforge-jtbd`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-jtbd) — linter and canonical spec models consumed by this CLI
+- [`flowforge-signing-kms`](https://github.com/nyimbi/flowforge/tree/main/python/flowforge-signing-kms) — `pre-upgrade-check signing` checks readiness for its SK-01 change
+- [audit-fix-plan](https://github.com/nyimbi/flowforge/blob/main/docs/audit-fix-plan.md)
