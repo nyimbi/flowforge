@@ -1067,3 +1067,32 @@ Design audit 5 - operations, security, and reliability:
     from `python/flowforge-cli`: `0 errors`, `0 warnings`.
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `768 passed`, overall package coverage 77%.
+
+## CLI coverage slice - JTBD fixture registry
+
+- Baseline measurement:
+  - After closing shared render helper coverage, rounded `flowforge-cli`
+    package coverage was 77%.
+  - `jtbd/generators/_fixture_registry.py` was 73% covered; the uncovered
+    lines were the test-only runtime `register` helper and its input
+    assertions.
+- Action:
+  - Added focused registry tests for unknown-generator lookup, sorted runtime
+    registration, `all_generators()` visibility, and assertion behavior for
+    invalid generator names and non-tuple `consumes` values.
+  - Monkeypatched a copy of the registry dict during registration tests to
+    avoid polluting the shared generator registry across the suite.
+- Result:
+  - `flowforge_cli.jtbd.generators._fixture_registry` now reaches 100%
+    statement coverage.
+  - Overall `flowforge-cli` rounded package coverage remains 77%.
+- Verification:
+  - `uv run pytest tests/test_jtbd_fixture_registry.py -q --cov=flowforge_cli.jtbd.generators._fixture_registry --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `2 passed`, 100% coverage for
+    `_fixture_registry.py`.
+  - `uv run ruff check tests/test_jtbd_fixture_registry.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_jtbd_fixture_registry.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `770 passed`, overall package coverage 77%.
