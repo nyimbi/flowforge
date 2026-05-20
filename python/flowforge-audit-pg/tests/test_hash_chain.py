@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timezone
+from decimal import Decimal
+from uuid import UUID
 
 from flowforge_audit_pg.hash_chain import (
 	TOMBSTONE,
@@ -34,6 +36,26 @@ def test_canonical_json_datetime_iso():
 	dt = datetime(2024, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
 	raw = canonical_json({"ts": dt})
 	assert "2024-06-01T12:00:00+00:00" in raw
+
+
+def test_canonical_json_uuid_decimal_and_unknown_type() -> None:
+	raw = canonical_json(
+		{
+			"amount": Decimal("12.34"),
+			"id": UUID("00000000-0000-7000-8000-000000000001"),
+		}
+	)
+	assert raw == '{"amount":"12.34","id":"00000000-0000-7000-8000-000000000001"}'
+
+	class NotSerializable:
+		pass
+
+	try:
+		canonical_json({"bad": NotSerializable()})
+	except TypeError as exc:
+		assert "not serialisable" in str(exc)
+	else:  # pragma: no cover - defensive assertion
+		raise AssertionError("canonical_json accepted an unknown object")
 
 
 def test_canonical_json_no_whitespace():

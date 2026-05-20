@@ -16,6 +16,7 @@ CLOSED_PACKAGE_COVERAGE = (
 	("flowforge-outbox-pg", "flowforge_outbox_pg"),
 	("flowforge-documents-s3", "flowforge_documents_s3"),
 	("flowforge-notify-multichannel", "flowforge_notify_multichannel"),
+	("flowforge-audit-pg", "flowforge_audit_pg"),
 )
 
 

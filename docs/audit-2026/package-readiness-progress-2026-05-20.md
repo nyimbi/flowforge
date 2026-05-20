@@ -398,3 +398,38 @@ Design audit 5 - operations, security, and reliability:
     `17 passed`.
   - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`:
     passed for all nine closed packages.
+
+## Package coverage slice - flowforge-audit-pg
+
+- Baseline measurement:
+  - `flowforge-audit-pg`: `39 passed`, `2 skipped`, 45% package coverage.
+  - Remaining uncovered risk was concentrated in canonical golden fixture
+    integrity helpers, ordinal backfill migration control flow, hash-chain
+    serialization edge cases, and sink branches for transactional inserts,
+    partial verification, legacy rows, PostgreSQL trigger/lock behavior, and
+    redaction no-op handling.
+- Action: added focused tests for:
+  - Golden bundle build/write/load, tamper detection, CLI write/verify, row
+    recomputation, invalid ISO-like payload preservation, and fallback command
+    handling.
+  - Ordinal backfill add-column/backfill/add-constraint/verify steps via fake
+    async engines, including verify failure exit codes and CLI argument
+    parsing.
+  - UUID/Decimal canonical serialization, unknown object rejection, UUID4
+    fallback when `uuid6` is unavailable, PostgreSQL trigger/advisory-lock
+    branches, transactional `record_in_connection`, chunked/since verification,
+    legacy row skipping, prev-hash mismatch detection, null payload redaction,
+    no-op redaction, and datetime helper edge inputs.
+- Result: `flowforge-audit-pg` now reaches 100% statement and branch coverage
+  and has been added to the closed-package coverage ratchet.
+- Verification:
+  - `uv run pytest tests -q --cov=flowforge_audit_pg --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-audit-pg`: `68 passed`, `2 skipped`.
+  - `uv run ruff check python/flowforge-audit-pg/tests/test_hash_chain.py python/flowforge-audit-pg/tests/test_golden.py python/flowforge-audit-pg/tests/test_migration.py python/flowforge-audit-pg/tests/test_sink.py python/flowforge-audit-pg/src/flowforge_audit_pg/migrations/audit_ordinal_backfill.py scripts/audit_2026/closed_package_coverage.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright python/flowforge-audit-pg/tests/test_hash_chain.py python/flowforge-audit-pg/tests/test_golden.py python/flowforge-audit-pg/tests/test_migration.py python/flowforge-audit-pg/tests/test_sink.py python/flowforge-audit-pg/src/flowforge_audit_pg/migrations/audit_ordinal_backfill.py scripts/audit_2026/closed_package_coverage.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q --tb=short`:
+    `17 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`:
+    passed for all ten closed packages.

@@ -344,6 +344,7 @@ def test_closed_package_coverage_ratchet_tracks_completed_packages() -> None:
 		("flowforge-outbox-pg", "flowforge_outbox_pg"),
 		("flowforge-documents-s3", "flowforge_documents_s3"),
 		("flowforge-notify-multichannel", "flowforge_notify_multichannel"),
+		("flowforge-audit-pg", "flowforge_audit_pg"),
 	)
 
 

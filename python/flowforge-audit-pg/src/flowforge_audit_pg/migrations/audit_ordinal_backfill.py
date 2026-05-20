@@ -224,5 +224,5 @@ def main(argv: list[str] | None = None) -> int:
 	return asyncio.run(_run(args.dsn, args.step, args.batch_size))
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
 	sys.exit(main())
