@@ -318,7 +318,7 @@ def tutorial_cmd(
 				typer.echo(f"  ! Skipping simulate — run step 2 first (missing {wf_path})")
 
 		# ── Step 5: Lint ─────────────────────────────────────────────────
-		elif n == 5:
+		elif n == 5:  # pragma: no branch - selected steps are prevalidated to 1-5.
 			if bundle_path.exists() or dry_run:
 				ok = _run_cmd(
 					["flowforge", "jtbd", "lint", "--bundle", str(bundle_path), "--warn-only"],

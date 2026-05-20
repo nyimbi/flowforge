@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import builtins
 import json
+import subprocess
 from pathlib import Path
 
+import pytest
 from click import unstyle
 from typer.testing import CliRunner
 
+from flowforge_cli.commands import tutorial
 from flowforge_cli.main import app
 
 
@@ -143,6 +147,176 @@ def test_tutorial_dry_run_step5_shows_lint_command(tmp_path: Path) -> None:
 	)
 	assert "jtbd" in r.output
 	assert "lint" in r.output
+
+
+def test_validated_cwd_accepts_absolute_existing_dir(tmp_path: Path) -> None:
+	assert tutorial._validated_cwd(tmp_path) == tmp_path.resolve()
+
+
+def test_validated_cwd_rejects_unresolved_relative_path(monkeypatch: pytest.MonkeyPatch) -> None:
+	original_resolve = Path.resolve
+
+	def fake_resolve(self: Path, strict: bool = False) -> Path:
+		if self == Path("relative"):
+			return Path("relative")
+		return original_resolve(self, strict=strict)
+
+	monkeypatch.setattr(Path, "resolve", fake_resolve)
+
+	with pytest.raises(ValueError, match="cwd must be absolute"):
+		tutorial._validated_cwd(Path("relative"))
+
+
+def test_run_cmd_executes_with_validated_cwd(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	calls: list[tuple[list[str], Path]] = []
+
+	def fake_run(args: list[str], *, cwd: Path, capture_output: bool) -> subprocess.CompletedProcess[str]:
+		calls.append((args, cwd))
+		assert capture_output is False
+		return subprocess.CompletedProcess(args, 0)
+
+	monkeypatch.setattr(tutorial.subprocess, "run", fake_run)
+
+	assert tutorial._run_cmd(["flowforge", "--help"], cwd=tmp_path, dry_run=False) is True
+	assert calls == [(["flowforge", "--help"], tmp_path.resolve())]
+
+
+def test_run_cmd_returns_false_for_nonzero_exit(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	def fake_run(args: list[str], *, cwd: Path, capture_output: bool) -> subprocess.CompletedProcess[str]:
+		return subprocess.CompletedProcess(args, 2)
+
+	monkeypatch.setattr(tutorial.subprocess, "run", fake_run)
+
+	assert tutorial._run_cmd(["flowforge", "bad"], cwd=tmp_path, dry_run=False) is False
+
+
+def test_flowforge_uses_current_argv_when_console_script_missing(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	monkeypatch.setattr(tutorial.shutil, "which", lambda _name: None)
+	monkeypatch.setattr(tutorial.sys, "argv", ["/tmp/current-flowforge"])
+
+	assert tutorial._flowforge() == "/tmp/current-flowforge"
+
+
+def test_tutorial_step2_failure_reports_summary(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	monkeypatch.setattr(tutorial, "_run_cmd", lambda *_args, **_kwargs: False)
+
+	r = runner.invoke(app, ["tutorial", "--out", str(tmp_path / "demo"), "--step", "2", "--no-pause"])
+
+	assert r.exit_code == 1
+	assert "jtbd-generate failed" in r.output
+	assert "Tutorial completed with 1 error" in r.output
+
+
+def test_tutorial_step3_skips_when_workflow_missing(tmp_path: Path) -> None:
+	r = runner.invoke(app, ["tutorial", "--out", str(tmp_path / "demo"), "--step", "3", "--no-pause"])
+
+	assert r.exit_code == 0, r.output
+	assert "Skipping validate" in r.output
+
+
+def test_tutorial_step4_skips_when_workflow_missing(tmp_path: Path) -> None:
+	r = runner.invoke(app, ["tutorial", "--out", str(tmp_path / "demo"), "--step", "4", "--no-pause"])
+
+	assert r.exit_code == 0, r.output
+	assert "Skipping simulate" in r.output
+
+
+def test_tutorial_step5_skips_when_bundle_missing(tmp_path: Path) -> None:
+	r = runner.invoke(app, ["tutorial", "--out", str(tmp_path / "demo"), "--step", "5", "--no-pause"])
+
+	assert r.exit_code == 0, r.output
+	assert "Skipping lint" in r.output
+
+
+def test_tutorial_step3_failure_reports_summary(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	wf = tmp_path / "demo" / "generated" / "workflows" / "claim_intake" / "definition.json"
+	wf.parent.mkdir(parents=True)
+	wf.write_text("{}", encoding="utf-8")
+	monkeypatch.setattr(tutorial, "_run_cmd", lambda *_args, **_kwargs: False)
+
+	r = runner.invoke(app, ["tutorial", "--out", str(tmp_path / "demo"), "--step", "3", "--no-pause"])
+
+	assert r.exit_code == 1
+	assert "validate failed" in r.output
+
+
+def test_tutorial_step4_failure_reports_summary(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	wf = tmp_path / "demo" / "generated" / "workflows" / "claim_intake" / "definition.json"
+	wf.parent.mkdir(parents=True)
+	wf.write_text("{}", encoding="utf-8")
+	monkeypatch.setattr(tutorial, "_run_cmd", lambda *_args, **_kwargs: False)
+
+	r = runner.invoke(app, ["tutorial", "--out", str(tmp_path / "demo"), "--step", "4", "--no-pause"])
+
+	assert r.exit_code == 1
+	assert "simulate failed" in r.output
+
+
+def test_tutorial_step5_failure_reports_summary(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	bundle = tmp_path / "demo" / "bundle.json"
+	bundle.parent.mkdir(parents=True)
+	bundle.write_text("{}", encoding="utf-8")
+	monkeypatch.setattr(tutorial, "_run_cmd", lambda *_args, **_kwargs: False)
+
+	r = runner.invoke(app, ["tutorial", "--out", str(tmp_path / "demo"), "--step", "5", "--no-pause"])
+
+	assert r.exit_code == 1
+	assert "jtbd lint returned non-zero" in r.output
+
+
+def test_tutorial_step5_runs_lint_when_bundle_exists(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	bundle = tmp_path / "demo" / "bundle.json"
+	bundle.parent.mkdir(parents=True)
+	bundle.write_text("{}", encoding="utf-8")
+	calls: list[list[str]] = []
+
+	def fake_run(args: list[str], **_kwargs: object) -> bool:
+		calls.append(args)
+		return True
+
+	monkeypatch.setattr(tutorial, "_run_cmd", fake_run)
+
+	r = runner.invoke(app, ["tutorial", "--out", str(tmp_path / "demo"), "--step", "5", "--no-pause"])
+
+	assert r.exit_code == 0, r.output
+	assert calls == [["flowforge", "jtbd", "lint", "--bundle", str(bundle), "--warn-only"]]
+
+
+def test_tutorial_pause_between_steps(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	pauses: list[str] = []
+	monkeypatch.setattr(tutorial, "_run_cmd", lambda *_args, **_kwargs: True)
+	monkeypatch.setattr(builtins, "input", lambda prompt: pauses.append(prompt) or "")
+
+	r = runner.invoke(app, ["tutorial", "--out", str(tmp_path / "demo")])
+
+	assert r.exit_code == 0, r.output
+	assert len(pauses) == 4
 
 
 def test_tutorial_footer_uses_selected_out_and_current_docs_path(tmp_path: Path) -> None:

@@ -686,9 +686,11 @@ Design audit 5 - operations, security, and reliability:
     coverage for `audit_2026_health.py`.
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `659 passed`, overall package coverage 72%.
-  - `uv run ruff check python/flowforge-cli/tests/test_audit_2026_health.py`:
+  - `uv run ruff check tests/test_audit_2026_health.py`
+    from `python/flowforge-cli`:
     clean.
-  - `uv run pyright python/flowforge-cli/tests/test_audit_2026_health.py`:
+  - `uv run pyright tests/test_audit_2026_health.py`
+    from `python/flowforge-cli`:
     `0 errors`, `0 warnings`.
 
 ## CLI coverage slice - IO helpers and AI assist command
@@ -718,9 +720,11 @@ Design audit 5 - operations, security, and reliability:
     coverage for both targeted modules.
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `676 passed`, overall package coverage 73%.
-  - `uv run ruff check python/flowforge-cli/tests/test_io_and_ai_assist.py`:
+  - `uv run ruff check tests/test_io_and_ai_assist.py`
+    from `python/flowforge-cli`:
     clean.
-  - `uv run pyright python/flowforge-cli/tests/test_io_and_ai_assist.py`:
+  - `uv run pyright tests/test_io_and_ai_assist.py`
+    from `python/flowforge-cli`:
     `0 errors`, `0 warnings`.
 
 ## CLI coverage slice - audit verify command
@@ -751,9 +755,11 @@ Design audit 5 - operations, security, and reliability:
     coverage for `audit_verify.py`.
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `685 passed`, overall package coverage 73%.
-  - `uv run ruff check python/flowforge-cli/tests/test_audit_verify.py`:
+  - `uv run ruff check tests/test_audit_verify.py`
+    from `python/flowforge-cli`:
     clean.
-  - `uv run pyright python/flowforge-cli/tests/test_audit_verify.py`:
+  - `uv run pyright tests/test_audit_verify.py`
+    from `python/flowforge-cli`:
     `0 errors`, `0 warnings`.
 
 ## CLI coverage slice - replay command
@@ -781,9 +787,11 @@ Design audit 5 - operations, security, and reliability:
     coverage for `replay.py`.
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `694 passed`, overall package coverage 74%.
-  - `uv run ruff check python/flowforge-cli/tests/test_replay.py`:
+  - `uv run ruff check tests/test_replay.py`
+    from `python/flowforge-cli`:
     clean.
-  - `uv run pyright python/flowforge-cli/tests/test_replay.py`:
+  - `uv run pyright tests/test_replay.py`
+    from `python/flowforge-cli`:
     `0 errors`, `0 warnings`.
 
 ## CLI coverage slice - small command edges
@@ -818,9 +826,11 @@ Design audit 5 - operations, security, and reliability:
     coverage for all four targeted command modules.
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `706 passed`, overall package coverage 74%.
-  - `uv run ruff check python/flowforge-cli/tests/test_small_command_edges.py`:
+  - `uv run ruff check tests/test_small_command_edges.py`
+    from `python/flowforge-cli`:
     clean.
-  - `uv run pyright python/flowforge-cli/tests/test_small_command_edges.py`:
+  - `uv run pyright tests/test_small_command_edges.py`
+    from `python/flowforge-cli`:
     `0 errors`, `0 warnings`.
 
 ## CLI coverage slice - validate, simulate, and JTBD generate
@@ -853,9 +863,11 @@ Design audit 5 - operations, security, and reliability:
     coverage for all three targeted command modules.
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `716 passed`, overall package coverage 74%.
-  - `uv run ruff check python/flowforge-cli/tests/test_validate_simulate_generate_edges.py`:
+  - `uv run ruff check tests/test_validate_simulate_generate_edges.py`
+    from `python/flowforge-cli`:
     clean.
-  - `uv run pyright python/flowforge-cli/tests/test_validate_simulate_generate_edges.py`:
+  - `uv run pyright tests/test_validate_simulate_generate_edges.py`
+    from `python/flowforge-cli`:
     `0 errors`, `0 warnings`.
 
 ## CLI coverage slice - pre-upgrade readiness checks
@@ -882,9 +894,11 @@ Design audit 5 - operations, security, and reliability:
     coverage for `pre_upgrade_check.py`.
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `721 passed`, overall package coverage 75%.
-  - `uv run ruff check python/flowforge-cli/tests/test_pre_upgrade_check.py`:
+  - `uv run ruff check tests/test_pre_upgrade_check.py`
+    from `python/flowforge-cli`:
     clean.
-  - `uv run pyright python/flowforge-cli/tests/test_pre_upgrade_check.py`:
+  - `uv run pyright tests/test_pre_upgrade_check.py`
+    from `python/flowforge-cli`:
     `0 errors`, `0 warnings`.
 
 ## CLI coverage slice - JTBD migrate no-drop path
@@ -908,7 +922,60 @@ Design audit 5 - operations, security, and reliability:
     coverage for `jtbd_migrate.py`.
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `722 passed`, overall package coverage 75%.
-  - `uv run ruff check python/flowforge-cli/tests/test_jtbd_migrate_cmd.py`:
+  - `uv run ruff check tests/test_jtbd_migrate_cmd.py`
+    from `python/flowforge-cli`:
     clean.
-  - `uv run pyright python/flowforge-cli/tests/test_jtbd_migrate_cmd.py`:
+  - `uv run pyright tests/test_jtbd_migrate_cmd.py`
+    from `python/flowforge-cli`:
     `0 errors`, `0 warnings`.
+
+## CLI coverage slice - tutorial command
+
+- Baseline measurement:
+  - After closing JTBD migrate, rounded `flowforge-cli` package coverage was
+    75%.
+  - `commands/tutorial.py` was 81% covered in full-suite runs, leaving
+    subprocess dispatch, command failure summaries, skip paths, pause handling,
+    executable discovery, and defensive CWD validation under-tested.
+- Action:
+  - Added tutorial tests for validated CWD handling, subprocess success/fail
+    dispatch, missing-console executable fallback, step 2-5 failure summaries,
+    step 3-5 skip paths, successful step 5 lint dispatch, and interactive
+    pause prompts.
+  - Marked the final `elif n == 5` dispatch as a non-branching coverage point
+    because selected steps are validated to the fixed 1-5 step set before the
+    loop.
+  - Fixed the replayability issue found by code review: package-local
+    `ruff`/`pyright` evidence now uses package-local `tests/...` paths instead
+    of repo-root `python/flowforge-cli/tests/...` paths.
+- Result:
+  - `flowforge_cli.commands.tutorial` now reaches 100% statement and branch
+    coverage.
+- Verification:
+  - `uv run pytest tests/test_tutorial.py tests/test_E_57_acceptance.py::test_CL_02_validated_cwd_rejects_missing_dir tests/test_E_57_acceptance.py::test_CL_02_validated_cwd_rejects_file_not_dir -q --cov=flowforge_cli.commands.tutorial --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `29 passed`, 100% statement and branch
+    coverage for `tutorial.py`.
+  - `uv run ruff check src/flowforge_cli/commands/tutorial.py tests/test_tutorial.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright src/flowforge_cli/commands/tutorial.py tests/test_tutorial.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `736 passed`, overall package coverage 75%.
+
+## Code review audit 6 - CLI coverage evidence replayability
+
+- Finding:
+  - The code-review pass found that several newly added readiness-log entries
+    claimed commands were run from `python/flowforge-cli` while their
+    `ruff`/`pyright` examples used repo-root-relative
+    `python/flowforge-cli/tests/...` paths. Those commands were not
+    replayable from the documented working directory.
+- Action:
+  - Corrected the affected CLI coverage log entries to use package-local
+    `tests/...` paths when the working directory is documented as
+    `python/flowforge-cli`.
+  - Re-ran the tutorial slice's documented package-local `ruff` and `pyright`
+    commands after the correction.
+- Result:
+  - The audit finding is resolved for the new CLI coverage log entries, and
+    the progress log now preserves replayable verification evidence.
