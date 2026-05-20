@@ -1096,3 +1096,35 @@ Design audit 5 - operations, security, and reliability:
     from `python/flowforge-cli`: `0 errors`, `0 warnings`.
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `770 passed`, overall package coverage 77%.
+
+## CLI coverage slice - JTBD diagram generator
+
+- Baseline measurement:
+  - After closing fixture registry coverage, rounded `flowforge-cli` package
+    coverage was 77%.
+  - `jtbd/generators/diagram.py` was 98% covered; the uncovered paths were
+    non-positive SLA formatting, empty guard expressions, and the branch where
+    an SLA budget exists but no canonical `review` state is available for the
+    Mermaid note anchor.
+  - The optional `mmdc` parse smoke also failed locally because `mmdc` was
+    installed but Puppeteer could not find a Chrome executable.
+- Action:
+  - Added focused tests for empty guard expressions, zero/negative SLA budget
+    formatting, and SLA-without-review-state rendering.
+  - Hardened the optional `mmdc` smoke skip logic so browser-unavailable
+    environments skip unless `FLOWFORGE_REQUIRE_MMDC=1` is set.
+- Result:
+  - `flowforge_cli.jtbd.generators.diagram` now reaches 100% statement and
+    branch coverage.
+  - Overall `flowforge-cli` rounded package coverage remains 77%.
+- Verification:
+  - `uv run pytest tests/test_jtbd_diagram_generator.py -q --cov=flowforge_cli.jtbd.generators.diagram --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `32 passed`, `1 skipped`, 100% statement and
+    branch coverage for `diagram.py`.
+  - `uv run ruff check tests/test_jtbd_diagram_generator.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_jtbd_diagram_generator.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `771 passed`, `1 skipped`, overall package
+    coverage 77%.

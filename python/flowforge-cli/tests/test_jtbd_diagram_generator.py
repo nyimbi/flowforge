@@ -35,6 +35,7 @@ import os
 import re
 import shutil
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -313,6 +314,10 @@ def test_guard_var_in_label() -> None:
 	assert "[context.fraud_detected]" in mmd
 
 
+def test_guard_var_ignores_empty_expr_var() -> None:
+	assert gen._guard_var({"guards": [{"kind": "expr", "expr": {}}]}) is None
+
+
 # ---------------------------------------------------------------------------
 # SLA annotation
 # ---------------------------------------------------------------------------
@@ -339,6 +344,20 @@ def test_no_sla_note_when_no_breach_seconds() -> None:
 		assert "note right of review" not in mmd
 
 
+def test_no_sla_note_when_review_state_is_absent() -> None:
+	bundle = _load_normalized(_INSURANCE_BUNDLE)
+	(jt,) = bundle.jtbds
+	without_review = replace(
+		jt,
+		states=tuple(s for s in jt.states if s["name"] != "review"),
+		sla_breach_seconds=3600,
+	)
+
+	mmd = gen.build_mmd(bundle, without_review)
+
+	assert "note right of review" not in mmd
+
+
 def test_sla_unit_prefers_hours_over_days() -> None:
 	"""24h budget renders as ``24h SLA`` (not ``1d SLA``) so existing
 	operator dashboards keying off the hour count keep working."""
@@ -348,6 +367,8 @@ def test_sla_unit_prefers_hours_over_days() -> None:
 	assert gen._format_sla(172800) == "48h SLA"
 	assert gen._format_sla(60) == "1m SLA"
 	assert gen._format_sla(90) == "90s SLA"
+	assert gen._format_sla(0) == "0s SLA"
+	assert gen._format_sla(-30) == "-30s SLA"
 
 
 # ---------------------------------------------------------------------------
@@ -484,11 +505,14 @@ def test_mmdc_parses_every_emitted_diagram(tmp_path: Path) -> None:
 			)
 			if (
 				result.returncode != 0
-				and "Failed to launch the browser process" in result.stderr
+				and (
+					"Failed to launch the browser process" in result.stderr
+					or "Could not find Chrome" in result.stderr
+				)
 				and os.environ.get("FLOWFORGE_REQUIRE_MMDC") != "1"
 			):
 				pytest.skip(
-					"mmdc is installed but Chromium cannot launch in this environment; "
+					"mmdc is installed but Chromium is unavailable in this environment; "
 					"set FLOWFORGE_REQUIRE_MMDC=1 in browser-capable CI to make this fatal"
 				)
 			assert result.returncode == 0, (
