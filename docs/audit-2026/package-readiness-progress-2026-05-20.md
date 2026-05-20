@@ -1380,3 +1380,31 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: passed with one optional `mmdc` skip and
     overall package coverage 78%.
+
+## CLI coverage slice - property-test generator
+
+- Baseline measurement:
+  - After closing OpenAPI generator coverage, rounded `flowforge-cli`
+    package coverage was 78%.
+  - `jtbd/generators/property_tests.py` was 89% covered; remaining gaps were
+    defensive guard-variable extraction and workflow-event filtering branches.
+- Action:
+  - Added a dedicated property-test generator suite covering invalid guard
+    shapes, non-string and non-context guard variables, empty guard suffixes,
+    event-name filtering, generated pinned seed output, generated guard/event
+    strategy inputs, and fixture-registry parity.
+- Result:
+  - `flowforge_cli.jtbd.generators.property_tests` now reaches 100% statement
+    and branch coverage.
+  - Overall `flowforge-cli` rounded package coverage remains 78%.
+- Verification:
+  - `uv run pytest tests/test_property_tests_generator.py -q --cov=flowforge_cli.jtbd.generators.property_tests --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `4 passed`, 100% statement and branch
+    coverage for `property_tests.py`.
+  - `uv run ruff check tests/test_property_tests_generator.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_property_tests_generator.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: passed with one optional `mmdc` skip and
+    overall package coverage 78%.
