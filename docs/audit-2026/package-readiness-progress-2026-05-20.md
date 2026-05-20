@@ -1192,3 +1192,32 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `776 passed`, `1 skipped`, overall package
     coverage 78%.
+
+## CLI coverage slice - generated email and Slack adapters
+
+- Baseline measurement:
+  - After closing i18n generator coverage, rounded `flowforge-cli` package
+    coverage was 78%.
+  - `jtbd/generators/frontend_email.py` and
+    `jtbd/generators/frontend_slack.py` were both 98% covered; each had one
+    remaining branch in transition-event extraction.
+- Action:
+  - Added focused tests proving generated email and Slack adapter event
+    catalogs ignore empty and non-string transition events while retaining
+    valid event names.
+- Result:
+  - `flowforge_cli.jtbd.generators.frontend_email` and
+    `flowforge_cli.jtbd.generators.frontend_slack` now both reach 100%
+    statement and branch coverage.
+  - Overall `flowforge-cli` rounded package coverage remains 78%.
+- Verification:
+  - `uv run pytest tests/test_frontend_email_generator.py tests/test_frontend_slack_generator.py -q --cov=flowforge_cli.jtbd.generators.frontend_email --cov=flowforge_cli.jtbd.generators.frontend_slack --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `34 passed`, 100% statement and branch
+    coverage for both adapter generators.
+  - `uv run ruff check tests/test_frontend_email_generator.py tests/test_frontend_slack_generator.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_frontend_email_generator.py tests/test_frontend_slack_generator.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `778 passed`, `1 skipped`, overall package
+    coverage 78%.

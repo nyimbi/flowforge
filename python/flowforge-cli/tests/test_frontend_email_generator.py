@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import ast
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -54,6 +55,21 @@ def _expected_paths(module: str) -> tuple[str, ...]:
 
 def _email_files(files: list[Any]) -> list[Any]:
 	return [f for f in files if f.path.startswith("frontend-email/")]
+
+
+def test_events_for_jtbd_ignores_empty_and_non_string_events() -> None:
+	bundle = _load_normalized(_INSURANCE_BUNDLE)
+	(jt,) = bundle.jtbds
+	altered = replace(
+		jt,
+		transitions=(
+			{"id": "skip-empty", "event": ""},
+			{"id": "skip-non-string", "event": 7},
+			{"id": "accept", "event": "submit"},
+		),
+	)
+
+	assert gen._events_for_jtbd(altered) == ("submit",)
 
 
 # ---------------------------------------------------------------------------
