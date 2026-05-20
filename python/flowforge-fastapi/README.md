@@ -63,7 +63,7 @@ Tests use `httpx.ASGITransport` — no live server is started.
 - `build_ws_router(...)` — returns just the WebSocket router.
 - `WorkflowDefRegistry` — in-memory definition store keyed by `def_key`.
 - `get_registry()` — module-level singleton accessor for `WorkflowDefRegistry`.
-- `InstanceStore` — engine snapshot store with an instance/def index for `GET /instances/{id}`.
+- `InstanceStore` — engine snapshot store with `create_instance`, `get_for_tenant`, and an instance/def index for runtime `POST`, `GET`, and fire routes. Durable hosts can override `get_instance_store()` with a tenant-scoped adapter such as `SqlAlchemySnapshotStore`.
 - `get_instance_store()` — module-level singleton accessor for `InstanceStore`.
 - `WorkflowEventsHub` — pub/sub hub for WebSocket fan-out; one per `FastAPI` app.
 - `get_events_hub()` — FastAPI dependency; overridden per-app by `mount_routers`.

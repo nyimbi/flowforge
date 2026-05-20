@@ -34,12 +34,13 @@ from fastapi import FastAPI
 from flowforge import config as ff_config
 from flowforge.dsl import WorkflowDef
 from flowforge.ports.types import OutboxEnvelope, Principal
-from flowforge_audit_pg import PgAuditSink
+from flowforge_audit_pg import PgAuditSink, ff_audit_events
 from flowforge_documents_s3 import NoopDocumentPort
 from flowforge_fastapi import (
 	StaticPrincipalExtractor,
 	StaticTenantResolver,
 	get_events_hub,
+	get_instance_store,
 	get_registry,
 	mount_routers,
 	reset_state,
@@ -50,7 +51,15 @@ from flowforge_outbox_pg import DrainWorker, HandlerRegistry
 from flowforge_rbac_static import StaticRbac
 from flowforge_signing_kms import HmacDevSigning
 from flowforge_tenancy import SingleTenantGUC
-from sqlalchemy.ext.asyncio import AsyncEngine
+from flowforge_sqlalchemy import (
+	OutboxMessage,
+	SqlAlchemySnapshotStore,
+	WorkflowEvent,
+	WorkflowInstance,
+	WorkflowInstanceSnapshot,
+)
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from starlette.testclient import TestClient
 
 pytestmark = pytest.mark.asyncio
@@ -61,6 +70,7 @@ PREFIX = "/api/v1/workflows"
 @pytest_asyncio.fixture
 async def real_adapters_app(
 	sqla_engine: AsyncEngine,
+	session_factory: async_sessionmaker[AsyncSession],
 	claim_workflow_def: WorkflowDef,
 ) -> AsyncIterator[tuple[FastAPI, HandlerRegistry, list[OutboxEnvelope]]]:
 	"""Spin up FastAPI with all real adapters wired through ``flowforge.config``."""
@@ -125,6 +135,11 @@ async def real_adapters_app(
 		),
 		tenant_resolver=StaticTenantResolver("t-1"),
 	)
+	app.dependency_overrides[get_instance_store] = lambda: SqlAlchemySnapshotStore(
+		session_factory,
+		tenant_id="t-1",
+		audit_sink=ff_config.audit,
+	)
 
 	try:
 		yield app, registry, dispatched
@@ -144,7 +159,7 @@ async def http_client(real_adapters_app) -> AsyncIterator[httpx.AsyncClient]:
 
 async def test_full_round_trip_designer_runtime(
 	http_client: httpx.AsyncClient,
-	real_adapters_app,
+	session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
 	# 1. Designer: list defs.
 	defs_resp = await http_client.get(f"{PREFIX}/defs")
@@ -185,19 +200,58 @@ async def test_full_round_trip_designer_runtime(
 	assert snap.status_code == 200
 	assert snap.json()["state"] == "approved"
 
-	# 6. Drain outbox; one notify envelope should have been enqueued.
-	# (outbox handler captures into `dispatched` list)
-	_, _, dispatched = real_adapters_app
-	# Read worker rows — but easier: verify the in-memory port saw at least 1 enqueue
-	# by re-creating a worker on the same conn isn't possible without state, so
-	# instead drain via the stored adapter.
-	# We inspect dispatched list AFTER triggering a manual drain.
-	# Construct a fresh DrainWorker on the same conn — easier: use `ff_config.outbox`
-	# which we know wraps the same worker.
-	# The integration check: at least one notify envelope was queued (engine-side).
-	assert any(env.kind == "wf.notify" for env in dispatched) or True
-	# Note: the outbox FakeInAppAdapter never raises, but we delegate further
-	# delivery testing to test_engine_outbox_audit.
+	# 6. SQL-backed runtime state, audit, events, and durable outbox rows exist.
+	async with session_factory() as session:
+		instance_row = await session.scalar(
+			select(WorkflowInstance).where(
+				WorkflowInstance.tenant_id == "t-1",
+				WorkflowInstance.id == instance_id,
+			)
+		)
+		assert instance_row is not None
+		assert instance_row.state == "approved"
+		assert instance_row.terminal is True
+
+		snapshot = await session.scalar(
+			select(WorkflowInstanceSnapshot).where(
+				WorkflowInstanceSnapshot.tenant_id == "t-1",
+				WorkflowInstanceSnapshot.instance_id == instance_id,
+			)
+		)
+		assert snapshot is not None
+		assert snapshot.state == "approved"
+		assert snapshot.seq == 2
+
+		events = (
+			await session.scalars(
+				select(WorkflowEvent)
+				.where(
+					WorkflowEvent.tenant_id == "t-1",
+					WorkflowEvent.instance_id == instance_id,
+				)
+				.order_by(WorkflowEvent.seq.asc())
+			)
+		).all()
+		assert [(row.seq, row.event, row.transition_id) for row in events] == [
+			(1, "submit", "submit"),
+			(2, "approve", "approve"),
+		]
+
+		outbox_rows = (
+			await session.scalars(
+				select(OutboxMessage).where(
+					OutboxMessage.tenant_id == "t-1",
+					OutboxMessage.status == "pending",
+				)
+			)
+		).all()
+		assert [row.kind for row in outbox_rows] == ["wf.notify"]
+
+		audit_count = await session.scalar(
+			select(func.count()).select_from(ff_audit_events)
+		)
+		assert audit_count is not None
+		assert audit_count >= 4
 
 
 @pytest.mark.asyncio(loop_scope="function")

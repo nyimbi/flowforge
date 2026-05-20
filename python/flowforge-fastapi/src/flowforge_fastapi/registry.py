@@ -89,6 +89,22 @@ class InstanceStore:
 			"tenant_id": tenant_id,
 		}
 
+	async def create_instance(
+		self,
+		instance: Instance,
+		*,
+		workflow_def: WorkflowDef,
+		tenant_id: str = "default",
+	) -> None:
+		"""Persist a newly-created runtime instance.
+
+		``workflow_def`` is accepted for parity with durable adapters that
+		must also persist definition metadata into their instance rows.
+		"""
+
+		_ = workflow_def
+		await self.put(instance, tenant_id=tenant_id)
+
 	async def get(self, instance_id: str) -> Instance | None:
 		return await self._snapshots.get(instance_id)
 

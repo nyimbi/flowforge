@@ -233,7 +233,7 @@ def build_runtime_router(
 			instance_id=body.instance_id,
 			initial_context=body.initial_context,
 		)
-		await store.put(instance, tenant_id=tenant_id)
+		await store.create_instance(instance, workflow_def=wd, tenant_id=tenant_id)
 		await hub.publish(
 			{
 				"type": "instance.created",

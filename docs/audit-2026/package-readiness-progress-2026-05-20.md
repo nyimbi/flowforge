@@ -473,3 +473,57 @@ Design audit 5 - operations, security, and reliability:
     `17 passed`.
   - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`:
     passed for all eleven closed packages.
+
+## Code-review remediation slice - FastAPI SQLAlchemy runtime store
+
+- Audit finding:
+  - The runtime router's SQL-backed path was not actually covered: the
+    full-stack FastAPI test documented `SqlAlchemySnapshotStore` but never
+    overrode `get_instance_store()`, so `POST /instances`, `POST
+    /instances/{id}/events`, and `GET /instances/{id}` used the in-memory
+    `InstanceStore`.
+  - Wiring a real `SqlAlchemySnapshotStore` directly would fail because the
+    FastAPI runtime expected `put(instance, tenant_id=...)` and
+    `get_for_tenant(...)`, while the SQLAlchemy adapter only exposed
+    lower-level snapshot `put(instance)` and `get(instance)` methods.
+  - Instance creation also lacked the durable `workflow_instances` owner row
+    required by the SQLAlchemy snapshot adapter before snapshots/events can be
+    written.
+- Action:
+  - Added an explicit runtime-store creation method to the FastAPI in-memory
+    `InstanceStore` and changed the runtime router to call
+    `create_instance(instance, workflow_def=..., tenant_id=...)`.
+  - Extended `SqlAlchemySnapshotStore` with `create_instance(...)`,
+    `get_for_tenant(...)`, and tenant-aware `put(..., tenant_id=...)`.
+    `create_instance(...)` now creates the `workflow_instances` row and the
+    initial `workflow_instance_snapshots` row in one commit.
+  - Rewired `tests/integration/python/tests/test_fastapi_full_stack.py` to
+    override `get_instance_store()` with `SqlAlchemySnapshotStore` and assert
+    durable `WorkflowInstance`, `WorkflowInstanceSnapshot`, `WorkflowEvent`,
+    `OutboxMessage`, and audit rows.
+  - Removed the previous vacuous outbox assertion from the full-stack test.
+- Result:
+  - The FastAPI runtime can now create, read, and fire SQLAlchemy-backed
+    instances through the documented HTTP adapter path.
+  - The integration test now proves the advertised SQL-backed full-stack path
+    instead of passing through the in-memory fallback.
+- Verification:
+  - `uv run pytest python/flowforge-sqlalchemy/tests/test_models_roundtrip.py::test_snapshot_store_create_instance_seeds_runtime_rows python/flowforge-sqlalchemy/tests/test_models_roundtrip.py::test_snapshot_store_create_instance_rejects_wrong_tenant -q`:
+    `2 passed`.
+  - `uv run pytest tests/integration/python/tests/test_fastapi_full_stack.py -q --tb=short`:
+    `2 passed`.
+  - `uv run ruff check python/flowforge-fastapi/src/flowforge_fastapi/registry.py python/flowforge-fastapi/src/flowforge_fastapi/router_runtime.py python/flowforge-sqlalchemy/src/flowforge_sqlalchemy/snapshot_store.py python/flowforge-sqlalchemy/tests/test_models_roundtrip.py tests/integration/python/tests/test_fastapi_full_stack.py`:
+    clean.
+  - `uv run pyright python/flowforge-fastapi/src/flowforge_fastapi/registry.py python/flowforge-fastapi/src/flowforge_fastapi/router_runtime.py python/flowforge-sqlalchemy/src/flowforge_sqlalchemy/snapshot_store.py python/flowforge-sqlalchemy/tests/test_models_roundtrip.py tests/integration/python/tests/test_fastapi_full_stack.py`:
+    `0 errors, 0 warnings`.
+  - `uv run pytest tests -q` from `python/flowforge-fastapi`:
+    `27 passed`.
+  - `uv run pytest tests -q` from `python/flowforge-sqlalchemy`:
+    `22 passed`, `1 skipped`.
+  - `uv run pytest tests/integration/python/tests/test_fastapi_full_stack.py tests/integration/python/tests/test_engine_to_storage.py -q --tb=short`:
+    `7 passed`.
+  - `uv run pytest tests -q --cov=flowforge_fastapi --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-fastapi`: `27 passed`, package coverage 90%.
+  - `uv run pytest tests -q --cov=flowforge_sqlalchemy --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-sqlalchemy`: `22 passed`, `1 skipped`, package
+    coverage 77%.

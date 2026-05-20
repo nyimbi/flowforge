@@ -96,16 +96,83 @@ class SqlAlchemySnapshotStore:
 			body = cast(dict[str, Any], row.body or {})
 			return _instance_from_body(row, body)
 
-	async def put(self, instance: Instance) -> None:
+	async def get_for_tenant(
+		self,
+		instance_id: str,
+		*,
+		tenant_id: str,
+	) -> Instance | None:
+		"""Return the tenant-owned snapshot used by HTTP runtime adapters."""
+		assert instance_id, "instance_id must be non-empty"
+		if tenant_id != self._tenant_id:
+			return None
+		return await self.get(instance_id)
+
+	async def create_instance(
+		self,
+		instance: Instance,
+		*,
+		workflow_def: Any,
+		tenant_id: str | None = None,
+	) -> None:
+		"""Create the durable runtime instance row and initial snapshot."""
+		assert instance.id, "instance.id must be non-empty"
+		effective_tenant = self._write_tenant(instance.id, tenant_id=tenant_id)
+		now = datetime.now(timezone.utc)
+		body = _body_from_instance(instance)
+		seq = len(instance.history)
+
+		async with self._sf() as session:
+			session.add(
+				WorkflowInstance(
+					id=instance.id,
+					tenant_id=effective_tenant,
+					def_key=instance.def_key,
+					def_version=instance.def_version,
+					subject_kind=str(workflow_def.subject_kind),
+					state=instance.state,
+					terminal=_is_terminal_state(workflow_def, instance.state),
+					context=dict(instance.context),
+					created_at=now,
+					updated_at=now,
+				)
+			)
+			session.add(
+				WorkflowInstanceSnapshot(
+					id=uuid7str(),
+					tenant_id=effective_tenant,
+					instance_id=instance.id,
+					def_key=instance.def_key,
+					def_version=instance.def_version,
+					state=instance.state,
+					body=body,
+					seq=seq,
+				)
+			)
+			try:
+				await session.commit()
+			except IntegrityError as exc:
+				await session.rollback()
+				raise SnapshotConflict(
+					instance.id,
+					expected_seq=0,
+					actual_seq=await self._current_seq(
+						instance.id,
+						tenant_id=effective_tenant,
+					),
+				) from exc
+
+	async def put(self, instance: Instance, *, tenant_id: str | None = None) -> None:
 		"""Insert or overwrite the snapshot for *instance*."""
 		assert instance.id, "instance.id must be non-empty"
+		effective_tenant = self._write_tenant(instance.id, tenant_id=tenant_id)
 		body = _body_from_instance(instance)
 		seq = len(instance.history)
 		async with self._sf() as session:
 			await self._assert_instance_owned(session, instance.id)
 			existing = await session.scalar(
 				select(WorkflowInstanceSnapshot).where(
-					WorkflowInstanceSnapshot.tenant_id == self._tenant_id,
+					WorkflowInstanceSnapshot.tenant_id == effective_tenant,
 					WorkflowInstanceSnapshot.instance_id == instance.id,
 				)
 			)
@@ -116,7 +183,7 @@ class SqlAlchemySnapshotStore:
 						# uuid7str() convention and pair well with the
 						# B-tree index on (tenant_id, instance_id).
 						id=uuid7str(),
-						tenant_id=self._tenant_id,
+						tenant_id=effective_tenant,
 						instance_id=instance.id,
 						def_key=instance.def_key,
 						def_version=instance.def_version,
@@ -405,15 +472,27 @@ class SqlAlchemySnapshotStore:
 			)
 		)
 
-	async def _current_seq(self, instance_id: str) -> int | None:
+	async def _current_seq(
+		self,
+		instance_id: str,
+		*,
+		tenant_id: str | None = None,
+	) -> int | None:
 		"""Return the current seq for conflict diagnostics."""
+		effective_tenant = tenant_id or self._tenant_id
 		async with self._sf() as session:
 			return await session.scalar(
 				select(WorkflowInstanceSnapshot.seq).where(
-					WorkflowInstanceSnapshot.tenant_id == self._tenant_id,
+					WorkflowInstanceSnapshot.tenant_id == effective_tenant,
 					WorkflowInstanceSnapshot.instance_id == instance_id,
 				)
 			)
+
+	def _write_tenant(self, instance_id: str, *, tenant_id: str | None) -> str:
+		"""Validate a caller-supplied tenant for mutating operations."""
+		if tenant_id is None or tenant_id == self._tenant_id:
+			return self._tenant_id
+		raise SnapshotTenantMismatch(instance_id, tenant_id=self._tenant_id)
 
 
 def _body_from_instance(instance: Instance) -> dict[str, Any]:
@@ -428,6 +507,14 @@ def _body_from_instance(instance: Instance) -> dict[str, Any]:
 		"saga": list(instance.saga),
 		"history": list(instance.history),
 	}
+
+
+def _is_terminal_state(workflow_def: Any, state: str) -> bool:
+	"""Return whether *state* is terminal in a WorkflowDef-like object."""
+	for candidate in getattr(workflow_def, "states", ()):
+		if getattr(candidate, "name", None) == state:
+			return str(getattr(candidate, "kind", "")).startswith("terminal")
+	return False
 
 
 def _transition_payload(result: FireResult) -> dict[str, Any]:

@@ -6,6 +6,8 @@ import uuid
 from datetime import datetime, timezone
 
 import pytest
+from flowforge.dsl import WorkflowDef
+from flowforge.engine import new_instance
 from flowforge.engine.fire import Instance
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -47,6 +49,30 @@ async def _seed_instance(
 		await session.commit()
 		await session.refresh(inst)
 	return inst
+
+
+def _workflow_def() -> WorkflowDef:
+	return WorkflowDef.model_validate(
+		{
+			"key": "claim_intake",
+			"version": "1.0.0",
+			"subject_kind": "claim",
+			"initial_state": "intake",
+			"states": [
+				{"name": "intake", "kind": "manual_review"},
+				{"name": "approved", "kind": "terminal_success"},
+			],
+			"transitions": [
+				{
+					"id": "approve",
+					"event": "approve",
+					"from_state": "intake",
+					"to_state": "approved",
+					"priority": 0,
+				}
+			],
+		}
+	)
 
 
 async def test_definition_roundtrip(
@@ -235,6 +261,50 @@ async def test_snapshot_store_roundtrips_state(
 	assert loaded.created_entities == [("claim", {"id": "c-1", "policy_id": "p-1"})]
 	assert loaded.saga == [{"kind": "release_lock", "args": {}}]
 	assert loaded.history == ["intake-(submit:submit)->triage"]
+
+
+async def test_snapshot_store_create_instance_seeds_runtime_rows(
+	session_factory: async_sessionmaker[AsyncSession], tenant_id: str
+) -> None:
+	wd = _workflow_def()
+	instance = new_instance(wd)
+	store = SqlAlchemySnapshotStore(session_factory, tenant_id=tenant_id)
+
+	await store.create_instance(instance, workflow_def=wd, tenant_id=tenant_id)
+
+	loaded = await store.get_for_tenant(instance.id, tenant_id=tenant_id)
+	assert loaded is not None
+	assert loaded.state == "intake"
+	assert loaded.history == []
+	assert await store.get_for_tenant(instance.id, tenant_id="other-tenant") is None
+
+	async with session_factory() as session:
+		row = await session.scalar(
+			select(WorkflowInstance).where(
+				WorkflowInstance.tenant_id == tenant_id,
+				WorkflowInstance.id == instance.id,
+			)
+		)
+		assert row is not None
+		assert row.def_key == wd.key
+		assert row.def_version == wd.version
+		assert row.subject_kind == wd.subject_kind
+		assert row.terminal is False
+
+
+async def test_snapshot_store_create_instance_rejects_wrong_tenant(
+	session_factory: async_sessionmaker[AsyncSession], tenant_id: str
+) -> None:
+	wd = _workflow_def()
+	instance = new_instance(wd)
+	store = SqlAlchemySnapshotStore(session_factory, tenant_id=tenant_id)
+
+	with pytest.raises(SnapshotTenantMismatch):
+		await store.create_instance(
+			instance,
+			workflow_def=wd,
+			tenant_id="other-tenant",
+		)
 
 
 async def test_snapshot_store_filters_reads_by_tenant(

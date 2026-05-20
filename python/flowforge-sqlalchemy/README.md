@@ -95,7 +95,7 @@ alembic upgrade r1_initial
 
 ## Public API
 
-- `SqlAlchemySnapshotStore(session_factory, *, tenant_id, audit_sink=None)` — async `SnapshotStore`; `get(instance_id)` / `put(instance)` over `workflow_instance_snapshots`; `compare_and_put(instance, expected_seq=...)` for optimistic locking; `fire_and_commit(...)` for transactional event/snapshot/audit/outbox commits.
+- `SqlAlchemySnapshotStore(session_factory, *, tenant_id, audit_sink=None)` — async `SnapshotStore`; `create_instance(instance, workflow_def=..., tenant_id=...)` creates the durable `workflow_instances` owner row plus the initial snapshot for HTTP/runtime adapters; `get(instance_id)` / `get_for_tenant(instance_id, tenant_id=...)` / `put(instance, tenant_id=...)` operate over `workflow_instance_snapshots`; `compare_and_put(instance, expected_seq=...)` provides optimistic locking; `fire_and_commit(...)` performs transactional event/snapshot/audit/outbox commits.
 - `SagaQueries(session_factory, *, tenant_id)` — `append(instance_id, *, kind, args, status)`, `list_for_instance(instance_id)`, `mark(instance_id, idx, status)`, `list_pending_for_compensation(instance_id)`.
 - `PgRlsBinder()` — `RlsBinder` implementation; issues GUC calls per session inside a transaction; no-op on SQLite.
 - `Base` — SQLAlchemy declarative base shared by all ORM models.
