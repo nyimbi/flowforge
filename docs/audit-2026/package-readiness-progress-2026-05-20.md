@@ -1603,3 +1603,27 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: passed with one optional `mmdc` skip and
     overall package coverage 79%.
+
+## Code review audit 8 - recent entrypoint and override coverage slices
+
+- Scope:
+  - Reviewed commits `edf75ab` and `92eaa97`, covering the console entrypoint
+    test, copy-override sidecar tests, and their readiness-log evidence.
+  - A native `code-reviewer` agent could not be spawned because stale shutdown
+    agent records are still counted against the thread limit, so this audit was
+    performed locally using the code-review checklist.
+- Checks:
+  - Inspected the combined diff from `0e29b52..HEAD` for test brittleness,
+    misleading evidence, hidden production-behavior risk, and maintainability.
+  - Verified `git show --stat --check --oneline edf75ab 92eaa97` reports no
+    whitespace/check errors.
+  - Confirmed the entrypoint test monkeypatches only the Typer app callable and
+    avoids invoking CLI parsing side effects.
+  - Confirmed the override sidecar tests exercise malformed-key and
+    malformed-bundle defensive branches without changing production behavior.
+- Findings:
+  - No critical, high, medium, or low findings.
+- Residual risk:
+  - This audit only covered the two newest coverage commits. Broader unpushed
+    coverage work still needs periodic review once the stale agent thread limit
+    clears or a manual review window is allocated.
