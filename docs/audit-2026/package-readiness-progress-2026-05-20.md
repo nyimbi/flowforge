@@ -1264,3 +1264,33 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `779 passed`, `1 skipped`, overall package
     coverage 78%.
+
+## CLI coverage slice - operator manual generator
+
+- Baseline measurement:
+  - After closing lineage generator coverage, rounded `flowforge-cli` package
+    coverage was 78%.
+  - `jtbd/generators/operator_manual.py` was 97% covered; the remaining branch
+    was intended to summarize shared permissions without a `<jtbd>.` prefix.
+- Action:
+  - Added focused operator manual tests for MDX generation shape, permission
+    summaries, returned edge-case audit-topic summaries, and fixture-registry
+    parity.
+  - Fixed `_permission_summary()` so non-prefixed shared permissions use the
+    documented shared-permission summary instead of being treated as unknown
+    JTBD actions.
+- Result:
+  - `flowforge_cli.jtbd.generators.operator_manual` now reaches 100% statement
+    and branch coverage.
+  - Overall `flowforge-cli` rounded package coverage remains 78%.
+- Verification:
+  - `uv run pytest tests/test_operator_manual_generator.py -q --cov=flowforge_cli.jtbd.generators.operator_manual --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `5 passed`, 100% statement and branch
+    coverage for `operator_manual.py`.
+  - `uv run ruff check src/flowforge_cli/jtbd/generators/operator_manual.py tests/test_operator_manual_generator.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright src/flowforge_cli/jtbd/generators/operator_manual.py tests/test_operator_manual_generator.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `784 passed`, `1 skipped`, overall package
+    coverage 78%.

@@ -114,11 +114,11 @@ def _permission_summary(perm: str) -> str:
 	"""
 
 	assert isinstance(perm, str), "perm must be a string"
-	_, _, action = perm.rpartition(".")
-	if not action:
+	if "." not in perm:
 		# Shared (cross-JTBD) permissions that lack the ``<jtbd>.`` prefix
 		# fall here. We can't infer an action; emit a stable bare summary.
 		return f"holds the shared permission `{perm}`"
+	_, _, action = perm.rpartition(".")
 	return _PERMISSION_VERB.get(action, f"perform `{action}` on records for this JTBD")
 
 
