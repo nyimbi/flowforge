@@ -1157,3 +1157,38 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `773 passed`, `1 skipped`, overall package
     coverage 77%.
+
+## Code audit follow-up + CLI coverage slice - i18n generator
+
+- Audit follow-up:
+  - A prior code-audit lane had flagged the risk that bundles declaring a
+    non-English locale before `en` could emit the wrong source/fallback
+    catalog.
+  - Current-state inspection found `i18n.py` already selects `en` as the
+    source/fallback language whenever it is declared, and
+    `test_non_english_first_language_still_uses_en_as_source_catalog` covers
+    `languages=["fr-CA", "en"]`.
+- Baseline measurement:
+  - After closing generated frontend CLI coverage, rounded `flowforge-cli`
+    package coverage was 77%.
+  - `jtbd/generators/i18n.py` was 96% covered; the remaining gaps were
+    no-dot audit topic humanization, absent SLA warning/breach branches, and
+    the empty-catalog `TranslationKey` union fallback.
+- Action:
+  - Added focused tests for no-dot audit topic rendering, catalog emission when
+    a JTBD has no SLA declaration, and empty-bundle `useT.ts` key-union output.
+- Result:
+  - `flowforge_cli.jtbd.generators.i18n` now reaches 100% statement and branch
+    coverage.
+  - Overall `flowforge-cli` rounded package coverage improved from 77% to 78%.
+- Verification:
+  - `uv run pytest tests/test_i18n_generator.py -q --cov=flowforge_cli.jtbd.generators.i18n --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `45 passed`, 100% statement and branch
+    coverage for `i18n.py`.
+  - `uv run ruff check tests/test_i18n_generator.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_i18n_generator.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `776 passed`, `1 skipped`, overall package
+    coverage 78%.

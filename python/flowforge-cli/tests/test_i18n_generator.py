@@ -177,11 +177,27 @@ def test_english_catalog_includes_audit_topic_humanized() -> None:
 	assert cat["audit.claim_intake.approved"] == "Claim Intake approved"
 
 
+def test_humanize_topic_without_dotted_suffix() -> None:
+	assert gen.humanize_topic("manual_review") == "Manual Review"
+
+
 def test_english_catalog_includes_title() -> None:
 	norm = normalize(_bundle())
 	files = {f.path: f.content for f in gen.generate(norm)}
 	cat = json.loads(files["frontend/src/claims_demo/i18n/en.json"])
 	assert cat["jtbd.claim_intake.title"] == "File a claim"
+
+
+def test_english_catalog_omits_sla_keys_when_sla_is_absent() -> None:
+	raw = _bundle()
+	del raw["jtbds"][0]["sla"]
+	norm = normalize(raw)
+
+	files = {f.path: f.content for f in gen.generate(norm)}
+	cat = json.loads(files["frontend/src/claims_demo/i18n/en.json"])
+
+	assert "jtbd.claim_intake.sla.warn" not in cat
+	assert "jtbd.claim_intake.sla.breach" not in cat
 
 
 # ---------------------------------------------------------------------------
@@ -352,6 +368,19 @@ def test_useT_exposes_string_literal_key_union() -> None:
 	assert "export type TranslationKey =" in tsx
 	for key in en.keys():
 		assert f'| "{key}"' in tsx, f"missing key in TranslationKey union: {key}"
+
+
+def test_useT_exposes_empty_key_union_for_empty_bundle() -> None:
+	raw = _bundle()
+	raw["jtbds"] = []
+	norm = normalize(raw)
+
+	files = {f.path: f.content for f in gen.generate(norm)}
+	tsx = files["frontend/src/claims_demo/i18n/useT.ts"]
+	en = json.loads(files["frontend/src/claims_demo/i18n/en.json"])
+
+	assert en == {}
+	assert 'export type TranslationKey =\n\t| "";' in tsx
 
 
 def test_useT_lists_available_languages() -> None:
