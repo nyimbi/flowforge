@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from flowforge_cli.commands import pre_upgrade_check
 from flowforge_cli.main import app
 
 
@@ -95,6 +96,19 @@ def test_alembic_chain_skip_when_dir_missing(
 	assert "SKIP" in r.output
 
 
+def test_alembic_chain_default_path_when_env_unset(
+	monkeypatch: pytest.MonkeyPatch,
+	tmp_path: Path,
+) -> None:
+	monkeypatch.delenv("FLOWFORGE_PRE_UPGRADE_VERSIONS_DIR", raising=False)
+	monkeypatch.chdir(tmp_path)
+
+	ok, msg = pre_upgrade_check._check_alembic_chain(None)
+
+	assert ok is True
+	assert "backend/migrations/versions" in msg
+
+
 def test_alembic_chain_passes_single_head(tmp_path: Path) -> None:
 	d = tmp_path / "versions"
 	d.mkdir()
@@ -136,6 +150,51 @@ def test_alembic_chain_passes_single_head(tmp_path: Path) -> None:
 	)
 	assert r.exit_code == 0, r.output
 	assert "alembic-chain: OK" in r.output
+
+
+def test_alembic_chain_reports_distinct_parallel_branch_labels(tmp_path: Path) -> None:
+	d = tmp_path / "versions"
+	d.mkdir()
+	_write_migration(
+		d,
+		"a.py",
+		"""
+		revision = "a"
+		down_revision = None
+		branch_labels = ("pkg_a",)
+
+
+		def upgrade() -> None:
+			pass
+
+
+		def downgrade() -> None:
+			pass
+		""",
+	)
+	_write_migration(
+		d,
+		"b.py",
+		"""
+		revision = "b"
+		down_revision = None
+		branch_labels = ("pkg_b",)
+
+
+		def upgrade() -> None:
+			pass
+
+
+		def downgrade() -> None:
+			pass
+		""",
+	)
+
+	ok, msg = pre_upgrade_check._check_alembic_chain(d)
+
+	assert ok is True
+	assert "parallel chain(s)" in msg
+	assert "distinct branch_labels" in msg
 
 
 def test_alembic_chain_fails_multi_head(tmp_path: Path) -> None:
@@ -260,6 +319,41 @@ def test_pyproject_check_skip_when_file_missing(
 	)
 	assert r.exit_code == 0, r.output
 	assert "SKIP" in r.output
+
+
+def test_pyproject_check_default_path_when_env_unset(
+	monkeypatch: pytest.MonkeyPatch,
+	tmp_path: Path,
+) -> None:
+	monkeypatch.delenv("FLOWFORGE_PRE_UPGRADE_PYPROJECT", raising=False)
+	monkeypatch.chdir(tmp_path)
+
+	ok, msg = pre_upgrade_check._check_pyproject(None)
+
+	assert ok is True
+	assert "`pyproject.toml` does not exist" in msg
+
+
+def test_pyproject_check_reports_unreadable_file(
+	monkeypatch: pytest.MonkeyPatch,
+	tmp_path: Path,
+) -> None:
+	path = tmp_path / "pyproject.toml"
+	path.write_text("[project]\nname = 'host'\n", encoding="utf-8")
+
+	def unreadable(self: Path, encoding: str | None = None, errors: str | None = None) -> str:
+		if self == path:
+			raise OSError("denied")
+		return original_read_text(self, encoding=encoding, errors=errors)
+
+	original_read_text = Path.read_text
+	monkeypatch.setattr(Path, "read_text", unreadable)
+
+	ok, msg = pre_upgrade_check._check_pyproject(path)
+
+	assert ok is False
+	assert "cannot read" in msg
+	assert "denied" in msg
 
 
 def test_pyproject_check_passes_when_z3_absent(tmp_path: Path) -> None:
@@ -396,6 +490,25 @@ def test_pyproject_check_warns_when_z3_in_non_canonical_extra(
 	)
 	assert r.exit_code == 1, r.output
 	assert "WARN" in r.output
+
+
+def test_pyproject_check_warns_with_section_label_and_dedupes(
+	tmp_path: Path,
+) -> None:
+	p = _write_pyproject(
+		tmp_path / "pyproject.toml",
+		"""
+		[project]
+		name = "host-app"
+		dependencies = ["z3-solver>=4.13"]
+		optional-dependencies = ["z3-solver>=4.13"]
+		""",
+	)
+
+	ok, msg = pre_upgrade_check._check_pyproject(p)
+
+	assert ok is False
+	assert "1 non-canonical location(s): project" in msg
 
 
 def test_check_pyproject_flag_force_includes_in_signing_run(

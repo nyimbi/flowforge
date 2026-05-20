@@ -857,3 +857,32 @@ Design audit 5 - operations, security, and reliability:
     clean.
   - `uv run pyright python/flowforge-cli/tests/test_validate_simulate_generate_edges.py`:
     `0 errors`, `0 warnings`.
+
+## CLI coverage slice - pre-upgrade readiness checks
+
+- Baseline measurement:
+  - After closing validate/simulate/JTBD-generate branches, rounded
+    `flowforge-cli` package coverage was 74%.
+  - `commands/pre_upgrade_check.py` was 94% covered, leaving default path
+    resolution, distinct Alembic branch-label reporting, unreadable pyproject
+    handling, section-label classification, and duplicate offending section
+    dedupe branches under-tested.
+- Action:
+  - Added pre-upgrade tests for default Alembic versions-dir fallback,
+    intentional parallel Alembic chains with distinct `branch_labels`,
+    default pyproject fallback, unreadable pyproject failure reporting,
+    section-level z3-solver offender labels, and duplicate offender dedupe.
+- Result:
+  - `flowforge_cli.commands.pre_upgrade_check` now reaches 100% statement and
+    branch coverage.
+  - Overall `flowforge-cli` rounded package coverage improved from 74% to 75%.
+- Verification:
+  - `uv run pytest tests/test_pre_upgrade_check.py -q --cov=flowforge_cli.commands.pre_upgrade_check --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `21 passed`, 100% statement and branch
+    coverage for `pre_upgrade_check.py`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `721 passed`, overall package coverage 75%.
+  - `uv run ruff check python/flowforge-cli/tests/test_pre_upgrade_check.py`:
+    clean.
+  - `uv run pyright python/flowforge-cli/tests/test_pre_upgrade_check.py`:
+    `0 errors`, `0 warnings`.
