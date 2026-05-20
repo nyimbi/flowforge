@@ -25,9 +25,14 @@ This package is not published. Inside the framework workspace it is consumed via
 import { Designer, sampleWorkflow } from "@flowforge/designer";
 
 export const App = () => (
-  <Designer workflow={sampleWorkflow()} />
+  <Designer workflow={sampleWorkflow()} className="my-flowforge-skin" />
 );
 ```
+
+When no `store` prop is supplied, `workflow` and `form` prop changes are synced
+into the designer's internal store. When a `store` is supplied, the host owns
+state updates through that store and props are treated as initial/contextual
+values only.
 
 ## Tabs
 
@@ -52,6 +57,20 @@ store.temporal.getState().undo();
 The store is a vanilla Zustand store wrapped with `zundo`. Selection state is
 intentionally excluded from the temporal partial so cursor moves do not consume
 undo slots.
+
+## Skinning
+
+The root element always has `ff-designer` plus any host `className`. Major
+regions expose stable class hooks:
+
+- `ff-designer__toolbar`
+- `ff-designer__tabs`
+- `ff-designer__tab`
+- `ff-designer__undo`
+- `ff-designer__redo`
+- `ff-designer__main`
+
+You can also pass `style` for CSS custom properties used by a host theme.
 
 ## Tests
 

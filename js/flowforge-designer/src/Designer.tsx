@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type JSX } from "react";
+import {
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	type CSSProperties,
+	type JSX,
+} from "react";
 import { useStore } from "zustand";
 
 import { Canvas } from "./Canvas.js";
@@ -27,6 +34,10 @@ export interface DesignerProps {
 	withReactFlow?: boolean;
 	/** Initial tab. Defaults to canvas. */
 	initialTab?: DesignerTab;
+	/** Optional host class hook for skinning. */
+	className?: string;
+	/** Optional host style hook, commonly used for CSS custom properties. */
+	style?: CSSProperties;
 }
 
 export const Designer = ({
@@ -36,6 +47,8 @@ export const Designer = ({
 	store: externalStore,
 	withReactFlow = true,
 	initialTab = "canvas",
+	className,
+	style,
 }: DesignerProps): JSX.Element => {
 	const internalStore = useMemo(
 		() =>
@@ -72,16 +85,23 @@ export const Designer = ({
 	const futureSize = useStore(store.temporal, (t) => t.futureStates.length);
 
 	const currentWorkflow = store((s) => s.workflow);
+	const rootClassName = ["ff-designer", className].filter(Boolean).join(" ");
 
 	return (
-		<div data-testid="ff-designer" aria-label="Flowforge designer">
-			<header data-testid="designer-toolbar">
-				<nav aria-label="Designer tabs">
+		<div
+			data-testid="ff-designer"
+			aria-label="Flowforge designer"
+			className={rootClassName}
+			style={style}
+		>
+			<header data-testid="designer-toolbar" className="ff-designer__toolbar">
+				<nav aria-label="Designer tabs" className="ff-designer__tabs">
 					{(["canvas", "form", "validation", "simulation", "diff"] as DesignerTab[]).map(
 						(t) => (
 							<button
 								key={t}
 								type="button"
+								className="ff-designer__tab"
 								data-testid={`tab-${t}`}
 								data-active={tab === t}
 								aria-pressed={tab === t}
@@ -94,6 +114,7 @@ export const Designer = ({
 				</nav>
 				<button
 					type="button"
+					className="ff-designer__undo"
 					data-testid="undo"
 					onClick={undo}
 					disabled={pastSize === 0}
@@ -102,6 +123,7 @@ export const Designer = ({
 				</button>
 				<button
 					type="button"
+					className="ff-designer__redo"
 					data-testid="redo"
 					onClick={redo}
 					disabled={futureSize === 0}
@@ -110,7 +132,7 @@ export const Designer = ({
 				</button>
 			</header>
 
-			<main data-testid="designer-main">
+			<main data-testid="designer-main" className="ff-designer__main">
 				{tab === "canvas" ? (
 					<>
 						<Canvas store={store} withReactFlow={withReactFlow} />

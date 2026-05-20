@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import type { CSSProperties } from "react";
 
 import { Designer } from "../src/Designer.js";
 import { DiffViewer } from "../src/DiffViewer.js";
@@ -255,5 +256,24 @@ describe("Designer (integration)", () => {
 
 		expect(screen.getByTestId("canvas-state-submitted")).toHaveTextContent("Submitted");
 		expect(store.getState().workflow.states[0]?.name).toBe("Submitted");
+	});
+
+	it("exposes stable host skinning hooks", () => {
+		render(
+			<Designer
+				workflow={sampleWorkflow()}
+				withReactFlow={false}
+				className="host-skin"
+				style={{ "--ff-designer-accent": "#008577" } as CSSProperties}
+			/>,
+		);
+
+		const root = screen.getByTestId("ff-designer");
+		expect(root).toHaveClass("ff-designer");
+		expect(root).toHaveClass("host-skin");
+		expect(root).toHaveStyle({ "--ff-designer-accent": "#008577" });
+		expect(screen.getByTestId("designer-toolbar")).toHaveClass("ff-designer__toolbar");
+		expect(screen.getByTestId("designer-main")).toHaveClass("ff-designer__main");
+		expect(screen.getByTestId("tab-canvas")).toHaveClass("ff-designer__tab");
 	});
 });
