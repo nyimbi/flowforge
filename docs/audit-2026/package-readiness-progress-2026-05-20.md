@@ -306,3 +306,33 @@ Design audit 5 - operations, security, and reliability:
     clean.
   - `uv run pyright python/flowforge-signing-kms/tests/test_kms.py python/flowforge-signing-kms/tests/test_hmac.py`:
     `0 errors, 0 warnings`.
+
+## Package coverage slice - flowforge-outbox-pg
+
+- Baseline measurement:
+  - `flowforge-outbox-pg`: `38 passed`, 90% package coverage.
+  - Remaining uncovered risk was concentrated in PostgreSQL-native worker
+    helpers, reconnect logging branches, rare UUID fallback, row parsing edges,
+    and duplicate backend introspection.
+- Action: added focused tests for:
+  - PostgreSQL `FOR UPDATE SKIP LOCKED` claim SQL and native asyncpg-style
+    execute/fetch helpers without needing a live database.
+  - Mapping-row parsing, naive datetime normalization, invalid datetime
+    fallback, and non-string UTF-8 truncation inputs.
+  - `DispatchError` after a handler disappears between `has_handler` and
+    dispatch.
+  - Failed reconnect logging and non-reconnect run-loop error logging.
+  - Duplicate backend suppression in registry introspection.
+- Result: `flowforge-outbox-pg` now reaches 100% statement and branch coverage
+  and has been added to the closed-package coverage ratchet.
+- Verification:
+  - `uv run pytest tests -q --cov=flowforge_outbox_pg --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-outbox-pg`: `47 passed`.
+  - `uv run ruff check python/flowforge-outbox-pg/tests/test_worker.py python/flowforge-outbox-pg/tests/test_registry.py scripts/audit_2026/closed_package_coverage.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright python/flowforge-outbox-pg/tests/test_worker.py python/flowforge-outbox-pg/tests/test_registry.py scripts/audit_2026/closed_package_coverage.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q --tb=short`:
+    `17 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`:
+    passed for all seven closed packages.

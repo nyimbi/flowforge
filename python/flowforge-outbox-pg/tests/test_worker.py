@@ -17,13 +17,16 @@ import pytest
 
 from flowforge.ports.types import OutboxEnvelope
 from flowforge_outbox_pg.health import prometheus_text, readiness_payload
-from flowforge_outbox_pg.registry import HandlerRegistry, PermanentDispatchError
+from flowforge_outbox_pg.registry import DispatchError, HandlerRegistry, PermanentDispatchError
 from flowforge_outbox_pg.worker import (
     DrainResult,
     DrainWorker,
     DrainWorkerHealth,
+    OutboxRow,
     OutboxStatus,
+    _is_connection_lost,
     _pg_to_sqlite,
+    _truncate_utf8,
 )
 
 
@@ -67,6 +70,33 @@ async def _row_status(conn: aiosqlite.Connection, row_id: str) -> dict[str, Any]
 
 def _env(kind: str = "test.event", tenant: str = "t1", body: dict[str, Any] | None = None) -> OutboxEnvelope:
     return OutboxEnvelope(kind=kind, tenant_id=tenant, body=body or {"x": 1})
+
+
+class _FakePgConn:
+    def __init__(self, fetch_rows: list[Any] | None = None) -> None:
+        self.fetch_rows = fetch_rows or []
+        self.executed: list[tuple[str, tuple[Any, ...]]] = []
+        self.fetches: list[tuple[str, tuple[Any, ...]]] = []
+
+    async def execute(self, sql: str, *args: Any) -> None:
+        self.executed.append((sql, args))
+
+    async def fetch(self, sql: str, *args: Any) -> list[Any]:
+        self.fetches.append((sql, args))
+        return self.fetch_rows
+
+
+class _FailingFetchConn:
+    def __init__(self, stop: asyncio.Event, exc: Exception) -> None:
+        self._stop = stop
+        self._exc = exc
+
+    async def execute(self, sql: str, *args: Any) -> None:
+        return None
+
+    async def fetch(self, sql: str, *args: Any) -> list[Any]:
+        self._stop.set()
+        raise self._exc
 
 
 # ---------------------------------------------------------------------------
@@ -118,6 +148,35 @@ async def test_enqueue_body_serialized_as_json() -> None:
         raw = await cursor.fetchone()
         await cursor.close()
         assert json.loads(raw[0]) == body  # type: ignore[index]
+
+
+async def test_enqueue_falls_back_to_uuid4_when_uuid6_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import builtins
+    import uuid
+
+    real_import = builtins.__import__
+
+    def import_without_uuid6(
+        name: str,
+        globals_: dict[str, Any] | None = None,
+        locals_: dict[str, Any] | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> Any:
+        if name == "uuid6":
+            raise ImportError("uuid6 unavailable")
+        return real_import(name, globals_, locals_, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_uuid6)
+
+    async with aiosqlite.connect(":memory:") as conn:
+        worker = await _make_worker(conn)
+        row_id = await worker.enqueue(_env())
+
+    parsed = uuid.UUID(row_id)
+    assert parsed.version == 4
 
 
 # ---------------------------------------------------------------------------
@@ -321,6 +380,39 @@ async def test_run_once_records_claim_errors_in_health() -> None:
         assert "flowforge_outbox_worker_run_errors_total 1" in metrics
 
 
+async def test_process_row_dead_letters_dispatch_error_after_handler_disappears() -> None:
+    class RegistryRace(HandlerRegistry):
+        def has_handler(self, kind: str, backend: str = "default") -> bool:
+            return True
+
+        async def dispatch(
+            self,
+            envelope: OutboxEnvelope,
+            backend: str = "default",
+        ) -> None:
+            raise DispatchError("handler disappeared")
+
+    async with aiosqlite.connect(":memory:") as conn:
+        worker = await _make_worker(conn, RegistryRace())
+        row_id = await worker.enqueue(_env("race.event"))
+        row = OutboxRow(
+            id=row_id,
+            kind="race.event",
+            tenant_id="t1",
+            body={"x": 1},
+            retries=0,
+            created_at=datetime.now(UTC),
+        )
+        result = DrainResult()
+
+        await worker._process_row(row, result)
+
+        assert result.no_handler == 1
+        info = await _row_status(conn, row_id)
+        assert info["status"] == "dead"
+        assert "handler disappeared" in (info["last_error"] or "")
+
+
 async def test_run_once_dlq_on_old_row() -> None:
     """Rows older than dlq_after_seconds go straight to DLQ even on first failure."""
     reg = HandlerRegistry()
@@ -522,8 +614,6 @@ def test_OB_02_sqlite_single_worker() -> None:
 async def test_OB_03_db_reconnect() -> None:
     """run_loop swaps in a fresh connection on connection-loss; counter increments."""
 
-    from flowforge_outbox_pg.worker import _is_connection_lost
-
     reg = HandlerRegistry()
     handled: list[str] = []
 
@@ -584,10 +674,46 @@ async def test_OB_03_db_reconnect() -> None:
     await first_conn.close()
 
 
+async def test_run_loop_logs_failed_reconnect(caplog: pytest.LogCaptureFixture) -> None:
+    stop = asyncio.Event()
+
+    async def reconnect_factory() -> object:
+        raise RuntimeError("reconnect refused")
+
+    worker = DrainWorker(
+        _FailingFetchConn(stop, OSError("connection reset by peer")),
+        HandlerRegistry(),
+        reconnect_factory=reconnect_factory,
+    )
+
+    with caplog.at_level("ERROR", logger="flowforge_outbox_pg.worker"):
+        await asyncio.wait_for(
+            worker.run_loop(poll_interval_seconds=0.01, stop_event=stop),
+            timeout=1.0,
+        )
+
+    assert worker.reconnects == 0
+    assert "outbox reconnect failed" in caplog.text
+
+
+async def test_run_loop_logs_non_reconnect_errors(caplog: pytest.LogCaptureFixture) -> None:
+    stop = asyncio.Event()
+    worker = DrainWorker(
+        _FailingFetchConn(stop, ValueError("query shape changed")),
+        HandlerRegistry(),
+    )
+
+    with caplog.at_level("ERROR", logger="flowforge_outbox_pg.worker"):
+        await asyncio.wait_for(
+            worker.run_loop(poll_interval_seconds=0.01, stop_event=stop),
+            timeout=1.0,
+        )
+
+    assert "drain_once error" in caplog.text
+
+
 async def test_OB_04_utf8_truncation_never_mid_codepoint() -> None:
     """last_error truncated by UTF-8 byte budget — multi-byte chars survive."""
-
-    from flowforge_outbox_pg.worker import _truncate_utf8
 
     # CJK character is 3 bytes UTF-8. 800 chars → 2400 bytes, must truncate.
     big = "あ" * 800
@@ -607,6 +733,89 @@ async def test_OB_04_utf8_truncation_never_mid_codepoint() -> None:
     assert _truncate_utf8(short, 2000) == short
     # Edge: max_bytes=0 returns empty.
     assert _truncate_utf8("anything", 0) == ""
+
+
+def test_truncate_utf8_coerces_non_string_values() -> None:
+    raw: Any = 12345
+    assert _truncate_utf8(raw, 2000) == "12345"
+
+
+async def test_pg_worker_claims_with_skip_locked_and_parses_mapping_rows() -> None:
+    created_at = datetime(2026, 5, 20, 12, 0, 0)
+    conn = _FakePgConn(
+        [
+            {
+                "id": "row-1",
+                "kind": "pg.event",
+                "tenant_id": "tenant-1",
+                "body": {"ready": True},
+                "retries": 2,
+                "created_at": created_at,
+                "correlation_id": "corr-1",
+                "dedupe_key": "dedupe-1",
+            }
+        ]
+    )
+    worker = DrainWorker(conn, HandlerRegistry())
+
+    rows = await worker._claim_batch(5)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.kind == "pg.event"
+    assert row.body == {"ready": True}
+    assert row.created_at == created_at.replace(tzinfo=UTC)
+    assert row.correlation_id == "corr-1"
+    assert row.dedupe_key == "dedupe-1"
+    assert conn.fetches
+    sql, args = conn.fetches[0]
+    assert "FOR UPDATE SKIP LOCKED" in sql
+    assert len(args) == 3
+    assert args[2] == 5
+
+
+async def test_pg_db_helpers_use_native_placeholders() -> None:
+    conn = _FakePgConn([("row-1",)])
+    worker = DrainWorker(conn, HandlerRegistry())
+
+    await worker._exec("UPDATE outbox SET status = $1 WHERE id = $2", "done", "row-1")
+    rows = await worker._fetchall("SELECT id FROM outbox WHERE status = $1", "done")
+
+    assert rows == [("row-1",)]
+    assert conn.executed == [
+        ("UPDATE outbox SET status = $1 WHERE id = $2", ("done", "row-1"))
+    ]
+    assert conn.fetches == [
+        ("SELECT id FROM outbox WHERE status = $1", ("done",))
+    ]
+
+
+def test_parse_row_accepts_invalid_dates_as_now() -> None:
+    worker = DrainWorker(_FakePgConn(), HandlerRegistry())
+
+    before = datetime.now(UTC)
+    row = worker._parse_row(
+        [
+            "row-1",
+            "bad-date.event",
+            "tenant-1",
+            '{"ok": true}',
+            None,
+            "not-a-date",
+            None,
+            None,
+        ]
+    )
+    after = datetime.now(UTC)
+
+    assert row.body == {"ok": True}
+    assert row.retries == 0
+    assert before <= row.created_at <= after
+
+
+def test_connection_lost_detects_asyncpg_type_names() -> None:
+    ConnectionFailureError = type("ConnectionFailureError", (Exception,), {})
+    assert _is_connection_lost(ConnectionFailureError())
 
 
 async def test_OB_04_mark_dead_persists_truncated_error() -> None:

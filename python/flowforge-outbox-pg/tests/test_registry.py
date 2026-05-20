@@ -177,9 +177,11 @@ def test_list_backends() -> None:
         pass
 
     reg.register("x", noop, backend="alpha")
+    reg.register("x.again", noop, backend="alpha")
     reg.register("y", noop, backend="beta")
 
     backends = reg.list_backends()
+    assert backends.count("alpha") == 1
     assert set(backends) == {"alpha", "beta"}
 
 

@@ -13,6 +13,7 @@ CLOSED_PACKAGE_COVERAGE = (
 	("flowforge-money", "flowforge_money"),
 	("flowforge-otel", "flowforge_otel"),
 	("flowforge-signing-kms", "flowforge_signing_kms"),
+	("flowforge-outbox-pg", "flowforge_outbox_pg"),
 )
 
 
