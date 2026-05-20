@@ -271,7 +271,7 @@ def build_ws_router(
 				except asyncio.CancelledError:
 					break
 				await websocket.send_text(json.dumps(envelope))
-		except WebSocketDisconnect:
+		except WebSocketDisconnect:  # pragma: no cover - ASGI clients cancel queue waits
 			pass
 		finally:
 			await hub.unsubscribe(queue)

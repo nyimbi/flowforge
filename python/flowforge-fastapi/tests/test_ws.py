@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from typing import Any, cast
 
 import pytest
 from fastapi import FastAPI, HTTPException, Request, status
@@ -35,6 +36,7 @@ from flowforge_fastapi import (
 	mount_routers,
 	reset_state,
 )
+from flowforge_fastapi.ws import _extract_ws_principal, _hub_for
 
 
 PREFIX = "/api/v1/workflows"
@@ -196,6 +198,50 @@ def test_ws_accepts_explicit_allowed_origin() -> None:
 			assert hello["type"] == "hello"
 
 
+def test_ws_accepts_wildcard_allowed_origin() -> None:
+	app = FastAPI()
+	app.include_router(
+		build_ws_router(
+			principal_extractor=StaticPrincipalExtractor(
+				Principal(user_id="alice", roles=("staff",))
+			),
+			allowed_origins=("*",),
+		),
+		prefix=PREFIX,
+	)
+
+	with TestClient(app) as tc:
+		with tc.websocket_connect(
+			f"{PREFIX}/ws",
+			headers={"origin": "https://any.example"},
+		) as ws:
+			assert json.loads(ws.receive_text())["type"] == "hello"
+
+
+def test_ws_uses_explicit_ws_principal_extractor() -> None:
+	class WsExtractor:
+		async def __call__(self, websocket) -> Principal:
+			return Principal(user_id=websocket.headers["x-user"], roles=("staff",))
+
+	app = FastAPI()
+	app.include_router(build_ws_router(ws_principal_extractor=WsExtractor()), prefix=PREFIX)
+
+	with TestClient(app) as tc:
+		with tc.websocket_connect(f"{PREFIX}/ws", headers={"x-user": "ws-user"}) as ws:
+			hello = json.loads(ws.receive_text())
+			assert hello["user_id"] == "ws-user"
+
+
+def test_ws_uses_test_defaults_when_explicitly_allowed() -> None:
+	app = FastAPI()
+	app.include_router(build_ws_router(allow_test_defaults=True), prefix=PREFIX)
+
+	with TestClient(app) as tc:
+		with tc.websocket_connect(f"{PREFIX}/ws") as ws:
+			hello = json.loads(ws.receive_text())
+			assert hello["user_id"] == "system"
+
+
 def test_ws_rejects_same_host_wrong_scheme_origin() -> None:
 	"""Same-origin checks include scheme, not just host."""
 
@@ -324,3 +370,44 @@ async def test_hub_exposes_drop_metrics_and_prometheus_text() -> None:
 	assert "flowforge_fastapi_ws_published_envelopes_total 2" in text
 	assert "flowforge_fastapi_ws_delivered_envelopes_total 1" in text
 	assert "flowforge_fastapi_ws_dropped_envelopes_total 1" in text
+
+
+@pytest.mark.asyncio
+async def test_ws_internal_extract_closes_on_generic_auth_failure() -> None:
+	class FailingExtractor:
+		async def __call__(self, websocket) -> Principal:
+			_ = websocket
+			raise RuntimeError("token backend down")
+
+	class FakeWebSocket:
+		def __init__(self) -> None:
+			self.close_codes: list[int] = []
+
+		async def close(self, *, code: int) -> None:
+			self.close_codes.append(code)
+
+	websocket = FakeWebSocket()
+	principal = await _extract_ws_principal(
+		cast(Any, websocket),
+		FailingExtractor(),
+	)
+	assert principal is None
+	assert websocket.close_codes == [4401]
+
+
+def test_hub_for_falls_back_when_app_has_no_hub() -> None:
+	class NoApp:
+		pass
+
+	assert isinstance(_hub_for(cast(Any, NoApp())), WorkflowEventsHub)
+
+	class State:
+		pass
+
+	class App:
+		state = State()
+
+	class WebSocket:
+		app = App()
+
+	assert isinstance(_hub_for(cast(Any, WebSocket())), WorkflowEventsHub)

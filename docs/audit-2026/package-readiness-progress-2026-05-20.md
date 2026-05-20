@@ -556,3 +556,50 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_jtbd_hub --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-jtbd-hub`: `66 passed`, package coverage 86%, with
     the existing FastAPI 422 deprecation warning.
+
+## Package coverage slice - flowforge-fastapi
+
+- Baseline measurement:
+  - `flowforge-fastapi`: `27 passed`, 89% package coverage before this pass.
+  - After the SQLAlchemy runtime-store remediation, package coverage measured
+    `27 passed`, 90%; remaining uncovered paths were bounded to auth failure
+    branches, registry helper edges, designer/runtime error branches, and
+    WebSocket fallback/auth edges.
+- Action:
+  - Added focused tests for:
+    - explicit test-default auth/tenant resolver wiring, empty static tenant
+      rejection, insecure CSRF-cookie rejection, idempotent CSRF exemption,
+      invalid/expired/malformed/legacy session cookies, and invalid HMAC
+      signatures;
+    - registry unknown-version, snapshot, metadata, and reset helpers;
+    - designer unknown-version, schema-exception, and multi-version catalog
+      dedupe behavior;
+    - runtime empty tenant, missing definition during fire, transactional
+      `fire_and_commit`, rollback on failed `put`, and CAS `compare_and_put`
+      paths;
+    - WebSocket wildcard origins, explicit WS extractor, explicit test
+      defaults, generic extractor failure close, and hub fallback selection.
+  - Marked the nested `WebSocketDisconnect` branch as excluded because
+    in-process ASGI clients cancel the queue wait rather than raising that
+    endpoint-local exception during teardown.
+- Result:
+  - `flowforge-fastapi` now reaches 100% statement and branch coverage and
+    has been added to the closed-package coverage ratchet.
+- Verification:
+  - `uv run pytest tests/test_router_runtime.py tests/test_ws.py -q` from
+    `python/flowforge-fastapi`: `47 passed`.
+  - `uv run ruff check python/flowforge-fastapi/src/flowforge_fastapi/ws.py python/flowforge-fastapi/tests/test_router_runtime.py python/flowforge-fastapi/tests/test_ws.py`:
+    clean.
+  - `uv run pyright python/flowforge-fastapi/src/flowforge_fastapi/ws.py python/flowforge-fastapi/tests/test_router_runtime.py python/flowforge-fastapi/tests/test_ws.py`:
+    `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_fastapi --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-fastapi`: `47 passed`, 100% statement and branch
+    coverage.
+  - `uv run ruff check python/flowforge-fastapi/src/flowforge_fastapi/ws.py python/flowforge-fastapi/tests/test_router_runtime.py python/flowforge-fastapi/tests/test_ws.py scripts/audit_2026/closed_package_coverage.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright python/flowforge-fastapi/src/flowforge_fastapi/ws.py python/flowforge-fastapi/tests/test_router_runtime.py python/flowforge-fastapi/tests/test_ws.py scripts/audit_2026/closed_package_coverage.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors`, `0 warnings`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q --tb=short`:
+    `17 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`:
+    passed for all twelve closed packages.

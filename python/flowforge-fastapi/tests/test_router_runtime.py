@@ -7,6 +7,10 @@ Drive the engine through ``POST /instances`` + ``POST /instances/{id}/events``
 from __future__ import annotations
 
 import asyncio
+import hmac
+import json
+from base64 import urlsafe_b64encode
+from hashlib import sha256
 from typing import Any
 
 import httpx
@@ -14,20 +18,29 @@ import pytest
 from fastapi import FastAPI, HTTPException, Request, status
 
 from flowforge_fastapi import (
+	CookiePrincipalExtractor,
 	ConfigError,
+	InstanceStore,
 	StaticPrincipalExtractor,
 	StaticTenantResolver,
+	WorkflowDefRegistry,
+	get_instance_store,
 	get_registry,
 	mount_routers,
 	reset_state,
 )
 from flowforge_fastapi.auth import (
 	PrincipalExtractor,
+	csrf_protect,
 	csrf_cookie_name,
 	csrf_header_name,
 	issue_csrf_token,
+	resolve_principal_extractor,
+	resolve_tenant_resolver,
 )
+from flowforge_fastapi.router_runtime import _fire_with_unit_of_work
 from flowforge.dsl import WorkflowDef
+from flowforge.engine import new_instance
 from flowforge.ports.types import Principal
 
 
@@ -100,6 +113,11 @@ async def test_get_unknown_instance_returns_404(client: httpx.AsyncClient) -> No
 	assert resp.status_code == 404
 
 
+async def test_get_unknown_def_version_returns_404(client: httpx.AsyncClient) -> None:
+	resp = await client.get(f"{PREFIX}/defs/demo_claim", params={"version": "9.9.9"})
+	assert resp.status_code == 404
+
+
 async def test_fire_unmatched_event_keeps_state(client: httpx.AsyncClient) -> None:
 	create = await client.post(
 		f"{PREFIX}/instances", json={"def_key": "demo_claim"}
@@ -150,6 +168,47 @@ async def test_designer_catalog_lists_subjects(client: httpx.AsyncClient) -> Non
 	assert "claim" in catalog["subjects"]
 	subj = catalog["subjects"]["claim"]
 	assert "intake" in subj["states"]
+
+
+async def test_designer_validate_reports_schema_exception(
+	client: httpx.AsyncClient,
+) -> None:
+	resp = await client.post(
+		f"{PREFIX}/defs/validate",
+		json={"definition": {"key": "bad"}, "strict": True},
+	)
+	assert resp.status_code == 200
+	body = resp.json()
+	assert body["ok"] is False
+	assert body["errors"]
+
+
+async def test_designer_catalog_deduplicates_definition_versions(
+	claim_workflow_def: WorkflowDef,
+) -> None:
+	reset_state()
+	from flowforge import config as ff_config
+
+	ff_config.reset_to_fakes()
+	get_registry().register(claim_workflow_def)
+	get_registry().register(claim_workflow_def.model_copy(update={"version": "2.0.0"}))
+
+	app = FastAPI()
+	mount_routers(
+		app,
+		prefix=PREFIX,
+		principal_extractor=StaticPrincipalExtractor(
+			Principal(user_id="alice", roles=("staff",))
+		),
+		tenant_resolver=StaticTenantResolver("t-1"),
+	)
+	transport = httpx.ASGITransport(app=app)
+	async with httpx.AsyncClient(
+		transport=transport, base_url="http://testserver"
+	) as ac:
+		resp = await ac.get(f"{PREFIX}/catalog")
+	assert resp.status_code == 200
+	assert list(resp.json()["subjects"].keys()).count("claim") == 1
 
 
 async def test_principal_extractor_is_pluggable(
@@ -221,6 +280,33 @@ async def test_mount_routers_requires_explicit_auth_and_tenant(
 				Principal(user_id="alice", roles=("staff",))
 			),
 		)
+
+
+async def test_auth_resolver_test_defaults_are_explicit() -> None:
+	principal_extractor = resolve_principal_extractor(
+		None,
+		allow_test_defaults=True,
+		surface="test",
+	)
+	tenant_resolver = resolve_tenant_resolver(
+		None,
+		allow_test_defaults=True,
+		surface="test",
+	)
+	scope: dict[str, Any] = {
+		"type": "http",
+		"method": "GET",
+		"headers": [],
+	}
+	req = Request(scope=scope)
+	principal = await principal_extractor(req)
+	assert principal.user_id == "system"
+	assert await tenant_resolver(req, principal) == "default"
+
+
+async def test_static_tenant_resolver_rejects_empty_tenant() -> None:
+	with pytest.raises(ConfigError, match="non-empty tenant_id"):
+		StaticTenantResolver("")
 
 
 async def test_runtime_uses_resolved_tenant_not_request_body(
@@ -306,6 +392,72 @@ async def test_runtime_uses_resolved_tenant_not_request_body(
 	await hub.unsubscribe(queue)
 
 
+async def test_runtime_rejects_empty_resolved_tenant(
+	claim_workflow_def: WorkflowDef,
+) -> None:
+	reset_state()
+	from flowforge import config as ff_config
+
+	ff_config.reset_to_fakes()
+	get_registry().register(claim_workflow_def)
+
+	class EmptyTenantResolver:
+		async def __call__(self, request: Request, principal: Principal) -> str:
+			_ = request, principal
+			return ""
+
+	app = FastAPI()
+	mount_routers(
+		app,
+		prefix=PREFIX,
+		principal_extractor=StaticPrincipalExtractor(
+			Principal(user_id="alice", roles=("staff",))
+		),
+		tenant_resolver=EmptyTenantResolver(),
+	)
+	transport = httpx.ASGITransport(app=app)
+	async with httpx.AsyncClient(
+		transport=transport, base_url="http://testserver"
+	) as ac:
+		resp = await ac.post(f"{PREFIX}/instances", json={"def_key": "demo_claim"})
+	assert resp.status_code == 401
+
+
+async def test_fire_returns_409_when_definition_disappears(
+	claim_workflow_def: WorkflowDef,
+) -> None:
+	reset_state()
+	from flowforge import config as ff_config
+
+	ff_config.reset_to_fakes()
+	store = get_instance_store()
+	instance = new_instance(claim_workflow_def)
+	await store.create_instance(
+		instance,
+		workflow_def=claim_workflow_def,
+		tenant_id="t-1",
+	)
+
+	app = FastAPI()
+	mount_routers(
+		app,
+		prefix=PREFIX,
+		principal_extractor=StaticPrincipalExtractor(
+			Principal(user_id="alice", roles=("staff",))
+		),
+		tenant_resolver=StaticTenantResolver("t-1"),
+	)
+	transport = httpx.ASGITransport(app=app)
+	async with httpx.AsyncClient(
+		transport=transport, base_url="http://testserver"
+	) as ac:
+		resp = await ac.post(
+			f"{PREFIX}/instances/{instance.id}/events",
+			json={"event": "submit"},
+		)
+	assert resp.status_code == 409
+
+
 async def test_csrf_protection_enforced_when_enabled(
 	claim_workflow_def: WorkflowDef,
 ) -> None:
@@ -364,6 +516,22 @@ async def test_csrf_protection_enforced_when_enabled(
 			headers={csrf_header_name: token},
 		)
 		assert ok.status_code == 201
+
+
+async def test_issue_csrf_token_requires_dev_mode_for_insecure_cookie() -> None:
+	from fastapi.responses import JSONResponse
+
+	with pytest.raises(ConfigError, match="secure=False"):
+		issue_csrf_token(JSONResponse({}), secure=False)
+
+
+async def test_csrf_protect_exempts_idempotent_methods() -> None:
+	scope: dict[str, Any] = {
+		"type": "http",
+		"method": "GET",
+		"headers": [],
+	}
+	await csrf_protect(Request(scope=scope))
 
 
 async def test_state_change_publishes_to_hub(client: httpx.AsyncClient, app: FastAPI) -> None:
@@ -432,3 +600,170 @@ async def test_cookie_principal_extractor_round_trip() -> None:
 	with pytest.raises(HTTPException) as info:
 		await extractor(bad_req)
 	assert info.value.status_code == 401
+
+
+async def test_cookie_principal_extractor_rejects_invalid_signature() -> None:
+	secret = b"s3cret"
+	payload = json.dumps(
+		{"user_id": "carol", "roles": [], "is_system": False},
+		sort_keys=True,
+		separators=(",", ":"),
+	).encode()
+	body = urlsafe_b64encode(payload).rstrip(b"=")
+	sig = urlsafe_b64encode(hmac.new(b"wrong", body, sha256).digest()).rstrip(b"=")
+	scope: dict[str, Any] = {
+		"type": "http",
+		"method": "GET",
+		"headers": [(b"cookie", b"flowforge_session=" + body + b"." + sig)],
+	}
+	extractor = CookiePrincipalExtractor(secret=secret)
+	with pytest.raises(HTTPException) as info:
+		await extractor(Request(scope=scope))
+	assert info.value.detail == "invalid session signature"
+
+
+async def test_cookie_principal_extractor_rejects_missing_and_expired() -> None:
+	extractor = CookiePrincipalExtractor(secret="s3cret", ttl_seconds=1)
+	scope: dict[str, Any] = {"type": "http", "method": "GET", "headers": []}
+	with pytest.raises(HTTPException, match="401"):
+		await extractor(Request(scope=scope))
+
+	extractor._now = lambda: 1000.0
+	cookie_value = extractor.issue(Principal(user_id="carol", roles=()))
+	extractor._now = lambda: 1001.0
+	expired_scope: dict[str, Any] = {
+		"type": "http",
+		"method": "GET",
+		"headers": [(b"cookie", f"flowforge_session={cookie_value}".encode())],
+	}
+	with pytest.raises(HTTPException) as info:
+		await extractor(Request(scope=expired_scope))
+	assert info.value.detail == "session cookie expired"
+
+
+async def test_cookie_principal_extractor_rejects_malformed_json_payload() -> None:
+	secret = b"s3cret"
+	body = urlsafe_b64encode(b"not-json").rstrip(b"=")
+	sig = urlsafe_b64encode(hmac.new(secret, body, sha256).digest()).rstrip(b"=")
+	scope: dict[str, Any] = {
+		"type": "http",
+		"method": "GET",
+		"headers": [(b"cookie", b"flowforge_session=" + body + b"." + sig)],
+	}
+	extractor = CookiePrincipalExtractor(secret=secret)
+	with pytest.raises(HTTPException) as info:
+		await extractor(Request(scope=scope))
+	assert info.value.detail == "malformed session payload"
+
+
+async def test_cookie_principal_extractor_accepts_legacy_payload_without_exp() -> None:
+	secret = b"s3cret"
+	payload = json.dumps(
+		{"user_id": "legacy", "roles": ["staff"], "is_system": False},
+		sort_keys=True,
+		separators=(",", ":"),
+	).encode()
+	body = urlsafe_b64encode(payload).rstrip(b"=")
+	sig = urlsafe_b64encode(hmac.new(secret, body, sha256).digest()).rstrip(b"=")
+	scope: dict[str, Any] = {
+		"type": "http",
+		"method": "GET",
+		"headers": [(b"cookie", b"flowforge_session=" + body + b"." + sig)],
+	}
+	extractor = CookiePrincipalExtractor(secret=secret)
+	principal = await extractor(Request(scope=scope))
+	assert principal.user_id == "legacy"
+
+
+async def test_registry_helpers_cover_missing_meta_and_reset(
+	claim_workflow_def: WorkflowDef,
+) -> None:
+	registry = WorkflowDefRegistry()
+	registry.register(claim_workflow_def)
+	with pytest.raises(KeyError):
+		registry.get("demo_claim", "missing")
+
+	store = InstanceStore()
+	instance = new_instance(claim_workflow_def)
+	await store.create_instance(instance, workflow_def=claim_workflow_def, tenant_id="t-1")
+	assert store.snapshots is not None
+	assert await store.get(instance.id) is not None
+	assert store.def_for(instance.id) == ("demo_claim", "1.0.0")
+	assert store.def_for("missing") is None
+	store.clear()
+	assert await store.get(instance.id) is None
+
+
+async def test_fire_with_unit_of_work_supports_transactional_and_rollback(
+	claim_workflow_def: WorkflowDef,
+) -> None:
+	instance = new_instance(claim_workflow_def)
+	principal = Principal(user_id="alice", roles=("staff",))
+	calls: list[str] = []
+
+	class TransactionalStore:
+		async def fire_and_commit(self, **kwargs: Any) -> Any:
+			calls.append(kwargs["event"])
+			from flowforge.engine import fire
+
+			return await fire(
+				kwargs["wd"],
+				kwargs["instance"],
+				kwargs["event"],
+				payload=kwargs["payload"],
+				principal=kwargs["principal"],
+				tenant_id=kwargs["tenant_id"],
+			)
+
+	result = await _fire_with_unit_of_work(
+		wd=claim_workflow_def,
+		instance=instance,
+		event="submit",
+		payload=None,
+		principal=principal,
+		tenant_id="t-1",
+		store=TransactionalStore(),
+	)
+	assert result.new_state == "review"
+	assert calls == ["submit"]
+
+	class FailingStore:
+		async def put(self, _instance: Any) -> None:
+			raise RuntimeError("store down")
+
+	with pytest.raises(RuntimeError, match="store down"):
+		await _fire_with_unit_of_work(
+			wd=claim_workflow_def,
+			instance=instance,
+			event="approve",
+			payload=None,
+			principal=principal,
+			tenant_id="t-1",
+			store=FailingStore(),
+		)
+	assert instance.state == "review"
+
+	class CasStore:
+		def __init__(self) -> None:
+			self.expected_seq: int | None = None
+
+		async def compare_and_put(
+			self,
+			_instance: Any,
+			*,
+			expected_seq: int,
+		) -> None:
+			self.expected_seq = expected_seq
+
+	cas_store = CasStore()
+	result = await _fire_with_unit_of_work(
+		wd=claim_workflow_def,
+		instance=instance,
+		event="approve",
+		payload=None,
+		principal=principal,
+		tenant_id="t-1",
+		store=cas_store,
+	)
+	assert result.new_state == "approved"
+	assert cas_store.expected_seq == 1
