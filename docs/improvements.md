@@ -62,7 +62,7 @@ Generate the router and service to require an `Idempotency-Key` header on every 
 
 ### 7. Backup / restore drill artefact
 
-Generate `docs/ops/<bundle>/restore-runbook.md` listing every table the bundle creates, their FK dependency order, the required `pg_dump` flags, the audit-chain re-verification step (`flowforge audit verify --tenant ...`), and a `make restore-drill` target that runs the runbook against a scratch database and asserts every audit chain re-verifies. Designed for the monthly DR tabletop.
+Generate `docs/ops/<bundle>/restore-runbook.md` listing every table the bundle creates, their FK dependency order, the required `pg_dump` flags, the audit-chain export and re-verification step (`flowforge audit verify --file ...`), and a `make restore-drill` target that runs the runbook against a scratch database and asserts every audit chain re-verifies. Designed for the monthly DR tabletop.
 
 **Justification.** Disaster-recovery drills sit in audit checklists but are usually skipped because writing the runbook is bespoke per project. The bundle already declares every entity and every audit topic; the runbook is derivable. Generating it converts "restore from backup and prove it works" from a half-day project into a one-command exercise. Adjacent to item 15 (admin console) but distinct: the admin console operates on a running system; this artefact operates on cold storage.
 

@@ -52,8 +52,9 @@ def test_emits_one_runbook_per_bundle_insurance_claim() -> None:
 	assert "--data-only" in out.content
 	assert "--schema-only" in out.content
 	assert "--no-owner" in out.content
-	# audit verify step appears.
-	assert "flowforge audit verify --tenant" in out.content
+	# audit verify step appears with the implemented export-file contract.
+	assert "flowforge audit verify --file" in out.content
+	assert "audit-exports/${t//[^A-Za-z0-9_.-]/_}.jsonl" in out.content
 	# make target referenced.
 	assert "make restore-drill" in out.content
 

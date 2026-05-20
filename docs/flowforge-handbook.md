@@ -724,7 +724,7 @@ ums.audit_events (
 ```
 
 `this_hash = sha256(prev_hash || canonical_json(this_row))`. The chain
-is verifiable end-to-end via `flowforge audit verify --range`.
+is verifiable end-to-end after export via `flowforge audit verify --file`.
 
 GDPR erasure rewrites `payload` in place for paths declared in
 `pii_paths`; chain breaks at the redacted row by design — verifiers
@@ -1146,12 +1146,13 @@ flowforge add-jtbd <jtbd.yaml>
 flowforge regen-catalog
 flowforge validate
 flowforge simulate --def <path> --context <fixture.json>
-flowforge replay --event <uuid>
+flowforge replay --def <definition.json> --event submit --event approve
 flowforge migrate-fork <upstream-def> --to <tenant>
-flowforge diff <vidA> <vidB>
+flowforge diff <old-definition.json> <new-definition.json>
+flowforge bundle-diff <old-bundle.json> <new-bundle.json>
 flowforge upgrade-deps
-flowforge audit verify --range <ts1>..<ts2>
-flowforge ai-assist <jtbd.yaml>
+flowforge audit verify --file <audit-export.jsonl> --range <label>
+flowforge ai-assist <jtbd-bundle.json> --job <jtbd-id>
 ```
 
 ---
@@ -1710,14 +1711,16 @@ flowchart LR
 ### 8.14 Auditing the Hash Chain
 
 ```bash
-flowforge audit verify --range 2026-05-01T00:00:00Z..2026-05-06T23:59:59Z
+flowforge audit verify --file audit-export.jsonl --range 2026-05-01T00:00:00Z..2026-05-06T23:59:59Z
 ```
 
-Walks the chain in the range. Output:
+Walks an exported audit hash-chain file. The `--range` value is an
+operator label printed with the result; the host audit store is
+responsible for exporting the desired time range to JSONL first. Output:
 
-- `OK` — chain intact.
-- `BROKEN at <event_id>` with reason: `redacted` (legitimate GDPR) or
-  `tampered` (security incident).
+- `audit chain ok` — chain intact.
+- `audit chain broken: first bad event <event_id>` — treat the export or
+  source store as suspect until investigated.
 
 For redacted rows, follow up at `workflow_gdpr_erasure_log` for the
 audit trail of redaction.

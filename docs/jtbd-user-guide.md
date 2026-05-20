@@ -350,7 +350,7 @@ Fork metadata preserves provenance so reviewers can see what was customized.
 ### Compare Bundle Versions
 
 ```bash
-uv run flowforge diff old-bundle.json new-bundle.json
+uv run flowforge bundle-diff old-bundle.json new-bundle.json
 ```
 
 Use the diff before review to catch renamed IDs, field shape changes, SLA

@@ -175,9 +175,30 @@ was tampered with or the restore corrupted ordering.
 TENANTS=$(psql "$RESTORE_DATABASE_URL" -At -c \
 	"SELECT DISTINCT tenant_id FROM audit_log WHERE tenant_id IS NOT NULL ORDER BY tenant_id;")
 
-# Verify each tenant's audit chain.
+mkdir -p audit-exports
+
+# Export and verify each tenant's audit chain.
 for t in $TENANTS; do
-	flowforge audit verify --tenant "$t" || { echo "audit chain broken for tenant=$t"; exit 1; }
+	export_file="audit-exports/${t//[^A-Za-z0-9_.-]/_}.jsonl"
+	psql "$RESTORE_DATABASE_URL" -v tenant="$t" -At -c "
+		SELECT jsonb_build_object(
+			'event_id', event_id,
+			'tenant_id', tenant_id,
+			'actor_user_id', actor_user_id,
+			'kind', kind,
+			'subject_kind', subject_kind,
+			'subject_id', subject_id,
+			'occurred_at', occurred_at,
+			'payload', payload,
+			'prev_sha256', prev_sha256,
+			'row_sha256', row_sha256
+		)::text
+		FROM audit_log
+		WHERE tenant_id = :'tenant'
+		ORDER BY occurred_at, event_id;
+	" > "$export_file"
+	flowforge audit verify --file "$export_file" --range "tenant=$t" \
+		|| { echo "audit chain broken for tenant=$t"; exit 1; }
 done
 ```
 
@@ -282,7 +303,7 @@ A red run **must not** be ignored. Failure modes by symptom:
 |---|---|---|
 | `pg_restore: schema mismatch` | Dump was taken from a newer schema than the restore target | Run `alembic upgrade head` *before* loading the data dump. |
 | `psql: foreign key violation` | Host `tenants` rows missing | Restore the host's dump first, then this bundle's. |
-| `flowforge audit verify` fails | Hash chain broken in the dump | Treat the dump as untrusted; investigate the source database. |
+| `flowforge audit verify --file` fails | Hash chain broken in the dump | Treat the dump as untrusted; investigate the source database. |
 | Smoke step returns 5xx | Restored schema is missing migrations the framework now expects | `alembic upgrade head` then re-run smoke. |
 
 ## OTel and metrics
@@ -297,8 +318,8 @@ slow drills against large datasets. See
 
 ## See also
 
-* CLI `flowforge audit verify --tenant <tenant_id>` — re-verifies one
-  tenant's audit hash chain end-to-end.
+* CLI `flowforge audit verify --file <audit-export.jsonl>` — re-verifies
+  one exported audit hash chain end-to-end.
 * CLI `flowforge migration-safety <dir>` — analyses alembic migrations
   for backward-incompatible operations *before* they land.
 * CLI `flowforge pre-upgrade-check --alembic-chain` — refuses to deploy

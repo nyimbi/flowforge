@@ -1141,12 +1141,13 @@ adapter test grid on every PR.
 | `flowforge regen-catalog` | Regenerates `workflows/catalog.json` from SQLAlchemy models with `WorkflowExposed` |
 | `flowforge validate [--def <path>]` | Static validator (§5 / §17.11.3 of arch) on one or all defs |
 | `flowforge simulate --def <path> --context <fixture.json>` | Walks DSL with given context; prints state path |
-| `flowforge replay --event <uuid>` | Replays one workflow event and asserts deterministic outcome |
+| `flowforge replay --def <definition.json> --event <name>` | Replays named workflow events against a definition and prints the reconstructed state |
 | `flowforge migrate-fork <upstream-def> --to <tenant>` | Forks an operator-shared def into tenant copy |
-| `flowforge diff <vidA> <vidB>` | Pretty diff of two def versions |
-| `flowforge upgrade-deps` | Bumps adapter packages to highest mutually compatible versions |
-| `flowforge audit verify --range <ts1>..<ts2>` | Verifies audit hash chain for a time range |
-| `flowforge ai-assist <jtbd.yaml>` | Optional LLM refinement pass; outputs unified diff |
+| `flowforge diff <old-definition.json> <new-definition.json>` | Pretty diff of two workflow definition files |
+| `flowforge bundle-diff <old-bundle.json> <new-bundle.json>` | Categorised deploy-safety diff of two JTBD bundles |
+| `flowforge upgrade-deps` | Inspects dependency declarations and refuses unreviewed mutation |
+| `flowforge audit verify --file <audit-export.jsonl> --range <label>` | Verifies an exported audit hash chain |
+| `flowforge ai-assist <jtbd-bundle.json> [--job <id>]` | Emits a copyable AI authoring/review prompt |
 
 ### 10.2 Sample output — `flowforge new`
 
