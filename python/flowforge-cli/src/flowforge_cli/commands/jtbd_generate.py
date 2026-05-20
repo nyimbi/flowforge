@@ -12,7 +12,7 @@ from pathlib import Path
 
 import typer
 
-from .._io import load_structured
+from .._io import load_structured, safe_output_path
 from ..jtbd import generate
 from ..jtbd.i18n_sidecars import load_i18n_sidecars
 from ..jtbd.overrides import resolve_sidecar
@@ -66,7 +66,10 @@ def jtbd_generate_cmd(
 	out.mkdir(parents=True, exist_ok=True)
 
 	for f in files:
-		dst = out / f.path
+		try:
+			dst = safe_output_path(out, f.path)
+		except ValueError as exc:
+			raise typer.BadParameter(str(exc)) from exc
 		dst.parent.mkdir(parents=True, exist_ok=True)
 		dst.write_text(f.content, encoding="utf-8")
 		typer.echo(f"  wrote {f.path}")

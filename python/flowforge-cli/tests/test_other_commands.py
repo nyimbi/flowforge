@@ -10,6 +10,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from flowforge_cli.commands import jtbd_generate as jtbd_generate_module
+from flowforge_cli.jtbd import GeneratedFile
 from flowforge_cli.main import app
 
 
@@ -322,3 +324,31 @@ def test_jtbd_generate_writes_artefacts(jtbd_bundle: Path, tmp_path: Path) -> No
 	assert (out / "README.md").is_file()
 	assert (out / ".env.example").is_file()
 	assert "jtbd-generate:" in r.output
+
+
+def test_jtbd_generate_rejects_generated_path_escape(
+	jtbd_bundle: Path,
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	out = tmp_path / "gen"
+
+	def fake_generate(*_args: object, **_kwargs: object) -> list[GeneratedFile]:
+		return [GeneratedFile(path="../escape.txt", content="nope")]
+
+	monkeypatch.setattr(jtbd_generate_module, "generate", fake_generate)
+
+	r = runner.invoke(
+		app,
+		[
+			"jtbd-generate",
+			"--jtbd",
+			str(jtbd_bundle),
+			"--out",
+			str(out),
+		],
+	)
+
+	assert r.exit_code != 0
+	assert "unsafe generated path" in r.output
+	assert not (tmp_path / "escape.txt").exists()

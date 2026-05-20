@@ -20,6 +20,7 @@ from .document import (
 	save_template_library,
 	verify_generation,
 )
+from .._io import safe_output_path
 from ..jtbd import generate
 from ..jtbd.parse import JTBDParseError
 
@@ -852,7 +853,7 @@ class JtbdEditorWindow(QMainWindow):  # type: ignore[misc]
 		try:
 			files = generate(self.document.bundle)
 			for file in files:
-				dst = out / file.path
+				dst = safe_output_path(out, file.path)
 				dst.parent.mkdir(parents=True, exist_ok=True)
 				dst.write_text(file.content, encoding="utf-8")
 		except (JTBDParseError, OSError, ValueError) as exc:

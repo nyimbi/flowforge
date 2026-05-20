@@ -53,6 +53,21 @@ def write_json(path: Path, data: Any) -> None:
 	path.write_text(payload + "\n", encoding="utf-8")
 
 
+def safe_output_path(root: Path, relative_path: str | Path) -> Path:
+	"""Resolve a generated relative path under *root* and reject escapes."""
+
+	rel = Path(relative_path)
+	if rel.is_absolute() or ".." in rel.parts:
+		raise ValueError(f"unsafe generated path: {relative_path}")
+	root_resolved = root.resolve(strict=False)
+	dst = (root_resolved / rel).resolve(strict=False)
+	try:
+		dst.relative_to(root_resolved)
+	except ValueError as exc:
+		raise ValueError(f"unsafe generated path: {relative_path}") from exc
+	return dst
+
+
 def discover_workflow_defs(root: Path) -> list[Path]:
 	"""Return every ``definition.json`` under ``root`` in deterministic order."""
 
