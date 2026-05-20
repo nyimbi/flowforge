@@ -273,6 +273,38 @@ async def test_effect_planning_covers_audit_update_compensate_signal_and_jtbd_me
 	assert config.outbox.dispatched == []
 
 
+async def test_audit_effect_marks_non_json_context_values() -> None:
+	wd = _single_transition_def([
+		{
+			"kind": "audit",
+			"template": "case.snapshot",
+		},
+	])
+	inst = new_instance(
+		wd,
+		initial_context={
+			"plain": "ok",
+			"unsafe": {1},
+			"nested": [{"value": {2}}],
+		},
+	)
+
+	result = await fire(
+		wd,
+		inst,
+		"complete",
+		principal=Principal(user_id="reviewer"),
+		dispatch_ports=False,
+	)
+
+	snapshot = result.audit_events[1].payload["context_snapshot"]
+	assert snapshot == {
+		"plain": "ok",
+		"unsafe": {"__non_json__": "{1}"},
+		"nested": [{"value": {"__non_json__": "{2}"}}],
+	}
+
+
 async def test_invalid_set_target_surfaces_authoring_error() -> None:
 	wd = _single_transition_def([
 		{
