@@ -342,6 +342,7 @@ def test_closed_package_coverage_ratchet_tracks_completed_packages() -> None:
 		("flowforge-otel", "flowforge_otel"),
 		("flowforge-signing-kms", "flowforge_signing_kms"),
 		("flowforge-outbox-pg", "flowforge_outbox_pg"),
+		("flowforge-documents-s3", "flowforge_documents_s3"),
 	)
 
 

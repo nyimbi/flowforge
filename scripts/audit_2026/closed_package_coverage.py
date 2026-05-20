@@ -14,6 +14,7 @@ CLOSED_PACKAGE_COVERAGE = (
 	("flowforge-otel", "flowforge_otel"),
 	("flowforge-signing-kms", "flowforge_signing_kms"),
 	("flowforge-outbox-pg", "flowforge_outbox_pg"),
+	("flowforge-documents-s3", "flowforge_documents_s3"),
 )
 
 

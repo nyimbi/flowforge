@@ -336,3 +336,34 @@ Design audit 5 - operations, security, and reliability:
     `17 passed`.
   - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`:
     passed for all seven closed packages.
+
+## Package coverage slice - flowforge-documents-s3
+
+- Baseline measurement:
+  - `flowforge-documents-s3`: `23 passed`, 68% package coverage.
+  - Remaining uncovered risk was concentrated in document id rejection,
+    Office ZIP structural sniffing, SQLite index persistence branches,
+    presigned POST policy limits, lazy boto3 client construction, and legacy
+    alias warning paths.
+- Action: added focused tests for:
+  - Invalid `doc_id` shapes, deprecated alias warnings, and unknown attribute
+    failures.
+  - DOCX/XLSX/PPTX/generic ZIP sniffing, invalid ZIP handling, libmagic
+    success/empty-result fallbacks, and Office content-type manifest mismatch.
+  - SQLite index prefix escaping, missing metadata, duplicate/multi-subject
+    attachment behavior, naive datetime normalization, and delete outcomes.
+  - Presigned POST content-type and size policies, plus explicit boto3 client
+    construction when no client is supplied.
+- Result: `flowforge-documents-s3` now reaches 100% statement and branch
+  coverage and has been added to the closed-package coverage ratchet.
+- Verification:
+  - `uv run pytest tests -q --cov=flowforge_documents_s3 --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-documents-s3`: `32 passed`.
+  - `uv run ruff check python/flowforge-documents-s3/tests/test_port.py scripts/audit_2026/closed_package_coverage.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright python/flowforge-documents-s3/tests/test_port.py scripts/audit_2026/closed_package_coverage.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q --tb=short`:
+    `17 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`:
+    passed for all eight closed packages.

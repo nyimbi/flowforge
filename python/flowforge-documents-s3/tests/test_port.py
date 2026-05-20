@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import sys
+import types
+import zipfile
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
+from typing import Any
 
 import boto3
 import pytest
@@ -12,11 +17,13 @@ from flowforge.ports import DocumentPort
 from flowforge_documents_s3 import (
 	DEFAULT_MAGIC_BYTES,
 	DocumentMeta,
+	InvalidDocIdError,
 	NoopDocumentPort,
 	S3DocumentPort,
 	S3DocumentPortInMemory,
 	SQLiteDocumentIndex,
 	UnsupportedMimeError,
+	sniff_filetype,
 )
 
 
@@ -26,6 +33,14 @@ pytestmark = pytest.mark.asyncio
 BUCKET = "ff-docs-test"
 PDF_HEADER = b"%PDF-1.4\n"
 PNG_HEADER = b"\x89PNG\r\n\x1a\n"
+
+
+def _zip_bytes(*names: str) -> bytes:
+	buf = BytesIO()
+	with zipfile.ZipFile(buf, "w") as zf:
+		for name in names:
+			zf.writestr(name, b"content")
+	return buf.getvalue()
 
 
 # ---------- fixtures ---------------------------------------------------
@@ -53,6 +68,29 @@ async def test_s3_satisfies_document_port(port: S3DocumentPort) -> None:
 
 async def test_noop_satisfies_document_port() -> None:
 	assert isinstance(NoopDocumentPort(), DocumentPort)
+
+
+async def test_legacy_aliases_warn_and_unknown_attrs_fail() -> None:
+	import flowforge_documents_s3 as package_module
+	import flowforge_documents_s3.port as port_module
+
+	with pytest.warns(DeprecationWarning):
+		assert package_module.__getattr__("S3DocumentPort") is S3DocumentPortInMemory
+	with pytest.warns(DeprecationWarning):
+		assert port_module.__getattr__("S3DocumentPort") is S3DocumentPortInMemory
+	with pytest.raises(AttributeError):
+		package_module.__getattr__("missing")
+	with pytest.raises(AttributeError):
+		port_module.__getattr__("missing")
+
+
+async def test_doc_id_validation_rejects_invalid_shapes(port: S3DocumentPort) -> None:
+	too_long = "x" * 256
+	bad_ids = [None, "", too_long, "../secret", "has space", "slash/name"]
+	for bad_id in bad_ids:
+		bad_doc_id: Any = bad_id
+		with pytest.raises(InvalidDocIdError):
+			port._key(bad_doc_id)
 
 
 # ---------- noop -------------------------------------------------------
@@ -183,6 +221,47 @@ async def test_sqlite_index_persists_metadata_and_subjects(tmp_path, s3_client) 
 		second_index.close()
 
 
+async def test_sqlite_index_covers_prefix_attach_delete_and_naive_dates(tmp_path) -> None:
+	index = SQLiteDocumentIndex(tmp_path / "documents.sqlite3")
+	try:
+		assert index.get_meta("missing") is None
+		with pytest.raises(KeyError):
+			index.attach("user-1", "missing")
+
+		naive_uploaded_at = datetime(2026, 5, 20, 8, 30, 0)
+		index.upsert_meta(
+			DocumentMeta(
+				doc_id="report_1",
+				kind="report",
+				classification="restricted",
+				content_type="application/pdf",
+				uploaded_at=naive_uploaded_at,
+				size_bytes=12,
+				subject_ids=("user-1", "user-2"),
+			)
+		)
+		index.upsert_meta(DocumentMeta(doc_id="reportA1"))
+
+		all_docs = index.list_meta()
+		assert [meta.doc_id for meta in all_docs] == ["reportA1", "report_1"]
+		assert [meta.doc_id for meta in index.list_meta(prefix="report_")] == ["report_1"]
+		assert [meta.doc_id for meta in index.list_for_subject("user-1")] == ["report_1"]
+
+		loaded = index.get_meta("report_1")
+		assert loaded is not None
+		assert loaded.uploaded_at.tzinfo is timezone.utc
+		assert loaded.subject_ids == ("user-1", "user-2")
+
+		index.attach("user-3", "report_1")
+		attached = index.get_meta("report_1")
+		assert attached is not None
+		assert set(attached.subject_ids) == {"user-1", "user-2", "user-3"}
+		assert index.delete("report_1") is True
+		assert index.delete("report_1") is False
+	finally:
+		index.close()
+
+
 async def test_classification_and_freshness(port: S3DocumentPort) -> None:
 	await port.put(
 		"d1",
@@ -214,6 +293,20 @@ async def test_freshness_days_reflects_uploaded_at(port: S3DocumentPort) -> None
 	assert days is not None and days >= 9
 
 
+async def test_register_meta_indexes_existing_subject_ids(port: S3DocumentPort) -> None:
+	meta = DocumentMeta(
+		doc_id="seeded",
+		kind="evidence",
+		subject_ids=("subject-1",),
+	)
+	port.register_meta(meta)
+	port.register_meta(meta)
+
+	rows = await port.list_for_subject("subject-1")
+
+	assert [row["id"] for row in rows] == ["seeded"]
+
+
 # ---------- magic-bytes validator -------------------------------------
 
 
@@ -231,6 +324,44 @@ async def test_magic_bytes_passes_for_unknown_content_type(port: S3DocumentPort)
 	# Default validator is permissive for content-types it doesn't recognise.
 	meta = await port.put("blob1", b"\x00\x01\x02", content_type="application/octet-stream")
 	assert meta.size_bytes == 3
+
+
+async def test_office_content_type_requires_matching_zip_manifest(port: S3DocumentPort) -> None:
+	generic_zip = _zip_bytes("[Content_Types].xml", "plain.txt")
+	with pytest.raises(UnsupportedMimeError, match="generic ZIP"):
+		await port.put(
+			"not-docx",
+			generic_zip,
+			content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		)
+
+
+async def test_sniff_filetype_detects_known_types_and_office_archives(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	docx = _zip_bytes("[Content_Types].xml", "word/document.xml")
+	xlsx = _zip_bytes("[Content_Types].xml", "xl/workbook.xml")
+	pptx = _zip_bytes("[Content_Types].xml", "ppt/presentation.xml")
+	generic_zip = _zip_bytes("plain.txt")
+
+	assert sniff_filetype(b"") == "application/octet-stream"
+	assert sniff_filetype(docx) == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	assert sniff_filetype(xlsx) == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	assert sniff_filetype(pptx) == "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	assert sniff_filetype(generic_zip) == "application/zip"
+	assert sniff_filetype(b"PK\x03\x04not really a zip") == "application/zip"
+	assert sniff_filetype(PDF_HEADER) == "application/pdf"
+	assert sniff_filetype(PNG_HEADER) == "image/png"
+	assert sniff_filetype(b"\xff\xd8\xffrest") == "image/jpeg"
+	assert sniff_filetype(b"GIF89arest") == "image/gif"
+	assert sniff_filetype(b"unknown") == "application/octet-stream"
+
+	fake_magic = types.SimpleNamespace(from_buffer=lambda data, mime: "text/plain")
+	monkeypatch.setitem(sys.modules, "magic", fake_magic)
+	assert sniff_filetype(b"plain text") == "text/plain"
+	fake_empty_magic = types.SimpleNamespace(from_buffer=lambda data, mime: "")
+	monkeypatch.setitem(sys.modules, "magic", fake_empty_magic)
+	assert sniff_filetype(b"still unknown") == "application/octet-stream"
 
 
 async def test_custom_validator_overrides_default(s3_client) -> None:
@@ -290,6 +421,28 @@ async def test_presigned_url_rejects_zero_expiry(port: S3DocumentPort) -> None:
 		await port.presigned_get_url("d1", expires_in=0)
 
 
+async def test_presigned_post_includes_content_type_and_size_policy(port: S3DocumentPort) -> None:
+	post = await port.presigned_post(
+		"upload-1",
+		content_type_prefix="image/",
+		expires_in=300,
+		max_size_bytes=1024,
+	)
+
+	assert post["url"].startswith("https://") or post["url"].startswith("http://")
+	assert post["fields"]["key"] == "documents/upload-1"
+
+	without_size = await port.presigned_post("upload-2", content_type_prefix="text/")
+	assert without_size["fields"]["key"] == "documents/upload-2"
+
+
+async def test_presigned_post_rejects_invalid_limits(port: S3DocumentPort) -> None:
+	with pytest.raises(AssertionError):
+		await port.presigned_post("upload-1", expires_in=0)
+	with pytest.raises(AssertionError):
+		await port.presigned_post("upload-1", max_size_bytes=0)
+
+
 # ---------- key prefix customisation ----------------------------------
 
 
@@ -306,3 +459,19 @@ async def test_blank_key_prefix_uses_doc_id_directly(s3_client) -> None:
 	await port.put("d1", PDF_HEADER, content_type="application/pdf")
 	resp = s3_client.get_object(Bucket=BUCKET, Key="d1")
 	assert resp["Metadata"]["doc_id"] == "d1"
+
+
+async def test_constructs_boto3_client_when_client_is_omitted(monkeypatch: pytest.MonkeyPatch) -> None:
+	sentinel = object()
+
+	class FakeBoto3(types.SimpleNamespace):
+		def client(self, service_name: str):
+			assert service_name == "s3"
+			return sentinel
+
+	fake_boto3 = FakeBoto3()
+	monkeypatch.setitem(sys.modules, "boto3", fake_boto3)
+
+	port = S3DocumentPortInMemory(BUCKET)
+
+	assert port._s3 is sentinel
