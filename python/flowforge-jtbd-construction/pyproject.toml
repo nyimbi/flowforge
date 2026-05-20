@@ -2,7 +2,7 @@
 name = "flowforge-jtbd-construction-starter"
 version = "0.0.1"
 description = "flowforge JTBD domain library — Construction (Bid, build, inspect)"
-keywords = ["flowforge>=0.1.0,<0.2.0", "jtbd", "scaffold-only", "starter"]
+keywords = ["flowforge", "jtbd", "scaffold-only", "starter"]
 classifiers = [
     "Development Status :: 1 - Planning",
     "Intended Audience :: Developers",
