@@ -886,3 +886,29 @@ Design audit 5 - operations, security, and reliability:
     clean.
   - `uv run pyright python/flowforge-cli/tests/test_pre_upgrade_check.py`:
     `0 errors`, `0 warnings`.
+
+## CLI coverage slice - JTBD migrate no-drop path
+
+- Baseline measurement:
+  - After closing pre-upgrade readiness checks, rounded `flowforge-cli`
+    package coverage was 75%.
+  - `commands/jtbd_migrate.py` was 98% covered; the only remaining branch was
+    applying a migration when no populated fields are dropped.
+- Action:
+  - Added a record-migration test for a deprecated JTBD replacement where the
+    target adds a field but preserves all populated source fields, writes the
+    migrated record to a file, and emits no dropped-data warning.
+- Result:
+  - `flowforge_cli.commands.jtbd_migrate` now reaches 100% statement and
+    branch coverage.
+  - Overall `flowforge-cli` rounded package coverage remains 75%.
+- Verification:
+  - `uv run pytest tests/test_jtbd_migrate_cmd.py -q --cov=flowforge_cli.commands.jtbd_migrate --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `8 passed`, 100% statement and branch
+    coverage for `jtbd_migrate.py`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `722 passed`, overall package coverage 75%.
+  - `uv run ruff check python/flowforge-cli/tests/test_jtbd_migrate_cmd.py`:
+    clean.
+  - `uv run pyright python/flowforge-cli/tests/test_jtbd_migrate_cmd.py`:
+    `0 errors`, `0 warnings`.

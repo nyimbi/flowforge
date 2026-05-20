@@ -207,6 +207,32 @@ def test_migrate_record_writes_to_file(bundle_with_removed: Path, tmp_path: Path
 	assert result["keep_me"] == "Bob"
 
 
+def test_migrate_record_without_dropped_data_writes_to_file(simple_bundle: Path, tmp_path: Path) -> None:
+	record = tmp_path / "record.json"
+	record.write_text(
+		json.dumps({"claimant_name": "Alice", "loss_amount": "100.00"}),
+		encoding="utf-8",
+	)
+	out = tmp_path / "migrated.json"
+
+	r = runner.invoke(
+		app,
+		[
+			"jtbd", "migrate",
+			"--bundle", str(simple_bundle),
+			"--from", "old_intake",
+			"--record", str(record),
+			"--out", str(out),
+		],
+	)
+
+	assert r.exit_code == 0, r.output
+	assert "warning: dropped fields" not in r.output
+	result = json.loads(out.read_text(encoding="utf-8"))
+	assert result["claimant_name"] == "Alice"
+	assert result["incident_date"] is None
+
+
 def test_migrate_record_warns_on_dropped_data(bundle_with_removed: Path, tmp_path: Path) -> None:
 	record = tmp_path / "record.json"
 	# drop_me has a value — should warn
