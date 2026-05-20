@@ -14,15 +14,15 @@ import type { WorkflowState, WorkflowTransition } from "./types.js";
 
 // audit-2026 JS-05: kinds aligned with the canonical Python DSL union.
 const STATE_COLORS: Record<WorkflowState["kind"], string> = {
-	manual_review: "#7c3aed",
-	automatic: "#2563eb",
-	parallel_fork: "#0ea5e9",
-	parallel_join: "#0e7490",
-	timer: "#0891b2",
-	signal_wait: "#a16207",
-	subworkflow: "#475569",
-	terminal_success: "#16a34a",
-	terminal_fail: "#dc2626",
+	manual_review: "var(--ff-designer-state-manual-review, #7c3aed)",
+	automatic: "var(--ff-designer-state-automatic, #2563eb)",
+	parallel_fork: "var(--ff-designer-state-parallel-fork, #0ea5e9)",
+	parallel_join: "var(--ff-designer-state-parallel-join, #0e7490)",
+	timer: "var(--ff-designer-state-timer, #0891b2)",
+	signal_wait: "var(--ff-designer-state-signal-wait, #a16207)",
+	subworkflow: "var(--ff-designer-state-subworkflow, #475569)",
+	terminal_success: "var(--ff-designer-state-terminal-success, #16a34a)",
+	terminal_fail: "var(--ff-designer-state-terminal-fail, #dc2626)",
 };
 
 const layoutPosition = (index: number): { x: number; y: number } => ({
@@ -38,7 +38,8 @@ const toNode = (state: WorkflowState, index: number): Node => ({
 		borderRadius: 8,
 		padding: 12,
 		border: `2px solid ${STATE_COLORS[state.kind]}`,
-		background: "#ffffff",
+		background: "var(--ff-designer-node-bg, #ffffff)",
+		color: "var(--ff-designer-node-fg, #172033)",
 		fontSize: 12,
 		minWidth: 140,
 	},
@@ -50,8 +51,8 @@ const toEdge = (t: WorkflowTransition): Edge => ({
 	source: t.from,
 	target: t.to,
 	label: t.event,
-	labelStyle: { fontSize: 11, fill: "#374151" },
-	style: { stroke: "#6b7280" },
+	labelStyle: { fontSize: 11, fill: "var(--ff-designer-edge-label, #374151)" },
+	style: { stroke: "var(--ff-designer-edge, #6b7280)" },
 	animated: false,
 });
 

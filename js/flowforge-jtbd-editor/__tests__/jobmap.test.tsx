@@ -158,11 +158,24 @@ describe("JobMap (SVG fallback)", () => {
 			"ff-jobmap-edge-claim_intake->claim_triage",
 		);
 		expect(intakeToTriage.getAttribute("data-crosslane")).toBe("true");
+		expect(intakeToTriage.getAttribute("stroke")).toBe(
+			"var(--ff-jobmap-edge-cross-lane, #7c3aed)",
+		);
+		expect(intakeToTriage.getAttribute("marker-end")).toBe("url(#ff-jobmap-arrow)");
 
 		const triageToAssign = screen.getByTestId(
 			"ff-jobmap-edge-claim_triage->claim_assign",
 		);
 		expect(triageToAssign.getAttribute("data-crosslane")).toBe("false");
+		expect(triageToAssign.getAttribute("stroke")).toBe(
+			"var(--ff-jobmap-edge, #64748b)",
+		);
+	});
+
+	it("defines the SVG arrow marker used by dependency edges", () => {
+		render(<JobMap bundle={sampleBundle()} withReactFlow={false} />);
+		const svg = screen.getByTestId("ff-jobmap-svg");
+		expect(svg.querySelector("marker#ff-jobmap-arrow")).not.toBeNull();
 	});
 
 	it("invokes onSelectJtbd when a node is clicked", () => {

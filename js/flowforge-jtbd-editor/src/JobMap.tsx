@@ -60,16 +60,22 @@ import type { JtbdBundle } from "./types.js";
 export const VIRTUALISATION_THRESHOLD = 200;
 const VIRTUALISATION_OVERSCAN = 200; // px around the viewport in every direction
 
-const SAME_LANE_EDGE_COLOR = "#64748b";
-const CROSS_LANE_EDGE_COLOR = "#7c3aed";
-const CYCLE_NODE_BORDER = "#dc2626";
-const NODE_BORDER = "#1e3a8a";
-const ACTIVE_NODE_BORDER = "#16a34a";
-const ACTIVE_NODE_FILL = "#dcfce7";
-const FIRED_NODE_BORDER = "#0ea5e9";
-const FIRED_NODE_FILL = "#e0f2fe";
-const LANE_FILL_ODD = "#f8fafc";
-const LANE_FILL_EVEN = "#eef2ff";
+const SAME_LANE_EDGE_COLOR = "var(--ff-jobmap-edge, #64748b)";
+const CROSS_LANE_EDGE_COLOR = "var(--ff-jobmap-edge-cross-lane, #7c3aed)";
+const CYCLE_NODE_BORDER = "var(--ff-jobmap-node-cycle-border, #dc2626)";
+const NODE_BORDER = "var(--ff-jobmap-node-border, #1e3a8a)";
+const ACTIVE_NODE_BORDER = "var(--ff-jobmap-node-active-border, #16a34a)";
+const ACTIVE_NODE_FILL = "var(--ff-jobmap-node-active-bg, #dcfce7)";
+const FIRED_NODE_BORDER = "var(--ff-jobmap-node-fired-border, #0ea5e9)";
+const FIRED_NODE_FILL = "var(--ff-jobmap-node-fired-bg, #e0f2fe)";
+const LANE_FILL_ODD = "var(--ff-jobmap-lane-odd-bg, #f8fafc)";
+const LANE_FILL_EVEN = "var(--ff-jobmap-lane-even-bg, #eef2ff)";
+const NODE_FILL = "var(--ff-jobmap-node-bg, #ffffff)";
+const NODE_TEXT = "var(--ff-jobmap-node-fg, #0f172a)";
+const NODE_MUTED_TEXT = "var(--ff-jobmap-node-muted-fg, #475569)";
+const LANE_TEXT = "var(--ff-jobmap-lane-fg, #1e293b)";
+const LANE_BORDER = "var(--ff-jobmap-lane-border, #cbd5e1)";
+const LANE_DIVIDER = "var(--ff-jobmap-lane-divider, #94a3b8)";
 
 export type NodeAnimationState = "default" | "fired" | "active";
 
@@ -184,7 +190,7 @@ const styleForState = (
 	}
 	return {
 		border: cycle ? CYCLE_NODE_BORDER : NODE_BORDER,
-		background: "#ffffff",
+		background: NODE_FILL,
 	};
 };
 
@@ -320,6 +326,19 @@ export const JobMap = ({
 					data-testid="ff-jobmap-svg"
 					style={{ position: "absolute", inset: 0 }}
 				>
+					<defs>
+						<marker
+							id="ff-jobmap-arrow"
+							viewBox="0 0 10 10"
+							refX="9"
+							refY="5"
+							markerWidth="6"
+							markerHeight="6"
+							orient="auto-start-reverse"
+						>
+							<path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke" />
+						</marker>
+					</defs>
 					{layout.lanes.map((lane) => (
 						<LaneStrip key={lane.role} lane={lane} totalWidth={layout.width} />
 					))}
@@ -381,7 +400,7 @@ const LaneStrip = ({ lane, totalWidth }: LaneStripProps): JSX.Element => {
 				width={totalWidth}
 				height={lane.height}
 				fill={fill}
-				stroke="#cbd5e1"
+				stroke={LANE_BORDER}
 				strokeWidth={1}
 			/>
 			<text
@@ -390,7 +409,7 @@ const LaneStrip = ({ lane, totalWidth }: LaneStripProps): JSX.Element => {
 				dominantBaseline="middle"
 				fontSize={13}
 				fontWeight={600}
-				fill="#1e293b"
+				fill={LANE_TEXT}
 				data-testid={`ff-jobmap-lane-label-${lane.role}`}
 			>
 				{lane.role}
@@ -400,7 +419,7 @@ const LaneStrip = ({ lane, totalWidth }: LaneStripProps): JSX.Element => {
 				y1={lane.y}
 				x2={LANE_HEADER_WIDTH}
 				y2={lane.y + lane.height}
-				stroke="#94a3b8"
+				stroke={LANE_DIVIDER}
 				strokeWidth={1}
 			/>
 		</g>
@@ -458,11 +477,12 @@ const JobMapNode = ({
 				cursor: onSelect ? "pointer" : "default",
 				fontSize: 12,
 				lineHeight: 1.3,
+				color: NODE_TEXT,
 				transition: "background 200ms ease, border-color 200ms ease",
 			}}
 		>
 			<strong style={{ fontSize: 13 }}>{node.title}</strong>
-			<span style={{ color: "#475569", fontSize: 11 }}>{node.jtbdId}</span>
+			<span style={{ color: NODE_MUTED_TEXT, fontSize: 11 }}>{node.jtbdId}</span>
 		</div>
 	);
 };
