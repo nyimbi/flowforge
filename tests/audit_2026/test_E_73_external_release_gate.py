@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+import re
 import tomllib
 from pathlib import Path
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
+PINNED_SECRET_WORKFLOW_ACTIONS = {
+	"actions/checkout": "34e114876b0b11c390a56381ad16ebd13914f8d5",
+	"actions/setup-node": "49933ea5288caeca8642d1e84afbd3f7d6820020",
+	"actions/setup-python": "a26af69be951a213d495a4c3e4e4022e16d87065",
+	"actions/upload-artifact": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+	"astral-sh/setup-uv": "e4db8464a088ece1b920f60402e813ea4de65b8f",
+	"pnpm/action-setup": "f40ffcd9367d9f12939873eb1018b921a783ffaa",
+}
 
 
 def _read(path: str) -> str:
@@ -84,7 +93,7 @@ def test_external_release_gate_is_wired_as_manual_release_workflow() -> None:
 	assert "Write external release evidence summary" in workflow
 	assert "external-release-evidence-current.md" in workflow
 	assert "GITHUB_RUN_ID" in workflow
-	assert "actions/upload-artifact@v4" in workflow
+	assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4" in workflow
 	assert "audit-2026-release-external-evidence" in workflow
 	assert "external-release-evidence*.md" in workflow
 	assert "examples/**/screenshots/**/*.dom.html" in workflow
@@ -125,17 +134,44 @@ def test_flowforge_gate_pins_check_all_parallelism() -> None:
 def test_ci_workflows_pin_pnpm_11_for_allow_builds() -> None:
 	"""pnpm 11 is required for allowBuilds and must run on Node 22+."""
 
-	for path in [
+	tag_pinned_workflows = [
 		".github/workflows/audit-2026.yml",
 		".github/workflows/audit-2026-dom-baselines.yml",
-		".github/workflows/audit-2026-release-external.yml",
 		".github/workflows/flowforge-gate.yml",
-	]:
+	]
+	for path in tag_pinned_workflows:
 		workflow = _read(path)
 		assert "pnpm/action-setup@v4" in workflow
 		assert 'version: "11.1.3"' in workflow
 		assert "actions/setup-node@v4" in workflow
 		assert 'node-version: "22"' in workflow
+
+	release_workflow = _read(".github/workflows/audit-2026-release-external.yml")
+	assert (
+		"pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4"
+		in release_workflow
+	)
+	assert 'version: "11.1.3"' in release_workflow
+	assert (
+		"actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4"
+		in release_workflow
+	)
+	assert 'node-version: "22"' in release_workflow
+
+
+def test_secret_bearing_release_workflows_pin_actions_to_shas() -> None:
+	"""Workflows with API tokens must not depend on mutable action tags."""
+
+	for path in [
+		".github/workflows/audit-2026-polish-copy-sidecar.yml",
+		".github/workflows/audit-2026-release-external.yml",
+	]:
+		workflow = _read(path)
+		for action, sha in PINNED_SECRET_WORKFLOW_ACTIONS.items():
+			if action in workflow:
+				assert f"{action}@{sha}" in workflow
+		mutable = re.findall(r"uses:\s+([^\s#]+@v\d+)\b", workflow)
+		assert mutable == [], f"{path} has mutable action refs: {mutable}"
 
 
 def test_ci_uv_cache_uses_tracked_dependency_files() -> None:
