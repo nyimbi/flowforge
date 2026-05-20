@@ -1574,3 +1574,32 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: passed with one optional `mmdc` skip and
     overall package coverage 79%.
+
+## CLI coverage slice - copy override sidecar
+
+- Baseline measurement:
+  - After closing console entrypoint coverage, rounded `flowforge-cli`
+    package coverage was 79%.
+  - `jtbd/overrides.py` was 86% covered; remaining gaps were malformed
+    sidecar-key validation paths and defensive canonical-string extraction
+    branches for malformed bundle shapes.
+- Action:
+  - Added focused polish-copy tests for malformed override namespace errors,
+    missing `jtbds`, missing `data_capture`, non-dict JTBD entries, non-string
+    JTBD ids, non-list captures, non-dict fields, non-string field ids, and
+    default label derivation when labels are empty.
+- Result:
+  - `flowforge_cli.jtbd.overrides` now reaches 100% statement and branch
+    coverage.
+  - Overall `flowforge-cli` rounded package coverage remains 79%.
+- Verification:
+  - `uv run pytest tests/test_polish_copy.py -q --cov=flowforge_cli.jtbd.overrides --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `34 passed`, 100% statement and branch
+    coverage for `overrides.py`.
+  - `uv run ruff check tests/test_polish_copy.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_polish_copy.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: passed with one optional `mmdc` skip and
+    overall package coverage 79%.

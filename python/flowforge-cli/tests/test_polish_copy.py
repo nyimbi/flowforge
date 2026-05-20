@@ -266,12 +266,55 @@ def test_validate_key_against_bundle_catches_typos() -> None:
 	assert err is not None and "no JTBD" in err
 
 
+def test_validate_key_against_bundle_reports_malformed_inputs() -> None:
+	err = validate_key_against_bundle("not.a.valid.override", _bundle())
+	assert err is not None and "namespace grammar" in err
+
+	err = validate_key_against_bundle(
+		"claim_intake.field.claimant_name.label",
+		{"project": {"name": "missing-jtbds"}},
+	)
+	assert err is not None and "no `jtbds` list" in err
+
+	bundle = _bundle()
+	bundle["jtbds"][0].pop("data_capture")
+	err = validate_key_against_bundle(
+		"claim_intake.field.claimant_name.label",
+		bundle,
+	)
+	assert err is not None and "no `data_capture` list" in err
+
+
 def test_build_canonical_strings_emits_every_label() -> None:
 	"""Canonical map carries every field label — the LLM's polish target."""
 
 	canonical = build_canonical_strings(_bundle())
 	assert canonical["claim_intake.field.claimant_name.label"] == "Claimant"
 	assert canonical["claim_intake.field.loss_amount.label"] == "Loss"
+
+
+def test_build_canonical_strings_skips_malformed_bundle_shapes() -> None:
+	assert build_canonical_strings({"project": {"name": "missing-jtbds"}}) == {}
+
+	bundle: dict[str, object] = {
+		"jtbds": [
+			"not-a-jtbd",
+			{"id": 7, "data_capture": []},
+			{"id": "missing_capture"},
+			{
+				"id": "claim_intake",
+				"data_capture": [
+					"not-a-field",
+					{"id": 3, "label": "Ignored"},
+					{"id": "claimant_name", "label": ""},
+				],
+			},
+		]
+	}
+
+	assert build_canonical_strings(bundle) == {
+		"claim_intake.field.claimant_name.label": "Claimant Name"
+	}
 
 
 # ---------------------------------------------------------------------------
