@@ -4,17 +4,21 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from typing import cast
 
 import pytest
 from flowforge.dsl import WorkflowDef
 from flowforge.engine import new_instance
-from flowforge.engine.fire import Instance
+from flowforge.engine.fire import FireResult, Instance
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from flowforge_sqlalchemy import (
 	BusinessCalendar,
+	OutboxMessage,
 	PendingSignal,
+	SagaConflict,
 	SagaQueries,
 	SagaTenantMismatch,
 	SnapshotConflict,
@@ -25,7 +29,14 @@ from flowforge_sqlalchemy import (
 	WorkflowEvent,
 	WorkflowInstance,
 	WorkflowInstanceQuarantine,
+	WorkflowInstanceSnapshot,
 	WorkflowInstanceToken,
+	WorkflowSagaStep,
+)
+from flowforge_sqlalchemy.snapshot_store import (
+	_instance_from_body,
+	_is_terminal_state,
+	_transition_payload,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -70,6 +81,54 @@ def _workflow_def() -> WorkflowDef:
 					"to_state": "approved",
 					"priority": 0,
 				}
+			],
+		}
+	)
+
+
+def _workflow_with_effects() -> WorkflowDef:
+	return WorkflowDef.model_validate(
+		{
+			"key": "claim_intake",
+			"version": "1.0.0",
+			"subject_kind": "claim",
+			"initial_state": "intake",
+			"states": [
+				{"name": "intake", "kind": "manual_review"},
+				{"name": "review", "kind": "manual_review"},
+				{"name": "rejected", "kind": "terminal_fail"},
+				{"name": "approved", "kind": "terminal_success"},
+			],
+			"transitions": [
+				{
+					"id": "submit",
+					"event": "submit",
+					"from_state": "intake",
+					"to_state": "review",
+					"priority": 0,
+					"effects": [
+						{"kind": "set", "target": "context.submitted", "expr": True},
+						{"kind": "audit", "template": "wf.claim.submitted"},
+					],
+				},
+				{
+					"id": "reject",
+					"event": "reject",
+					"from_state": "intake",
+					"to_state": "rejected",
+					"priority": 0,
+				},
+				{
+					"id": "approve",
+					"event": "approve",
+					"from_state": "review",
+					"to_state": "approved",
+					"priority": 0,
+					"effects": [
+						{"kind": "audit", "template": "wf.claim.approved"},
+						{"kind": "notify", "template": "claim.approved.email"},
+					],
+				},
 			],
 		}
 	)
@@ -307,6 +366,19 @@ async def test_snapshot_store_create_instance_rejects_wrong_tenant(
 		)
 
 
+async def test_snapshot_store_create_instance_duplicate_surfaces_conflict(
+	session_factory: async_sessionmaker[AsyncSession], tenant_id: str
+) -> None:
+	wd = _workflow_def()
+	instance = new_instance(wd)
+	store = SqlAlchemySnapshotStore(session_factory, tenant_id=tenant_id)
+
+	await store.create_instance(instance, workflow_def=wd, tenant_id=tenant_id)
+	with pytest.raises(SnapshotConflict) as excinfo:
+		await store.create_instance(instance, workflow_def=wd, tenant_id=tenant_id)
+	assert excinfo.value.actual_seq == 0
+
+
 async def test_snapshot_store_filters_reads_by_tenant(
 	session_factory: async_sessionmaker[AsyncSession], tenant_id: str
 ) -> None:
@@ -472,6 +544,385 @@ async def test_snapshot_store_compare_and_put_rejects_wrong_tenant(
 		)
 
 
+async def test_snapshot_store_compare_and_put_rejects_negative_seq(
+	session_factory: async_sessionmaker[AsyncSession], tenant_id: str
+) -> None:
+	inst_row = await _seed_instance(session_factory, tenant_id)
+	store = SqlAlchemySnapshotStore(session_factory, tenant_id=tenant_id)
+
+	with pytest.raises(AssertionError, match="expected_seq"):
+		await store.compare_and_put(
+			Instance(
+				id=inst_row.id,
+				def_key="claim_intake",
+				def_version="1.0.0",
+				state="intake",
+				context={},
+				created_entities=[],
+				saga=[],
+				history=[],
+			),
+			expected_seq=-1,
+		)
+
+
+async def test_snapshot_store_compare_and_put_insert_race_surfaces_conflict(
+	tenant_id: str,
+) -> None:
+	class Result:
+		rowcount = 0
+
+	class FakeSession:
+		def __init__(self) -> None:
+			self.scalar_calls = 0
+			self.rolled_back = False
+
+		async def __aenter__(self) -> "FakeSession":
+			return self
+
+		async def __aexit__(
+			self,
+			exc_type: object,
+			exc: object,
+			tb: object,
+		) -> None:
+			return None
+
+		async def scalar(self, _stmt: object) -> str | int | None:
+			self.scalar_calls += 1
+			if self.scalar_calls == 1:
+				return "owned-instance"
+			if self.scalar_calls == 2:
+				return None
+			return 7
+
+		async def execute(self, _stmt: object) -> Result:
+			return Result()
+
+		def add(self, row: object) -> None:
+			assert isinstance(row, WorkflowInstanceSnapshot)
+			assert row.seq == 0
+
+		async def commit(self) -> None:
+			raise IntegrityError("insert", {}, RuntimeError("duplicate snapshot"))
+
+		async def rollback(self) -> None:
+			self.rolled_back = True
+
+	session = FakeSession()
+
+	class FakeSessionFactory:
+		def __call__(self) -> FakeSession:
+			return session
+
+	store = SqlAlchemySnapshotStore(
+		cast(async_sessionmaker[AsyncSession], FakeSessionFactory()),
+		tenant_id=tenant_id,
+	)
+
+	with pytest.raises(SnapshotConflict) as excinfo:
+		await store.compare_and_put(
+			Instance(
+				id="inst-1",
+				def_key="claim_intake",
+				def_version="1.0.0",
+				state="intake",
+				context={},
+				created_entities=[],
+				saga=[],
+				history=[],
+			),
+			expected_seq=0,
+		)
+	assert excinfo.value.actual_seq == 7
+	assert session.rolled_back is True
+
+
+async def test_snapshot_store_fire_and_commit_writes_durable_side_effects(
+	session_factory: async_sessionmaker[AsyncSession], tenant_id: str
+) -> None:
+	wd = _workflow_with_effects()
+	instance = new_instance(wd)
+	audit_events: list[object] = []
+
+	class AuditSink:
+		async def record_in_connection(self, conn: object, event: object) -> None:
+			assert conn is not None
+			audit_events.append(event)
+
+	store = SqlAlchemySnapshotStore(
+		session_factory,
+		tenant_id=tenant_id,
+		audit_sink=AuditSink(),
+	)
+	await store.create_instance(instance, workflow_def=wd, tenant_id=tenant_id)
+
+	submitted = await store.fire_and_commit(
+		wd=wd,
+		instance=instance,
+		event="submit",
+		tenant_id=tenant_id,
+	)
+	approved = await store.fire_and_commit(
+		wd=wd,
+		instance=instance,
+		event="approve",
+		tenant_id=tenant_id,
+	)
+
+	assert submitted.new_state == "review"
+	assert approved.new_state == "approved"
+	assert approved.terminal is True
+
+	async with session_factory() as session:
+		instance_row = await session.scalar(
+			select(WorkflowInstance).where(
+				WorkflowInstance.tenant_id == tenant_id,
+				WorkflowInstance.id == instance.id,
+			)
+		)
+		assert instance_row is not None
+		assert instance_row.state == "approved"
+		assert instance_row.terminal is True
+		assert instance_row.context["submitted"] is True
+
+		snapshot = await session.scalar(
+			select(WorkflowInstanceSnapshot).where(
+				WorkflowInstanceSnapshot.tenant_id == tenant_id,
+				WorkflowInstanceSnapshot.instance_id == instance.id,
+			)
+		)
+		assert snapshot is not None
+		assert snapshot.seq == 2
+
+		events = (
+			await session.scalars(
+				select(WorkflowEvent)
+				.where(
+					WorkflowEvent.tenant_id == tenant_id,
+					WorkflowEvent.instance_id == instance.id,
+				)
+				.order_by(WorkflowEvent.seq.asc())
+			)
+		).all()
+		assert [(row.seq, row.event, row.transition_id) for row in events] == [
+			(1, "submit", "submit"),
+			(2, "approve", "approve"),
+		]
+		assert events[0].from_state == "intake"
+
+		outbox_rows = (
+			await session.scalars(
+				select(OutboxMessage).where(
+					OutboxMessage.tenant_id == tenant_id,
+					OutboxMessage.status == "pending",
+				)
+			)
+		).all()
+		assert [row.kind for row in outbox_rows] == ["wf.notify"]
+
+	assert len(audit_events) >= 2
+
+
+async def test_snapshot_store_fire_and_commit_no_match_does_not_write_event(
+	session_factory: async_sessionmaker[AsyncSession], tenant_id: str
+) -> None:
+	wd = _workflow_with_effects()
+	instance = new_instance(wd)
+	store = SqlAlchemySnapshotStore(session_factory, tenant_id=tenant_id)
+	await store.create_instance(instance, workflow_def=wd, tenant_id=tenant_id)
+
+	result = await store.fire_and_commit(
+		wd=wd,
+		instance=instance,
+		event="approve",
+		tenant_id=tenant_id,
+	)
+
+	assert result.matched_transition_id is None
+	assert instance.state == "intake"
+	async with session_factory() as session:
+		rows = (
+			await session.scalars(
+				select(WorkflowEvent).where(
+					WorkflowEvent.tenant_id == tenant_id,
+					WorkflowEvent.instance_id == instance.id,
+				)
+			)
+		).all()
+		assert rows == []
+
+
+async def test_snapshot_store_fire_and_commit_rejects_wrong_tenant(
+	session_factory: async_sessionmaker[AsyncSession], tenant_id: str
+) -> None:
+	wd = _workflow_with_effects()
+	instance = new_instance(wd)
+	store = SqlAlchemySnapshotStore(session_factory, tenant_id=tenant_id)
+	await store.create_instance(instance, workflow_def=wd, tenant_id=tenant_id)
+
+	with pytest.raises(SnapshotTenantMismatch):
+		await store.fire_and_commit(
+			wd=wd,
+			instance=instance,
+			event="submit",
+			tenant_id="other-tenant",
+		)
+
+
+async def test_snapshot_store_fire_and_commit_requires_transactional_audit_sink(
+	session_factory: async_sessionmaker[AsyncSession], tenant_id: str
+) -> None:
+	wd = _workflow_with_effects()
+	instance = new_instance(wd)
+	store = SqlAlchemySnapshotStore(
+		session_factory,
+		tenant_id=tenant_id,
+		audit_sink=object(),
+	)
+	await store.create_instance(instance, workflow_def=wd, tenant_id=tenant_id)
+
+	with pytest.raises(TypeError, match="record_in_connection"):
+		await store.fire_and_commit(
+			wd=wd,
+			instance=instance,
+			event="submit",
+			tenant_id=tenant_id,
+		)
+	assert instance.state == "intake"
+	assert instance.history == []
+
+
+async def test_snapshot_store_fire_and_commit_rolls_back_on_stale_snapshot(
+	session_factory: async_sessionmaker[AsyncSession], tenant_id: str
+) -> None:
+	wd = _workflow_with_effects()
+	instance = new_instance(wd)
+	store = SqlAlchemySnapshotStore(session_factory, tenant_id=tenant_id)
+	await store.create_instance(instance, workflow_def=wd, tenant_id=tenant_id)
+
+	stale = await store.get(instance.id)
+	assert stale is not None
+	await store.fire_and_commit(
+		wd=wd,
+		instance=instance,
+		event="submit",
+		tenant_id=tenant_id,
+	)
+
+	with pytest.raises(SnapshotConflict) as excinfo:
+		await store.fire_and_commit(
+			wd=wd,
+			instance=stale,
+			event="reject",
+			tenant_id=tenant_id,
+		)
+	assert excinfo.value.actual_seq == 1
+	assert stale.state == "intake"
+	assert stale.history == []
+
+
+async def test_snapshot_store_fire_and_commit_creates_missing_initial_snapshot(
+	session_factory: async_sessionmaker[AsyncSession], tenant_id: str
+) -> None:
+	wd = _workflow_with_effects()
+	instance = new_instance(wd)
+	async with session_factory() as session:
+		session.add(
+			WorkflowInstance(
+				id=instance.id,
+				tenant_id=tenant_id,
+				def_key=wd.key,
+				def_version=wd.version,
+				subject_kind=wd.subject_kind,
+				state=instance.state,
+				terminal=False,
+				context={},
+			)
+		)
+		await session.commit()
+
+	store = SqlAlchemySnapshotStore(session_factory, tenant_id=tenant_id)
+	result = await store.fire_and_commit(
+		wd=wd,
+		instance=instance,
+		event="submit",
+		tenant_id=tenant_id,
+	)
+
+	assert result.new_state == "review"
+	loaded = await store.get(instance.id)
+	assert loaded is not None
+	assert loaded.state == "review"
+	assert len(loaded.history) == 1
+
+
+async def test_snapshot_store_fire_and_commit_converts_integrity_to_conflict(
+	session_factory: async_sessionmaker[AsyncSession],
+	tenant_id: str,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	wd = _workflow_with_effects()
+	instance = new_instance(wd)
+	store = SqlAlchemySnapshotStore(session_factory, tenant_id=tenant_id)
+	await store.create_instance(instance, workflow_def=wd, tenant_id=tenant_id)
+
+	async def fail_compare(*args: object, **kwargs: object) -> None:
+		_ = args, kwargs
+		raise IntegrityError("update", {}, RuntimeError("duplicate"))
+
+	monkeypatch.setattr(store, "_compare_and_put_in_session", fail_compare)
+	with pytest.raises(SnapshotConflict) as excinfo:
+		await store.fire_and_commit(
+			wd=wd,
+			instance=instance,
+			event="submit",
+			tenant_id=tenant_id,
+		)
+
+	assert excinfo.value.actual_seq == 0
+	assert instance.state == "intake"
+	assert instance.history == []
+
+
+async def test_snapshot_store_serialization_helpers_cover_edge_shapes() -> None:
+	wd = _workflow_def()
+	assert _is_terminal_state(wd, "approved") is True
+	assert _is_terminal_state(wd, "missing") is False
+
+	row = WorkflowInstanceSnapshot(
+		id=str(uuid.uuid4()),
+		tenant_id="t-1",
+		instance_id="inst-1",
+		def_key="claim_intake",
+		def_version="1.0.0",
+		state="intake",
+		body={},
+		seq=0,
+	)
+	loaded = _instance_from_body(
+		row,
+		{
+			"created_entities": [
+				["claim", {"id": "c-1"}],
+				["bad"],
+				"not-a-pair",
+			],
+		},
+	)
+	assert loaded.id == "inst-1"
+	assert loaded.created_entities == [("claim", {"id": "c-1"})]
+
+	no_audit = FireResult(
+		instance=loaded,
+		matched_transition_id=None,
+		planned_effects=[],
+		new_state="intake",
+		terminal=False,
+	)
+	assert _transition_payload(no_audit) == {}
+
+
 async def test_saga_queries_append_list_mark(
 	session_factory: async_sessionmaker[AsyncSession], tenant_id: str
 ) -> None:
@@ -529,3 +980,63 @@ async def test_saga_queries_cross_tenant_append_does_not_share_idx(
 
 	assert [r.kind for r in await q.list_for_instance(inst.id)] == ["release_lock"]
 	assert await other_q.list_for_instance(inst.id) == []
+
+
+async def test_saga_queries_reject_invalid_status(
+	session_factory: async_sessionmaker[AsyncSession], tenant_id: str
+) -> None:
+	inst = await _seed_instance(session_factory, tenant_id)
+	q = SagaQueries(session_factory, tenant_id=tenant_id)
+
+	with pytest.raises(AssertionError, match="invalid saga status"):
+		await q.mark(inst.id, 0, "unknown")
+
+
+async def test_saga_queries_append_integrity_error_surfaces_conflict(
+	tenant_id: str,
+) -> None:
+	class FakeSession:
+		def __init__(self) -> None:
+			self.scalar_calls = 0
+			self.rolled_back = False
+
+		async def __aenter__(self) -> "FakeSession":
+			return self
+
+		async def __aexit__(
+			self,
+			exc_type: object,
+			exc: object,
+			tb: object,
+		) -> None:
+			return None
+
+		async def scalar(self, _stmt: object) -> str | int | None:
+			self.scalar_calls += 1
+			return "owned-instance" if self.scalar_calls == 1 else None
+
+		def add(self, row: object) -> None:
+			assert isinstance(row, WorkflowSagaStep)
+			assert row.idx == 0
+
+		async def commit(self) -> None:
+			raise IntegrityError("insert", {}, RuntimeError("duplicate idx"))
+
+		async def rollback(self) -> None:
+			self.rolled_back = True
+
+	session = FakeSession()
+
+	class FakeSessionFactory:
+		def __call__(self) -> FakeSession:
+			return session
+
+	q = SagaQueries(
+		cast(async_sessionmaker[AsyncSession], FakeSessionFactory()),
+		tenant_id=tenant_id,
+	)
+
+	with pytest.raises(SagaConflict) as excinfo:
+		await q.append("inst-1", kind="release_lock")
+	assert excinfo.value.idx == 0
+	assert session.rolled_back is True

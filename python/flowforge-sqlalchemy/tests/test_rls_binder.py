@@ -15,8 +15,17 @@ pytestmark = pytest.mark.asyncio
 class _StubSession:
 	"""Minimal async-session stand-in. Records ``execute()`` invocations."""
 
-	def __init__(self, *, is_postgres: bool = True) -> None:
-		self.is_postgres = is_postgres
+	def __init__(
+		self,
+		*,
+		is_postgres: bool | None = True,
+		dialect_name: str | None = None,
+	) -> None:
+		if is_postgres is not None:
+			self.is_postgres = is_postgres
+		if dialect_name is not None:
+			dialect = type("Dialect", (), {"name": dialect_name})()
+			self.bind = type("Bind", (), {"dialect": dialect})()
 		self.calls: list[tuple[str, dict[str, Any] | None]] = []
 
 	async def execute(self, clause: Any, params: dict[str, Any] | None = None) -> None:
@@ -56,6 +65,25 @@ async def test_bind_passes_elevated_true() -> None:
 
 	_, params = session.calls[1]
 	assert params == {"elev": "true"}
+
+
+async def test_bind_detects_postgres_from_session_bind_dialect() -> None:
+	binder = PgRlsBinder()
+	session = _StubSession(is_postgres=None, dialect_name="postgresql")
+
+	await binder.bind(session, _ctx())
+
+	assert len(session.calls) == 2
+	assert "set_config('app.tenant_id'" in session.calls[0][0]
+
+
+async def test_bind_treats_unknown_session_shape_as_non_postgres() -> None:
+	binder = PgRlsBinder()
+	session = _StubSession(is_postgres=None)
+
+	await binder.bind(session, _ctx())
+
+	assert session.calls == []
 
 
 async def test_bind_is_noop_on_non_postgres() -> None:

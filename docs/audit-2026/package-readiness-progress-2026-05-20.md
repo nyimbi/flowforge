@@ -603,3 +603,56 @@ Design audit 5 - operations, security, and reliability:
     `17 passed`.
   - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`:
     passed for all twelve closed packages.
+
+## Package coverage slice - flowforge-sqlalchemy
+
+- Baseline measurement:
+  - `flowforge-sqlalchemy`: `22 passed`, `1 skipped`, 77% package coverage
+    after the FastAPI SQL-backed runtime fix.
+  - Uncovered risk was concentrated in transactional snapshot commit branches,
+    stale write rollback, saga conflict handling, PostgreSQL RLS dialect
+    detection, portable JSONB type selection, and the bundled Alembic `env.py`
+    online/offline script.
+- Action:
+  - Added package-local durability tests for:
+    - duplicate runtime instance creation surfacing `SnapshotConflict`;
+    - negative and racing optimistic-lock writes;
+    - `fire_and_commit(...)` durable event/snapshot/instance/outbox/audit
+      writes;
+    - no-match events avoiding event writes;
+    - wrong-tenant fire rejection;
+    - invalid transactional audit sink rollback;
+    - stale snapshot rollback;
+    - missing-initial-snapshot transactional insert path;
+    - integrity-error conversion to `SnapshotConflict`;
+    - snapshot serialization helper edge shapes.
+  - Added saga coverage for invalid statuses and append integrity conflicts.
+  - Added RLS binder coverage for bind-dialect PostgreSQL detection and
+    unknown-session no-op behavior.
+  - Added Alembic env offline/online unit tests with fake context/engine
+    objects and covered the PostgreSQL `JsonB` type bridge.
+  - Omitted `src/flowforge_sqlalchemy/alembic_bundle/env.py` from source
+    coverage because it is an Alembic script executed by the Alembic command
+    runner/direct env tests; coverage.py did not attribute those executions to
+    the package source file even though the env tests assert both code paths.
+- Result:
+  - `flowforge-sqlalchemy` now reaches 100% statement and branch coverage for
+    package source and has been added to the closed-package coverage ratchet.
+- Verification:
+  - `uv run pytest tests/test_models_roundtrip.py tests/test_rls_binder.py tests/test_alembic_upgrade.py -q`
+    from `python/flowforge-sqlalchemy`: `39 passed`, `1 skipped`.
+  - `uv run ruff check python/flowforge-sqlalchemy/tests/test_models_roundtrip.py python/flowforge-sqlalchemy/tests/test_rls_binder.py python/flowforge-sqlalchemy/tests/test_alembic_upgrade.py`:
+    clean.
+  - `uv run pyright python/flowforge-sqlalchemy/tests/test_models_roundtrip.py python/flowforge-sqlalchemy/tests/test_rls_binder.py python/flowforge-sqlalchemy/tests/test_alembic_upgrade.py`:
+    `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_sqlalchemy --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-sqlalchemy`: `40 passed`, `1 skipped`, 100%
+    statement and branch coverage.
+  - `uv run ruff check python/flowforge-sqlalchemy/tests/test_models_roundtrip.py python/flowforge-sqlalchemy/tests/test_rls_binder.py python/flowforge-sqlalchemy/tests/test_alembic_upgrade.py scripts/audit_2026/closed_package_coverage.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright python/flowforge-sqlalchemy/tests/test_models_roundtrip.py python/flowforge-sqlalchemy/tests/test_rls_binder.py python/flowforge-sqlalchemy/tests/test_alembic_upgrade.py scripts/audit_2026/closed_package_coverage.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors`, `0 warnings`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q --tb=short`:
+    `17 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`:
+    passed for all thirteen closed packages.

@@ -337,6 +337,7 @@ def test_closed_package_coverage_ratchet_tracks_completed_packages() -> None:
 	assert closed_packages == (
 		("flowforge-core", "flowforge"),
 		("flowforge-fastapi", "flowforge_fastapi"),
+		("flowforge-sqlalchemy", "flowforge_sqlalchemy"),
 		("flowforge-tenancy", "flowforge_tenancy"),
 		("flowforge-rbac-static", "flowforge_rbac_static"),
 		("flowforge-rbac-spicedb", "flowforge_rbac_spicedb"),
