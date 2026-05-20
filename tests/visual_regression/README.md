@@ -80,6 +80,14 @@ missing harness dependencies, or missing checked-in DOM baselines fail
 the command. Use `VISREG_ALLOW_SKIP=1` only while bootstrapping a local
 checkout; CI and release gates must not set it.
 
+On macOS, Playwright Chromium must run in a browser-capable process
+context. If Chromium exits with
+`MachPortRendezvousServer ... Permission denied`, the gate is being run
+from a sandbox that blocks Chromium's Mach bootstrap registration. Run
+the same command from an unsandboxed terminal, or from CI with browser
+launch support. Do not set `VISREG_ALLOW_SKIP=1` for a release or
+publish readiness gate.
+
 Or via Make:
 
 ```bash

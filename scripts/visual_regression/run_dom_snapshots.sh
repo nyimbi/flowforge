@@ -75,6 +75,7 @@ HARNESS_PID=""
 HARNESS_LOG=""
 HARNESS_URL_FILE=""
 HARNESS_BUILD_DIR=""
+PLAYWRIGHT_LOG=""
 cleanup() {
 	if [[ -n "$HARNESS_PID" ]] && kill -0 "$HARNESS_PID" >/dev/null 2>&1; then
 		kill "$HARNESS_PID" >/dev/null 2>&1 || true
@@ -83,6 +84,7 @@ cleanup() {
 	[[ -n "$HARNESS_LOG" ]] && rm -f "$HARNESS_LOG"
 	[[ -n "$HARNESS_URL_FILE" ]] && rm -f "$HARNESS_URL_FILE"
 	[[ -n "$HARNESS_BUILD_DIR" ]] && rm -rf "$HARNESS_BUILD_DIR"
+	[[ -n "$PLAYWRIGHT_LOG" ]] && rm -f "$PLAYWRIGHT_LOG"
 }
 trap cleanup EXIT
 
@@ -129,7 +131,11 @@ fi
 # Everything is in place — run the real suite.
 echo "==> visual-regression-dom (cadence=$CADENCE)"
 cd "$VISREG_DIR"
+PLAYWRIGHT_LOG="$(mktemp)"
 if ! VISREG_CADENCE="$CADENCE" \
-	"$VISREG_DIR/node_modules/.bin/playwright" test --project=dom; then
+	"$VISREG_DIR/node_modules/.bin/playwright" test --project=dom 2>&1 | tee "$PLAYWRIGHT_LOG"; then
+	if grep -q "MachPortRendezvousServer.*Permission denied" "$PLAYWRIGHT_LOG"; then
+		unavailable "Playwright Chromium cannot launch in this macOS sandbox (MachPortRendezvousServer permission denied). Run the gate from an unsandboxed terminal or a browser-capable CI runner."
+	fi
 	unavailable "Playwright DOM run failed — verify Chromium/browser support or inspect the visual-regression output above."
 fi
