@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
+from types import MappingProxyType
 
 import pytest
 
@@ -201,9 +202,11 @@ async def test_documents_money_settings_notifications_signing_tasks_and_grants_f
 
 	await settings.register(SettingSpec("locale", "fr-CA"))
 	await settings.register({"key": "region", "default": "ca"})
+	await settings.register(MappingProxyType({"key": "currency", "default": "CAD"}))
 	await settings.set("theme", "dark", signed_by="admin")
 	assert await settings.get("locale") == "fr-CA"
 	assert await settings.get("region") == "ca"
+	assert await settings.get("currency") == "CAD"
 	assert await settings.get("theme") == "dark"
 
 	signing = InMemorySigning("kid-1")

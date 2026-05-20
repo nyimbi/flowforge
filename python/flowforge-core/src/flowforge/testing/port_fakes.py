@@ -189,7 +189,7 @@ class InMemorySettings:
 		# spec.key, spec.default
 		key = getattr(spec, "key", None) or spec["key"]
 		default = getattr(spec, "default", None)
-		if default is None and isinstance(spec, dict):
+		if default is None and isinstance(spec, Mapping):
 			default = spec.get("default")
 		if default is not None:
 			self._vals.setdefault(key, default)

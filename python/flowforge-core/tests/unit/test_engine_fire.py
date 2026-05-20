@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from flowforge import config
@@ -286,6 +288,7 @@ async def test_audit_effect_marks_non_json_context_values() -> None:
 			"plain": "ok",
 			"unsafe": {1},
 			"nested": [{"value": {2}}],
+			"tupled": ({3},),
 		},
 	)
 
@@ -302,6 +305,7 @@ async def test_audit_effect_marks_non_json_context_values() -> None:
 		"plain": "ok",
 		"unsafe": {"__non_json__": "{1}"},
 		"nested": [{"value": {"__non_json__": "{2}"}}],
+		"tupled": [{"__non_json__": "{3}"}],
 	}
 
 
@@ -345,6 +349,35 @@ async def test_engine_exception_constructors_preserve_context() -> None:
 	assert outbox.instance_id == "inst-2"
 	assert outbox.envelope_kind is None
 	assert "envelope.kind" not in str(outbox)
+
+
+async def test_concurrent_fire_rejects_second_fire_for_same_instance() -> None:
+	class BlockingAudit:
+		def __init__(self) -> None:
+			self.entered = asyncio.Event()
+			self.release = asyncio.Event()
+
+		async def record(self, event):
+			self.entered.set()
+			await self.release.wait()
+
+	audit = BlockingAudit()
+	config.audit = audit
+	wd = _single_transition_def()
+	inst = new_instance(wd)
+
+	first_fire = asyncio.create_task(
+		fire(wd, inst, "complete", principal=Principal(user_id="u"))
+	)
+	await audit.entered.wait()
+
+	with pytest.raises(ConcurrentFireRejected) as exc_info:
+		await fire(wd, inst, "complete", principal=Principal(user_id="u"))
+
+	assert exc_info.value.instance_id == inst.id
+	audit.release.set()
+	result = await first_fire
+	assert result.new_state == "done"
 
 
 async def test_outbox_dispatch_failure_restores_all_mutated_instance_fields() -> None:
@@ -476,3 +509,14 @@ async def test_make_context_carries_tenant_principal_and_elevation() -> None:
 	assert ctx.tenant_id == "tenant-a"
 	assert ctx.principal is principal
 	assert ctx.elevated is True
+
+
+async def test_unknown_state_is_not_terminal() -> None:
+	wd = _single_transition_def()
+	inst = new_instance(wd)
+	inst.state = "detached"
+
+	result = await fire(wd, inst, "complete", principal=Principal(user_id="u"))
+
+	assert result.terminal is False
+	assert result.new_state == "detached"

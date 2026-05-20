@@ -358,16 +358,19 @@ async def fire(
 	transaction.
 	"""
 
-	if instance.state.startswith("terminal_") or _is_terminal(wd, instance.state):
-		return FireResult(instance, None, [], instance.state, terminal=True)
-
 	# E-32 / C-04: per-instance serialisation. The check-and-add is a
 	# single synchronous step, so two coroutines cannot both pass the
-	# gate. The first awaitable in this function comes after the gate.
+	# gate. The gate intentionally precedes the terminal fast path because
+	# an in-flight fire mutates instance.state before audit/outbox dispatch;
+	# a second caller must not bypass the gate by observing that temporary
+	# terminal state.
 	if instance.id in _FIRING_INSTANCES:
 		raise ConcurrentFireRejected(instance.id)
 	_FIRING_INSTANCES.add(instance.id)
 	try:
+		if instance.state.startswith("terminal_") or _is_terminal(wd, instance.state):
+			return FireResult(instance, None, [], instance.state, terminal=True)
+
 		return await _fire_locked(
 			wd,
 			instance,

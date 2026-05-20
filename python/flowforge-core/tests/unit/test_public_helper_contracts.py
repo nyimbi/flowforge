@@ -10,7 +10,7 @@ from flowforge.dsl import WorkflowDef
 from flowforge.engine.signals import Signal, SignalCorrelator
 from flowforge.ports.audit import Verdict
 from flowforge.replay.reconstruct import reconstruct
-from flowforge.testing.fixtures import load_def
+from flowforge.testing import load_def
 from flowforge.testing.parity import assert_parity
 
 
