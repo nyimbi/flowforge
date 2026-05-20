@@ -63,7 +63,7 @@ def build_template_from_jtbd(jtbd: dict[str, Any], description: str = "") -> dic
 	"""Return a template-library entry for an existing JTBD."""
 
 	jtbd_copy = copy.deepcopy(jtbd)
-	jtbd_copy.pop("spec_hash", None)
+	_strip_storage_metadata(jtbd_copy)
 	template_id = normalise_id(str(jtbd_copy.get("id") or jtbd_copy.get("title") or "template"))
 	return {
 		"id": template_id,
@@ -89,7 +89,7 @@ def create_jtbd_from_template(
 	src["id"] = jtbd_id
 	src["title"] = base_title
 	src["status"] = "draft"
-	src.pop("spec_hash", None)
+	_strip_storage_metadata(src)
 	src.setdefault("annotations", {})
 	src["annotations"]["source_template"] = str(template.get("id") or "")
 	return src
@@ -385,7 +385,7 @@ class JtbdDocument:
 		src["id"] = jtbd_id
 		src["title"] = f"{src.get('title') or src['id']} copy"
 		src["status"] = "draft"
-		src.pop("spec_hash", None)
+		_strip_storage_metadata(src)
 		self.bundle.setdefault("jtbds", []).append(src)
 		self.dirty = True
 		return len(self.bundle["jtbds"]) - 1
@@ -441,6 +441,19 @@ def _unique_id(base: str, existing_ids: set[str]) -> str:
 		candidate = f"{normalise_id(base, fallback='job')}_{i}"
 		i += 1
 	return candidate
+
+
+def _strip_storage_metadata(jtbd: dict[str, Any]) -> None:
+	"""Remove storage-managed JTBD metadata from desktop-authored copies."""
+
+	for key in (
+		"spec_hash",
+		"parent_version_id",
+		"replaced_by",
+		"created_by",
+		"published_by",
+	):
+		jtbd.pop(key, None)
 
 
 def _title_from_prompt(prompt: str) -> str:

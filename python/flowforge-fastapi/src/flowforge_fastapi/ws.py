@@ -298,13 +298,24 @@ def _validate_ws_origin(
 
 	if allowed_origins:
 		normalized = origin.rstrip("/")
-		return "*" in allowed_origins or normalized in {
+		if "*" in allowed_origins or normalized in {
 			item.rstrip("/") for item in allowed_origins
-		}
+		}:
+			return True
 
-	origin_host = urlsplit(origin).netloc.lower()
+	origin_url = urlsplit(origin)
+	origin_scheme = origin_url.scheme.lower()
+	origin_host = origin_url.netloc.lower()
+	ws_scheme = str(websocket.url.scheme).lower()
+	expected_scheme = "https" if ws_scheme == "wss" else "http"
 	request_host = (websocket.headers.get("host") or "").lower()
-	return bool(origin_host and request_host and origin_host == request_host)
+	return bool(
+		origin_scheme
+		and origin_host
+		and request_host
+		and origin_scheme == expected_scheme
+		and origin_host == request_host
+	)
 
 
 def _hub_for(websocket: WebSocket) -> WorkflowEventsHub:

@@ -134,7 +134,7 @@ def test_ws_rejects_cross_site_browser_origin() -> None:
 	app = FastAPI()
 	app.include_router(
 		build_ws_router(
-			ws_principal_extractor=StaticPrincipalExtractor(
+			principal_extractor=StaticPrincipalExtractor(
 				Principal(user_id="alice", roles=("staff",))
 			)
 		),
@@ -156,7 +156,7 @@ def test_ws_accepts_same_origin_browser_handshake() -> None:
 	app = FastAPI()
 	app.include_router(
 		build_ws_router(
-			ws_principal_extractor=StaticPrincipalExtractor(
+			principal_extractor=StaticPrincipalExtractor(
 				Principal(user_id="alice", roles=("staff",))
 			)
 		),
@@ -179,7 +179,7 @@ def test_ws_accepts_explicit_allowed_origin() -> None:
 	app = FastAPI()
 	app.include_router(
 		build_ws_router(
-			ws_principal_extractor=StaticPrincipalExtractor(
+			principal_extractor=StaticPrincipalExtractor(
 				Principal(user_id="alice", roles=("staff",))
 			),
 			allowed_origins=("https://admin.example",),
@@ -191,6 +191,51 @@ def test_ws_accepts_explicit_allowed_origin() -> None:
 		with tc.websocket_connect(
 			f"{PREFIX}/ws",
 			headers={"origin": "https://admin.example"},
+		) as ws:
+			hello = json.loads(ws.receive_text())
+			assert hello["type"] == "hello"
+
+
+def test_ws_rejects_same_host_wrong_scheme_origin() -> None:
+	"""Same-origin checks include scheme, not just host."""
+
+	app = FastAPI()
+	app.include_router(
+		build_ws_router(
+			principal_extractor=StaticPrincipalExtractor(
+				Principal(user_id="alice", roles=("staff",))
+			)
+		),
+		prefix=PREFIX,
+	)
+
+	with TestClient(app) as tc:
+		with pytest.raises(Exception):
+			with tc.websocket_connect(
+				f"{PREFIX}/ws",
+				headers={"origin": "https://testserver"},
+			):
+				pass
+
+
+def test_ws_allowed_origins_are_additive_to_same_origin() -> None:
+	"""Explicit extra origins do not disable default same-origin support."""
+
+	app = FastAPI()
+	app.include_router(
+		build_ws_router(
+			principal_extractor=StaticPrincipalExtractor(
+				Principal(user_id="alice", roles=("staff",))
+			),
+			allowed_origins=("https://admin.example",),
+		),
+		prefix=PREFIX,
+	)
+
+	with TestClient(app) as tc:
+		with tc.websocket_connect(
+			f"{PREFIX}/ws",
+			headers={"origin": "http://testserver"},
 		) as ws:
 			hello = json.loads(ws.receive_text())
 			assert hello["type"] == "hello"

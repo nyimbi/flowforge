@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from flowforge_cli.main import app
@@ -114,6 +115,27 @@ def test_migrate_fork_rejects_unsafe_tenant_default_path(
 	assert not (tmp_path / "outside" / "claim_intake" / "definition.json").exists()
 
 
+@pytest.mark.parametrize("tenant", [".", ".."])
+def test_migrate_fork_rejects_dot_segment_tenant_default_path(
+	workflow_ok: Path,
+	tmp_path: Path,
+	tenant: str,
+) -> None:
+	with runner.isolated_filesystem(temp_dir=tmp_path):
+		r = runner.invoke(
+			app,
+			[
+				"migrate-fork",
+				str(workflow_ok),
+				"--to",
+				tenant,
+			],
+		)
+
+	assert r.exit_code != 0
+	assert "tenant id" in r.output
+
+
 def test_migrate_fork_rejects_unsafe_workflow_key_default_path(
 	tmp_path: Path,
 ) -> None:
@@ -144,6 +166,39 @@ def test_migrate_fork_rejects_unsafe_workflow_key_default_path(
 	assert r.exit_code != 0
 	assert "workflow key" in r.output
 	assert not (tmp_path / "outside" / "definition.json").exists()
+
+
+@pytest.mark.parametrize("key", [".", ".."])
+def test_migrate_fork_rejects_dot_segment_workflow_key_default_path(
+	tmp_path: Path,
+	key: str,
+) -> None:
+	upstream = tmp_path / "upstream.json"
+	upstream.write_text(
+		json.dumps(
+			{
+				"key": key,
+				"version": "1.0.0",
+				"states": [],
+				"transitions": [],
+			}
+		),
+		encoding="utf-8",
+	)
+
+	with runner.isolated_filesystem(temp_dir=tmp_path):
+		r = runner.invoke(
+			app,
+			[
+				"migrate-fork",
+				str(upstream),
+				"--to",
+				"tenant-A",
+			],
+		)
+
+	assert r.exit_code != 0
+	assert "workflow key" in r.output
 
 
 # ---------- skeleton stubs ----------

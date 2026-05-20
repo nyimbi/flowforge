@@ -375,6 +375,8 @@ class JtbdSpec(BaseModel):
 		  publish time; not part of the author's intent).
 		* ``status`` (lifecycle state machine; orthogonal to content).
 		* ``created_by`` / ``published_by`` (audit metadata).
+		* ``annotations`` (authoring/editor metadata; not executable
+		  JTBD intent).
 
 		Everything else is included; the ``id`` and ``version`` are
 		first-class identity inputs and must move the hash.
@@ -384,6 +386,7 @@ class JtbdSpec(BaseModel):
 			"spec_hash",
 			"parent_version_id",
 			"status",
+			"annotations",
 			"created_by",
 			"published_by",
 		):

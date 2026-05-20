@@ -20,7 +20,11 @@ _SAFE_PATH_SEGMENT = re.compile(r"^[A-Za-z0-9._-]+$")
 
 def _safe_path_segment(label: str, value: object) -> str:
 	text = str(value)
-	if not text or not _SAFE_PATH_SEGMENT.fullmatch(text):
+	if (
+		not text
+		or text in {".", ".."}
+		or not _SAFE_PATH_SEGMENT.fullmatch(text)
+	):
 		raise typer.BadParameter(
 			f"{label} must contain only letters, digits, dot, underscore, or hyphen"
 		)
@@ -53,6 +57,14 @@ def migrate_fork_cmd(
 	wf["metadata"]["forked_from"] = {"key": key, "version": wf.get("version", "?")}
 	wf["metadata"]["tenant_id"] = tenant
 
-	dst = out or Path("workflows") / tenant_id / workflow_key / "definition.json"
+	if out is None:
+		root = Path("workflows").resolve()
+		dst = (root / tenant_id / workflow_key / "definition.json").resolve()
+		try:
+			dst.relative_to(root)
+		except ValueError as exc:  # pragma: no cover - defensive belt after segment validation
+			raise typer.BadParameter("default destination escaped workflows root") from exc
+	else:
+		dst = out
 	write_json(dst, wf)
 	typer.echo(f"forked {key}@{wf.get('version', '?')} → {dst} (tenant={tenant})")

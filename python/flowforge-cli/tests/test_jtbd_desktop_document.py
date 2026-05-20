@@ -24,6 +24,7 @@ from flowforge_cli.jtbd_desktop.document import (
 from flowforge_cli.jtbd import generate
 from flowforge_cli.jtbd.parse import parse_bundle
 from flowforge_cli.main import app
+from flowforge_jtbd.dsl.spec import JtbdSpec
 
 
 runner = CliRunner()
@@ -67,6 +68,16 @@ def test_annotations_are_schema_and_generator_compatible() -> None:
 
 	assert parse_bundle(bundle) is bundle
 	assert generate(bundle)
+
+
+def test_annotations_do_not_change_jtbd_spec_hash() -> None:
+	bundle = create_default_bundle()
+	spec = JtbdSpec.model_validate(bundle["jtbds"][0])
+	annotated = spec.model_copy(
+		update={"annotations": {"notes": "Reviewed by operations"}}
+	)
+
+	assert annotated.compute_hash() == spec.compute_hash()
 
 
 def test_add_duplicate_and_remove_jobs_keeps_unique_ids() -> None:
@@ -115,6 +126,26 @@ def test_template_export_and_ai_prompt() -> None:
 	assert template["description"] == "Reusable intake"
 	assert jtbd["id"] == "intake_case_2"
 	assert "Selected JTBD JSON" in prompt
+
+
+def test_templates_and_duplicates_strip_storage_metadata() -> None:
+	bundle = create_default_bundle()
+	storage_keys = {
+		"spec_hash": "sha256:" + "a" * 64,
+		"parent_version_id": "v0",
+		"replaced_by": "new_intake",
+		"created_by": "author-1",
+		"published_by": "publisher-1",
+	}
+	bundle["jtbds"][0].update(storage_keys)
+	template = build_template_from_jtbd(bundle["jtbds"][0])
+	materialized = create_jtbd_from_template(template, set())
+	doc = JtbdDocument(bundle)
+	duplicate_index = doc.duplicate_jtbd(0)
+
+	for candidate in (template["jtbd"], materialized, doc.get_jtbd(duplicate_index)):
+		for key in storage_keys:
+			assert key not in candidate
 
 
 def test_verify_generation_reports_emitted_files() -> None:
