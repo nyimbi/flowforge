@@ -822,3 +822,38 @@ Design audit 5 - operations, security, and reliability:
     clean.
   - `uv run pyright python/flowforge-cli/tests/test_small_command_edges.py`:
     `0 errors`, `0 warnings`.
+
+## CLI coverage slice - validate, simulate, and JTBD generate
+
+- Baseline measurement:
+  - After closing the small command edges, rounded `flowforge-cli` package
+    coverage was 74%.
+  - `commands/validate.py`, `commands/simulate.py`, and
+    `commands/jtbd_generate.py` still had uncovered read-error, warning,
+    event-flattening, effect-log, terminal-stop, non-empty-target, and
+    generator-error branches.
+- Action:
+  - Added validate tests for structured load failures and success/error
+    warning output.
+  - Added simulate tests for repeatable/comma-separated event flattening,
+    unknown matched-transition reporting, terminal-stop behavior, and all
+    supported effect log branches.
+  - Added JTBD generate tests for non-empty target refusal, forced generation
+    into a non-empty target, and generator `ValueError` wrapping.
+- Result:
+  - `flowforge_cli.commands.validate`, `simulate`, and `jtbd_generate` now
+    reach 100% statement and branch coverage in the focused run.
+  - Overall `flowforge-cli` rounded package coverage remains 74%; remaining
+    coverage work is still dominated by `jtbd_desktop/app.py`,
+    `migration_safety.py`, `polish_copy.py`, `bundle_diff.py`, and generator
+    edge branches.
+- Verification:
+  - `uv run pytest tests/test_validate_simulate_generate_edges.py tests/test_validate.py tests/test_simulate.py tests/test_other_commands.py::test_jtbd_generate_writes_artefacts tests/test_other_commands.py::test_jtbd_generate_rejects_generated_path_escape -q --cov=flowforge_cli.commands.validate --cov=flowforge_cli.commands.simulate --cov=flowforge_cli.commands.jtbd_generate --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `20 passed`, 100% statement and branch
+    coverage for all three targeted command modules.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `716 passed`, overall package coverage 74%.
+  - `uv run ruff check python/flowforge-cli/tests/test_validate_simulate_generate_edges.py`:
+    clean.
+  - `uv run pyright python/flowforge-cli/tests/test_validate_simulate_generate_edges.py`:
+    `0 errors`, `0 warnings`.
