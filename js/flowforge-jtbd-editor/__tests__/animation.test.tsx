@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import type { CSSProperties } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { JobMapAnimation } from "../src/JobMapAnimation.js";
@@ -232,6 +233,34 @@ describe("JobMapAnimation (component)", () => {
 		expect(
 			screen.getByTestId("ff-jobmap-animation-step-label"),
 		).toHaveTextContent("—");
+	});
+
+	it("exposes stable host skinning hooks for replay controls", () => {
+		render(
+			<JobMapAnimation
+				bundle={sampleBundle()}
+				withReactFlow={false}
+				className="host-replay"
+				style={{ "--ff-jobmap-animation-fg": "#172554" } as CSSProperties}
+			/>,
+		);
+
+		const root = screen.getByTestId("ff-jobmap-animation");
+		expect(root).toHaveClass("ff-jobmap-animation");
+		expect(root).toHaveClass("host-replay");
+		expect(root).toHaveStyle({ "--ff-jobmap-animation-fg": "#172554" });
+		expect(screen.getByTestId("ff-jobmap-animation-controls")).toHaveClass(
+			"ff-jobmap-animation__controls",
+		);
+		expect(screen.getByTestId("ff-jobmap-animation-play")).toHaveClass(
+			"ff-jobmap-animation__button",
+		);
+		expect(screen.getByTestId("ff-jobmap-animation-slider")).toHaveClass(
+			"ff-jobmap-animation__slider",
+		);
+		expect(screen.getByTestId("ff-jobmap-animation-status")).toHaveClass(
+			"ff-jobmap-animation__status",
+		);
 	});
 
 	it("step forward marks the first JTBD active in the canvas", () => {

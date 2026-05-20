@@ -44,6 +44,7 @@ import { JobMapAnimation, sampleBundle } from "@flowforge/jtbd-editor";
   bundle={sampleBundle()}
   tickMs={500}
   autoplay
+  className="my-jobmap-replay-skin"
   onStepChange={(state) => console.log(state.currentIndex)}
 />
 ```
@@ -53,6 +54,22 @@ without dragging in reactflow's measurement path. The fallback emits
 the same `data-testid` markers as the React Flow path so assertions
 stay portable. For `JobMapAnimation`, drive the play loop with
 `vi.useFakeTimers()` + `vi.advanceTimersByTime(tickMs)`.
+
+## Skinning
+
+`JobMap` accepts `className` on the outer map and reads CSS variables such as
+`--ff-jobmap-node-bg`, `--ff-jobmap-node-fg`, `--ff-jobmap-edge`, and
+`--ff-jobmap-node-active-border`.
+
+`JobMapAnimation` always adds `ff-jobmap-animation` plus any host `className`,
+accepts `style` for CSS custom properties, and exposes stable control hooks:
+
+- `ff-jobmap-animation__controls`
+- `ff-jobmap-animation__button`
+- `ff-jobmap-animation__seek`
+- `ff-jobmap-animation__slider`
+- `ff-jobmap-animation__step-label`
+- `ff-jobmap-animation__status`
 
 ## Tests
 

@@ -29,6 +29,7 @@ import {
 	useReducer,
 	useRef,
 	type ChangeEvent,
+	type CSSProperties,
 	type JSX,
 } from "react";
 
@@ -57,6 +58,8 @@ export interface JobMapAnimationProps
 	onStepChange?: (state: AnimationState) => void;
 	/** When true, autoplay on mount. */
 	autoplay?: boolean;
+	/** Optional host style hook, commonly used for CSS custom properties. */
+	style?: CSSProperties;
 }
 
 interface ReducerState extends AnimationState {
@@ -92,6 +95,7 @@ export const JobMapAnimation = ({
 	autoplay = false,
 	withReactFlow = true,
 	className,
+	style,
 	onSelectJtbd,
 }: JobMapAnimationProps): JSX.Element => {
 	const trace = useMemo<Trace>(
@@ -170,21 +174,24 @@ export const JobMapAnimation = ({
 	const currentStep = state.currentIndex >= 0
 		? trace.steps[state.currentIndex]
 		: undefined;
+	const rootClassName = ["ff-jobmap-animation", className].filter(Boolean).join(" ");
 
 	return (
 		<div
 			data-testid="ff-jobmap-animation"
-			className={className}
-			style={{ display: "flex", flexDirection: "column", gap: 8 }}
+			className={rootClassName}
+			style={{ display: "flex", flexDirection: "column", gap: 8, ...style }}
 		>
 			<div
 				data-testid="ff-jobmap-animation-controls"
+				className="ff-jobmap-animation__controls"
 				role="toolbar"
 				aria-label="JobMap animation controls"
 				style={{ display: "flex", gap: 8, alignItems: "center" }}
 			>
 				<button
 					type="button"
+					className="ff-jobmap-animation__button"
 					data-testid="ff-jobmap-animation-play"
 					onClick={handlePlayPause}
 					disabled={totalSteps === 0}
@@ -194,6 +201,7 @@ export const JobMapAnimation = ({
 				</button>
 				<button
 					type="button"
+					className="ff-jobmap-animation__button"
 					data-testid="ff-jobmap-animation-step-back"
 					onClick={handleStepBack}
 					disabled={atStart}
@@ -203,6 +211,7 @@ export const JobMapAnimation = ({
 				</button>
 				<button
 					type="button"
+					className="ff-jobmap-animation__button"
 					data-testid="ff-jobmap-animation-step-forward"
 					onClick={handleStepForward}
 					disabled={atEnd}
@@ -212,6 +221,7 @@ export const JobMapAnimation = ({
 				</button>
 				<button
 					type="button"
+					className="ff-jobmap-animation__button"
 					data-testid="ff-jobmap-animation-reset"
 					onClick={handleReset}
 					disabled={atStart}
@@ -220,11 +230,21 @@ export const JobMapAnimation = ({
 					Reset
 				</button>
 				<label
+					className="ff-jobmap-animation__seek"
 					style={{ display: "flex", gap: 6, alignItems: "center", flex: 1 }}
 				>
-					<span style={{ fontSize: 12, color: "#475569" }}>Step</span>
+					<span
+						className="ff-jobmap-animation__seek-label"
+						style={{
+							fontSize: 12,
+							color: "var(--ff-jobmap-animation-muted-fg, #475569)",
+						}}
+					>
+						Step
+					</span>
 					<input
 						type="range"
+						className="ff-jobmap-animation__slider"
 						data-testid="ff-jobmap-animation-slider"
 						aria-label="Animation step slider"
 						min={-1}
@@ -237,7 +257,12 @@ export const JobMapAnimation = ({
 					/>
 					<span
 						data-testid="ff-jobmap-animation-step-label"
-						style={{ fontSize: 12, color: "#0f172a", minWidth: 80 }}
+						className="ff-jobmap-animation__step-label"
+						style={{
+							fontSize: 12,
+							color: "var(--ff-jobmap-animation-fg, #0f172a)",
+							minWidth: 80,
+						}}
 					>
 						{state.currentIndex < 0
 							? "—"
@@ -247,7 +272,11 @@ export const JobMapAnimation = ({
 			</div>
 			<div
 				data-testid="ff-jobmap-animation-status"
-				style={{ fontSize: 12, color: "#0f172a" }}
+				className="ff-jobmap-animation__status"
+				style={{
+					fontSize: 12,
+					color: "var(--ff-jobmap-animation-fg, #0f172a)",
+				}}
 			>
 				{currentStep ? `Active: ${stepLabel(currentStep)}` : "Idle"}
 			</div>
