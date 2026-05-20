@@ -284,3 +284,25 @@ Design audit 5 - operations, security, and reliability:
     clean.
   - `uv run pyright python/flowforge-signing-kms/tests/test_hmac.py`:
     `0 errors, 0 warnings`.
+
+## Package coverage slice - flowforge-signing-kms cloud KMS
+
+- Baseline after HMAC slice:
+  - `flowforge-signing-kms`: `32 passed`, 80% package coverage.
+- Action: added live-cloud-free AWS/GCP KMS adapter tests for:
+  - AWS HMAC and asymmetric sign/verify through injected stub clients.
+  - AWS transient, unknown-key, permanent-invalid, and already-domain-error
+    classification paths.
+  - AWS import-guard and endpoint-url constructor wiring.
+  - GCP injected-client and imported-client constructor paths.
+  - GCP transient, unknown-key, permanent-invalid, unclassified, and
+    already-domain-error paths.
+- Result: `flowforge-signing-kms` now reaches 100% statement and branch
+  coverage and has been added to the closed-package coverage ratchet.
+- Verification:
+  - `uv run pytest tests -q --cov=flowforge_signing_kms --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-signing-kms`: `48 passed`.
+  - `uv run ruff check python/flowforge-signing-kms/tests/test_kms.py python/flowforge-signing-kms/tests/test_hmac.py`:
+    clean.
+  - `uv run pyright python/flowforge-signing-kms/tests/test_kms.py python/flowforge-signing-kms/tests/test_hmac.py`:
+    `0 errors, 0 warnings`.

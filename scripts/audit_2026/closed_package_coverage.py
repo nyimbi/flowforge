@@ -12,6 +12,7 @@ CLOSED_PACKAGE_COVERAGE = (
 	("flowforge-rbac-spicedb", "flowforge_rbac_spicedb"),
 	("flowforge-money", "flowforge_money"),
 	("flowforge-otel", "flowforge_otel"),
+	("flowforge-signing-kms", "flowforge_signing_kms"),
 )
 
 

@@ -340,6 +340,7 @@ def test_closed_package_coverage_ratchet_tracks_completed_packages() -> None:
 		("flowforge-rbac-spicedb", "flowforge_rbac_spicedb"),
 		("flowforge-money", "flowforge_money"),
 		("flowforge-otel", "flowforge_otel"),
+		("flowforge-signing-kms", "flowforge_signing_kms"),
 	)
 
 

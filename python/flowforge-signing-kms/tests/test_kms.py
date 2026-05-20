@@ -7,6 +7,7 @@ GCP tests use a hand-rolled stub (no live GCP needed).
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -15,6 +16,56 @@ import pytest
 def run(coro):
 	loop = asyncio.get_event_loop()
 	return loop.run_until_complete(coro)
+
+
+class _NamedError(RuntimeError):
+	pass
+
+
+DeadlineExceeded = type("DeadlineExceeded", (_NamedError,), {})
+NotFound = type("NotFound", (_NamedError,), {})
+
+
+class _AwsClientError(Exception):
+	def __init__(self, code: str) -> None:
+		super().__init__(code)
+		self.response = {"Error": {"Code": code}}
+
+
+class _AwsStubClient:
+	def __init__(self, *, fail: Exception | None = None, valid: bool = True) -> None:
+		self.fail = fail
+		self.valid = valid
+
+	def _maybe_fail(self) -> None:
+		if self.fail is not None:
+			raise self.fail
+
+	def generate_mac(self, **kwargs: Any) -> dict[str, bytes]:
+		self._maybe_fail()
+		return {"Mac": b"aws-mac"}
+
+	def verify_mac(self, **kwargs: Any) -> dict[str, bool]:
+		self._maybe_fail()
+		return {"MacValid": self.valid}
+
+	def sign(self, **kwargs: Any) -> dict[str, bytes]:
+		self._maybe_fail()
+		return {"Signature": b"aws-signature"}
+
+	def verify(self, **kwargs: Any) -> dict[str, bool]:
+		self._maybe_fail()
+		return {"SignatureValid": self.valid}
+
+
+def _aws_signer(client: _AwsStubClient, *, algorithm: str = "HMAC_SHA_256"):
+	from flowforge_signing_kms.kms import AwsKmsSigning
+
+	signer = AwsKmsSigning.__new__(AwsKmsSigning)
+	signer._client = client
+	signer._key_id = "aws-key"
+	signer._algorithm = algorithm
+	return signer
 
 
 # ===========================================================================
@@ -52,7 +103,6 @@ class TestAwsKmsSigning:
 		"""Create a moto-backed AwsKmsSigning instance with a real HMAC key."""
 		import boto3
 		from moto import mock_aws
-		from flowforge_signing_kms.kms import AwsKmsSigning
 
 		with mock_aws():
 			client = boto3.client("kms", region_name="us-east-1")
@@ -161,6 +211,96 @@ class TestAwsKmsSigning:
 			assert isinstance(signer, SigningPort)
 
 
+class TestAwsKmsSigningStubbed:
+	def test_constructor_uses_endpoint_url_with_injected_boto3(self, monkeypatch):
+		import sys
+		from types import SimpleNamespace
+		from flowforge_signing_kms.kms import AwsKmsSigning
+
+		calls: list[tuple[str, dict[str, Any]]] = []
+
+		def client(service_name: str, **kwargs: Any) -> _AwsStubClient:
+			calls.append((service_name, kwargs))
+			return _AwsStubClient()
+
+		monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=client))
+		signer = AwsKmsSigning("aws-key", endpoint_url="http://localhost:4566")
+		assert signer.current_key_id() == "aws-key"
+		assert calls == [
+			("kms", {"region_name": "us-east-1", "endpoint_url": "http://localhost:4566"})
+		]
+
+	def test_constructor_reports_missing_boto3(self, monkeypatch):
+		import builtins
+		from flowforge_signing_kms.kms import AwsKmsSigning
+
+		real_import = builtins.__import__
+
+		def fake_import(name: str, *args: Any, **kwargs: Any):
+			if name == "boto3":
+				raise ImportError("missing boto3")
+			return real_import(name, *args, **kwargs)
+
+		monkeypatch.setattr(builtins, "__import__", fake_import)
+		with pytest.raises(ImportError, match="flowforge-signing-kms\\[aws\\]"):
+			AwsKmsSigning("aws-key")
+
+	def test_aws_error_code_falls_back_to_exception_class_name(self):
+		from flowforge_signing_kms.kms import _aws_error_code
+
+		assert _aws_error_code(RuntimeError("boom")) == "RuntimeError"
+		err = RuntimeError("bad response")
+		err.response = {"Error": {"Code": 404}}  # type: ignore[attr-defined]
+		assert _aws_error_code(err) == "RuntimeError"
+		err.response = {"Error": "not-a-dict"}  # type: ignore[attr-defined]
+		assert _aws_error_code(err) == "RuntimeError"
+
+	def test_hmac_sign_and_verify_without_boto(self):
+		signer = _aws_signer(_AwsStubClient(valid=True))
+		assert run(signer.sign_payload(b"payload")) == b"aws-mac"
+		assert run(signer.verify(b"payload", b"aws-mac", "aws-key")) is True
+
+	def test_asymmetric_sign_and_verify_without_boto(self):
+		signer = _aws_signer(_AwsStubClient(valid=False), algorithm="RSASSA_PKCS1_V1_5_SHA_256")
+		assert run(signer.sign_payload(b"payload")) == b"aws-signature"
+		assert run(signer.verify(b"payload", b"aws-signature", "aws-key")) is False
+
+	def test_sign_classifies_transient_and_unknown_key_errors(self):
+		from flowforge_signing_kms.errors import KmsTransientError, UnknownKeyId
+
+		with pytest.raises(KmsTransientError):
+			run(_aws_signer(_AwsStubClient(fail=_AwsClientError("ThrottlingException"))).sign_payload(b"p"))
+		with pytest.raises(UnknownKeyId):
+			run(_aws_signer(_AwsStubClient(fail=_AwsClientError("NotFoundException"))).sign_payload(b"p"))
+
+	def test_sign_propagates_unclassified_error(self):
+		err = _AwsClientError("ValidationException")
+		with pytest.raises(_AwsClientError) as got:
+			run(_aws_signer(_AwsStubClient(fail=err)).sign_payload(b"p"))
+		assert got.value is err
+
+	def test_verify_classifies_errors_and_returns_false_for_permanent_invalid(self):
+		from flowforge_signing_kms.errors import KmsTransientError, UnknownKeyId
+
+		with pytest.raises(KmsTransientError):
+			run(_aws_signer(_AwsStubClient(fail=_AwsClientError("InternalServerError"))).verify(b"p", b"s", "aws-key"))
+		with pytest.raises(UnknownKeyId):
+			run(_aws_signer(_AwsStubClient(fail=_AwsClientError("NoSuchKey"))).verify(b"p", b"s", "aws-key"))
+		assert run(_aws_signer(_AwsStubClient(fail=_AwsClientError("KMSInvalidSignatureException"))).verify(b"p", b"s", "aws-key")) is False
+
+	def test_verify_propagates_existing_domain_errors(self):
+		from flowforge_signing_kms.errors import KmsTransientError
+
+		with pytest.raises(KmsTransientError):
+			run(_aws_signer(_AwsStubClient(fail=KmsTransientError("retry"))).verify(b"p", b"s", "aws-key"))
+
+	def test_sign_propagates_existing_domain_errors(self):
+		from flowforge_signing_kms.errors import KmsTransientError
+
+		with pytest.raises(KmsTransientError):
+			run(_aws_signer(_AwsStubClient(fail=KmsTransientError("retry"))).sign_payload(b"p"))
+
+
 # ===========================================================================
 # GCP KMS tests (stub client)
 # ===========================================================================
@@ -180,8 +320,6 @@ class _GcpStubClient:
 	"""Minimal GCP KMS client stub for testing GcpKmsSigning without live GCP."""
 
 	def __init__(self, secret: bytes = b"gcp-stub-secret") -> None:
-		import hashlib
-		import hmac as _hmac
 		self._secret = secret
 
 	def _mac(self, data: bytes) -> bytes:
@@ -212,7 +350,36 @@ class _GcpStubClient:
 
 
 class TestGcpKmsSigning:
-	def _make_signer(self, use_mac: bool = True) -> object:
+	def test_constructor_uses_google_kms_client_when_not_injected(self, monkeypatch):
+		import sys
+		from types import SimpleNamespace
+		from flowforge_signing_kms.kms import GcpKmsSigning
+
+		created = _GcpStubClient()
+		kms_module = SimpleNamespace(KeyManagementServiceClient=lambda: created)
+		google_module = SimpleNamespace()
+		cloud_module = SimpleNamespace(kms=kms_module)
+		monkeypatch.setitem(sys.modules, "google", google_module)
+		monkeypatch.setitem(sys.modules, "google.cloud", cloud_module)
+		signer = GcpKmsSigning("projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1")
+		assert signer._client is created
+
+	def test_constructor_reports_missing_google_kms(self, monkeypatch):
+		import builtins
+		from flowforge_signing_kms.kms import GcpKmsSigning
+
+		real_import = builtins.__import__
+
+		def fake_import(name: str, *args: Any, **kwargs: Any):
+			if name == "google.cloud":
+				raise ImportError("missing google-cloud-kms")
+			return real_import(name, *args, **kwargs)
+
+		monkeypatch.setattr(builtins, "__import__", fake_import)
+		with pytest.raises(ImportError, match="flowforge-signing-kms\\[gcp\\]"):
+			GcpKmsSigning("projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1")
+
+	def _make_signer(self, use_mac: bool = True) -> Any:
 		from flowforge_signing_kms.kms import GcpKmsSigning
 
 		stub = _GcpStubClient()
@@ -285,3 +452,61 @@ class TestGcpKmsSigning:
 			client=_GcpStubClient(),
 		)
 		assert isinstance(signer, SigningPort)
+
+	def test_sign_classifies_transient_and_unknown_key_errors(self):
+		from flowforge_signing_kms.errors import KmsTransientError, UnknownKeyId
+		from flowforge_signing_kms.kms import GcpKmsSigning
+
+		transient_client = MagicMock()
+		transient_client.mac_sign.side_effect = DeadlineExceeded("slow")
+		signer = GcpKmsSigning("projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1", use_mac=True, client=transient_client)
+		with pytest.raises(KmsTransientError):
+			run(signer.sign_payload(b"payload"))
+
+		unknown_client = MagicMock()
+		unknown_client.mac_sign.side_effect = NotFound("missing")
+		signer = GcpKmsSigning("projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1", use_mac=True, client=unknown_client)
+		with pytest.raises(UnknownKeyId):
+			run(signer.sign_payload(b"payload"))
+
+	def test_sign_propagates_unclassified_error_and_domain_error(self):
+		from flowforge_signing_kms.errors import KmsTransientError
+		from flowforge_signing_kms.kms import GcpKmsSigning
+
+		bad_client = MagicMock()
+		bad_client.asymmetric_sign.side_effect = RuntimeError("bad request")
+		signer = GcpKmsSigning("projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1", client=bad_client)
+		with pytest.raises(RuntimeError, match="bad request"):
+			run(signer.sign_payload(b"payload"))
+
+		domain_client = MagicMock()
+		domain_client.asymmetric_sign.side_effect = KmsTransientError("retry")
+		signer = GcpKmsSigning("projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1", client=domain_client)
+		with pytest.raises(KmsTransientError):
+			run(signer.sign_payload(b"payload"))
+
+	def test_verify_classifies_transient_and_unknown_key_errors(self):
+		from flowforge_signing_kms.errors import KmsTransientError, UnknownKeyId
+		from flowforge_signing_kms.kms import GcpKmsSigning
+
+		transient_client = MagicMock()
+		transient_client.mac_verify.side_effect = DeadlineExceeded("slow")
+		signer = GcpKmsSigning("projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1", use_mac=True, client=transient_client)
+		with pytest.raises(KmsTransientError):
+			run(signer.verify(b"payload", b"sig", signer.current_key_id()))
+
+		unknown_client = MagicMock()
+		unknown_client.mac_verify.side_effect = NotFound("missing")
+		signer = GcpKmsSigning("projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1", use_mac=True, client=unknown_client)
+		with pytest.raises(UnknownKeyId):
+			run(signer.verify(b"payload", b"sig", signer.current_key_id()))
+
+	def test_verify_propagates_existing_domain_error(self):
+		from flowforge_signing_kms.errors import KmsTransientError
+		from flowforge_signing_kms.kms import GcpKmsSigning
+
+		domain_client = MagicMock()
+		domain_client.mac_verify.side_effect = KmsTransientError("retry")
+		signer = GcpKmsSigning("projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1", use_mac=True, client=domain_client)
+		with pytest.raises(KmsTransientError):
+			run(signer.verify(b"payload", b"sig", signer.current_key_id()))
