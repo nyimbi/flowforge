@@ -22,6 +22,16 @@ from flowforge.ports import (
 	TenancyResolver,
 	TracingPort,
 )
+from flowforge.ports import entity as entity_module
+from flowforge.ports.entity import EntityAdapter, EntityRegistry, register_entity
+from flowforge.ports.metrics import (
+	AUDIT_APPEND_DURATION_HISTOGRAM,
+	FIRE_DURATION_HISTOGRAM,
+	OUTBOX_DISPATCH_DURATION_HISTOGRAM,
+	STANDARD_HISTOGRAM_NAMES,
+	STANDARD_LABEL_NAMES,
+	default_fire_duration_buckets,
+)
 from flowforge.testing.port_fakes import (
 	InMemoryAccessGrant,
 	InMemoryAnalytics,
@@ -107,13 +117,72 @@ async def test_noop_tracing_records_exceptions() -> None:
 def test_in_memory_metrics_records_histograms() -> None:
 	"""W2 item 12: InMemoryMetrics records histogram observations independently of counters."""
 
-	from flowforge.ports.metrics import FIRE_DURATION_HISTOGRAM
-
 	m = InMemoryMetrics()
 	m.emit("flowforge.fires_total", 1.0, {"tenant_id": "t1"})
 	m.record_histogram(FIRE_DURATION_HISTOGRAM, 0.42, {"tenant_id": "t1"})
 	assert m.points == [("flowforge.fires_total", 1.0, {"tenant_id": "t1"})]
 	assert m.histograms == [(FIRE_DURATION_HISTOGRAM, 0.42, {"tenant_id": "t1"})]
+
+
+def test_metrics_public_constants_and_bucket_edges_are_stable() -> None:
+	assert STANDARD_LABEL_NAMES == (
+		"tenant_id",
+		"def_key",
+		"state",
+		"jtbd_id",
+		"jtbd_version",
+	)
+	assert STANDARD_HISTOGRAM_NAMES == (
+		FIRE_DURATION_HISTOGRAM,
+		OUTBOX_DISPATCH_DURATION_HISTOGRAM,
+		AUDIT_APPEND_DURATION_HISTOGRAM,
+	)
+	assert default_fire_duration_buckets(None) == (0.1, 1.0, 10.0, 60.0, 600.0)
+	assert default_fire_duration_buckets(0) == (0.1, 1.0, 10.0, 60.0, 600.0)
+	assert default_fire_duration_buckets(-5.0) == (0.1, 1.0, 10.0, 60.0, 600.0)
+	assert default_fire_duration_buckets(2.0) == (0.1, 1.0, 2.0, 4.0, 10.0, 60.0, 600.0)
+	assert default_fire_duration_buckets(1.0) == (0.1, 0.5, 1.0, 2.0, 10.0, 60.0, 600.0)
+	with pytest.raises(TypeError, match="numeric"):
+		default_fire_duration_buckets("slow")  # type: ignore[arg-type]
+
+
+async def test_entity_registry_and_decorator_contract(monkeypatch: pytest.MonkeyPatch) -> None:
+	class ClaimAdapter:
+		compensations = {"undo": "undo_claim"}
+
+		async def create(self, session, payload):
+			return {"id": "claim-1", **payload}
+
+		async def update(self, session, id_, payload):
+			return {"id": id_, **payload}
+
+		async def lookup(self, session, id_):
+			return {"id": id_}
+
+	registry = EntityRegistry()
+	adapter = ClaimAdapter()
+	registry.register("claim", adapter)
+	registry.register("policy", adapter)
+	assert registry.get("claim") is adapter
+	assert registry.get("missing") is None
+	assert registry.list_kinds() == ["claim", "policy"]
+	assert isinstance(adapter, EntityAdapter)
+	assert await adapter.create(None, {"status": "new"}) == {"id": "claim-1", "status": "new"}
+	assert await adapter.update(None, "claim-2", {"status": "done"}) == {
+		"id": "claim-2",
+		"status": "done",
+	}
+	assert await adapter.lookup(None, "claim-3") == {"id": "claim-3"}
+
+	monkeypatch.setattr(entity_module, "_GLOBAL_REGISTRY", None)
+
+	@register_entity("claim")
+	class DecoratedClaimAdapter(ClaimAdapter):
+		pass
+
+	registered = entity_module._registry().get("claim")
+	assert registered is not None
+	assert registered.compensations == {"undo": "undo_claim"}
 
 
 async def test_in_memory_analytics_records_events_in_order() -> None:

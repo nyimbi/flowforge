@@ -54,7 +54,7 @@ STANDARD_HISTOGRAM_NAMES: tuple[str, ...] = (
 )
 
 
-def default_fire_duration_buckets(sla_breach_seconds: float) -> tuple[float, ...]:
+def default_fire_duration_buckets(sla_breach_seconds: float | None) -> tuple[float, ...]:
 	"""Recommended bucket edges for the fire-duration histogram.
 
 	Buckets are rounded into a deterministic float-stable tuple so
@@ -72,10 +72,12 @@ def default_fire_duration_buckets(sla_breach_seconds: float) -> tuple[float, ...
 	``sla_breach_seconds`` returns just the standard buckets.
 	"""
 
-	assert isinstance(sla_breach_seconds, (int, float)), \
-		"sla_breach_seconds must be numeric"
 	standard = (0.1, 1.0, 10.0, 60.0, 600.0)
-	if sla_breach_seconds is None or sla_breach_seconds <= 0:
+	if sla_breach_seconds is None:
+		return standard
+	if not isinstance(sla_breach_seconds, (int, float)):
+		raise TypeError("sla_breach_seconds must be numeric")
+	if sla_breach_seconds <= 0:
 		return standard
 	sla = float(sla_breach_seconds)
 	sla_buckets = (sla * 0.5, sla, sla * 2.0)

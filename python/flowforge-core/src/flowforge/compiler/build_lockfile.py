@@ -170,7 +170,7 @@ class BuildLockfile:
 
 	@classmethod
 	def from_json(cls, payload: dict[str, Any]) -> "BuildLockfile":
-		entries_raw = payload.get("entries") or {}
+		entries_raw = payload.get("entries", {})
 		if not isinstance(entries_raw, dict):
 			raise ValueError("lockfile.entries must be an object")
 		entries: dict[str, BuildLockEntry] = {}

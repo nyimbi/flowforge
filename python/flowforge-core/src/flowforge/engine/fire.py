@@ -102,9 +102,14 @@ class InvalidTargetError(ValueError):
 
 class OutboxDispatchError(RuntimeError):
 	"""Outbox dispatch failed during a fire; the Instance has been rolled
-	back to its pre-fire snapshot and no audit row was written.
+	back to its pre-fire snapshot.
 
 	The original transport-layer exception is chained as ``__cause__``.
+
+	If the transition audit row was already recorded before the outbox
+	failure, the engine attempts to append a rollback audit row so the
+	audit chain reflects the restored state instead of claiming an
+	unqualified transition.
 
 	Audit-fix-plan §4.1 C-01 acceptance criterion.
 	"""
@@ -471,13 +476,28 @@ async def _fire_locked(
 			_restore_instance(instance, pre_snapshot)
 			raise
 
-	if dispatch_ports and cfg.outbox is not None:
-		for env in outboxes:
-			try:
-				await cfg.outbox.dispatch(env)
-			except Exception as e:
-				_restore_instance(instance, pre_snapshot)
-				raise OutboxDispatchError(instance.id, env.kind) from e
+		if dispatch_ports and cfg.outbox is not None:
+			for env in outboxes:
+				try:
+					await cfg.outbox.dispatch(env)
+				except Exception as e:
+					_restore_instance(instance, pre_snapshot)
+					if cfg.audit is not None:
+						await _record_rollback_audit(
+							cfg.audit,
+							wd=wd,
+							instance=instance,
+							tenant_id=tenant_id,
+							principal=principal,
+							transition_id=chosen.id,
+							from_state=prev_state,
+							to_state=chosen.to_state,
+							event=event,
+							envelope_kind=env.kind,
+							jtbd_id=jtbd_id,
+							jtbd_version=jtbd_version,
+						)
+					raise OutboxDispatchError(instance.id, env.kind) from e
 
 	terminal = _is_terminal(wd, instance.state)
 	return FireResult(
@@ -514,6 +534,50 @@ def _restore_instance(instance: Instance, snapshot: dict[str, Any]) -> None:
 	instance.created_entities = snapshot["created_entities"]
 	instance.saga = snapshot["saga"]
 	instance.history = snapshot["history"]
+
+
+async def _record_rollback_audit(
+	audit_sink: Any,
+	*,
+	wd: WorkflowDef,
+	instance: Instance,
+	tenant_id: str,
+	principal: Principal | None,
+	transition_id: str,
+	from_state: str,
+	to_state: str,
+	event: str,
+	envelope_kind: str,
+	jtbd_id: str | None,
+	jtbd_version: str | None,
+) -> None:
+	payload: dict[str, Any] = {
+		"transition_id": transition_id,
+		"from_state": from_state,
+		"to_state": to_state,
+		"restored_state": instance.state,
+		"event": event,
+		"failed_envelope_kind": envelope_kind,
+	}
+	if jtbd_id is not None:
+		payload["jtbd_id"] = jtbd_id
+	if jtbd_version is not None:
+		payload["jtbd_version"] = jtbd_version
+	try:
+		await audit_sink.record(
+			AuditEvent(
+				kind=f"wf.{wd.key}.transition_rolled_back",
+				subject_kind=wd.subject_kind,
+				subject_id=instance.id,
+				tenant_id=tenant_id,
+				actor_user_id=principal.user_id if principal else None,
+				payload=payload,
+			)
+		)
+	except Exception:
+		# Preserve the original outbox failure surface. Transactional hosts
+		# use dispatch_ports=False and persist rollback-free rows atomically.
+		return
 
 
 def _is_terminal(wd: WorkflowDef, state_name: str) -> bool:

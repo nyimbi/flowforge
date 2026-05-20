@@ -24,9 +24,11 @@ from flowforge.compiler import (
 	FileTarget,
 	IncrementalCompiler,
 	InMemoryFileStore,
+	LocalFileStore,
 	PlanEntryStatus,
 	hash_inputs,
 )
+from flowforge.compiler.incremental import BuildPlan, PlanEntry
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +138,8 @@ def test_first_run_marks_every_file_as_new_and_rebuilds() -> None:
 	plan = compiler.plan(targets)
 	assert all(e.status is PlanEntryStatus.NEW for e in plan.entries)
 	assert len(plan.entries) == len(targets)
+	assert plan.by_status(PlanEntryStatus.NEW) == plan.entries
+	assert plan.rebuild_paths() == tuple(t.path for t in targets)
 
 	result = compiler.apply(plan, targets)
 	assert set(result.rebuilt) == {t.path for t in targets}
@@ -145,6 +149,8 @@ def test_first_run_marks_every_file_as_new_and_rebuilds() -> None:
 		entry = lockfile.get(t.path)
 		assert entry is not None
 		assert entry.expected_input_hash == hash_inputs(t.inputs)
+		assert lockfile.expected_hash_for(t.path) == hash_inputs(t.inputs)
+	assert lockfile.expected_hash_for("missing.py") is None
 
 
 def test_second_run_with_no_input_change_skips_everything() -> None:
@@ -374,6 +380,40 @@ def test_duplicate_target_paths_raise() -> None:
 		raise AssertionError("expected ValueError on duplicate path")
 
 
+def test_apply_rejects_plan_rebuild_without_supplied_target() -> None:
+	store = InMemoryFileStore()
+	lockfile = BuildLockfile()
+	compiler = IncrementalCompiler(lockfile=lockfile, store=store)
+	plan = BuildPlan(
+		entries=(
+			PlanEntry(
+				path="missing.py",
+				status=PlanEntryStatus.NEW,
+				expected_input_hash="h",
+				last_input_hash=None,
+				last_jtbd_version=None,
+			),
+		)
+	)
+
+	try:
+		compiler.apply(plan, targets=[])
+	except RuntimeError as exc:
+		assert "did not supply" in str(exc)
+	else:  # pragma: no cover — should never reach
+		raise AssertionError("expected RuntimeError on missing target")
+
+
+def test_local_file_store_round_trip_and_idempotent_remove(tmp_path) -> None:  # type: ignore[no-untyped-def]
+	store = LocalFileStore(tmp_path)
+	store.write("nested/generated.py", b"print('ok')\n")
+	assert store.exists("nested/generated.py") is True
+	assert store.read("nested/generated.py") == b"print('ok')\n"
+	store.remove("nested/generated.py")
+	store.remove("nested/generated.py")
+	assert store.exists("nested/generated.py") is False
+
+
 # ---------------------------------------------------------------------------
 # BuildLockfile serialisation
 # ---------------------------------------------------------------------------
@@ -402,6 +442,46 @@ def test_lockfile_round_trips_through_canonical_json_bytes() -> None:
 	# Sorted keys at the top level.
 	parsed = json.loads(encoded.decode("utf-8"))
 	assert list(parsed["entries"].keys()) == sorted(parsed["entries"].keys())
+
+
+def test_lockfile_empty_and_invalid_payloads_are_rejected() -> None:
+	assert len(BuildLockfile.from_bytes(b"")) == 0
+	for payload, message in [
+		({"entries": []}, "entries must be an object"),
+		({"entries": {1: {}}}, "keys must be strings"),
+		({"entries": {"x.py": []}}, "must be an object"),
+	]:
+		try:
+			BuildLockfile.from_json(payload)  # type: ignore[arg-type]
+		except ValueError as exc:
+			assert message in str(exc)
+		else:  # pragma: no cover — should never reach
+			raise AssertionError(f"expected ValueError containing {message!r}")
+
+	try:
+		BuildLockfile.from_bytes(b"[]")
+	except ValueError as exc:
+		assert "JSON must be an object" in str(exc)
+	else:  # pragma: no cover — should never reach
+		raise AssertionError("expected ValueError for array lockfile body")
+
+
+def test_lockfile_save_creates_parent_directories_and_mark_missing_is_noop(tmp_path) -> None:  # type: ignore[no-untyped-def]
+	lock = BuildLockfile()
+	lock.mark_hand_edited("missing.py")
+	lock.record(
+		"generated/x.py",
+		expected_input_hash="h1",
+		output_hash="o1",
+		last_jtbd_version=None,
+	)
+	lock.mark_hand_edited("generated/x.py")
+	assert lock.get("generated/x.py").hand_edited is True  # type: ignore[union-attr]
+
+	path = tmp_path / "deep" / "flowforge.lockfile"
+	lock.save(path)
+	assert path.exists()
+	assert BuildLockfile.load(path).entries == lock.entries
 
 
 def test_lockfile_save_and_load_round_trip(tmp_path) -> None:  # type: ignore[no-untyped-def]

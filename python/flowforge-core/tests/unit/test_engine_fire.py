@@ -314,6 +314,18 @@ async def test_outbox_dispatch_failure_restores_all_mutated_instance_fields() ->
 	assert inst.context == {"review": {"status": "draft"}}
 	assert inst.saga == []
 	assert inst.history == []
+	assert [event.kind for event in config.audit.events] == [
+		"wf.case_flow.transitioned",
+		"wf.case_flow.transition_rolled_back",
+	]
+	assert config.audit.events[1].payload == {
+		"transition_id": "complete",
+		"from_state": "draft",
+		"to_state": "done",
+		"restored_state": "draft",
+		"event": "complete",
+		"failed_envelope_kind": "wf.notify",
+	}
 
 
 async def test_audit_dispatch_failure_restores_state_and_skips_outbox() -> None:

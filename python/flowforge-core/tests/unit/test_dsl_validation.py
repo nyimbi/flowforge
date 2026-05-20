@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from flowforge.compiler import validate
+from flowforge.compiler import ValidationError, validate
 from flowforge.dsl import WorkflowDef
 
 
@@ -59,6 +59,28 @@ def test_validator_flags_dead_end_transition() -> None:
 	assert any("missing" in e for e in report.errors), report.errors
 
 
+def test_validator_flags_missing_initial_and_from_state() -> None:
+	d = _basic_def()
+	d["initial_state"] = "missing_initial"
+	d["transitions"][0]["from_state"] = "missing_from"
+	report = validate(d)
+	assert any("initial_state 'missing_initial'" in e for e in report.errors), report.errors
+	assert any("from_state 'missing_from'" in e for e in report.errors), report.errors
+
+
+def test_validator_flags_unreachable_terminal_and_subworkflow_cycle() -> None:
+	d = _basic_def()
+	d["states"].extend(
+		[
+			{"name": "orphan_done", "kind": "terminal_success"},
+			{"name": "self_child", "kind": "subworkflow", "subworkflow_key": "demo"},
+		]
+	)
+	report = validate(d)
+	assert any("unreachable terminal 'orphan_done'" in e for e in report.errors), report.errors
+	assert any("subworkflow cycle" in e for e in report.errors), report.errors
+
+
 def test_validator_flags_duplicate_priority() -> None:
 	d = _basic_def()
 	d["transitions"].append(
@@ -72,6 +94,36 @@ def test_validator_loads_real_schema_for_workflow_def() -> None:
 	schema_path = SCHEMA_DIR / "workflow_def.schema.json"
 	assert schema_path.exists()
 	json.loads(schema_path.read_text())  # parses
+
+
+def test_validator_reports_schema_errors_and_strict_raises() -> None:
+	bad = _basic_def()
+	del bad["key"]
+	report = validate(bad)
+	assert not report.ok
+	assert any("schema at <root>" in e for e in report.errors), report.errors
+	with pytest.raises(ValidationError, match="schema at <root>"):
+		validate(bad, strict=True)
+
+
+def test_validator_reports_pydantic_errors_after_schema_passes() -> None:
+	d = _basic_def()
+	d["transitions"][0]["guards"] = [{"kind": "expr", "expr": {"==": [1], "!=": [2]}}]
+	report = validate(d)
+	assert any("pydantic:" in e and "exactly one key" in e for e in report.errors), report.errors
+	with pytest.raises(ValidationError, match="pydantic:"):
+		validate(d, strict=True)
+
+
+def test_validator_accepts_workflowdef_instance_and_strict_raises_topology() -> None:
+	wd = WorkflowDef.model_validate(_basic_def())
+	assert validate(wd).ok
+
+	bad = _basic_def()
+	bad["transitions"][0]["to_state"] = "missing"
+	bad_wd = WorkflowDef.model_validate(bad)
+	with pytest.raises(ValidationError, match="to_state"):
+		validate(bad_wd, strict=True)
 
 
 # ---- audit-2026 E-35 / C-07 arity --------------------------------------
@@ -126,3 +178,45 @@ def test_C_07_validator_passes_well_formed_expressions() -> None:
 	]
 	report = validate(d)
 	assert report.ok, report.errors
+
+
+def test_lookup_permission_warning_covers_guard_effect_expr_and_http_call() -> None:
+	guard_lookup = _basic_def()
+	guard_lookup["transitions"][0]["guards"] = [
+		{"kind": "expr", "expr": {"var": "lookup.claim.status"}}
+	]
+	report = validate(guard_lookup)
+	assert any("touches a lookup" in w for w in report.warnings), report.warnings
+
+	effect_lookup = _basic_def()
+	effect_lookup["transitions"][0]["effects"] = [
+		{"kind": "set", "target": "context.x", "expr": {"lookup": "claim-1"}}
+	]
+	report = validate(effect_lookup)
+	assert any("touches a lookup" in w for w in report.warnings), report.warnings
+
+	http_lookup = _basic_def()
+	http_lookup["transitions"][0]["effects"] = [{"kind": "http_call", "url": "/lookup/claims"}]
+	report = validate(http_lookup)
+	assert any("touches a lookup" in w for w in report.warnings), report.warnings
+
+	http_lookup["transitions"][0]["gates"] = [{"kind": "permission", "permission": "claim.read"}]
+	assert validate(http_lookup).warnings == []
+
+
+def test_lookup_permission_ignores_literals_and_walks_multi_key_effect_values() -> None:
+	literal_lookup = _basic_def()
+	literal_lookup["transitions"][0]["guards"] = [
+		{"kind": "expr", "expr": {"contains": ["lookup_failed", "lookup"]}}
+	]
+	assert validate(literal_lookup).warnings == []
+
+	nested_lookup = _basic_def()
+	nested_lookup["transitions"][0]["effects"] = [
+		{
+			"kind": "audit",
+			"expr": {"payload": {"var": "lookup.claim.status"}, "literal": "lookup_failed"},
+		}
+	]
+	report = validate(nested_lookup)
+	assert any("touches a lookup" in w for w in report.warnings), report.warnings
