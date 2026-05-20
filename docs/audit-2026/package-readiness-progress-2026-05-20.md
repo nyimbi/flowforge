@@ -1493,3 +1493,30 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: passed with one optional `mmdc` skip and
     overall package coverage 78%.
+
+## CLI coverage slice - JTBD pipeline shortcut
+
+- Baseline measurement:
+  - After closing JTBD parser coverage, rounded `flowforge-cli` package
+    coverage was 78%.
+  - `jtbd/pipeline.py` was 71% covered; the remaining gap was the
+    `generate_for_bundle()` normalized-bundle shortcut.
+- Action:
+  - Added a focused pipeline parity test proving `generate_for_bundle()` on a
+    normalized bundle returns the same path/content map as the public
+    parse-normalize-generate entrypoint.
+- Result:
+  - `flowforge_cli.jtbd.pipeline` now reaches 100% statement and branch
+    coverage.
+  - Overall `flowforge-cli` rounded package coverage increased to 79%.
+- Verification:
+  - `uv run pytest tests/test_jtbd_generators.py -q --cov=flowforge_cli.jtbd.pipeline --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `12 passed`, 100% statement and branch
+    coverage for `pipeline.py`.
+  - `uv run ruff check tests/test_jtbd_generators.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_jtbd_generators.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: passed with one optional `mmdc` skip and
+    overall package coverage 79%.

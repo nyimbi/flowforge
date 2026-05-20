@@ -33,6 +33,7 @@ import pytest
 from flowforge_cli.jtbd import generate
 from flowforge_cli.jtbd.normalize import normalize
 from flowforge_cli.jtbd.parse import parse_bundle
+from flowforge_cli.jtbd.pipeline import generate_for_bundle
 
 
 # ---------------------------------------------------------------------------
@@ -188,6 +189,16 @@ def test_generate_is_byte_deterministic() -> None:
 	assert [f.path for f in a] == [f.path for f in b]
 	for fa, fb in zip(a, b, strict=True):
 		assert fa.content == fb.content, f"non-deterministic: {fa.path}"
+
+
+def test_generate_for_bundle_matches_public_generate() -> None:
+	raw = _claim_bundle()
+	via_public = generate(raw)
+	via_normalized = generate_for_bundle(normalize(raw))
+
+	assert {f.path: f.content for f in via_normalized} == {
+		f.path: f.content for f in via_public
+	}
 
 
 # ---------------------------------------------------------------------------
