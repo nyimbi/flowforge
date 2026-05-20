@@ -332,12 +332,21 @@ class JtbdDocument:
 			warnings.append(f"linter unavailable: {exc}")
 		else:
 			for issue in report.bundle_issues:
-				_append_lint_issue(issue.severity, f"bundle: {issue.rule}: {issue.message}", warnings, infos)
+				_append_lint_issue(
+					issue.severity,
+					issue.rule,
+					f"bundle: {issue.rule}: {issue.message}",
+					errors,
+					warnings,
+					infos,
+				)
 			for result in report.results:
 				for issue in result.issues:
 					_append_lint_issue(
 						issue.severity,
+						issue.rule,
 						f"{result.jtbd_id}: {issue.rule}: {issue.message}",
+						errors,
 						warnings,
 						infos,
 					)
@@ -454,12 +463,16 @@ def requires_pii(kind: str) -> bool:
 
 def _append_lint_issue(
 	severity: str,
+	rule: str,
 	message: str,
+	errors: list[str],
 	warnings: list[str],
 	infos: list[str],
 ) -> None:
 	if severity == "info":
 		infos.append(message)
+	elif severity == "error" and rule not in {"missing_required_stage"}:
+		errors.append(f"semantic error: {message}")
 	else:
 		warnings.append(f"semantic {severity}: {message}")
 

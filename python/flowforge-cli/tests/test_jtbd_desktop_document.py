@@ -213,6 +213,17 @@ def test_validation_catches_canonical_schema_errors() -> None:
 	assert any("must declare pii" in error for error in result.errors)
 
 
+def test_validation_treats_lint_errors_as_blocking() -> None:
+	bundle = create_default_bundle()
+	bundle["jtbds"][0]["requires"] = ["ghost_job"]
+	doc = JtbdDocument(bundle)
+
+	result = doc.validate()
+
+	assert not result.ok
+	assert any("requires_unknown_jtbd" in error for error in result.errors)
+
+
 def test_save_and_load_roundtrip(tmp_path: Path) -> None:
 	doc = JtbdDocument(create_default_bundle())
 	doc.bundle["project"]["name"] = "Roundtrip"

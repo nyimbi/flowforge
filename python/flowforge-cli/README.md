@@ -23,17 +23,17 @@ The auxiliary commands (`diff`, `replay`, `upgrade-deps`, `audit verify`, `ai-as
 ## Quick start
 
 ```bash
-# Scaffold a new project from a banking JTBD bundle
-flowforge new my-app --jtbd flowforge-jtbd-banking
+# Scaffold a new project from a local JTBD bundle
+flowforge new my-app --jtbd ./jtbd-bundle.json
 
-# Add another bundle to an existing project
-flowforge add-jtbd flowforge-jtbd-hr
+# Add another local bundle to an existing project
+flowforge add-jtbd ./more-jobs.json
 
 # Generate all app skeleton files for a bundle
-flowforge jtbd-generate --jtbd flowforge-jtbd-banking --out ./generated
+flowforge jtbd-generate --jtbd ./jtbd-bundle.json --out ./generated
 
 # Lint a JTBD bundle file
-flowforge jtbd lint --def bundle.yaml
+flowforge jtbd lint --bundle ./jtbd-bundle.json
 
 # Validate a workflow definition
 flowforge validate --def workflows/account_open/definition.json
@@ -55,7 +55,7 @@ flowforge audit-2026 health --prom-url http://prometheus.local:9090
 | `flowforge new <project> --jtbd <bundle>` | Implemented | Scaffold a new project from a JTBD bundle using Jinja2 backend templates. |
 | `flowforge add-jtbd <bundle>` | Implemented | Idempotently merge a JTBD bundle into an existing project. |
 | `flowforge jtbd-generate --jtbd <bundle> --out <dir>` | Implemented | Run the U19 deterministic generator; emits 12+ files per JTBD. |
-| `flowforge jtbd lint --def <path>` | Implemented | Lint a JTBD bundle via `flowforge_jtbd.lint.Linter`. |
+| `flowforge jtbd lint --bundle <path>` | Implemented | Lint a JTBD bundle via `flowforge_jtbd.lint.Linter`. |
 | `flowforge jtbd fork <bundle>` | Implemented | Fork a bundle for per-tenant customisation. |
 | `flowforge jtbd migrate` | Implemented | Run a JTBD bundle migration. |
 | `flowforge validate [--def <path>]` | Implemented | Schema + topology + priorities + lookup-permission checks. |
@@ -68,7 +68,7 @@ flowforge audit-2026 health --prom-url http://prometheus.local:9090
 | `flowforge pre-upgrade-check [all\|signing]` | Implemented | F-7 mitigation: audit SK-01 env readiness; exits non-zero on failure. |
 | `flowforge audit-2026 health` | Implemented | Query Prometheus for per-ticket SLI probes; exits non-zero on FAIL. |
 | `flowforge audit verify --file <audit.jsonl>` | Implemented | Verify a Flowforge audit hash-chain export. |
-| `flowforge generate-llmtxt` | Implemented | Emit an `llms.txt` index for the project. |
+| `flowforge generate-llmtxt` | Implemented | Emit an `llm.txt` index for the project. |
 | `flowforge tutorial` | Implemented | Interactive guided tutorial. |
 | `flowforge jtbd desktop [--bundle <bundle>] [--theme <theme.json>]` | Implemented | Launch the optional PyQt JTBD desktop editor. |
 | `flowforge ai-assist <bundle> [--job <id>]` | Implemented | Emit a copyable AI authoring/review prompt for a JTBD bundle. |

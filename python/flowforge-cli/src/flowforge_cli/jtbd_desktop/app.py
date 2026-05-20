@@ -1105,7 +1105,9 @@ def run_desktop_editor(bundle: Path | None = None, theme: Path | None = None) ->
 	if Qt is None:
 		raise RuntimeError(
 			"PyQt6 is required for the desktop editor. Install it with "
-			"`uv sync --extra desktop` or `uv run --with PyQt6 flowforge jtbd desktop`."
+			"`uv sync --package flowforge-cli --extra desktop`, "
+			"`uv pip install 'flowforge-cli[desktop]'`, or "
+			"`uv run --with PyQt6 flowforge jtbd desktop`."
 		)
 	theme_data = _read_theme(theme) if theme else None
 	document = JtbdDocument.load(bundle) if bundle else JtbdDocument()

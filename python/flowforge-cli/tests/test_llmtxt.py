@@ -165,6 +165,8 @@ def test_render_llmtxt_handles_no_jtbds() -> None:
 	assert "JTBD count**: 0" in out
 	# No KeyError / template crash on empty jtbds.
 	assert "<jtbd>" in out  # placeholder in the simulate sample command
+	assert "--fixture" not in out
+	assert "llms.txt" not in out
 
 
 def test_write_llmtxt_writes_to_disk(tmp_path: Path) -> None:
