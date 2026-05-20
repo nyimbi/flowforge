@@ -92,6 +92,37 @@ def test_add_duplicate_and_remove_jobs_keeps_unique_ids() -> None:
 	assert doc.dirty
 
 
+def test_visual_composition_dependencies_are_managed_safely() -> None:
+	doc = JtbdDocument(create_default_bundle())
+	review = doc.add_jtbd("Review case")
+
+	doc.add_dependency(review, "intake_case")
+
+	assert doc.get_jtbd(review)["requires"] == ["intake_case"]
+	assert doc.dirty
+
+	# Duplicate adds are idempotent so repeated visual edge creation does not
+	# produce invalid duplicate requires entries.
+	doc.add_dependency(review, "intake_case")
+	assert doc.get_jtbd(review)["requires"] == ["intake_case"]
+
+	doc.remove_dependency(review, "intake_case")
+	assert doc.get_jtbd(review)["requires"] == []
+
+
+def test_visual_composition_rejects_invalid_dependencies() -> None:
+	doc = JtbdDocument(create_default_bundle())
+	review = doc.add_jtbd("Review case")
+
+	for bad in ("review_case", "missing_job", ""):
+		try:
+			doc.add_dependency(review, bad)
+		except ValueError:
+			pass
+		else:  # pragma: no cover - defensive assertion.
+			raise AssertionError(f"invalid dependency should be rejected: {bad!r}")
+
+
 def test_add_from_template_and_prompt_manage_unique_jtbd_list() -> None:
 	doc = JtbdDocument(create_default_bundle())
 	library = create_template_library()

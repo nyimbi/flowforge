@@ -397,6 +397,36 @@ class JtbdDocument:
 		del jtbds[index]
 		self.dirty = True
 
+	def add_dependency(self, index: int, required_id: str) -> None:
+		"""Add a composition dependency to a JTBD."""
+
+		required = required_id.strip()
+		if not required:
+			raise ValueError("dependency id is required")
+		jtbd = self.get_jtbd(index)
+		jtbd_id = str(jtbd.get("id") or "")
+		if required == jtbd_id:
+			raise ValueError("a JTBD cannot depend on itself")
+		if required not in set(self.jtbd_ids()):
+			raise ValueError(f"unknown dependency id: {required}")
+		requires = list(jtbd.get("requires") or [])
+		if required not in requires:
+			requires.append(required)
+			jtbd["requires"] = requires
+			jtbd.pop("spec_hash", None)
+			self.dirty = True
+
+	def remove_dependency(self, index: int, required_id: str) -> None:
+		"""Remove a composition dependency from a JTBD if present."""
+
+		required = required_id.strip()
+		jtbd = self.get_jtbd(index)
+		requires = [r for r in (jtbd.get("requires") or []) if str(r) != required]
+		if requires != list(jtbd.get("requires") or []):
+			jtbd["requires"] = requires
+			jtbd.pop("spec_hash", None)
+			self.dirty = True
+
 	def set_project_value(self, key: str, value: Any) -> None:
 		self.bundle.setdefault("project", {})[key] = value
 		self.dirty = True

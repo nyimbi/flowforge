@@ -25,7 +25,7 @@ from ..jtbd.parse import JTBDParseError
 
 try:  # pragma: no cover - exercised manually / in GUI smoke environments.
 	from PyQt6.QtCore import Qt  # type: ignore[import-not-found]
-	from PyQt6.QtGui import QAction, QColor, QPalette  # type: ignore[import-not-found]
+	from PyQt6.QtGui import QAction, QBrush, QColor, QPalette, QPen  # type: ignore[import-not-found]
 	from PyQt6.QtWidgets import (  # type: ignore[import-not-found]
 		QAbstractItemView,
 		QApplication,
@@ -36,6 +36,8 @@ try:  # pragma: no cover - exercised manually / in GUI smoke environments.
 		QFileDialog,
 		QFormLayout,
 		QFrame,
+		QGraphicsScene,
+		QGraphicsView,
 		QGridLayout,
 		QGroupBox,
 		QHBoxLayout,
@@ -446,10 +448,30 @@ class JtbdEditorWindow(QMainWindow):  # type: ignore[misc]
 		self.editor_layout.addWidget(self.tabs)
 
 	def _build_visual_tab(self) -> None:
-		self.visual_map = QPlainTextEdit()
-		self.visual_map.setReadOnly(True)
-		self.visual_map.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-		self.tabs.addTab(self.visual_map, "Visual Map")
+		host = QWidget()
+		layout = QVBoxLayout(host)
+		self.visual_scene = QGraphicsScene(self)
+		self.visual_view = QGraphicsView(self.visual_scene)
+		self.visual_view.setMinimumHeight(360)
+		self.visual_view.setObjectName("visualMap")
+		self.visual_view.setToolTip("Select a source and dependency to compose JTBD dependencies.")
+		controls = QHBoxLayout()
+		self.visual_dependency_source = QComboBox()
+		self.visual_dependency_target = QComboBox()
+		add_dependency = QPushButton("Add Dependency")
+		remove_dependency = QPushButton("Remove Dependency")
+		add_dependency.clicked.connect(self._add_visual_dependency)
+		remove_dependency.clicked.connect(self._remove_visual_dependency)
+		controls.addWidget(QLabel("Job"))
+		controls.addWidget(self.visual_dependency_source)
+		controls.addWidget(QLabel("requires"))
+		controls.addWidget(self.visual_dependency_target)
+		controls.addWidget(add_dependency)
+		controls.addWidget(remove_dependency)
+		controls.addStretch(1)
+		layout.addWidget(self.visual_view, 1)
+		layout.addLayout(controls)
+		self.tabs.addTab(host, "Visual Map")
 
 	def _build_annotations_tab(self) -> None:
 		host = QWidget()
@@ -942,6 +964,30 @@ class JtbdEditorWindow(QMainWindow):  # type: ignore[misc]
 		self.current_index = max(0, self.current_index - 1)
 		self._refresh_all()
 
+	def _add_visual_dependency(self) -> None:
+		self._commit_forms()
+		source = self.visual_dependency_source.currentData()
+		target = self.visual_dependency_target.currentData()
+		if not isinstance(source, int) or not isinstance(target, str):
+			return
+		try:
+			self.document.add_dependency(source, target)
+		except ValueError as exc:
+			QMessageBox.warning(self, "Visual Composition", str(exc))
+			return
+		self.current_index = source
+		self._refresh_all()
+
+	def _remove_visual_dependency(self) -> None:
+		self._commit_forms()
+		source = self.visual_dependency_source.currentData()
+		target = self.visual_dependency_target.currentData()
+		if not isinstance(source, int) or not isinstance(target, str):
+			return
+		self.document.remove_dependency(source, target)
+		self.current_index = source
+		self._refresh_all()
+
 	def _confirm_discard(self) -> bool:
 		if not self.document.dirty:
 			return True
@@ -977,22 +1023,80 @@ class JtbdEditorWindow(QMainWindow):  # type: ignore[misc]
 			)
 
 	def _refresh_visual_map(self) -> None:
-		lines = ["JTBD composition"]
-		ids = set(self.document.jtbd_ids())
-		for jtbd in self.document.bundle.get("jtbds", []):
-			jtbd_id = str(jtbd.get("id", ""))
-			title = str(jtbd.get("title") or jtbd_id)
-			lines.append(f"* {jtbd_id}: {title}")
+		self._refresh_visual_dependency_controls()
+		self.visual_scene.clear()
+		jtbds = list(self.document.bundle.get("jtbds", []) or [])
+		if not jtbds:
+			return
+
+		positions: dict[str, tuple[int, int]] = {}
+		node_w = 210
+		node_h = 74
+		x_gap = 260
+		y_gap = 126
+		for idx, jtbd in enumerate(jtbds):
+			jtbd_id = str(jtbd.get("id") or f"job_{idx + 1}")
+			positions[jtbd_id] = (40 + (idx % 3) * x_gap, 40 + (idx // 3) * y_gap)
+
+		edge_pen = QPen(QColor(self.theme["muted"]))
+		edge_pen.setWidth(2)
+		missing_pen = QPen(QColor(self.theme["danger"]))
+		missing_pen.setWidth(2)
+		missing_pen.setStyle(Qt.PenStyle.DashLine)
+		for jtbd in jtbds:
+			jtbd_id = str(jtbd.get("id") or "")
+			to_pos = positions.get(jtbd_id)
+			if to_pos is None:
+				continue
+			to_x, to_y = to_pos
 			for required in jtbd.get("requires", []) or []:
-				status = "ok" if required in ids else "missing"
-				lines.append(f"  <- requires {required} [{status}]")
-			annotations = jtbd.get("annotations") or {}
-			tags = annotations.get("tags") or []
-			if tags:
-				lines.append(f"  tags: {', '.join(tags)}")
-			if annotations.get("notes"):
-				lines.append(f"  note: {annotations['notes']}")
-		self.visual_map.setPlainText("\n".join(lines))
+				from_pos = positions.get(str(required))
+				if from_pos is None:
+					self.visual_scene.addText(f"Missing dependency: {required} -> {jtbd_id}")
+					continue
+				from_x, from_y = from_pos
+				self.visual_scene.addLine(
+					from_x + node_w,
+					from_y + node_h / 2,
+					to_x,
+					to_y + node_h / 2,
+					edge_pen if str(required) in positions else missing_pen,
+				)
+
+		border = QPen(QColor(self.theme["primary"]))
+		border.setWidth(2)
+		fill = QBrush(QColor(self.theme["surface"]))
+		for idx, jtbd in enumerate(jtbds):
+			jtbd_id = str(jtbd.get("id") or f"job_{idx + 1}")
+			x, y = positions[jtbd_id]
+			rect = self.visual_scene.addRect(x, y, node_w, node_h, border, fill)
+			rect.setToolTip("Double-click the row in the left JTBD Map to edit this job.")
+			title = str(jtbd.get("title") or jtbd_id)
+			label = self.visual_scene.addText(f"{title}\n{jtbd_id}")
+			label.setDefaultTextColor(QColor(self.theme["text"]))
+			label.setPos(x + 12, y + 10)
+			if idx == self.current_index:
+				selected = QPen(QColor(self.theme["accent"]))
+				selected.setWidth(4)
+				rect.setPen(selected)
+
+		self.visual_scene.setSceneRect(self.visual_scene.itemsBoundingRect().adjusted(-40, -40, 80, 80))
+
+	def _refresh_visual_dependency_controls(self) -> None:
+		current_source = self.visual_dependency_source.currentData()
+		current_target = self.visual_dependency_target.currentData()
+		self.visual_dependency_source.blockSignals(True)
+		self.visual_dependency_target.blockSignals(True)
+		self.visual_dependency_source.clear()
+		self.visual_dependency_target.clear()
+		for idx, jtbd in enumerate(self.document.bundle.get("jtbds", []) or []):
+			label = f"{jtbd.get('title') or jtbd.get('id')} ({jtbd.get('id')})"
+			self.visual_dependency_source.addItem(label, idx)
+			self.visual_dependency_target.addItem(label, str(jtbd.get("id") or ""))
+		_restore_combo_data(self.visual_dependency_source, current_source, self.current_index)
+		_restore_combo_data(self.visual_dependency_target, current_target, 0)
+		self.visual_dependency_source.blockSignals(False)
+		self.visual_dependency_target.blockSignals(False)
 
 
 def run_desktop_editor(bundle: Path | None = None, theme: Path | None = None) -> int:
@@ -1123,6 +1227,15 @@ def _combo(values: list[str]) -> QComboBox:
 	box = QComboBox()
 	box.addItems(values)
 	return box
+
+
+def _restore_combo_data(combo: QComboBox, data: Any, fallback_index: int) -> None:
+	for idx in range(combo.count()):
+		if combo.itemData(idx) == data:
+			combo.setCurrentIndex(idx)
+			return
+	if combo.count():
+		combo.setCurrentIndex(max(0, min(fallback_index, combo.count() - 1)))
 
 
 def _connect_change(widget: Any, slot: Any) -> None:
