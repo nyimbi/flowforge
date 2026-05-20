@@ -118,6 +118,20 @@ def test_pairs_one_reader_one_writer_skipped() -> None:
 	assert PairsConflictSolver().detect([_account_open(), _read_balance()]) == []
 
 
+def test_semantics_reads_and_writes_helpers() -> None:
+	assert _read_balance().reads() is True
+	assert _read_balance().writes() is False
+	both = JtbdSemantics(
+		jtbd_id="upsert_balance",
+		timing="realtime",
+		data="both",
+		consistency="strong",
+		entities=("account",),
+	)
+	assert both.reads() is True
+	assert both.writes() is True
+
+
 def test_pairs_same_tuple_no_conflict() -> None:
 	a = _account_open()
 	b = JtbdSemantics(
@@ -285,6 +299,16 @@ def test_detect_conflicts_explicit_pairs_solver() -> None:
 	assert len(issues) == 1
 
 
+def test_detect_conflicts_z3_backend_short_circuits_empty_semantics() -> None:
+	class NeverCalledZ3Solver:
+		backend = "z3"
+
+		def detect(self, semantics: list[JtbdSemantics]) -> list[ConflictIssue]:
+			raise AssertionError(f"solver should not be called for {semantics!r}")
+
+	assert detect_conflicts([], solver=NeverCalledZ3Solver()) == []
+
+
 # ---------------------------------------------------------------------------
 # extract_semantics — composition input
 # ---------------------------------------------------------------------------
@@ -332,6 +356,60 @@ def test_extract_semantics_rejects_bad_timing() -> None:
 		]
 	}
 	with pytest.raises(ValueError, match="bad timing"):
+		extract_semantics(composition)
+
+
+def test_extract_semantics_rejects_bad_data() -> None:
+	composition = {
+		"jtbds": [
+			{
+				"id": "x",
+				"semantics": {
+					"timing": "realtime",
+					"data": "mutate",
+					"consistency": "strong",
+					"entities": ["e"],
+				},
+			}
+		]
+	}
+	with pytest.raises(ValueError, match="bad data"):
+		extract_semantics(composition)
+
+
+def test_extract_semantics_rejects_bad_consistency() -> None:
+	composition = {
+		"jtbds": [
+			{
+				"id": "x",
+				"semantics": {
+					"timing": "realtime",
+					"data": "write",
+					"consistency": "linearizable",
+					"entities": ["e"],
+				},
+			}
+		]
+	}
+	with pytest.raises(ValueError, match="bad consistency"):
+		extract_semantics(composition)
+
+
+def test_extract_semantics_rejects_bad_entities_shape() -> None:
+	composition = {
+		"jtbds": [
+			{
+				"id": "x",
+				"semantics": {
+					"timing": "realtime",
+					"data": "write",
+					"consistency": "strong",
+					"entities": ["e", 1],
+				},
+			}
+		]
+	}
+	with pytest.raises(ValueError, match=r"entities must be list\[str\]"):
 		extract_semantics(composition)
 
 

@@ -1438,3 +1438,31 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: passed with one optional `mmdc` skip and
     overall package coverage 78%.
+
+## CLI coverage slice - JTBD conflict solver
+
+- Baseline measurement:
+  - After closing seed-data generator coverage, rounded `flowforge-cli`
+    package coverage was 78%.
+  - `jtbd/lint/conflicts.py` was 96% covered; remaining gaps were the
+    `reads()` helper, empty z3-backend routing, and malformed composition
+    semantics for bad data, bad consistency, and invalid entities.
+- Action:
+  - Added focused conflict-solver tests for read/write helper behavior,
+    empty-semantics z3 backend short-circuiting, and composition extraction
+    validation for bad data, bad consistency, and non-`list[str]` entities.
+- Result:
+  - `flowforge_cli.jtbd.lint.conflicts` now reaches 100% statement and branch
+    coverage.
+  - Overall `flowforge-cli` rounded package coverage remains 78%.
+- Verification:
+  - `uv run pytest tests/test_jtbd_conflicts.py -q --cov=flowforge_cli.jtbd.lint.conflicts --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `29 passed`, 100% statement and branch
+    coverage for `conflicts.py`.
+  - `uv run ruff check tests/test_jtbd_conflicts.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_jtbd_conflicts.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: passed with one optional `mmdc` skip and
+    overall package coverage 78%.
