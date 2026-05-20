@@ -1,4 +1,4 @@
-import { useMemo, useState, type JSX } from "react";
+import { useEffect, useMemo, useRef, useState, type JSX } from "react";
 import { useStore } from "zustand";
 
 import { Canvas } from "./Canvas.js";
@@ -46,7 +46,25 @@ export const Designer = ({
 		[],
 	);
 	const store = externalStore ?? internalStore;
+	const previousWorkflowProp = useRef(workflow);
+	const previousFormProp = useRef(form);
 	const [tab, setTab] = useState<DesignerTab>(initialTab);
+
+	useEffect(() => {
+		if (externalStore) return;
+		if (workflow !== undefined && workflow !== previousWorkflowProp.current) {
+			internalStore.getState().setWorkflow(workflow);
+		}
+		previousWorkflowProp.current = workflow;
+	}, [externalStore, internalStore, workflow]);
+
+	useEffect(() => {
+		if (externalStore) return;
+		if (form !== previousFormProp.current) {
+			internalStore.getState().setForm(form ?? null);
+		}
+		previousFormProp.current = form;
+	}, [externalStore, form, internalStore]);
 
 	const undo = (): void => store.temporal.getState().undo();
 	const redo = (): void => store.temporal.getState().redo();

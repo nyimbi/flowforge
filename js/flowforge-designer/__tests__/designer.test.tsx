@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { Designer } from "../src/Designer.js";
@@ -217,5 +217,43 @@ describe("Designer (integration)", () => {
 		});
 
 		expect((screen.getByTestId("undo") as HTMLButtonElement).disabled).toBe(false);
+	});
+
+	it("syncs workflow prop changes when the designer owns its store", async () => {
+		const initial = sampleWorkflow();
+		const updated: WorkflowDef = {
+			...sampleWorkflow(),
+			states: sampleWorkflow().states.map((state) =>
+				state.id === "submitted" ? { ...state, name: "Queued" } : state,
+			),
+		};
+		const { rerender } = render(
+			<Designer workflow={initial} withReactFlow={false} />,
+		);
+
+		rerender(<Designer workflow={updated} withReactFlow={false} />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("canvas-state-submitted")).toHaveTextContent("Queued");
+		});
+	});
+
+	it("lets an injected host store own updates over workflow props", () => {
+		const initial = sampleWorkflow();
+		const updated: WorkflowDef = {
+			...sampleWorkflow(),
+			states: sampleWorkflow().states.map((state) =>
+				state.id === "submitted" ? { ...state, name: "Queued" } : state,
+			),
+		};
+		const store = createDesignerStore({ workflow: initial });
+		const { rerender } = render(
+			<Designer store={store} workflow={initial} withReactFlow={false} />,
+		);
+
+		rerender(<Designer store={store} workflow={updated} withReactFlow={false} />);
+
+		expect(screen.getByTestId("canvas-state-submitted")).toHaveTextContent("Submitted");
+		expect(store.getState().workflow.states[0]?.name).toBe("Submitted");
 	});
 });
