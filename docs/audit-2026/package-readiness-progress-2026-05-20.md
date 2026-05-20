@@ -201,3 +201,20 @@ Design audit 5 - operations, security, and reliability:
     clean.
   - `uv run pyright python/flowforge-otel/tests/test_metrics_adapter.py`:
     `0 errors, 0 warnings`.
+
+## Package coverage slice - flowforge-rbac-static
+
+- Baseline measurement:
+  - `flowforge-rbac-static`: `9 passed`, 90% statement coverage before this
+    slice.
+- Action: added focused loader safety tests for:
+  - Accepting config paths that resolve inside an explicit `allowed_root`.
+  - Rejecting config paths that resolve outside `allowed_root`.
+- Verification:
+  - `uv run pytest tests -q --cov=flowforge_rbac_static --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-rbac-static`: `11 passed`, 100% statement and
+    branch coverage.
+  - `uv run ruff check python/flowforge-rbac-static/tests/test_resolver.py`:
+    clean.
+  - `uv run pyright python/flowforge-rbac-static/tests/test_resolver.py`:
+    `0 errors, 0 warnings`.

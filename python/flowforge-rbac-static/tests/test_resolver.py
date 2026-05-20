@@ -95,6 +95,25 @@ async def test_from_json_loader(tmp_path: Path) -> None:
 	assert await r.has_permission(Principal(user_id="bob"), "claim.approve", scope) is True
 
 
+async def test_from_json_loader_accepts_path_within_allowed_root(tmp_path: Path) -> None:
+	root = tmp_path / "configs"
+	root.mkdir()
+	p = root / "rbac.json"
+	p.write_text(json.dumps(CONFIG))
+	r = StaticRbac.from_json(p, allowed_root=root)
+	scope = Scope(tenant_id="t-1")
+	assert await r.has_permission(Principal(user_id="bob"), "claim.approve", scope) is True
+
+
+async def test_from_json_loader_rejects_allowed_root_escape(tmp_path: Path) -> None:
+	root = tmp_path / "configs"
+	root.mkdir()
+	escape = tmp_path / "rbac.json"
+	escape.write_text(json.dumps(CONFIG))
+	with pytest.raises(ValueError, match="outside allowed_root"):
+		StaticRbac.from_json(escape, allowed_root=root)
+
+
 async def test_from_yaml_loader(tmp_path: Path) -> None:
 	yaml = pytest.importorskip("yaml")
 	p = tmp_path / "rbac.yaml"
