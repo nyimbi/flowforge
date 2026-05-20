@@ -19,6 +19,7 @@ from flowforge.ports.metrics import (
 	default_fire_duration_buckets,
 )
 from flowforge_otel import OtelMetrics
+from flowforge_otel.errors import OpenTelemetryNotInstalled
 
 
 _PROVIDER: MeterProvider | None = None
@@ -67,6 +68,14 @@ def test_record_histogram_routes_to_otel(reader: InMemoryMetricReader) -> None:
 	assert FIRE_DURATION_HISTOGRAM in names
 
 
+def test_custom_histogram_is_created_lazily(reader: InMemoryMetricReader) -> None:
+	metrics = OtelMetrics(meter_name="flowforge.test")
+
+	metrics.record_histogram("flowforge.custom_latency_seconds", 1.25)
+	names = _names_in_metrics(reader)
+	assert "flowforge.custom_latency_seconds" in names
+
+
 def test_emit_routes_to_counter(reader: InMemoryMetricReader) -> None:
 	metrics = OtelMetrics(meter_name="flowforge.test")
 
@@ -95,3 +104,10 @@ def test_recommended_buckets_match_helper() -> None:
 def test_fire_duration_histogram_name_constant() -> None:
 	metrics = OtelMetrics(meter_name="flowforge.test")
 	assert metrics.fire_duration_histogram_name == FIRE_DURATION_HISTOGRAM
+
+
+def test_missing_otel_error_message_names_extra() -> None:
+	err = OpenTelemetryNotInstalled("opentelemetry-sdk")
+	assert "flowforge-otel[otel]" in str(err)
+	assert "opentelemetry-sdk" in str(err)
+	assert err.missing_module == "opentelemetry-sdk"

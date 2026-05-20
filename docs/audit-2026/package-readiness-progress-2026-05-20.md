@@ -184,3 +184,20 @@ Design audit 5 - operations, security, and reliability:
   - `uv run ruff check python/flowforge-money/tests/test_static.py`: clean.
   - `uv run pyright python/flowforge-money/tests/test_static.py`:
     `0 errors, 0 warnings`.
+
+## Package coverage slice - flowforge-otel
+
+- Baseline measurement:
+  - `flowforge-otel`: `10 passed`, 96% statement coverage before this slice.
+- Action: added focused OTel adapter tests for:
+  - Lazy creation of custom histogram instruments beyond the pre-created
+    standard histogram set.
+  - `OpenTelemetryNotInstalled` message and `missing_module` payload.
+- Verification:
+  - `uv run pytest tests -q --cov=flowforge_otel --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-otel`: `12 passed`, 100% statement and branch
+    coverage.
+  - `uv run ruff check python/flowforge-otel/tests/test_metrics_adapter.py`:
+    clean.
+  - `uv run pyright python/flowforge-otel/tests/test_metrics_adapter.py`:
+    `0 errors, 0 warnings`.
