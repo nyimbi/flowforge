@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import copy
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -340,6 +341,15 @@ def test_exposure_surfaces_include_audit_viewer_and_service_read() -> None:
 	pii_field = next(f for f in jt["fields"] if f["pii"])
 	surfaces = {p["surface"] for p in pii_field["exposure_surfaces"]}
 	assert surfaces == {"admin_console.audit_viewer", "service.read"}
+
+
+def test_exposure_surfaces_do_not_emit_blank_actor_role() -> None:
+	bundle = _load_normalized(_INSURANCE_BUNDLE)
+	jt = replace(bundle.jtbds[0], actor_role="")
+
+	pairs = gen._exposure_surfaces(bundle, jt)
+
+	assert {p["role"] for p in pairs} == set(bundle.shared_roles)
 
 
 # ---------------------------------------------------------------------------

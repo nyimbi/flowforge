@@ -1126,8 +1126,8 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pyright tests/test_jtbd_diagram_generator.py`
     from `python/flowforge-cli`: `0 errors`, `0 warnings`.
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
-    from `python/flowforge-cli`: `771 passed`, `1 skipped`, overall package
-    coverage 77%.
+    from `python/flowforge-cli`: passed with one optional `mmdc` skip and
+    overall package coverage 77%.
 
 ## CLI coverage slice - generated frontend CLI
 
@@ -1155,8 +1155,8 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pyright tests/test_frontend_cli_generator.py`
     from `python/flowforge-cli`: `0 errors`, `0 warnings`.
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
-    from `python/flowforge-cli`: `773 passed`, `1 skipped`, overall package
-    coverage 77%.
+    from `python/flowforge-cli`: passed with one optional `mmdc` skip and
+    overall package coverage 77%.
 
 ## Code audit follow-up + CLI coverage slice - i18n generator
 
@@ -1190,8 +1190,8 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pyright tests/test_i18n_generator.py`
     from `python/flowforge-cli`: `0 errors`, `0 warnings`.
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
-    from `python/flowforge-cli`: `776 passed`, `1 skipped`, overall package
-    coverage 78%.
+    from `python/flowforge-cli`: passed with one optional `mmdc` skip and
+    overall package coverage 78%.
 
 ## CLI coverage slice - generated email and Slack adapters
 
@@ -1219,5 +1219,48 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pyright tests/test_frontend_email_generator.py tests/test_frontend_slack_generator.py`
     from `python/flowforge-cli`: `0 errors`, `0 warnings`.
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
-    from `python/flowforge-cli`: `778 passed`, `1 skipped`, overall package
+    from `python/flowforge-cli`: passed with one optional `mmdc` skip and
+    overall package coverage 78%.
+
+## Code review audit 7 - recent coverage evidence replayability
+
+- Finding:
+  - A code-review pass over commits `1fb1b27`, `76ed58c`, and `00fd835`
+    found that the i18n slice's full-suite verification line pinned an exact
+    test count (`776 passed`) that became stale after later coverage slices
+    added tests.
+- Action:
+  - Updated the recent full-suite evidence lines to report the replayable
+    command, pass status, optional `mmdc` skip, and rounded coverage result
+    rather than brittle historical test totals.
+- Result:
+  - The review finding is resolved. Exact focused-test counts remain recorded
+    for the slice-local commands; broad full-suite evidence now avoids drifting
+    as subsequent slices add tests.
+
+## CLI coverage slice - lineage generator
+
+- Baseline measurement:
+  - After closing email and Slack adapter coverage, rounded `flowforge-cli`
+    package coverage was 78%.
+  - `jtbd/generators/lineage.py` was 99% covered; the remaining branch was the
+    defensive path where a JTBD has no actor role and lineage exposure records
+    should not emit a blank role.
+- Action:
+  - Added a focused exposure-surface test using a normalized JTBD with an empty
+    actor role, asserting that only shared roles are emitted.
+- Result:
+  - `flowforge_cli.jtbd.generators.lineage` now reaches 100% statement and
+    branch coverage.
+  - Overall `flowforge-cli` rounded package coverage remains 78%.
+- Verification:
+  - `uv run pytest tests/test_lineage_generator.py -q --cov=flowforge_cli.jtbd.generators.lineage --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `30 passed`, 100% statement and branch
+    coverage for `lineage.py`.
+  - `uv run ruff check tests/test_lineage_generator.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_lineage_generator.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `779 passed`, `1 skipped`, overall package
     coverage 78%.
