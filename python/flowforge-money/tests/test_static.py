@@ -56,7 +56,7 @@ def test_money_subtraction() -> None:
 
 def test_money_addition_different_currency_raises() -> None:
 	with pytest.raises(ValueError, match="different currencies"):
-		Money(Decimal("10"), "USD") + Money(Decimal("10"), "EUR")
+		_ = Money(Decimal("10"), "USD") + Money(Decimal("10"), "EUR")
 
 
 def test_money_multiply_by_decimal() -> None:
@@ -91,6 +91,12 @@ def test_money_division_by_int() -> None:
 	assert (m / 2).amount == Decimal("15.000000")
 
 
+def test_money_division_by_float_raises() -> None:
+	m = Money(Decimal("30.00"), "USD")
+	with pytest.raises(TypeError):
+		_ = m / 2.5  # type: ignore[operator]
+
+
 def test_money_negation() -> None:
 	m = Money(Decimal("5.00"), "USD")
 	assert (-m).amount == Decimal("-5.000000")
@@ -105,6 +111,7 @@ def test_money_comparison_eq() -> None:
 	assert Money(Decimal("10"), "USD") == Money(Decimal("10"), "USD")
 	assert Money(Decimal("10"), "USD") != Money(Decimal("10"), "EUR")
 	assert Money(Decimal("10"), "USD") != Money(Decimal("11"), "USD")
+	assert Money(Decimal("10"), "USD") != "10 USD"
 
 
 def test_money_comparison_ordering() -> None:

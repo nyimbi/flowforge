@@ -167,3 +167,20 @@ Design audit 5 - operations, security, and reliability:
     clean.
   - `uv run pyright python/flowforge-tenancy/tests/test_resolvers.py`:
     `0 errors, 0 warnings`.
+
+## Package coverage slice - flowforge-money
+
+- Baseline measurement:
+  - `flowforge-money`: `44 passed`, 98% statement coverage before this slice.
+- Action: added focused `Money` value-object tests for:
+  - Division by an unsupported non-Decimal/non-int factor.
+  - Equality comparison against a non-`Money` object.
+  - Cleaned existing different-currency addition assertion so pyright sees the
+    raised expression as intentionally evaluated.
+- Verification:
+  - `uv run pytest tests -q --cov=flowforge_money --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-money`: `45 passed`, 100% statement and branch
+    coverage.
+  - `uv run ruff check python/flowforge-money/tests/test_static.py`: clean.
+  - `uv run pyright python/flowforge-money/tests/test_static.py`:
+    `0 errors, 0 warnings`.
