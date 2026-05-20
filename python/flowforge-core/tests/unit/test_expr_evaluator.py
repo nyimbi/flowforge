@@ -22,7 +22,7 @@ from flowforge.expr import (
 	ops_registry,
 	register_op,
 )
-from flowforge.expr.evaluator import _test_only_unfreeze
+from flowforge.expr.evaluator import _OPS, _test_only_unfreeze, get_op_spec
 
 
 def test_literals_pass_through() -> None:
@@ -152,8 +152,6 @@ def test_C_06_op_registry_frozen() -> None:
 def test_C_06_ops_view_is_immutable() -> None:
 	"""The exported _OPS mapping is read-only (no __setitem__)."""
 
-	from flowforge.expr.evaluator import _OPS  # noqa: SLF001
-
 	with pytest.raises((TypeError, AttributeError)):
 		_OPS["mut"] = lambda: None  # type: ignore[index]
 
@@ -164,6 +162,14 @@ def test_C_06_ops_registry_view_is_immutable_and_exposes_specs() -> None:
 	assert registry["if"].arity_max == 3
 	with pytest.raises(TypeError):
 		registry["mut"] = registry["if"]  # type: ignore[index]
+
+
+def test_C_06_legacy_ops_mapping_exposes_registered_functions() -> None:
+	assert callable(_OPS["if"])
+	assert list(iter(_OPS))
+	assert len(_OPS) == len(ops_registry())
+	assert get_op_spec("if") == ops_registry()["if"]
+	assert get_op_spec("definitely_missing") is None
 
 
 def test_C_06_replay_determinism_invariant() -> None:

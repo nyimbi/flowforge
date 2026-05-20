@@ -8,7 +8,9 @@ from flowforge import config
 from flowforge.compiler.catalog import build_catalog
 from flowforge.dsl import WorkflowDef
 from flowforge.engine.signals import Signal, SignalCorrelator
+from flowforge.ports.audit import Verdict
 from flowforge.replay.reconstruct import reconstruct
+from flowforge.testing.fixtures import load_def
 from flowforge.testing.parity import assert_parity
 
 
@@ -108,6 +110,26 @@ def test_build_catalog_groups_subjects_with_deterministic_lists() -> None:
 			},
 		}
 	}
+
+
+def test_load_def_parses_json_workflow_definition(tmp_path) -> None:  # type: ignore[no-untyped-def]
+	path = tmp_path / "workflow.json"
+	path.write_text(_approval_def().model_dump_json(), encoding="utf-8")
+
+	wd = load_def(path)
+
+	assert wd.key == "expense_approval"
+	assert wd.version == "1.2.0"
+
+
+def test_audit_verdict_constructors_are_stable() -> None:
+	assert Verdict.supported_ok(3) == Verdict(ok=True, checked_count=3)
+	assert Verdict.supported_bad("evt-2", 2) == Verdict(
+		ok=False,
+		first_bad_event_id="evt-2",
+		checked_count=2,
+	)
+	assert Verdict.unsupported_() == Verdict(ok=True, unsupported=True)
 
 
 @pytest.mark.asyncio

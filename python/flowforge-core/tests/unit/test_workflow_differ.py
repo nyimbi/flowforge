@@ -7,9 +7,6 @@ from typing import Any
 import pytest
 
 from flowforge.compiler.diff import (
-	StateChange,
-	TransitionChange,
-	WorkflowDiff,
 	diff_workflow_dicts,
 	diff_workflows,
 )
@@ -194,6 +191,7 @@ def test_changed_transition_to_state_detected() -> None:
 	tc = next(tc for tc in diff.changed_transitions if tc.id == "submit")
 	assert "to_state" in tc.changed_fields
 	assert tc.changed_fields["to_state"] == ("review", "escalated")
+	assert "~ transition  submit.to_state" in diff.summary()
 
 
 def test_changed_transition_gates_detected() -> None:

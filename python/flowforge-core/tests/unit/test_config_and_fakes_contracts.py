@@ -71,6 +71,22 @@ def test_production_config_errors_fail_closed_for_missing_fake_and_unknown_ports
 	assert "unknown required port 'not_a_port'" in errors
 
 
+def test_production_config_detects_legacy_testing_fake_class_names() -> None:
+	class NoopTracing:
+		pass
+
+	runtime = RuntimeConfig(tracing=NoopTracing())
+
+	assert production_config_errors(runtime, required_ports=("tracing",)) == [
+		"tracing uses testing fake NoopTracing"
+	]
+	assert production_config_errors(
+		runtime,
+		required_ports=("tracing",),
+		allow_testing_fakes=True,
+	) == []
+
+
 def test_validate_production_config_can_allow_testing_fakes_for_local_harnesses() -> None:
 	runtime = RuntimeConfig(
 		tenancy=InMemoryTenancy(),
@@ -184,8 +200,10 @@ async def test_documents_money_settings_notifications_signing_tasks_and_grants_f
 		default: str
 
 	await settings.register(SettingSpec("locale", "fr-CA"))
+	await settings.register({"key": "region", "default": "ca"})
 	await settings.set("theme", "dark", signed_by="admin")
 	assert await settings.get("locale") == "fr-CA"
+	assert await settings.get("region") == "ca"
 	assert await settings.get("theme") == "dark"
 
 	signing = InMemorySigning("kid-1")
@@ -230,6 +248,13 @@ async def test_documents_money_settings_notifications_signing_tasks_and_grants_f
 	assert grants.grants["claim:claim-1#viewer@user:alice"] == until
 	await grants.revoke("claim:claim-1#viewer@user:alice")
 	assert grants.grants == {}
+
+	rls = NoopRls()
+	await rls.bind(None, {"tenant_id": "tenant-a"})
+	entered_elevated_scope = False
+	async with rls.elevated(None):
+		entered_elevated_scope = True
+	assert entered_elevated_scope is True
 
 
 def test_saga_ledger_append_list_and_mark_are_copy_safe() -> None:

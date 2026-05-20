@@ -11,7 +11,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, AsyncIterator, Mapping
 
-from ..ports.audit import AuditSink, Verdict
+from ..ports.audit import Verdict
 from ..ports.types import (
 	AuditEvent,
 	NotificationSpec,
@@ -189,6 +189,8 @@ class InMemorySettings:
 		# spec.key, spec.default
 		key = getattr(spec, "key", None) or spec["key"]
 		default = getattr(spec, "default", None)
+		if default is None and isinstance(spec, dict):
+			default = spec.get("default")
 		if default is not None:
 			self._vals.setdefault(key, default)
 
