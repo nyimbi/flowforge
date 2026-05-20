@@ -1323,3 +1323,31 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `789 passed`, `1 skipped`, overall package
     coverage 78%.
+
+## CLI coverage slice - reachability generator
+
+- Baseline measurement:
+  - After closing i18n sidecar loader coverage, rounded `flowforge-cli`
+    package coverage was 78%.
+  - `jtbd/generators/reachability.py` was 93% covered; remaining gaps were
+    defensive guard-shape filtering, the non-SAT solver result branch, and the
+    report summary path for unreachable transitions.
+- Action:
+  - Added focused tests for ignoring non-`expr` guards, ignoring non-`context`
+    and non-string guard variables, surfacing a non-SAT z3 result as
+    unreachable, and counting unreachable transitions in the emitted report.
+- Result:
+  - `flowforge_cli.jtbd.generators.reachability` now reaches 100% statement
+    and branch coverage.
+  - Overall `flowforge-cli` rounded package coverage remains 78%.
+- Verification:
+  - `uv run pytest tests/test_reachability_generator.py -q --cov=flowforge_cli.jtbd.generators.reachability --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `18 passed`, 100% statement and branch
+    coverage for `reachability.py`.
+  - `uv run ruff check tests/test_reachability_generator.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_reachability_generator.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: passed with one optional `mmdc` skip and
+    overall package coverage 78%.

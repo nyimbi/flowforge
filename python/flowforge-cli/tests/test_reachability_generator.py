@@ -24,6 +24,7 @@ import builtins
 import importlib
 import json
 import sys
+import types
 from pathlib import Path
 from typing import Any
 
@@ -205,6 +206,61 @@ def test_no_guard_transitions_are_reachable_without_solver_call() -> None:
 	assert submit["guard_vars"] == []
 	assert submit["reachable"] is True
 	assert "witness" not in submit
+
+
+def test_guard_vars_ignore_non_expr_and_non_context_vars() -> None:
+	"""Only expr guards that read ``context.<name>`` produce guard vars."""
+	transition = {
+		"guards": [
+			{"kind": "field", "expr": {"var": "context.ignored_kind"}},
+			{"kind": "expr", "expr": {"var": "tenant.id"}},
+			{"kind": "expr", "expr": {"var": 7}},
+			{"kind": "expr", "expr": {"var": "context.keep"}},
+		]
+	}
+	assert reachability._guard_vars(transition) == ["keep"]
+
+
+def test_unsat_solver_result_marks_transition_unreachable(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""A non-SAT z3 result is surfaced as an unreachable transition."""
+	fake_z3 = types.ModuleType("z3")
+	setattr(fake_z3, "sat", object())
+	setattr(fake_z3, "Bool", lambda name: name)
+
+	class UnsatSolver:
+		def add(self, _expr: Any) -> None:
+			return None
+
+		def check(self) -> object:
+			return object()
+
+	setattr(fake_z3, "Solver", UnsatSolver)
+	monkeypatch.setitem(sys.modules, "z3", fake_z3)
+
+	transition = {"guards": [{"kind": "expr", "expr": {"var": "context.blocked"}}]}
+	assert reachability._check_transition_reachable(transition) == (False, None)
+
+
+def test_build_report_counts_unreachable_transitions(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	"""Report summary increments unreachable when the checker returns false."""
+	bundle = normalize(_bundle_with_branch_guard())
+	jtbd = bundle.jtbds[0]
+	monkeypatch.setattr(
+		reachability,
+		"_check_transition_reachable",
+		lambda _transition: (False, None),
+	)
+
+	report = reachability._build_report(jtbd)
+
+	assert report["summary"]["total"] == len(jtbd.transitions)
+	assert report["summary"]["reachable"] == 0
+	assert report["summary"]["unreachable"] == len(jtbd.transitions)
+	assert all(t["reachable"] is False for t in report["transitions"])
 
 
 def test_byte_identical_regen_with_z3() -> None:
