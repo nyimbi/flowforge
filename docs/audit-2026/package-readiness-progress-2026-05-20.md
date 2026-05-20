@@ -147,3 +147,23 @@ Design audit 5 - operations, security, and reliability:
 - External release qualification still requires a browser-capable environment
   for visual DOM/browser E2E and live Postgres checks; local macOS sandbox runs
   can document skips but cannot replace that release evidence.
+
+## Package coverage slice - flowforge-tenancy
+
+- Baseline measurement:
+  - `flowforge-tenancy`: `11 passed`, 95% statement coverage before this slice.
+  - Nearby small package baselines measured for prioritization:
+    `flowforge-rbac-static` 90%, `flowforge-money` 98%, `flowforge-otel` 96%.
+- Action: added focused resolver contract coverage for:
+  - `NoTenancy.elevated_scope()` no-op behavior.
+  - `SingleTenantGUC.current_tenant()`.
+  - Duck-typed sessions that intentionally omit `in_transaction()`.
+  - Async `session.execute(...)` results returned by SQLAlchemy-like sessions.
+- Verification:
+  - `uv run pytest tests -q --cov=flowforge_tenancy --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-tenancy`: `14 passed`, 100% statement and branch
+    coverage.
+  - `uv run ruff check python/flowforge-tenancy/tests/test_resolvers.py`:
+    clean.
+  - `uv run pyright python/flowforge-tenancy/tests/test_resolvers.py`:
+    `0 errors, 0 warnings`.

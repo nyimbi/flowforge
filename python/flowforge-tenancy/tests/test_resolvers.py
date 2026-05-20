@@ -24,9 +24,31 @@ class StubSession:
 		self.calls.append((sql, dict(params or {})))
 
 
+class AsyncExecuteSession:
+	def __init__(self) -> None:
+		self.calls: list[tuple[str, dict]] = []
+
+	def execute(self, sql, params=None):
+		self.calls.append((sql, dict(params or {})))
+
+		async def _complete() -> None:
+			return None
+
+		return _complete()
+
+
+class DuckTypedSession:
+	def __init__(self) -> None:
+		self.calls: list[tuple[str, dict]] = []
+
+	def execute(self, sql, params=None):
+		self.calls.append((sql, dict(params or {})))
+
+
 async def test_single_tenant_satisfies_protocol() -> None:
 	r = SingleTenantGUC("t-1")
 	assert isinstance(r, TenancyResolver)
+	assert await r.current_tenant() == "t-1"
 
 
 async def test_single_tenant_binds_guc() -> None:
@@ -76,6 +98,29 @@ async def test_no_tenancy_does_not_bind() -> None:
 	await r.bind_session(s, "ignored")
 	assert s.calls == []
 	assert await r.current_tenant() == "default"
+
+
+async def test_no_tenancy_elevated_scope_is_noop() -> None:
+	r = NoTenancy("public")
+	async with r.elevated_scope():
+		assert await r.current_tenant() == "public"
+
+
+async def test_single_tenant_accepts_duck_typed_session_without_tx_probe() -> None:
+	r = SingleTenantGUC("t-1")
+	s = DuckTypedSession()
+	await r.bind_session(s, "t-1")
+	assert [c[1]["k"] for c in s.calls] == ["app.tenant_id", "app.elevated"]
+
+
+async def test_set_config_awaits_async_execute_result() -> None:
+	from flowforge_tenancy.single import _set_config
+
+	s = AsyncExecuteSession()
+	await _set_config(s, "app.tenant_id", "t-async")
+	assert s.calls == [
+		("SELECT set_config(:k, :v, true)", {"k": "app.tenant_id", "v": "t-async"})
+	]
 
 
 # ---------------------------------------------------------------------------
