@@ -6,8 +6,15 @@ import pytest
 
 from flowforge import config
 from flowforge.dsl import WorkflowDef
+from flowforge.dsl.workflow_def import Guard
 from flowforge.engine import fire, new_instance
-from flowforge.engine.fire import InvalidTargetError, OutboxDispatchError, make_context
+from flowforge.engine.fire import (
+	ConcurrentFireRejected,
+	GuardEvaluationError,
+	InvalidTargetError,
+	OutboxDispatchError,
+	make_context,
+)
 from flowforge.ports.types import Principal
 
 
@@ -283,6 +290,31 @@ async def test_invalid_set_target_surfaces_authoring_error() -> None:
 	assert inst.context == {}
 
 
+async def test_guard_evaluation_error_surfaces_bad_guard_expression() -> None:
+	wd = _single_transition_def()
+	wd.transitions[0].guards = [Guard(expr={"var": 123})]
+	inst = new_instance(wd)
+
+	with pytest.raises(GuardEvaluationError) as exc_info:
+		await fire(wd, inst, "complete", principal=Principal(user_id="u"))
+
+	assert exc_info.value.transition_id == "complete"
+	assert exc_info.value.expr == {"var": 123}
+	assert inst.state == "draft"
+	assert inst.history == []
+
+
+async def test_engine_exception_constructors_preserve_context() -> None:
+	concurrent = ConcurrentFireRejected("inst-1")
+	assert concurrent.instance_id == "inst-1"
+	assert "inst-1" in str(concurrent)
+
+	outbox = OutboxDispatchError("inst-2")
+	assert outbox.instance_id == "inst-2"
+	assert outbox.envelope_kind is None
+	assert "envelope.kind" not in str(outbox)
+
+
 async def test_outbox_dispatch_failure_restores_all_mutated_instance_fields() -> None:
 	class FailingOutbox:
 		async def dispatch(self, envelope):
@@ -335,6 +367,41 @@ async def test_outbox_dispatch_failure_restores_all_mutated_instance_fields() ->
 		"jtbd_id": "case_completion",
 		"jtbd_version": "1.2.3",
 	}
+
+
+async def test_outbox_failure_preserves_original_error_when_rollback_audit_fails() -> None:
+	class FailingOutbox:
+		async def dispatch(self, envelope):
+			raise RuntimeError("transport down")
+
+	class RollbackAuditFails:
+		def __init__(self) -> None:
+			self.events = []
+
+		async def record(self, event):
+			self.events.append(event)
+			if len(self.events) > 1:
+				raise RuntimeError("audit rollback down")
+
+	audit = RollbackAuditFails()
+	config.audit = audit
+	config.outbox = FailingOutbox()
+	wd = _single_transition_def([
+		{"kind": "set", "target": "context.review.status", "expr": "ready"},
+		{"kind": "notify", "template": "case.done"},
+	])
+	inst = new_instance(wd, initial_context={"review": {"status": "draft"}})
+
+	with pytest.raises(OutboxDispatchError) as exc_info:
+		await fire(wd, inst, "complete", principal=Principal(user_id="u"))
+
+	assert isinstance(exc_info.value.__cause__, RuntimeError)
+	assert inst.state == "draft"
+	assert inst.context == {"review": {"status": "draft"}}
+	assert [event.kind for event in audit.events] == [
+		"wf.case_flow.transitioned",
+		"wf.case_flow.transition_rolled_back",
+	]
 
 
 async def test_outbox_dispatch_still_runs_when_audit_port_is_unconfigured() -> None:
