@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 
 from flowforge_jtbd.registry.manifest import JtbdManifest, bundle_hash
@@ -120,15 +121,15 @@ def test_E_73_principal_kind_default_is_user():
 # ---------------------------------------------------------------------------
 
 
-def _extractor_alice_admin(req: Any) -> Principal | None:
-	auth = req.headers.get("Authorization") if req else None
+def _extractor_alice_admin(request: Any) -> Principal | None:
+	auth = request.headers.get("Authorization") if request else None
 	if auth == "Bearer alice-token":
 		return Principal(user_id="alice", roles=(Role.HUB_ADMIN,))
 	return None
 
 
-def _extractor_bob_auditor(req: Any) -> Principal | None:
-	auth = req.headers.get("Authorization") if req else None
+def _extractor_bob_auditor(request: Any) -> Principal | None:
+	auth = request.headers.get("Authorization") if request else None
 	if auth == "Bearer bob-token":
 		return Principal(user_id="bob", roles=(Role.AUDITOR,))
 	return None
@@ -335,13 +336,19 @@ def test_E_73_hybrid_extractor_and_legacy_token_both_accept():
 # ---------------------------------------------------------------------------
 
 
-def test_E_73_dev_mode_open_admin():
-	"""When neither extractor nor admin_token is set, admin endpoints
-	stay open (current dev-mode behaviour preserved)."""
+def test_E_73_authless_app_requires_explicit_dev_mode():
+	registry = PackageRegistry(signing=_make_signing())
+
+	with pytest.raises(RuntimeError, match="principal_extractor or admin_token"):
+		create_app(registry)
+
+
+def test_E_73_explicit_dev_mode_open_admin():
+	"""Authless admin endpoints are local-only and require dev_mode=True."""
 	registry = PackageRegistry(signing=_make_signing())
 	name, version = _publish(registry)
 
-	app = create_app(registry)
+	app = create_app(registry, dev_mode=True)
 	client = TestClient(app)
 
 	resp = client.post(

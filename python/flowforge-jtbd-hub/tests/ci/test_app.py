@@ -350,15 +350,23 @@ async def test_search_ranks_by_reputation(
 	assert results[0]["reputation"] >= results[1]["reputation"]
 
 
-async def test_create_app_without_admin_token_allows_demote(
+async def test_create_app_without_auth_rejects_startup(
+	registry: PackageRegistry,
+) -> None:
+	from flowforge_jtbd_hub.app import create_app
+
+	with pytest.raises(RuntimeError, match="principal_extractor or admin_token"):
+		create_app(registry, admin_token=None)
+
+
+async def test_create_app_explicit_dev_mode_allows_demote(
 	registry: PackageRegistry, signing: HmacDevSigning
 ) -> None:
-	"""When admin_token=None the demote endpoint is unguarded — useful
-	for local dev hub spinning."""
+	"""Authless demote is available only through explicit local dev mode."""
 	from flowforge_jtbd_hub.app import create_app
 	from httpx import ASGITransport
 
-	app = create_app(registry, admin_token=None)
+	app = create_app(registry, admin_token=None, dev_mode=True)
 	transport = ASGITransport(app=app)
 	async with AsyncClient(transport=transport, base_url="http://h") as client:
 		bundle = b'{"k":"v"}'

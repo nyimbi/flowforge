@@ -150,6 +150,7 @@ def create_app(
 	*,
 	admin_token: str | None = None,
 	principal_extractor: PrincipalExtractor | None = None,
+	dev_mode: bool = False,
 ) -> FastAPI:
 	"""Build a FastAPI instance bound to *registry*.
 
@@ -175,7 +176,9 @@ def create_app(
 	  This supports staged rollout: turn on the extractor while keeping
 	  legacy admins working.
 
-	* When neither is set, admin endpoints are open (dev mode only).
+	* ``dev_mode`` — Explicit local-only escape hatch. When neither
+	  ``principal_extractor`` nor ``admin_token`` is configured, the app
+	  refuses to start unless ``dev_mode=True`` is passed.
 	"""
 	# E-58 / JH-04: parse the rotation list once at app build time.
 	allowed_tokens: tuple[str, ...] = ()
@@ -184,6 +187,11 @@ def create_app(
 			t.strip() for t in admin_token.split(",") if t.strip()
 		)
 		assert allowed_tokens, "admin_token must contain at least one non-empty value"
+	if principal_extractor is None and not allowed_tokens and not dev_mode:
+		raise RuntimeError(
+			"flowforge-jtbd-hub admin routes require principal_extractor or admin_token; "
+			"pass dev_mode=True only for local development"
+		)
 
 	app = FastAPI(title="flowforge-jtbd-hub")
 
@@ -238,14 +246,11 @@ def create_app(
 
 		Returns a :class:`Principal`. Routes that need finer permission
 		distinctions use :func:`_require_permission` instead. When
-		neither principal_extractor nor admin_token is configured, this
-		dependency returns the legacy admin Principal as a permissive
-		default (dev mode); enabling either tightens the gate.
+		neither principal_extractor nor admin_token is configured, app
+		startup requires explicit dev_mode=True before this permissive
+		local fallback can be reached.
 		"""
-		if principal_extractor is None and not allowed_tokens:
-			# Dev mode (no auth configured) — match historical open behaviour
-			# but emit a synthetic principal so audit hooks have something
-			# to record.
+		if dev_mode and principal_extractor is None and not allowed_tokens:
 			return LEGACY_ADMIN_PRINCIPAL
 		principal = _resolve_principal(authorization)
 		if principal is None:
@@ -264,8 +269,7 @@ def create_app(
 		def _checker(
 			authorization: str | None = Header(default=None),
 		) -> Principal:
-			# Dev mode: same permissive fallback as _require_admin.
-			if principal_extractor is None and not allowed_tokens:
+			if dev_mode and principal_extractor is None and not allowed_tokens:
 				return LEGACY_ADMIN_PRINCIPAL
 			principal = _resolve_principal(authorization)
 			if principal is None:
