@@ -218,3 +218,25 @@ Design audit 5 - operations, security, and reliability:
     clean.
   - `uv run pyright python/flowforge-rbac-static/tests/test_resolver.py`:
     `0 errors, 0 warnings`.
+
+## Package coverage slice - flowforge-rbac-spicedb
+
+- Baseline measurement:
+  - `flowforge-rbac-spicedb`: `15 passed`, 96% statement coverage before this
+    slice.
+  - Larger nearby packages measured for prioritization:
+    `flowforge-signing-kms` 72%, `flowforge-documents-s3` 68%, and
+    `flowforge-notify-multichannel` 85%.
+- Action: added focused SpiceDB adapter tests for:
+  - Flat `LookupSubjects` response shapes and empty subject ids.
+  - Fake client revoke/delete behavior.
+  - Cached zedtoken reset and no-token write responses.
+  - Duplicate and wrong-subject-type lookup suppression in the fake client.
+- Verification:
+  - `uv run pytest tests -q --cov=flowforge_rbac_spicedb --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-rbac-spicedb`: `23 passed`, 100% statement and
+    branch coverage.
+  - `uv run ruff check python/flowforge-rbac-spicedb/tests/test_resolver.py`:
+    clean.
+  - `uv run pyright python/flowforge-rbac-spicedb/tests/test_resolver.py`:
+    `0 errors, 0 warnings`.
