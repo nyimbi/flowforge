@@ -24,9 +24,17 @@ def upgrade_deps_cmd(
 			err=True,
 		)
 		raise typer.Exit(2)
-	package_roots = sorted((root / "python").glob("flowforge-*/pyproject.toml"))
+	workspace_root = _find_workspace_root(root)
+	if workspace_root is None:
+		typer.echo(
+			"error: no Flowforge workspace found from the supplied root; "
+			"run inside a checkout or pass --root /path/to/flowforge",
+			err=True,
+		)
+		raise typer.Exit(2)
+	package_roots = sorted((workspace_root / "python").glob("flowforge-*/pyproject.toml"))
 	if not package_roots:
-		typer.echo(f"error: no Flowforge package pyproject.toml files under {root / 'python'}", err=True)
+		typer.echo(f"error: no Flowforge package pyproject.toml files under {workspace_root / 'python'}", err=True)
 		raise typer.Exit(2)
 	typer.echo("Flowforge dependency inspection")
 	for pyproject in package_roots:
@@ -39,3 +47,15 @@ def upgrade_deps_cmd(
 			if isinstance(dep, str) and dep.startswith("flowforge"):
 				typer.echo(f"    {dep}")
 	typer.echo("No files changed. Use uv lock / package-specific pyproject edits for reviewed upgrades.")
+
+
+def _find_workspace_root(start: Path) -> Path | None:
+	"""Return the nearest Flowforge workspace root at or above *start*."""
+
+	current = start.resolve()
+	for candidate in (current, *current.parents):
+		if (candidate / "pyproject.toml").is_file() and list(
+			(candidate / "python").glob("flowforge-*/pyproject.toml")
+		):
+			return candidate
+	return None

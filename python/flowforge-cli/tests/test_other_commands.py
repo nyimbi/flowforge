@@ -232,6 +232,15 @@ def test_upgrade_deps_inspects_workspace() -> None:
 	assert "Flowforge dependency inspection" in r.output
 
 
+def test_upgrade_deps_discovers_workspace_from_package_dir(monkeypatch: pytest.MonkeyPatch) -> None:
+	monkeypatch.chdir(Path("python/flowforge-cli"))
+
+	r = runner.invoke(app, ["upgrade-deps"])
+
+	assert r.exit_code == 0
+	assert "Flowforge dependency inspection" in r.output
+
+
 def test_audit_verify_checks_jsonl_export(tmp_path: Path) -> None:
 	from flowforge_audit_pg.hash_chain import compute_row_sha
 
