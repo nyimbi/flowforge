@@ -307,6 +307,7 @@ async def test_canonical_hash_matches_dsl_helper_on_persisted_body(
 			"spec_hash",
 			"parent_version_id",
 			"status",
+			"annotations",
 			"created_by",
 			"published_by",
 		):
