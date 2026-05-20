@@ -27,7 +27,16 @@ from __future__ import annotations
 import base64
 from typing import Any
 
-from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, status
+from fastapi import (
+	Body,
+	Depends,
+	FastAPI,
+	Header,
+	HTTPException,
+	Query,
+	Request,
+	status,
+)
 from fastapi.responses import JSONResponse
 from flowforge_jtbd.registry.manifest import JtbdManifest
 from pydantic import BaseModel, ConfigDict, Field
@@ -240,6 +249,7 @@ def create_app(
 		return _legacy_token_principal(authorization)
 
 	def _require_admin(
+		request: Request,
 		authorization: str | None = Header(default=None),
 	) -> Principal:
 		"""E-73 / E-58 backward-compat: authenticate any admin route.
@@ -252,7 +262,7 @@ def create_app(
 		"""
 		if dev_mode and principal_extractor is None and not allowed_tokens:
 			return LEGACY_ADMIN_PRINCIPAL
-		principal = _resolve_principal(authorization)
+		principal = _resolve_principal(authorization, request)
 		if principal is None:
 			raise HTTPException(
 				status_code=status.HTTP_401_UNAUTHORIZED,
@@ -267,11 +277,12 @@ def create_app(
 		"""
 
 		def _checker(
+			request: Request,
 			authorization: str | None = Header(default=None),
 		) -> Principal:
 			if dev_mode and principal_extractor is None and not allowed_tokens:
 				return LEGACY_ADMIN_PRINCIPAL
-			principal = _resolve_principal(authorization)
+			principal = _resolve_principal(authorization, request)
 			if principal is None:
 				raise HTTPException(
 					status_code=status.HTTP_401_UNAUTHORIZED,

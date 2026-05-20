@@ -527,3 +527,32 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_sqlalchemy --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-sqlalchemy`: `22 passed`, `1 skipped`, package
     coverage 77%.
+
+## Code-review remediation slice - jtbd-hub request-aware principals
+
+- Audit finding:
+  - `flowforge-jtbd-hub` documented request-aware `PrincipalExtractor`
+    support, and `_resolve_principal(...)` could accept a request, but the
+    admin/permission dependencies only passed the `Authorization` header.
+  - Extractors needing real FastAPI `Request` context therefore failed closed
+    on authenticated write routes such as package publish.
+- Action:
+  - Updated `_require_admin(...)` and `_require_permission(...)` dependencies
+    to accept FastAPI `Request` and pass it into `_resolve_principal(...)`.
+  - Added a publish-route regression whose extractor requires the real request
+    object (`request.url`) and authenticates from a non-Authorization header.
+- Result:
+  - Request-aware extractors now work for the shared permission dependency
+    used by publish, rate, demote, and verified-badge routes.
+- Verification:
+  - `uv run pytest python/flowforge-jtbd-hub/tests/test_E_73_rbac.py::test_E_73_request_aware_extractor_receives_fastapi_request_for_publish -q`:
+    `1 passed`.
+  - `uv run ruff check python/flowforge-jtbd-hub/src/flowforge_jtbd_hub/app.py python/flowforge-jtbd-hub/tests/test_E_73_rbac.py`:
+    clean.
+  - `uv run pyright python/flowforge-jtbd-hub/src/flowforge_jtbd_hub/app.py python/flowforge-jtbd-hub/tests/test_E_73_rbac.py`:
+    `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q` from `python/flowforge-jtbd-hub`:
+    `66 passed`, with the existing FastAPI 422 deprecation warning.
+  - `uv run pytest tests -q --cov=flowforge_jtbd_hub --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-jtbd-hub`: `66 passed`, package coverage 86%, with
+    the existing FastAPI 422 deprecation warning.

@@ -14,6 +14,7 @@ as follow-ups in framework/docs/design/E-73-jtbd-hub-rbac.md.
 from __future__ import annotations
 
 import asyncio
+import base64
 from typing import Any
 
 import pytest
@@ -197,6 +198,37 @@ def test_E_73_extractor_invalid_token_returns_401():
 		headers={"Authorization": "Bearer unknown-token"},
 	)
 	assert resp.status_code == 401
+
+
+def test_E_73_request_aware_extractor_receives_fastapi_request_for_publish():
+	"""Request-aware extractors get FastAPI's real Request in route deps."""
+	registry = PackageRegistry(signing=_make_signing())
+	signing = _make_signing()
+	manifest = _make_manifest("flowforge-jtbd-rbac-request")
+	bundle = _make_bundle(manifest.name)
+	signed_manifest = _run(sign_manifest(manifest, signing))
+
+	def _request_aware_publisher(request: Any) -> Principal | None:
+		if getattr(request, "url", None) is None:
+			return None
+		if request.headers.get("X-Principal") == "publisher":
+			return Principal(user_id="publisher", roles=(Role.PACKAGE_PUBLISHER,))
+		return None
+
+	app = create_app(registry, principal_extractor=_request_aware_publisher)
+	client = TestClient(app)
+
+	resp = client.post(
+		"/api/jtbd-hub/packages",
+		json={
+			"manifest": signed_manifest.model_dump(mode="json"),
+			"bundle_b64": base64.b64encode(bundle).decode("ascii"),
+			"allow_unsigned": False,
+		},
+		headers={"X-Principal": "publisher"},
+	)
+	assert resp.status_code == 201, resp.text
+	assert resp.json()["name"] == manifest.name
 
 
 def test_E_73_set_verified_also_gated():
