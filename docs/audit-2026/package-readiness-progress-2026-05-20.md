@@ -1294,3 +1294,32 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `784 passed`, `1 skipped`, overall package
     coverage 78%.
+
+## CLI coverage slice - i18n sidecar loader
+
+- Baseline measurement:
+  - After closing operator manual coverage, rounded `flowforge-cli` package
+    coverage was 78%.
+  - `jtbd/i18n_sidecars.py` was 80% covered; the remaining gaps were missing
+    sidecar directory handling, malformed JSON object validation,
+    non-string key/value validation, and the permissive mode where no declared
+    language filter is supplied.
+- Action:
+  - Added focused sidecar loader tests for missing directories, loading without
+    a declared-language filter, rejecting non-object catalogs, rejecting
+    non-string values, and the defensive non-string key branch.
+- Result:
+  - `flowforge_cli.jtbd.i18n_sidecars` now reaches 100% statement and branch
+    coverage.
+  - Overall `flowforge-cli` rounded package coverage remains 78%.
+- Verification:
+  - `uv run pytest tests/test_i18n_generator.py -q --cov=flowforge_cli.jtbd.i18n_sidecars --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `50 passed`, 100% statement and branch
+    coverage for `i18n_sidecars.py`.
+  - `uv run ruff check tests/test_i18n_generator.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_i18n_generator.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `789 passed`, `1 skipped`, overall package
+    coverage 78%.

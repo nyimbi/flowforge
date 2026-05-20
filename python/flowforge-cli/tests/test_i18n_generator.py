@@ -29,6 +29,7 @@ import pytest
 from flowforge_cli.jtbd import generate
 from flowforge_cli.jtbd.generators import _fixture_registry
 from flowforge_cli.jtbd.generators import i18n as gen
+from flowforge_cli.jtbd import i18n_sidecars
 from flowforge_cli.jtbd.i18n_sidecars import load_i18n_sidecars
 from flowforge_cli.jtbd.normalize import normalize
 
@@ -290,6 +291,74 @@ def test_translation_sidecar_accepts_declared_locale(tmp_path: Path) -> None:
 	assert load_i18n_sidecars(bundle, declared_languages=["en", "fr-CA"]) == {
 		"fr-CA": {"jtbd.claim_intake.title": "Déposer une réclamation"}
 	}
+
+
+def test_translation_sidecar_missing_directory_is_empty(tmp_path: Path) -> None:
+	bundle = tmp_path / "jtbd-bundle.json"
+	bundle.write_text(json.dumps(_bundle(languages=["en"])), encoding="utf-8")
+
+	assert load_i18n_sidecars(bundle, declared_languages=["en"]) == {}
+
+
+def test_translation_sidecar_can_load_without_declared_language_filter(
+	tmp_path: Path,
+) -> None:
+	bundle = tmp_path / "jtbd-bundle.json"
+	bundle.write_text(json.dumps(_bundle(languages=["en"])), encoding="utf-8")
+	sidecars = tmp_path / "i18n"
+	sidecars.mkdir()
+	(sidecars / "fr-CA.json").write_text(
+		json.dumps({"jtbd.claim_intake.title": "Déposer une réclamation"}),
+		encoding="utf-8",
+	)
+
+	assert load_i18n_sidecars(bundle) == {
+		"fr-CA": {"jtbd.claim_intake.title": "Déposer une réclamation"}
+	}
+
+
+def test_translation_sidecar_rejects_non_object_json(tmp_path: Path) -> None:
+	bundle = tmp_path / "jtbd-bundle.json"
+	bundle.write_text(json.dumps(_bundle(languages=["en"])), encoding="utf-8")
+	sidecars = tmp_path / "i18n"
+	sidecars.mkdir()
+	(sidecars / "fr-CA.json").write_text("[]", encoding="utf-8")
+
+	with pytest.raises(ValueError, match="expected a JSON object"):
+		load_i18n_sidecars(bundle)
+
+
+def test_translation_sidecar_rejects_non_string_values(tmp_path: Path) -> None:
+	bundle = tmp_path / "jtbd-bundle.json"
+	bundle.write_text(json.dumps(_bundle(languages=["en"])), encoding="utf-8")
+	sidecars = tmp_path / "i18n"
+	sidecars.mkdir()
+	(sidecars / "fr-CA.json").write_text(
+		json.dumps({"jtbd.claim_intake.title": 7}),
+		encoding="utf-8",
+	)
+
+	with pytest.raises(ValueError, match="translation value"):
+		load_i18n_sidecars(bundle)
+
+
+def test_translation_sidecar_rejects_non_string_keys(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	bundle = tmp_path / "jtbd-bundle.json"
+	bundle.write_text(json.dumps(_bundle(languages=["en"])), encoding="utf-8")
+	sidecars = tmp_path / "i18n"
+	sidecars.mkdir()
+	(sidecars / "fr-CA.json").write_text("{}", encoding="utf-8")
+	monkeypatch.setattr(
+		i18n_sidecars.json,
+		"loads",
+		lambda _payload: {1: "translated"},
+	)
+
+	with pytest.raises(ValueError, match="translation key must be a string"):
+		load_i18n_sidecars(bundle)
 
 
 def test_english_catalog_values_are_never_empty() -> None:
