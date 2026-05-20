@@ -305,7 +305,14 @@ async def test_outbox_dispatch_failure_restores_all_mutated_instance_fields() ->
 	inst = new_instance(wd, initial_context={"review": {"status": "draft"}})
 
 	with pytest.raises(OutboxDispatchError) as exc_info:
-		await fire(wd, inst, "complete", principal=Principal(user_id="u"))
+		await fire(
+			wd,
+			inst,
+			"complete",
+			principal=Principal(user_id="u"),
+			jtbd_id="case_completion",
+			jtbd_version="1.2.3",
+		)
 
 	assert exc_info.value.instance_id == inst.id
 	assert exc_info.value.envelope_kind == "wf.notify"
@@ -325,7 +332,22 @@ async def test_outbox_dispatch_failure_restores_all_mutated_instance_fields() ->
 		"restored_state": "draft",
 		"event": "complete",
 		"failed_envelope_kind": "wf.notify",
+		"jtbd_id": "case_completion",
+		"jtbd_version": "1.2.3",
 	}
+
+
+async def test_outbox_dispatch_still_runs_when_audit_port_is_unconfigured() -> None:
+	wd = _single_transition_def([
+		{"kind": "notify", "template": "case.done"},
+	])
+	inst = new_instance(wd)
+	config.audit = None
+
+	result = await fire(wd, inst, "complete", principal=Principal(user_id="u"))
+
+	assert result.new_state == "done"
+	assert [env.kind for env in config.outbox.dispatched] == ["wf.notify"]
 
 
 async def test_audit_dispatch_failure_restores_state_and_skips_outbox() -> None:

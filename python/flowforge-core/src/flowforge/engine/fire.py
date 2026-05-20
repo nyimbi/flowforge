@@ -476,28 +476,28 @@ async def _fire_locked(
 			_restore_instance(instance, pre_snapshot)
 			raise
 
-		if dispatch_ports and cfg.outbox is not None:
-			for env in outboxes:
-				try:
-					await cfg.outbox.dispatch(env)
-				except Exception as e:
-					_restore_instance(instance, pre_snapshot)
-					if cfg.audit is not None:
-						await _record_rollback_audit(
-							cfg.audit,
-							wd=wd,
-							instance=instance,
-							tenant_id=tenant_id,
-							principal=principal,
-							transition_id=chosen.id,
-							from_state=prev_state,
-							to_state=chosen.to_state,
-							event=event,
-							envelope_kind=env.kind,
-							jtbd_id=jtbd_id,
-							jtbd_version=jtbd_version,
-						)
-					raise OutboxDispatchError(instance.id, env.kind) from e
+	if dispatch_ports and cfg.outbox is not None:
+		for env in outboxes:
+			try:
+				await cfg.outbox.dispatch(env)
+			except Exception as e:
+				_restore_instance(instance, pre_snapshot)
+				if cfg.audit is not None:
+					await _record_rollback_audit(
+						cfg.audit,
+						wd=wd,
+						instance=instance,
+						tenant_id=tenant_id,
+						principal=principal,
+						transition_id=chosen.id,
+						from_state=prev_state,
+						to_state=chosen.to_state,
+						event=event,
+						envelope_kind=env.kind,
+						jtbd_id=jtbd_id,
+						jtbd_version=jtbd_version,
+					)
+				raise OutboxDispatchError(instance.id, env.kind) from e
 
 	terminal = _is_terminal(wd, instance.state)
 	return FireResult(
