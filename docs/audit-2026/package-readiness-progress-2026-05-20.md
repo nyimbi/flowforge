@@ -1520,3 +1520,32 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: passed with one optional `mmdc` skip and
     overall package coverage 79%.
+
+## CLI coverage slice - JTBD transforms
+
+- Baseline measurement:
+  - After closing JTBD pipeline shortcut coverage, rounded `flowforge-cli`
+    package coverage was 79%.
+  - `jtbd/transforms.py` was 90% covered; remaining gaps were empty
+    PascalCase fallback, duplicate/missing branch-target handling, loop-edge
+    synthesis, field mapping helpers, and form-field validation omission.
+- Action:
+  - Added focused transform tests for empty PascalCase fallback, duplicate
+    branch-state suppression, missing branch transition suppression, loop
+    transition and audit-topic synthesis, unknown field-kind column defaults,
+    default form labels, validation preservation, and validation omission.
+- Result:
+  - `flowforge_cli.jtbd.transforms` now reaches 100% statement and branch
+    coverage.
+  - Overall `flowforge-cli` rounded package coverage remains 79%.
+- Verification:
+  - `uv run pytest tests/test_jtbd_transforms.py tests/test_jtbd_compensation_synthesis.py tests/test_jtbd_generators.py -q --cov=flowforge_cli.jtbd.transforms --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `33 passed`, 100% statement and branch
+    coverage for `transforms.py`.
+  - `uv run ruff check tests/test_jtbd_transforms.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_jtbd_transforms.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: passed with one optional `mmdc` skip and
+    overall package coverage 79%.
