@@ -403,7 +403,35 @@ class JtbdDocument:
 		jtbds = self.bundle.get("jtbds", [])
 		if len(jtbds) <= 1:
 			raise ValueError("a JTBD bundle must contain at least one job")
+		removed_id = str(jtbds[index].get("id") or "")
 		del jtbds[index]
+		if removed_id:
+			for jtbd in jtbds:
+				requires = [r for r in (jtbd.get("requires") or []) if str(r) != removed_id]
+				if requires != list(jtbd.get("requires") or []):
+					jtbd["requires"] = requires
+					jtbd.pop("spec_hash", None)
+		self.dirty = True
+
+	def rename_jtbd(self, index: int, new_id: str) -> None:
+		"""Rename a JTBD id and update dependencies that point at it."""
+
+		clean = new_id.strip()
+		if not clean:
+			raise ValueError("JTBD id is required")
+		jtbds = self.bundle.get("jtbds", [])
+		old_id = str(jtbds[index].get("id") or "")
+		if clean == old_id:
+			return
+		if clean in {str(j.get("id") or "") for i, j in enumerate(jtbds) if i != index}:
+			raise ValueError(f"duplicate JTBD id: {clean}")
+		jtbds[index]["id"] = clean
+		jtbds[index].pop("spec_hash", None)
+		for jtbd in jtbds:
+			requires = [clean if str(r) == old_id else r for r in (jtbd.get("requires") or [])]
+			if requires != list(jtbd.get("requires") or []):
+				jtbd["requires"] = requires
+				jtbd.pop("spec_hash", None)
 		self.dirty = True
 
 	def add_dependency(self, index: int, required_id: str) -> None:

@@ -110,6 +110,36 @@ def test_visual_composition_dependencies_are_managed_safely() -> None:
 	assert doc.get_jtbd(review)["requires"] == []
 
 
+def test_renaming_and_removing_jobs_updates_visual_dependencies() -> None:
+	doc = JtbdDocument(create_default_bundle())
+	review = doc.add_jtbd("Review case")
+	close = doc.add_jtbd("Close case")
+	doc.add_dependency(review, "intake_case")
+	doc.add_dependency(close, "review_case")
+
+	doc.rename_jtbd(review, "quality_review")
+
+	assert doc.get_jtbd(close)["requires"] == ["quality_review"]
+	assert doc.get_jtbd(review)["id"] == "quality_review"
+
+	doc.remove_jtbd(review)
+
+	assert doc.get_jtbd(close - 1)["requires"] == []
+
+
+def test_renaming_jobs_rejects_empty_or_duplicate_ids() -> None:
+	doc = JtbdDocument(create_default_bundle())
+	doc.add_jtbd("Review case")
+
+	for bad in ("", "intake_case"):
+		try:
+			doc.rename_jtbd(1, bad)
+		except ValueError:
+			pass
+		else:  # pragma: no cover - defensive assertion.
+			raise AssertionError(f"invalid rename should be rejected: {bad!r}")
+
+
 def test_visual_composition_rejects_invalid_dependencies() -> None:
 	doc = JtbdDocument(create_default_bundle())
 	review = doc.add_jtbd("Review case")

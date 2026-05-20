@@ -656,7 +656,17 @@ class JtbdEditorWindow(QMainWindow):  # type: ignore[misc]
 			design["radius_scale"] = self.design_radius.text().strip()
 
 		jtbd = self.document.get_jtbd(self.current_index)
-		jtbd["id"] = self.job_id.text().strip()
+		new_job_id = self.job_id.text().strip()
+		if new_job_id != str(jtbd.get("id") or ""):
+			try:
+				self.document.rename_jtbd(self.current_index, new_job_id)
+			except ValueError:
+				# Keep typing responsive for temporarily invalid ids; validation
+				# surfaces the authoring problem without crashing the GUI.
+				jtbd["id"] = new_job_id
+				jtbd.pop("spec_hash", None)
+				self.document.dirty = True
+			jtbd = self.document.get_jtbd(self.current_index)
 		jtbd["title"] = self.job_title.text().strip()
 		jtbd["version"] = self.job_version.text().strip() or "1.0.0"
 		jtbd["status"] = self.job_status.currentText()
