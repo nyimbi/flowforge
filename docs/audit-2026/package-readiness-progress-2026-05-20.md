@@ -755,3 +755,33 @@ Design audit 5 - operations, security, and reliability:
     clean.
   - `uv run pyright python/flowforge-cli/tests/test_audit_verify.py`:
     `0 errors`, `0 warnings`.
+
+## CLI coverage slice - replay command
+
+- Baseline measurement:
+  - After closing audit verify, rounded `flowforge-cli` package coverage was
+    73%.
+  - `commands/replay.py` was 49% covered, leaving missing-definition handling,
+    context loading, events-file parsing, empty-history output, and malformed
+    event payload validation under-tested.
+- Action:
+  - Added replay command tests for required `--def`, context and events-file
+    replay with deterministic instance id, no-event empty history, and
+    command-level events-file error wrapping.
+  - Added direct events parser tests for repeatable/comma-separated events,
+    mixed string/object event files, missing event names, non-object payloads,
+    and unsupported event item shapes.
+- Result:
+  - `flowforge_cli.commands.replay` now reaches 100% statement and branch
+    coverage.
+  - Overall `flowforge-cli` package coverage improved from 73% to 74%.
+- Verification:
+  - `uv run pytest tests/test_replay.py -q --cov=flowforge_cli.commands.replay --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `9 passed`, 100% statement and branch
+    coverage for `replay.py`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `694 passed`, overall package coverage 74%.
+  - `uv run ruff check python/flowforge-cli/tests/test_replay.py`:
+    clean.
+  - `uv run pyright python/flowforge-cli/tests/test_replay.py`:
+    `0 errors`, `0 warnings`.
