@@ -1013,3 +1013,33 @@ Design audit 5 - operations, security, and reliability:
     from `python/flowforge-cli`: `0 errors`, `0 warnings`.
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `760 passed`, overall package coverage 77%.
+
+## CLI coverage slice - JTBD desktop command launcher
+
+- Baseline measurement:
+  - After closing migration safety analyzer coverage, rounded `flowforge-cli`
+    package coverage was 77%.
+  - `commands/jtbd_desktop.py` was 39% covered; the missing paths were theme
+    validation, optional desktop import failure handling, runner failure
+    handling, and propagation of the desktop runner exit code.
+- Action:
+  - Added command-level tests for missing theme files, fake desktop runner
+    success with bundle/theme path forwarding, non-zero runner exit codes,
+    import-time desktop dependency failures, and runtime desktop launch
+    failures.
+  - Used fake `flowforge_cli.jtbd_desktop.app` modules in `sys.modules` so the
+    tests cover command behavior without importing or requiring PyQt.
+- Result:
+  - `flowforge_cli.commands.jtbd_desktop` now reaches 100% statement and
+    branch coverage.
+  - Overall `flowforge-cli` rounded package coverage remains 77%.
+- Verification:
+  - `uv run pytest tests/test_jtbd_desktop_document.py -q --cov=flowforge_cli.commands.jtbd_desktop --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `30 passed`, 100% statement and branch
+    coverage for `jtbd_desktop.py`.
+  - `uv run ruff check tests/test_jtbd_desktop_document.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_jtbd_desktop_document.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `765 passed`, overall package coverage 77%.

@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import builtins
 import json
+import sys
+import types
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from flowforge_cli.jtbd_desktop.document import (
@@ -342,3 +346,104 @@ def test_missing_bundle_fails_before_gui_import(tmp_path: Path) -> None:
 
 	assert result.exit_code == 1
 	assert f"bundle not found: {missing}" in result.output
+
+
+def test_missing_theme_fails_before_gui_import(tmp_path: Path) -> None:
+	missing = tmp_path / "missing-theme.json"
+
+	result = runner.invoke(app, ["jtbd", "desktop", "--theme", str(missing)])
+
+	assert result.exit_code == 1
+	assert f"theme not found: {missing}" in result.output
+
+
+def test_desktop_command_passes_existing_paths_to_runner(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	bundle = tmp_path / "bundle.json"
+	theme = tmp_path / "theme.json"
+	bundle.write_text("{}", encoding="utf-8")
+	theme.write_text("{}", encoding="utf-8")
+	captured: dict[str, Path | None] = {}
+
+	def fake_run_desktop_editor(
+		*,
+		bundle: Path | None,
+		theme: Path | None,
+	) -> int:
+		captured["bundle"] = bundle
+		captured["theme"] = theme
+		return 0
+
+	fake_app = types.ModuleType("flowforge_cli.jtbd_desktop.app")
+	setattr(fake_app, "run_desktop_editor", fake_run_desktop_editor)
+	monkeypatch.setitem(sys.modules, "flowforge_cli.jtbd_desktop.app", fake_app)
+
+	result = runner.invoke(
+		app,
+		["jtbd", "desktop", "--bundle", str(bundle), "--theme", str(theme)],
+	)
+
+	assert result.exit_code == 0, result.output
+	assert captured == {"bundle": bundle, "theme": theme}
+
+
+def test_desktop_command_returns_runner_exit_code(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	fake_app = types.ModuleType("flowforge_cli.jtbd_desktop.app")
+	setattr(fake_app, "run_desktop_editor", lambda *, bundle, theme: 7)
+	monkeypatch.setitem(sys.modules, "flowforge_cli.jtbd_desktop.app", fake_app)
+
+	result = runner.invoke(app, ["jtbd", "desktop"])
+
+	assert result.exit_code == 7
+
+
+def test_desktop_command_reports_import_failure(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	monkeypatch.delitem(
+		sys.modules,
+		"flowforge_cli.jtbd_desktop.app",
+		raising=False,
+	)
+	original_import = builtins.__import__
+
+	def failing_import(
+		name: str,
+		globals=None,
+		locals=None,
+		fromlist=(),
+		level: int = 0,
+	):
+		if (
+			name == "flowforge_cli.jtbd_desktop.app"
+			or (name == "jtbd_desktop.app" and level == 2)
+		):
+			raise RuntimeError("PyQt is not installed")
+		return original_import(name, globals, locals, fromlist, level)
+
+	monkeypatch.setattr(builtins, "__import__", failing_import)
+
+	result = runner.invoke(app, ["jtbd", "desktop"])
+
+	assert result.exit_code == 1
+	assert "PyQt is not installed" in result.output
+
+
+def test_desktop_command_reports_runner_failure(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	def fail_run_desktop_editor(*, bundle: Path | None, theme: Path | None) -> int:
+		raise RuntimeError("desktop crashed")
+
+	fake_app = types.ModuleType("flowforge_cli.jtbd_desktop.app")
+	setattr(fake_app, "run_desktop_editor", fail_run_desktop_editor)
+	monkeypatch.setitem(sys.modules, "flowforge_cli.jtbd_desktop.app", fake_app)
+
+	result = runner.invoke(app, ["jtbd", "desktop"])
+
+	assert result.exit_code == 1
+	assert "desktop crashed" in result.output
