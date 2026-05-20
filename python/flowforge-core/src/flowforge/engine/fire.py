@@ -88,7 +88,7 @@ class GuardEvaluationError(RuntimeError):
 
 class InvalidTargetError(ValueError):
 	"""A `set` effect target is malformed (empty or no dotted path beyond
-	the namespace prefix).
+	the optional namespace prefix).
 
 	Audit-fix-plan §4.2 C-08 acceptance criterion. ``"context"`` alone or
 	``""`` would previously have written the entire instance context as a
@@ -96,7 +96,10 @@ class InvalidTargetError(ValueError):
 	"""
 
 	def __init__(self, target: str) -> None:
-		super().__init__(f"invalid set target {target!r}: needs a dotted path under 'context.'")
+		super().__init__(
+			f"invalid set target {target!r}: needs a non-empty dotted path "
+			"(optionally prefixed with 'context.')"
+		)
 		self.target = target
 
 

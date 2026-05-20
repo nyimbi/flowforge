@@ -39,7 +39,10 @@ def _approval_def() -> WorkflowDef:
 					"event": "submit",
 					"from_state": "draft",
 					"to_state": "review",
-					"gates": [{"kind": "permission", "permission": "expense.submit"}],
+					"gates": [
+						{"kind": "permission", "permission": "expense.submit"},
+						{"kind": "approval", "tier": 1},
+					],
 				},
 				{
 					"id": "approve",
@@ -196,6 +199,21 @@ async def test_reconstruct_replays_until_terminal_and_preserves_instance_inputs(
 		"draft-(submit",
 		"review-(approve",
 	]
+
+
+@pytest.mark.asyncio
+async def test_reconstruct_with_no_events_returns_fresh_instance() -> None:
+	instance = await reconstruct(
+		_approval_def(),
+		[],
+		initial_context={"amount": 50},
+		instance_id="expense-2",
+	)
+
+	assert instance.id == "expense-2"
+	assert instance.state == "draft"
+	assert instance.context == {"amount": 50}
+	assert instance.history == []
 
 
 def test_signal_correlator_consumes_fifo_by_signal_and_key() -> None:

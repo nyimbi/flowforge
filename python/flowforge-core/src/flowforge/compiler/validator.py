@@ -217,10 +217,6 @@ def validate(data: dict[str, Any] | WorkflowDef, *, strict: bool = False) -> Val
 				raise ValidationError(report.errors[-1]) from exc
 			return report
 
-	if not raw or not report.ok:
-		# raw was provided + earlier checks failed; skip downstream
-		pass
-
 	_check_state_topology(wd, report)
 	_check_priorities(wd, report)
 	_check_subworkflow_cycle(wd, report)

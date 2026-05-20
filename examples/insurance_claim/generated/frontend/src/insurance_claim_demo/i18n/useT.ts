@@ -5,7 +5,7 @@
 
 import * as React from "react";
 
-import enCatalog from "./en.json";
+import fallbackCatalog from "./en.json";
 
 export type TranslationKey =
 	| "audit.claim_intake.approved"
@@ -37,6 +37,7 @@ export const AVAILABLE_LANGUAGES: ReadonlyArray<string> = [
 ] as const;
 
 export const DEFAULT_LANGUAGE = "en";
+export const FALLBACK_LANGUAGE = "en";
 
 interface I18nContextValue {
 	lang: string;
@@ -44,8 +45,8 @@ interface I18nContextValue {
 }
 
 const defaultContext: I18nContextValue = {
-	lang: DEFAULT_LANGUAGE,
-	catalog: enCatalog as TranslationCatalog,
+	lang: FALLBACK_LANGUAGE,
+	catalog: fallbackCatalog as TranslationCatalog,
 };
 
 export const I18nContext: React.Context<I18nContextValue> = React.createContext<I18nContextValue>(defaultContext);
@@ -62,7 +63,7 @@ export function useT(): (key: TranslationKey) => string {
 		(key: TranslationKey): string => {
 			const value = ctx.catalog[key];
 			if (value != null && value !== "") return value;
-			const fallback = (enCatalog as TranslationCatalog)[key];
+			const fallback = (fallbackCatalog as TranslationCatalog)[key];
 			return fallback ?? key;
 		},
 		[ctx],

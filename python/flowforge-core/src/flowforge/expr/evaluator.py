@@ -90,8 +90,7 @@ def _infer_arity(fn: OperatorFn) -> tuple[int, int | None]:
 			inspect.Parameter.POSITIONAL_OR_KEYWORD,
 		):
 			continue
-		if max_arity is not None:
-			max_arity += 1
+		max_arity = None if max_arity is None else max_arity + 1
 		if param.default is inspect.Parameter.empty:
 			min_arity += 1
 	return min_arity, max_arity

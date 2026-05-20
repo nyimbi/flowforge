@@ -152,7 +152,7 @@ Acceptance test ID convention: `test_<FINDING_ID>_<short>` in `tests/audit_2026/
 |---|---|---|---|---|---|
 | C-02 | `engine/fire.py:69, 100` | `test_C_02_uuid7_in_fire` | All `uuid.uuid4()` → `uuid7str()`; lockfile fixture asserts time-ordered prefixes. | regression | E-39 |
 | C-03 | `engine/fire.py:84-91` | `test_C_03_guard_error_surfaces` | Guard with syntax error raises `GuardEvaluationError`; existing false-guard tests still green. | regression | E-39 |
-| C-08 | `engine/fire.py:114-115` | `test_C_08_dotted_prefix_rejected` | Target `context.x` raises `InvalidTargetError`; dotted-write tests still green. | regression | E-39 |
+| C-08 | `engine/fire.py:114-115` | `test_C_08_dotted_prefix_rejected` | Empty/root targets such as `""` and `context` raise `InvalidTargetError`; dotted writes such as `context.x` still update instance context. | regression | E-39 |
 | C-09 | `engine/saga.py` (whole file) | `test_C_09_saga_persists_across_restart` | Crash mid-fire; restart; compensation worker replays ledger entries; integration test asserts compensations executed exactly once. | regression + integration | E-40 |
 | C-10 | `compiler/validator.py:116-132` | `test_C_10_lookup_substring_walks_ast` | Expression containing string literal `"lookup_failed"` no longer triggers permission check; explicit `lookup` op still does. | regression | E-39 |
 | **SA-01** (architect-found) | `flowforge-sqlalchemy/.../snapshot_store.py:75` | `test_SA_01_uuid7_in_snapshot_store` | All `uuid.uuid4()` → `uuid7str()`; existing snapshot tests green. | regression | E-39 |

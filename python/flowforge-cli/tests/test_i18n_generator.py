@@ -226,6 +226,24 @@ def test_translation_sidecar_populates_non_english_catalog() -> None:
 	assert fr["jtbd.claim_intake.button.submit"] == ""
 
 
+def test_non_english_first_language_still_uses_en_as_source_catalog() -> None:
+	norm = normalize(_bundle(languages=["fr-CA", "en"]))
+	files = {
+		f.path: f.content
+		for f in gen.generate(
+			norm,
+			translations={"fr-CA": {"jtbd.claim_intake.title": "Déposer une réclamation"}},
+		)
+	}
+
+	en = json.loads(files["frontend/src/claims_demo/i18n/en.json"])
+	fr = json.loads(files["frontend/src/claims_demo/i18n/fr-CA.json"])
+
+	assert en["jtbd.claim_intake.title"] == "File a claim"
+	assert fr["jtbd.claim_intake.title"] == "Déposer une réclamation"
+	assert fr["jtbd.claim_intake.button.submit"] == ""
+
+
 def test_translation_sidecar_rejects_unknown_keys() -> None:
 	norm = normalize(_bundle(languages=["en", "fr-CA"]))
 	with pytest.raises(ValueError, match="unknown key"):
@@ -322,7 +340,7 @@ def test_useT_imports_default_language_catalog() -> None:
 	norm = normalize(_bundle(languages=["en", "fr-CA"]))
 	files = {f.path: f.content for f in gen.generate(norm)}
 	tsx = files["frontend/src/claims_demo/i18n/useT.ts"]
-	assert 'import enCatalog from "./en.json";' in tsx
+	assert 'import fallbackCatalog from "./en.json";' in tsx
 
 
 def test_useT_exposes_string_literal_key_union() -> None:
@@ -351,6 +369,8 @@ def test_useT_exports_default_language_constant() -> None:
 	tsx = files["frontend/src/claims_demo/i18n/useT.ts"]
 	# First entry is the default; here that's fr-CA.
 	assert 'export const DEFAULT_LANGUAGE = "fr-CA";' in tsx
+	assert 'export const FALLBACK_LANGUAGE = "en";' in tsx
+	assert 'import fallbackCatalog from "./en.json";' in tsx
 
 
 # ---------------------------------------------------------------------------

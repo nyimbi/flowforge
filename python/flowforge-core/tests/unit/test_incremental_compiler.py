@@ -344,6 +344,22 @@ def test_dropped_target_surfaces_as_removed_and_prune_deletes_it() -> None:
 		assert path not in lockfile
 
 
+def test_inconsistent_lockfile_removed_entry_is_ignored() -> None:
+	class InconsistentLockfile(BuildLockfile):
+		def paths(self):  # type: ignore[no-untyped-def]
+			return ("ghost.py",)
+
+		def get(self, path: str):  # type: ignore[no-untyped-def]
+			if path == "ghost.py":
+				return None
+			return super().get(path)
+
+	store = InMemoryFileStore()
+	compiler = IncrementalCompiler(lockfile=InconsistentLockfile(), store=store)
+
+	assert compiler.plan([]).entries == ()
+
+
 def test_missing_file_with_matching_hash_still_rebuilds() -> None:
 	"""If the file disappeared from disk but the lockfile still claims
 	a hash, treat it as a rebuild — the on-disk truth wins."""

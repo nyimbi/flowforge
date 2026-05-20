@@ -130,6 +130,26 @@ def test_register_op_infers_default_and_variadic_arity_under_test_unfreeze() -> 
 		assert check_arity({"keyword_only": [1, 2]})
 
 
+def test_variadic_arity_error_renders_open_upper_bound() -> None:
+	def needs_one(first: object, *rest: object) -> object:
+		return first
+
+	with _test_only_unfreeze():
+		register_op("needs_one", needs_one)
+		with pytest.raises(ArityMismatchError, match=">=1"):
+			evaluate({"needs_one": []}, {})
+
+
+def test_operator_arity_errors_are_not_wrapped() -> None:
+	def raises_arity() -> None:
+		raise ArityMismatchError("custom arity failure")
+
+	with _test_only_unfreeze():
+		register_op("raises_arity", raises_arity, arity=0)
+		with pytest.raises(ArityMismatchError, match="custom arity failure"):
+			evaluate({"raises_arity": []}, {})
+
+
 def test_register_op_rejects_invalid_arity_declarations_under_test_unfreeze() -> None:
 	with _test_only_unfreeze():
 		with pytest.raises(ValueError, match="arity_min"):

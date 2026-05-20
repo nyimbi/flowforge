@@ -53,6 +53,7 @@ CONSUMES: tuple[str, ...] = (
 # defaults to ``("en",)``) so the generator never sees an empty tuple
 # in practice, but kept here for defence-in-depth.
 _DEFAULT_LANGUAGES: tuple[str, ...] = ("en",)
+_SOURCE_LANGUAGE = "en"
 
 
 # Lifecycle verbs that read naturally as past tense after a subject;
@@ -194,6 +195,12 @@ def _emit_json(payload: dict[str, str]) -> str:
 	return json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 
 
+def _source_language(languages: tuple[str, ...]) -> str:
+	"""Return the locale that receives the generated source catalog."""
+
+	return _SOURCE_LANGUAGE if _SOURCE_LANGUAGE in languages else languages[0]
+
+
 def _render_useT(bundle: NormalizedBundle, english: dict[str, str]) -> str:
 	"""Render the TypeScript ``useT()`` hook source.
 
@@ -208,6 +215,7 @@ def _render_useT(bundle: NormalizedBundle, english: dict[str, str]) -> str:
 	keys = sorted(english.keys())
 	languages = bundle.project.languages or _DEFAULT_LANGUAGES
 	default_lang = languages[0]
+	fallback_lang = _source_language(languages)
 	tab = "\t"
 	newline = "\n"
 	if keys:
@@ -224,7 +232,7 @@ def _render_useT(bundle: NormalizedBundle, english: dict[str, str]) -> str:
 	lines.append("")
 	lines.append('import * as React from "react";')
 	lines.append("")
-	lines.append(f'import enCatalog from "./{default_lang}.json";')
+	lines.append(f'import fallbackCatalog from "./{fallback_lang}.json";')
 	lines.append("")
 	lines.append("export type TranslationKey =")
 	lines.append(f"{key_union};")
@@ -236,6 +244,7 @@ def _render_useT(bundle: NormalizedBundle, english: dict[str, str]) -> str:
 	lines.append("] as const;")
 	lines.append("")
 	lines.append(f'export const DEFAULT_LANGUAGE = "{default_lang}";')
+	lines.append(f'export const FALLBACK_LANGUAGE = "{fallback_lang}";')
 	lines.append("")
 	lines.append("interface I18nContextValue {")
 	lines.append(f"{tab}lang: string;")
@@ -243,8 +252,8 @@ def _render_useT(bundle: NormalizedBundle, english: dict[str, str]) -> str:
 	lines.append("}")
 	lines.append("")
 	lines.append("const defaultContext: I18nContextValue = {")
-	lines.append(f"{tab}lang: DEFAULT_LANGUAGE,")
-	lines.append(f"{tab}catalog: enCatalog as TranslationCatalog,")
+	lines.append(f"{tab}lang: FALLBACK_LANGUAGE,")
+	lines.append(f"{tab}catalog: fallbackCatalog as TranslationCatalog,")
 	lines.append("};")
 	lines.append("")
 	lines.append(
@@ -264,7 +273,7 @@ def _render_useT(bundle: NormalizedBundle, english: dict[str, str]) -> str:
 	lines.append(f"{tab}{tab}(key: TranslationKey): string => {{")
 	lines.append(f"{tab}{tab}{tab}const value = ctx.catalog[key];")
 	lines.append(f'{tab}{tab}{tab}if (value != null && value !== "") return value;')
-	lines.append(f"{tab}{tab}{tab}const fallback = (enCatalog as TranslationCatalog)[key];")
+	lines.append(f"{tab}{tab}{tab}const fallback = (fallbackCatalog as TranslationCatalog)[key];")
 	lines.append(f"{tab}{tab}{tab}return fallback ?? key;")
 	lines.append(f"{tab}{tab}}},")
 	lines.append(f"{tab}{tab}[ctx],")
@@ -293,10 +302,11 @@ def generate(
 	assert isinstance(bundle, NormalizedBundle), "bundle must be NormalizedBundle"
 	pkg = bundle.project.package
 	languages = bundle.project.languages or _DEFAULT_LANGUAGES
+	source_lang = _source_language(languages)
 	english = english_catalog(bundle)
 	files: list[GeneratedFile] = []
 	for lang in languages:
-		if lang == languages[0]:
+		if lang == source_lang:
 			payload = english
 		else:
 			payload = translated_mirror(

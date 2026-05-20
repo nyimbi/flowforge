@@ -5,13 +5,10 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-import pytest
-
 from flowforge.dsl.workflow_def import WorkflowDef
 from flowforge.replay.fault import (
 	FaultInjector,
 	FaultMode,
-	FaultSimulationResult,
 	FaultSpec,
 )
 
@@ -73,7 +70,7 @@ def _run(coro: Any) -> Any:
 def test_no_faults_simulation_completes() -> None:
 	wd = _wf()
 	injector = FaultInjector([])
-	result = _run(injector.simulate(wd, events=[("submit", {}), ("approve", {})]))
+	result = _run(injector.simulate(wd, events=[("submit", {}), ("approve", {}), ("approve", {})]))
 
 	assert result.terminal_state == "done"
 	assert result.fault_log == []
@@ -151,6 +148,22 @@ def test_webhook_5xx_fires_transition_with_fault_event() -> None:
 	# Fault audit event present
 	fault_audits = [e for e in result.audit_events if "webhook_5xx" in e.kind]
 	assert len(fault_audits) == 1
+
+
+def test_private_webhook_mode_returns_none_without_webhook_spec() -> None:
+	injector = FaultInjector([])
+
+	assert injector._webhook_mode([FaultSpec(mode=FaultMode.gate_fail)]) is None
+
+
+def test_unknown_fault_mode_falls_back_to_normal_fire() -> None:
+	wd = _wf()
+	injector = FaultInjector([FaultSpec(mode="unknown", target_event="submit")])  # type: ignore[arg-type]
+
+	result = _run(injector.simulate(wd, events=[("submit", {})]))
+
+	assert result.terminal_state == "review"
+	assert result.fault_log == []
 
 
 # ---------------------------------------------------------------------------
@@ -258,6 +271,24 @@ def test_empty_events_no_fault() -> None:
 	result = _run(injector.simulate(wd, events=[]))
 
 	assert result.terminal_state == "intake"
+	assert result.fault_log == []
+
+
+def test_simulation_stops_before_firing_when_initial_state_is_terminal() -> None:
+	wd = WorkflowDef.model_validate({
+		"key": "terminal_claim",
+		"version": "1.0.0",
+		"subject_kind": "claim",
+		"initial_state": "done",
+		"states": [{"name": "done", "kind": "terminal_success"}],
+		"transitions": [],
+	})
+	injector = FaultInjector([FaultSpec(mode=FaultMode.gate_fail)])
+
+	result = _run(injector.simulate(wd, events=[("submit", {})]))
+
+	assert result.terminal_state == "done"
+	assert result.fire_results == []
 	assert result.fault_log == []
 
 

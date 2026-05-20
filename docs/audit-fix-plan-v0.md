@@ -88,7 +88,7 @@ Every finding gets an entry. Acceptance criteria are testable; "test exists, fai
 | C-02 | `engine/fire.py:69, 100` | All `uuid.uuid4()` replaced with `uuid7str()`; lockfile fixture asserts time-ordered prefixes |
 | C-03 | `engine/fire.py:84-91` | Guard with syntax error raises `GuardEvaluationError` instead of returning False; existing tests for false-guard still green |
 | C-04 | `engine/fire.py:223-251` | Concurrent `fire()` for same instance from two coroutines: only one transition committed; the other awaits or returns `ConcurrentFireRejected`; integration test with 100 concurrent fires asserts state==final, not partial |
-| C-08 | `engine/fire.py:114-115` | Target starting with `context.` raises `InvalidTargetError`; existing dotted-write tests still green |
+| C-08 | `engine/fire.py:114-115` | Empty/root targets raise `InvalidTargetError`; existing dotted-write tests still green |
 | C-09 | `engine/saga.py` | Saga ledger persisted via `flowforge-sqlalchemy` adapter; compensation worker wakes on crash + replays; integration test crashes process mid-fire and asserts compensations executed on restart |
 | C-10 | `compiler/validator.py:116-132` | Lookup-permission walks AST not substring; test with expression containing string literal `"lookup_failed"` no longer triggers permission check |
 | FA-01 | `flowforge_fastapi/auth.py:114-118` | Round-trip test `verify(issue(p)) == p` passes for all base64-padded variants; integration test with `=` padding stripped + restored both verify |

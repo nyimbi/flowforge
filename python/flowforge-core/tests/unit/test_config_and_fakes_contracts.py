@@ -123,7 +123,11 @@ async def test_in_memory_tenancy_binds_and_restores_elevated_scope() -> None:
 
 @pytest.mark.asyncio
 async def test_in_memory_rbac_registers_permissions_and_lists_principals() -> None:
-	rbac = InMemoryRbac({"alice": {"claim.read"}, "bob": {"claim.read", "claim.write"}})
+	rbac = InMemoryRbac({
+		"alice": {"claim.read"},
+		"bob": {"claim.read", "claim.write"},
+		"charlie": {"claim.archive"},
+	})
 	scope = Scope(tenant_id="tenant-a")
 
 	assert await rbac.has_permission(Principal(user_id="system", is_system=True), "missing", scope) is True
@@ -202,11 +206,18 @@ async def test_documents_money_settings_notifications_signing_tasks_and_grants_f
 		key: str
 		default: str
 
+	@dataclass
+	class OptionalSettingSpec:
+		key: str
+		default: str | None = None
+
 	await settings.register(SettingSpec("locale", "fr-CA"))
+	await settings.register(OptionalSettingSpec("timezone"))
 	await settings.register({"key": "region", "default": "ca"})
 	await settings.register(MappingProxyType({"key": "currency", "default": "CAD"}))
 	await settings.set("theme", "dark", signed_by="admin")
 	assert await settings.get("locale") == "fr-CA"
+	assert await settings.get("timezone") is None
 	assert await settings.get("region") == "ca"
 	assert await settings.get("currency") == "CAD"
 	assert await settings.get("theme") == "dark"

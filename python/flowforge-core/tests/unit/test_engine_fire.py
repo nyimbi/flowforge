@@ -15,6 +15,7 @@ from flowforge.engine.fire import (
 	GuardEvaluationError,
 	InvalidTargetError,
 	OutboxDispatchError,
+	_set_dotted,
 	make_context,
 )
 from flowforge.ports.types import Principal
@@ -469,6 +470,28 @@ async def test_outbox_failure_preserves_original_error_when_rollback_audit_fails
 	]
 
 
+async def test_outbox_dispatch_failure_with_no_audit_still_restores_state() -> None:
+	class FailingOutbox:
+		async def dispatch(self, envelope):
+			raise RuntimeError("transport down")
+
+	config.audit = None
+	config.outbox = FailingOutbox()
+	wd = _single_transition_def([
+		{"kind": "set", "target": "context.review.status", "expr": "ready"},
+		{"kind": "notify", "template": "case.done"},
+	])
+	inst = new_instance(wd, initial_context={"review": {"status": "draft"}})
+
+	with pytest.raises(OutboxDispatchError) as exc_info:
+		await fire(wd, inst, "complete", principal=Principal(user_id="u"))
+
+	assert exc_info.value.envelope_kind == "wf.notify"
+	assert inst.state == "draft"
+	assert inst.context == {"review": {"status": "draft"}}
+	assert inst.history == []
+
+
 async def test_outbox_dispatch_still_runs_when_audit_port_is_unconfigured() -> None:
 	wd = _single_transition_def([
 		{"kind": "notify", "template": "case.done"},
@@ -520,3 +543,54 @@ async def test_unknown_state_is_not_terminal() -> None:
 
 	assert result.terminal is False
 	assert result.new_state == "detached"
+
+
+async def test_set_dotted_accepts_non_context_paths_and_replaces_scalar_parents() -> None:
+	target = {"meta": "scalar"}
+
+	_set_dotted(target, "meta.review.status", "ready")
+	_set_dotted(target, "context.audit.flag", True)
+
+	assert target == {
+		"meta": {"review": {"status": "ready"}},
+		"audit": {"flag": True},
+	}
+
+
+async def test_update_entity_effect_audits_requested_update_without_storage_io() -> None:
+	wd = _single_transition_def([
+		{
+			"kind": "update_entity",
+			"entity": "claim",
+			"target": "claim-1",
+			"values": {"status": "ready"},
+		}
+	])
+	inst = new_instance(wd)
+
+	result = await fire(wd, inst, "complete", principal=Principal(user_id="u"))
+
+	assert inst.state == "done"
+	assert [event.kind for event in result.audit_events] == [
+		"wf.case_flow.transitioned",
+		"wf.case_flow.entity_update_requested",
+	]
+	assert result.audit_events[1].subject_kind == "claim"
+	assert result.audit_events[1].subject_id == "claim-1"
+	assert result.audit_events[1].payload == {"values": {"status": "ready"}}
+
+
+async def test_subworkflow_effect_is_stable_noop_for_unit_fire_path() -> None:
+	wd = _single_transition_def([
+		{
+			"kind": "start_subworkflow",
+			"subworkflow_key": "child-flow",
+		}
+	])
+	inst = new_instance(wd)
+
+	result = await fire(wd, inst, "complete", principal=Principal(user_id="u"))
+
+	assert inst.state == "done"
+	assert [event.kind for event in result.audit_events] == ["wf.case_flow.transitioned"]
+	assert result.outbox_envelopes == []

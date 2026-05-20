@@ -7,6 +7,10 @@ uv.lock
 .ruff_cache/
 .mypy_cache/
 .pyright/
+.omc/
+.omx/
+**/.omc/
+**/.omx/
 node_modules/
 .pnpm-store/
 dist/
