@@ -656,3 +656,37 @@ Design audit 5 - operations, security, and reliability:
     `17 passed`.
   - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`:
     passed for all thirteen closed packages.
+
+## CLI coverage slice - audit-2026 release-health command
+
+- Baseline measurement:
+  - `flowforge-cli` package-local coverage was 71% before this CLI coverage
+    pass.
+  - `flowforge_cli.commands.audit_2026_health` was 23% covered, leaving the
+    Prometheus response parser, probe verdict mapping, ticket aggregation, and
+    JSON/human Typer command exits under-tested.
+- Action:
+  - Added focused release-health tests for Prometheus transport, invalid JSON,
+    failed query, empty result, scalar aggregation, and malformed-series
+    response shapes.
+  - Added probe and ticket aggregation tests for required failures,
+    informational warnings, empty "must stay 0" data, and threshold breaches.
+  - Added Typer CLI coverage for unknown tickets, JSON success/failure exits,
+    human warning success, human required failure, and registration of the
+    `audit-2026 health` command group.
+- Result:
+  - `flowforge_cli.commands.audit_2026_health` now reaches 100% statement and
+    branch coverage.
+  - Overall `flowforge-cli` package coverage improved from 71% to 72%; the
+    remaining CLI coverage work is still dominated by the desktop GUI module
+    and larger command/generator edge paths.
+- Verification:
+  - `uv run pytest tests/test_audit_2026_health.py -q --cov=flowforge_cli.commands.audit_2026_health --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `19 passed`, 100% statement and branch
+    coverage for `audit_2026_health.py`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `659 passed`, overall package coverage 72%.
+  - `uv run ruff check python/flowforge-cli/tests/test_audit_2026_health.py`:
+    clean.
+  - `uv run pyright python/flowforge-cli/tests/test_audit_2026_health.py`:
+    `0 errors`, `0 warnings`.
