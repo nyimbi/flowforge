@@ -259,3 +259,28 @@ Design audit 5 - operations, security, and reliability:
     clean.
   - `uv run pyright scripts/audit_2026/closed_package_coverage.py tests/audit_2026/test_E_73_external_release_gate.py`:
     `0 errors, 0 warnings`.
+
+## Package coverage slice - flowforge-signing-kms HMAC backend
+
+- Baseline measurement:
+  - `flowforge-signing-kms`: `26 passed`, 72% package coverage before this
+    slice.
+  - `flowforge_signing_kms.hmac_dev`: 77% coverage before this slice.
+- Action: added focused HMAC signing tests for:
+  - Env-secret fallback with default key id.
+  - Explicit opt-in to the insecure legacy default secret, including warning
+    emission and explicit key-id preservation.
+  - Key-map constructor validation for empty maps, missing current key, unknown
+    current key, and mixed constructor forms.
+  - Sorted `known_key_ids()`.
+- Verification:
+  - `uv run pytest tests/test_hmac.py -q --cov=flowforge_signing_kms.hmac_dev --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-signing-kms`: `19 passed`, 100% statement and
+    branch coverage for the HMAC backend.
+  - `uv run pytest tests -q --cov=flowforge_signing_kms --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-signing-kms`: `32 passed`, package coverage now
+    80%; remaining gaps are in cloud-KMS branches.
+  - `uv run ruff check python/flowforge-signing-kms/tests/test_hmac.py`:
+    clean.
+  - `uv run pyright python/flowforge-signing-kms/tests/test_hmac.py`:
+    `0 errors, 0 warnings`.

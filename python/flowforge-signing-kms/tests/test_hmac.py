@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-import os
+import logging
 
 import pytest
 
@@ -101,6 +101,13 @@ def test_env_secret_used_when_no_arg(monkeypatch):
 	assert run(signer.verify(b"data", sig, "env-key")) is True
 
 
+def test_env_secret_uses_default_key_id_when_key_env_missing(monkeypatch):
+	monkeypatch.setenv("FLOWFORGE_SIGNING_SECRET", "env-secret")
+	monkeypatch.delenv("FLOWFORGE_SIGNING_KEY_ID", raising=False)
+	signer = HmacDevSigning()
+	assert signer.current_key_id() == "dev-key-1"
+
+
 def test_no_env_no_arg_raises_runtime_error(monkeypatch):
 	"""SK-01: instantiating without secret material raises ``RuntimeError``.
 
@@ -113,6 +120,28 @@ def test_no_env_no_arg_raises_runtime_error(monkeypatch):
 	monkeypatch.delenv("FLOWFORGE_ALLOW_INSECURE_DEFAULT", raising=False)
 	with pytest.raises(RuntimeError, match="explicit secret required"):
 		HmacDevSigning()
+
+
+def test_insecure_default_requires_explicit_opt_in(monkeypatch, caplog):
+	monkeypatch.delenv("FLOWFORGE_SIGNING_SECRET", raising=False)
+	monkeypatch.delenv("FLOWFORGE_SIGNING_KEY_ID", raising=False)
+	monkeypatch.setenv("FLOWFORGE_ALLOW_INSECURE_DEFAULT", "1")
+
+	with caplog.at_level(logging.WARNING):
+		signer = HmacDevSigning()
+
+	assert signer.current_key_id() == "dev-key-1"
+	assert "INSECURE DEFAULT IN USE" in caplog.text
+	sig = run(signer.sign_payload(b"legacy-dev-only"))
+	assert run(signer.verify(b"legacy-dev-only", sig, "dev-key-1")) is True
+
+
+def test_insecure_default_keeps_explicit_key_id(monkeypatch):
+	monkeypatch.delenv("FLOWFORGE_SIGNING_SECRET", raising=False)
+	monkeypatch.setenv("FLOWFORGE_SIGNING_KEY_ID", "dev-env-key")
+	monkeypatch.setenv("FLOWFORGE_ALLOW_INSECURE_DEFAULT", "1")
+	signer = HmacDevSigning()
+	assert signer.current_key_id() == "dev-env-key"
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +165,28 @@ def test_signature_from_old_key_verifiable_via_key_map():
 	sig_v1 = run(v1.sign_payload(payload))
 
 	assert run(rotated.verify(payload, sig_v1, "key-v1")) is True
+
+
+def test_key_map_rejects_empty_or_missing_current_key() -> None:
+	with pytest.raises(ValueError, match="cannot be empty"):
+		HmacDevSigning(keys={}, current_key_id="k1")
+	with pytest.raises(ValueError, match="current_key_id="):
+		HmacDevSigning(keys={"k1": "secret"})
+	with pytest.raises(ValueError, match="not in keys"):
+		HmacDevSigning(keys={"k1": "secret"}, current_key_id="k2")
+
+
+def test_constructor_rejects_mixed_single_key_and_key_map_forms() -> None:
+	with pytest.raises(ValueError, match="pass either"):
+		HmacDevSigning(secret="secret", key_id="k1", keys={"k1": "secret"}, current_key_id="k1")
+
+
+def test_known_key_ids_are_sorted() -> None:
+	signer = HmacDevSigning(
+		keys={"key-b": "secret-b", "key-a": "secret-a"},
+		current_key_id="key-b",
+	)
+	assert signer.known_key_ids() == ["key-a", "key-b"]
 
 
 def test_new_signatures_isolated_per_key_id():
