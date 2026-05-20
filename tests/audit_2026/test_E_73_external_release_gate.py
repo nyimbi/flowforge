@@ -335,6 +335,7 @@ def test_closed_package_coverage_ratchet_tracks_completed_packages() -> None:
 	)
 	closed_packages = ast.literal_eval(assignment.value)
 	assert closed_packages == (
+		("flowforge-core", "flowforge"),
 		("flowforge-tenancy", "flowforge_tenancy"),
 		("flowforge-rbac-static", "flowforge_rbac_static"),
 		("flowforge-rbac-spicedb", "flowforge_rbac_spicedb"),

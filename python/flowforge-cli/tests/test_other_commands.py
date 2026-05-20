@@ -16,6 +16,7 @@ from flowforge_cli.main import app
 
 
 runner = CliRunner()
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 # ---------- add-jtbd ----------
@@ -235,7 +236,7 @@ def test_upgrade_deps_inspects_workspace() -> None:
 
 
 def test_upgrade_deps_discovers_workspace_from_package_dir(monkeypatch: pytest.MonkeyPatch) -> None:
-	monkeypatch.chdir(Path("python/flowforge-cli"))
+	monkeypatch.chdir(REPO_ROOT / "python" / "flowforge-cli")
 
 	r = runner.invoke(app, ["upgrade-deps"])
 

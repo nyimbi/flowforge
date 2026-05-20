@@ -433,3 +433,43 @@ Design audit 5 - operations, security, and reliability:
     `17 passed`.
   - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`:
     passed for all ten closed packages.
+
+## Package coverage slice - flowforge-core and remaining package map
+
+- Baseline measurement:
+  - `flowforge-core`: `181 passed`, already at 100% statement and branch
+    coverage.
+  - Remaining strategic package measurements for prioritization:
+    `flowforge-fastapi` `27 passed`, 89%; `flowforge-sqlalchemy`
+    `20 passed`, `1 skipped`, 76%; `flowforge-cli` initially failed when run
+    from `python/flowforge-cli` because
+    `test_upgrade_deps_discovers_workspace_from_package_dir` assumed the repo
+    root as CWD; `flowforge-jtbd` `564 passed`, `1 skipped`, 93%;
+    `flowforge-jtbd-hub` `65 passed`, 87%.
+- Action:
+  - Added `flowforge-core` to the closed-package coverage ratchet because its
+    current package-local suite already proves 100% statement and branch
+    coverage.
+  - Fixed the CLI package-local test by deriving `REPO_ROOT` from
+    `tests/test_other_commands.py` instead of assuming the process starts at
+    the checkout root.
+- Result:
+  - The closed-package coverage ratchet now covers 11 strategic shipping
+    packages.
+  - `flowforge-cli` package-local tests now pass from its own package
+    directory; package coverage remains a separate open gap at 71%.
+- Verification:
+  - `uv run pytest tests/test_other_commands.py::test_upgrade_deps_discovers_workspace_from_package_dir -q`
+    from `python/flowforge-cli`: `1 passed`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `640 passed`, package coverage 71%.
+  - `uv run pytest tests -q --cov=flowforge --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-core`: `181 passed`.
+  - `uv run ruff check python/flowforge-cli/tests/test_other_commands.py scripts/audit_2026/closed_package_coverage.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright python/flowforge-cli/tests/test_other_commands.py scripts/audit_2026/closed_package_coverage.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q --tb=short`:
+    `17 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`:
+    passed for all eleven closed packages.

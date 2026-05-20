@@ -7,6 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CLOSED_PACKAGE_COVERAGE = (
+	("flowforge-core", "flowforge"),
 	("flowforge-tenancy", "flowforge_tenancy"),
 	("flowforge-rbac-static", "flowforge_rbac_static"),
 	("flowforge-rbac-spicedb", "flowforge_rbac_spicedb"),
