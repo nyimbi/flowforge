@@ -722,3 +722,36 @@ Design audit 5 - operations, security, and reliability:
     clean.
   - `uv run pyright python/flowforge-cli/tests/test_io_and_ai_assist.py`:
     `0 errors`, `0 warnings`.
+
+## CLI coverage slice - audit verify command
+
+- Baseline measurement:
+  - After closing IO helpers and AI assist, rounded `flowforge-cli` package
+    coverage was 73%.
+  - `commands/audit_verify.py` was 66% covered, leaving missing-file handling,
+    parse-error wrapping, broken-chain reporting, range labels, and row-shape
+    validation under-tested.
+- Action:
+  - Added focused audit verify tests for required `--file`, successful range
+    labels, broken chain reporting, blank-line skipping, non-object export
+    rows, datetime object rows, invalid timestamps, non-object payloads,
+    missing required fields, and command-level parse-error wrapping.
+  - Corrected the test hash-chain fixture to mirror the actual export
+    contract: `event_id` remains outside the canonical hash body, and
+    timestamp strings match the verifier's reconstructed canonical value.
+- Result:
+  - `flowforge_cli.commands.audit_verify` now reaches 100% statement and
+    branch coverage.
+  - Overall `flowforge-cli` rounded package coverage remains 73%; uncovered
+    work is now concentrated in larger command/generator paths and the desktop
+    GUI module.
+- Verification:
+  - `uv run pytest tests/test_audit_verify.py -q --cov=flowforge_cli.commands.audit_verify --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `9 passed`, 100% statement and branch
+    coverage for `audit_verify.py`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `685 passed`, overall package coverage 73%.
+  - `uv run ruff check python/flowforge-cli/tests/test_audit_verify.py`:
+    clean.
+  - `uv run pyright python/flowforge-cli/tests/test_audit_verify.py`:
+    `0 errors`, `0 warnings`.
