@@ -16,11 +16,15 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
+from flowforge_cli.commands import jtbd_lint as jtbd_lint_module
 from flowforge_cli.commands.jtbd_lint import (
 	_adapt_shared_roles,
 	_adapt_to_lint_bundle,
+	_find_default_bundle,
+	_format_text,
 )
 from flowforge_cli.main import app
+from flowforge_jtbd.lint.results import Issue, JtbdResult, LintReport
 
 
 runner = CliRunner()
@@ -137,6 +141,14 @@ def test_adapt_shared_roles_list_form_uses_default_tier_zero() -> None:
 	}
 
 
+def test_adapt_shared_roles_list_form_accepts_role_dicts() -> None:
+	out = _adapt_shared_roles({"roles": ["clerk", {"name": "banker", "default_tier": 2}, ""]})
+	assert out == {
+		"clerk": {"name": "clerk"},
+		"banker": {"name": "banker", "default_tier": 2},
+	}
+
+
 def test_adapt_shared_roles_dict_form_preserves_tier_and_capacities() -> None:
 	out = _adapt_shared_roles({"roles": {
 		"banker": {"default_tier": 2, "capacities": ["approver"]},
@@ -151,10 +163,100 @@ def test_adapt_shared_roles_int_shorthand_sets_default_tier() -> None:
 	assert out["banker"]["default_tier"] == 2
 
 
+def test_adapt_shared_roles_ignores_unknown_shapes() -> None:
+	assert _adapt_shared_roles({"roles": {"banker": "tier-two"}}) == {}
+	assert _adapt_shared_roles({"roles": "banker"}) == {}
+
+
 def test_adapt_shared_roles_empty_inputs() -> None:
 	assert _adapt_shared_roles({}) == {}
 	assert _adapt_shared_roles({"roles": []}) == {}
 	assert _adapt_shared_roles({"roles": None}) == {}
+
+
+# ---------------------------------------------------------------------------
+# Formatting and default discovery
+# ---------------------------------------------------------------------------
+
+
+def test_format_text_includes_fixhints_and_topological_order() -> None:
+	report = LintReport(
+		ok=False,
+		bundle_issues=[
+			Issue(
+				severity="error",
+				rule="bundle_rule",
+				message="Bundle failed",
+				fixhint="Fix the bundle",
+			)
+		],
+		results=[
+			JtbdResult(
+				jtbd_id="claim_intake",
+				version="1.0.0",
+				issues=[
+					Issue(
+						severity="warning",
+						rule="jtbd_rule",
+						message="JTBD warning",
+						fixhint="Fix the JTBD",
+					)
+				],
+			)
+		],
+		topological_order=["a", "b"],
+	)
+
+	out = _format_text(report, "demo")
+
+	assert "[ERR] bundle" in out
+	assert "fixhint: Fix the bundle" in out
+	assert "[WRN] claim_intake" in out
+	assert "fixhint: Fix the JTBD" in out
+	assert "topological order: a → b" in out
+	assert "result: FAIL" in out
+
+
+def test_format_text_handles_clean_report_and_issues_without_fixhints() -> None:
+	clean = _format_text(LintReport(ok=True), "demo")
+	assert "ok — no issues found" in clean
+	assert "result: ok" in clean
+
+	no_fixhints = _format_text(
+		LintReport(
+			ok=False,
+			bundle_issues=[
+				Issue(severity="error", rule="bundle_rule", message="Bundle failed")
+			],
+			results=[
+				JtbdResult(
+					jtbd_id="claim_intake",
+					version="1.0.0",
+					issues=[
+						Issue(
+							severity="warning",
+							rule="jtbd_rule",
+							message="JTBD warning",
+						)
+					],
+				)
+			],
+		),
+		"demo",
+	)
+	assert "fixhint:" not in no_fixhints
+	assert "[ERR] bundle" in no_fixhints
+	assert "[WRN] claim_intake" in no_fixhints
+
+
+def test_find_default_bundle_uses_first_existing_candidate(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	monkeypatch.chdir(tmp_path)
+	(tmp_path / "jtbd-bundle.json").write_text("{}", encoding="utf-8")
+
+	assert _find_default_bundle() == Path("jtbd-bundle.json")
 
 
 # ---------------------------------------------------------------------------
@@ -202,3 +304,46 @@ def test_lint_strict_promotes_warning_to_failure(write_bundle) -> None:
 		"jtbd", "lint", "--bundle", str(bundle_path), "--strict",
 	])
 	assert strict.exit_code == 1
+
+
+def test_lint_without_bundle_reports_missing_default(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	monkeypatch.chdir(tmp_path)
+
+	result = runner.invoke(app, ["jtbd", "lint"])
+
+	assert result.exit_code == 1
+	assert "no bundle file found" in result.output
+
+
+def test_lint_uses_default_bundle_when_omitted(
+	write_bundle,
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	monkeypatch.chdir(tmp_path)
+	write_bundle(_bundle(), name="jtbd-bundle.json")
+
+	result = runner.invoke(app, ["jtbd", "lint"])
+
+	assert result.exit_code == 0, result.output
+	assert "bundle: demo" in result.output
+
+
+def test_lint_reports_linter_exceptions(
+	write_bundle,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	class ExplodingLinter:
+		def lint(self, _adapted: dict[str, Any]) -> LintReport:
+			raise RuntimeError("boom")
+
+	monkeypatch.setattr(jtbd_lint_module, "Linter", ExplodingLinter)
+	bundle_path = write_bundle(_bundle())
+
+	result = runner.invoke(app, ["jtbd", "lint", "--bundle", str(bundle_path)])
+
+	assert result.exit_code == 1
+	assert "linter raised an exception: boom" in result.output

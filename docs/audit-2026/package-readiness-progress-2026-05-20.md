@@ -1627,3 +1627,33 @@ Design audit 5 - operations, security, and reliability:
   - This audit only covered the two newest coverage commits. Broader unpushed
     coverage work still needs periodic review once the stale agent thread limit
     clears or a manual review window is allocated.
+
+## CLI coverage slice - JTBD lint command wrapper
+
+- Baseline measurement:
+  - After closing copy override sidecar coverage, rounded `flowforge-cli`
+    package coverage was 79%.
+  - `commands/jtbd_lint.py` was 81% covered; remaining gaps were shared-role
+    adapter edge cases, text formatter fixhint and clean-report branches,
+    default bundle discovery, no-default error handling, and linter exception
+    handling.
+- Action:
+  - Added focused JTBD lint adapter/CLI tests for list-form role dicts,
+    ignored unknown shared-role shapes, formatter fixhints, clean formatter
+    output, default bundle discovery, omitted-bundle auto-detection, missing
+    default bundle errors, and linter exception reporting.
+- Result:
+  - `flowforge_cli.commands.jtbd_lint` now reaches 100% statement and branch
+    coverage.
+  - Overall `flowforge-cli` rounded package coverage increased to 80%.
+- Verification:
+  - `uv run pytest tests/test_jtbd_lint_cmd.py tests/test_jtbd_lint_adapter.py -q --cov=flowforge_cli.commands.jtbd_lint --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `29 passed`, 100% statement and branch
+    coverage for `jtbd_lint.py`.
+  - `uv run ruff check tests/test_jtbd_lint_adapter.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_jtbd_lint_adapter.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: passed with one optional `mmdc` skip and
+    overall package coverage 80%.
