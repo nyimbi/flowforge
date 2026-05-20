@@ -19,6 +19,7 @@ from flowforge.expr import (
 	RegistryFrozenError,
 	check_arity,
 	evaluate,
+	ops_registry,
 	register_op,
 )
 from flowforge.expr.evaluator import _test_only_unfreeze
@@ -38,6 +39,13 @@ def test_var_resolves_dotted_path() -> None:
 	assert evaluate({"var": "missing"}, ctx) is None
 
 
+def test_var_resolves_list_indexes_and_rejects_bad_indexes() -> None:
+	ctx = {"rows": [{"name": "first"}, {"name": "second"}]}
+	assert evaluate({"var": "rows.1.name"}, ctx) == "second"
+	assert evaluate({"var": "rows.nope.name"}, ctx) is None
+	assert evaluate({"var": "rows.4.name"}, ctx) is None
+
+
 def test_basic_operators() -> None:
 	ctx = {"x": 5, "y": "hello"}
 	assert evaluate({">": [{"var": "x"}, 3]}, ctx) is True
@@ -53,6 +61,33 @@ def test_basic_operators() -> None:
 	assert evaluate({"if": [True, "x", "y"]}, ctx) == "x"
 	assert evaluate({"between": [5, 1, 10]}, ctx) is True
 	assert evaluate({"contains": ["hello", "ell"]}, ctx) is True
+
+
+def test_remaining_builtin_operator_semantics() -> None:
+	assert evaluate({"!=": [1, 2]}, {}) is True
+	assert evaluate({">=": [2, 2]}, {}) is True
+	assert evaluate({"<": [1, 2]}, {}) is True
+	assert evaluate({"<=": [2, 2]}, {}) is True
+	assert evaluate({"-": [7, 3]}, {}) == 4
+	assert evaluate({"*": [2, 3, 4]}, {}) == 24
+	assert evaluate({"*": []}, {}) == 1
+	assert evaluate({"/": [8, 2]}, {}) == 4
+	assert evaluate({"%": [7, 3]}, {}) == 1
+	assert evaluate({"in": ["x", ["x", "y"]]}, {}) is True
+	assert evaluate({"in": ["x", None]}, {}) is False
+	assert evaluate({"length": None}, {}) == 0
+	assert evaluate({"coalesce": [None, None, "first"]}, {}) == "first"
+	assert evaluate({"coalesce": []}, {}) is None
+	assert evaluate({"is_empty": None}, {}) is True
+	assert evaluate({"is_empty": {"var": "empty"}}, {"empty": []}) is True
+	assert evaluate({"is_empty": 123}, {}) is False
+	assert evaluate({"starts_with": ["claim-123", "claim"]}, {}) is True
+	assert evaluate({"ends_with": ["claim-123", "123"]}, {}) is True
+
+
+def test_operator_failure_wraps_as_evaluation_error() -> None:
+	with pytest.raises(EvaluationError, match="operator `/` failed"):
+		evaluate({"/": [1, 0]}, {})
 
 
 def test_evaluation_error_for_bad_var() -> None:
@@ -71,10 +106,37 @@ def test_register_op_extends_under_test_only_unfreeze() -> None:
 	assert evaluate({"double": 4}, {}) == {"double": 4}
 
 
+def test_register_op_infers_default_and_variadic_arity_under_test_unfreeze() -> None:
+	def defaulted(a: int, b: int = 10) -> int:
+		return a + b
+
+	def variadic(prefix: str, *items: object) -> str:
+		return f"{prefix}:{len(items)}"
+
+	with _test_only_unfreeze():
+		register_op("defaulted", defaulted)
+		register_op("variadic", variadic)
+		assert evaluate({"defaulted": [2]}, {}) == 12
+		assert evaluate({"defaulted": [2, 3]}, {}) == 5
+		assert evaluate({"variadic": ["n", 1, 2, 3]}, {}) == "n:3"
+		assert check_arity({"defaulted": []})
+		assert check_arity({"defaulted": [1, 2, 3]})
+
+
+def test_register_op_rejects_invalid_arity_declarations_under_test_unfreeze() -> None:
+	with _test_only_unfreeze():
+		with pytest.raises(ValueError, match="arity_min"):
+			register_op("bad_min", lambda: None, arity=(-1, 1))
+		with pytest.raises(ValueError, match="cannot be <"):
+			register_op("bad_max", lambda: None, arity=(2, 1))
+
+
 def test_at_least_25_builtins_registered() -> None:
 	from flowforge.expr.evaluator import _OPS  # noqa: SLF001
 
 	assert len(_OPS) >= 25, sorted(_OPS.keys())
+	assert "and" in _OPS
+	assert "definitely_missing" not in _OPS
 
 
 # ---- C-06 frozen registry ---------------------------------------------
@@ -94,6 +156,14 @@ def test_C_06_ops_view_is_immutable() -> None:
 
 	with pytest.raises((TypeError, AttributeError)):
 		_OPS["mut"] = lambda: None  # type: ignore[index]
+
+
+def test_C_06_ops_registry_view_is_immutable_and_exposes_specs() -> None:
+	registry = ops_registry()
+	assert registry["if"].arity_min == 2
+	assert registry["if"].arity_max == 3
+	with pytest.raises(TypeError):
+		registry["mut"] = registry["if"]  # type: ignore[index]
 
 
 def test_C_06_replay_determinism_invariant() -> None:
@@ -193,6 +263,12 @@ def test_C_07_unknown_op_is_not_flagged() -> None:
 
 	expr = {"unknown_op": [1, 2, 3]}
 	assert check_arity(expr) == []
+
+
+def test_C_07_unknown_op_payload_is_still_walked_for_nested_known_ops() -> None:
+	expr = {"unknown_op": {"==": [1]}}
+	errors = check_arity(expr)
+	assert any("$.unknown_op" in error for error in errors)
 
 
 def test_C_07_variadic_ops_accept_any_arity() -> None:

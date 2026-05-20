@@ -7,6 +7,7 @@ import pytest
 from flowforge import config
 from flowforge.dsl import WorkflowDef
 from flowforge.engine import fire, new_instance
+from flowforge.engine.fire import InvalidTargetError, OutboxDispatchError, make_context
 from flowforge.ports.types import Principal
 
 
@@ -155,3 +156,190 @@ async def test_no_match_keeps_state() -> None:
 	result = await fire(wd, inst, "submit", principal=Principal(user_id="u", is_system=True))
 	assert result.matched_transition_id is None
 	assert result.new_state == "intake"
+
+
+def _single_transition_def(effects: list[dict[str, object]] | None = None) -> WorkflowDef:
+	return WorkflowDef.model_validate(
+		{
+			"key": "case_flow",
+			"version": "1.0.0",
+			"subject_kind": "case",
+			"initial_state": "draft",
+			"states": [
+				{"name": "draft", "kind": "manual_review"},
+				{"name": "done", "kind": "terminal_success"},
+			],
+			"transitions": [
+				{
+					"id": "complete",
+					"event": "complete",
+					"from_state": "draft",
+					"to_state": "done",
+					"effects": effects or [],
+				}
+			],
+		}
+	)
+
+
+async def test_terminal_instance_returns_without_mutation_or_dispatch() -> None:
+	wd = _single_transition_def([
+		{"kind": "notify", "template": "case.done"},
+	])
+	inst = new_instance(wd, initial_context={"x": 1})
+	inst.state = "done"
+
+	result = await fire(wd, inst, "complete", principal=Principal(user_id="u"))
+
+	assert result.terminal is True
+	assert result.matched_transition_id is None
+	assert result.planned_effects == []
+	assert result.audit_events == []
+	assert result.outbox_envelopes == []
+	assert config.audit.events == []
+	assert config.outbox.dispatched == []
+
+
+async def test_effect_planning_covers_audit_update_compensate_signal_and_jtbd_metadata() -> None:
+	wd = _single_transition_def([
+		{
+			"kind": "set",
+			"target": "context.review.status",
+			"expr": "ready",
+		},
+		{
+			"kind": "audit",
+			"template": "case.custom_audit",
+		},
+		{
+			"kind": "update_entity",
+			"entity": "case",
+			"target": "case-1",
+			"values": {"status": "ready"},
+		},
+		{
+			"kind": "compensate",
+			"compensation_kind": "undo_case_update",
+			"values": {"case_id": "case-1"},
+		},
+		{
+			"kind": "emit_signal",
+			"signal": "case.completed",
+		},
+		{
+			"kind": "notify",
+			"template": "case.done",
+		},
+	])
+	inst = new_instance(wd, initial_context={"review": "not-a-dict"})
+
+	result = await fire(
+		wd,
+		inst,
+		"complete",
+		principal=Principal(user_id="reviewer"),
+		tenant_id="tenant-a",
+		jtbd_id="case_completion",
+		jtbd_version="1.2.3",
+		dispatch_ports=False,
+	)
+
+	assert result.terminal is True
+	assert inst.context["review"]["status"] == "ready"
+	assert inst.saga == [{"kind": "undo_case_update", "args": {"case_id": "case-1"}}]
+	assert [event.kind for event in result.audit_events] == [
+		"wf.case_flow.transitioned",
+		"case.custom_audit",
+		"wf.case_flow.entity_update_requested",
+	]
+	assert result.audit_events[0].payload["jtbd_id"] == "case_completion"
+	assert result.audit_events[0].payload["jtbd_version"] == "1.2.3"
+	assert result.audit_events[1].payload["context_snapshot"]["review"]["status"] == "ready"
+	assert [env.kind for env in result.outbox_envelopes] == ["wf.signal", "wf.notify"]
+	assert result.outbox_envelopes[0].body == {
+		"signal": "case.completed",
+		"instance_id": inst.id,
+	}
+	assert result.outbox_envelopes[1].body["jtbd_id"] == "case_completion"
+	assert result.outbox_envelopes[1].body["jtbd_version"] == "1.2.3"
+	assert config.audit.events == []
+	assert config.outbox.dispatched == []
+
+
+async def test_invalid_set_target_surfaces_authoring_error() -> None:
+	wd = _single_transition_def([
+		{
+			"kind": "set",
+			"target": "context",
+			"expr": "bad",
+		},
+	])
+	inst = new_instance(wd)
+
+	with pytest.raises(InvalidTargetError, match="context"):
+		await fire(wd, inst, "complete", principal=Principal(user_id="u"))
+
+	assert inst.state == "draft"
+	assert inst.context == {}
+
+
+async def test_outbox_dispatch_failure_restores_all_mutated_instance_fields() -> None:
+	class FailingOutbox:
+		async def dispatch(self, envelope):
+			raise RuntimeError("transport down")
+
+	config.outbox = FailingOutbox()
+	wd = _single_transition_def([
+		{
+			"kind": "set",
+			"target": "context.review.status",
+			"expr": "ready",
+		},
+		{
+			"kind": "compensate",
+			"compensation_kind": "undo_case_update",
+			"values": {"case_id": "case-1"},
+		},
+		{"kind": "notify", "template": "case.done"},
+	])
+	inst = new_instance(wd, initial_context={"review": {"status": "draft"}})
+
+	with pytest.raises(OutboxDispatchError) as exc_info:
+		await fire(wd, inst, "complete", principal=Principal(user_id="u"))
+
+	assert exc_info.value.instance_id == inst.id
+	assert exc_info.value.envelope_kind == "wf.notify"
+	assert isinstance(exc_info.value.__cause__, RuntimeError)
+	assert inst.state == "draft"
+	assert inst.context == {"review": {"status": "draft"}}
+	assert inst.saga == []
+	assert inst.history == []
+
+
+async def test_audit_dispatch_failure_restores_state_and_skips_outbox() -> None:
+	class FailingAudit:
+		async def record(self, event):
+			raise RuntimeError("audit down")
+
+	config.audit = FailingAudit()
+	wd = _single_transition_def([
+		{"kind": "notify", "template": "case.done"},
+	])
+	inst = new_instance(wd)
+
+	with pytest.raises(RuntimeError, match="audit down"):
+		await fire(wd, inst, "complete", principal=Principal(user_id="u"))
+
+	assert inst.state == "draft"
+	assert inst.history == []
+	assert config.outbox.dispatched == []
+
+
+async def test_make_context_carries_tenant_principal_and_elevation() -> None:
+	principal = Principal(user_id="system", is_system=True)
+
+	ctx = make_context("tenant-a", principal, elevated=True)
+
+	assert ctx.tenant_id == "tenant-a"
+	assert ctx.principal is principal
+	assert ctx.elevated is True
