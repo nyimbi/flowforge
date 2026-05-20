@@ -315,6 +315,34 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
 	assert "ModuleNotFoundError" in publishing
 
 
+def test_closed_package_coverage_ratchet_tracks_completed_packages() -> None:
+	makefile = _read("Makefile")
+	script = _read("scripts/audit_2026/closed_package_coverage.py")
+
+	assert ".PHONY: audit-2026-closed-package-coverage" in makefile
+	assert "scripts/audit_2026/closed_package_coverage.py" in makefile
+	assert "audit-2026-closed-package-coverage \\" in makefile
+	assert "--cov-branch" in script
+	assert "--cov-fail-under=100" in script
+	tree = ast.parse(script)
+	assignment = next(
+		node for node in tree.body
+		if isinstance(node, ast.Assign)
+		and any(
+			isinstance(target, ast.Name) and target.id == "CLOSED_PACKAGE_COVERAGE"
+			for target in node.targets
+		)
+	)
+	closed_packages = ast.literal_eval(assignment.value)
+	assert closed_packages == (
+		("flowforge-tenancy", "flowforge_tenancy"),
+		("flowforge-rbac-static", "flowforge_rbac_static"),
+		("flowforge-rbac-spicedb", "flowforge_rbac_spicedb"),
+		("flowforge-money", "flowforge_money"),
+		("flowforge-otel", "flowforge_otel"),
+	)
+
+
 def test_dom_baselines_do_not_embed_ci_checkout_paths() -> None:
 	normalizer = _read("tests/visual_regression/lib/dom_normalize.ts")
 	assert "data-vite-dev-id" in normalizer

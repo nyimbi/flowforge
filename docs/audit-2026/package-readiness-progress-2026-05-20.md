@@ -240,3 +240,22 @@ Design audit 5 - operations, security, and reliability:
     clean.
   - `uv run pyright python/flowforge-rbac-spicedb/tests/test_resolver.py`:
     `0 errors, 0 warnings`.
+
+## Closed-package coverage ratchet
+
+- Action: added `scripts/audit_2026/closed_package_coverage.py` and
+  `make audit-2026-closed-package-coverage`.
+- Scope currently locked at 100% statement and branch coverage:
+  `flowforge-tenancy`, `flowforge-rbac-static`,
+  `flowforge-rbac-spicedb`, `flowforge-money`, and `flowforge-otel`.
+- Release wiring: added the ratchet to `audit-2026-release-local` so completed
+  package coverage cannot silently regress during local release qualification.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`
+    passed for all five closed packages.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q --tb=short`:
+    `17 passed`.
+  - `uv run ruff check scripts/audit_2026/closed_package_coverage.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright scripts/audit_2026/closed_package_coverage.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings`.
