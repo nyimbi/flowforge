@@ -785,3 +785,40 @@ Design audit 5 - operations, security, and reliability:
     clean.
   - `uv run pyright python/flowforge-cli/tests/test_replay.py`:
     `0 errors`, `0 warnings`.
+
+## CLI coverage slice - small command edges
+
+- Baseline measurement:
+  - After closing replay, rounded `flowforge-cli` package coverage was 74%.
+  - `commands/add_jtbd.py`, `commands/diff.py`,
+    `commands/migrate_fork.py`, and `commands/upgrade_deps.py` still had
+    uncovered first-run, update, error, default-path, and dependency-inspection
+    branches.
+- Action:
+  - Added focused tests for `diff --exit-zero` and invalid workflow input
+    error wrapping.
+  - Added `add-jtbd` tests for creating a missing project bundle, refreshing a
+    changed JTBD, detecting unchanged reruns, and deterministic shared entity
+    merging.
+  - Added `migrate-fork` tests for safe path segment acceptance and default
+    destination writes.
+  - Added `upgrade-deps` tests for refusing `--apply`, missing workspace
+    errors, workspace-without-packages errors, and `_find_workspace_root`
+    misses.
+- Result:
+  - `flowforge_cli.commands.add_jtbd`, `diff`, `migrate_fork`, and
+    `upgrade_deps` now reach 100% statement and branch coverage in the focused
+    run.
+  - Overall `flowforge-cli` rounded package coverage remains 74%, with the
+    remaining uncovered work dominated by `jtbd_desktop/app.py`,
+    `migration_safety.py`, `polish_copy.py`, and generator edge branches.
+- Verification:
+  - `uv run pytest tests/test_small_command_edges.py tests/test_other_commands.py::test_diff_prints_workflow_structural_diff tests/test_other_commands.py::test_migrate_fork_copies_with_metadata tests/test_other_commands.py::test_migrate_fork_rejects_unsafe_tenant_default_path tests/test_other_commands.py::test_upgrade_deps_inspects_workspace -q --cov=flowforge_cli.commands.diff --cov=flowforge_cli.commands.add_jtbd --cov=flowforge_cli.commands.migrate_fork --cov=flowforge_cli.commands.upgrade_deps --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `16 passed`, 100% statement and branch
+    coverage for all four targeted command modules.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `706 passed`, overall package coverage 74%.
+  - `uv run ruff check python/flowforge-cli/tests/test_small_command_edges.py`:
+    clean.
+  - `uv run pyright python/flowforge-cli/tests/test_small_command_edges.py`:
+    `0 errors`, `0 warnings`.
