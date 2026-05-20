@@ -1549,3 +1549,28 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: passed with one optional `mmdc` skip and
     overall package coverage 79%.
+
+## CLI coverage slice - console entrypoint
+
+- Baseline measurement:
+  - After closing JTBD transforms coverage, rounded `flowforge-cli` package
+    coverage was 79%.
+  - `main.py` was 97% covered; the remaining gap was the console-script
+    `main()` shim calling the Typer app.
+- Action:
+  - Added a focused top-level command test that monkeypatches the Typer app
+    callable and proves `main()` delegates to it without invoking CLI parsing.
+- Result:
+  - `flowforge_cli.main` now reaches 100% statement coverage.
+  - Overall `flowforge-cli` rounded package coverage remains 79%.
+- Verification:
+  - `uv run pytest tests/test_other_commands.py -q --cov=flowforge_cli.main --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `20 passed`, 100% statement coverage for
+    `main.py`.
+  - `uv run ruff check tests/test_other_commands.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_other_commands.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: passed with one optional `mmdc` skip and
+    overall package coverage 79%.

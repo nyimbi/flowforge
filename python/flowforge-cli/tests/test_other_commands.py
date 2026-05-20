@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 
 from flowforge_cli.commands import jtbd_generate as jtbd_generate_module
 from flowforge_cli.jtbd import GeneratedFile
+from flowforge_cli import main as main_module
 from flowforge_cli.main import app
 
 
@@ -300,6 +301,15 @@ def test_root_help_lists_commands() -> None:
 		"audit",
 	]:
 		assert cmd in r.output, f"missing {cmd!r} in help: {r.output}"
+
+
+def test_main_entrypoint_invokes_typer_app(monkeypatch: pytest.MonkeyPatch) -> None:
+	called: list[bool] = []
+	monkeypatch.setattr(main_module, "app", lambda: called.append(True))
+
+	main_module.main()
+
+	assert called == [True]
 
 
 # ---------- jtbd-generate (U19) ----------
