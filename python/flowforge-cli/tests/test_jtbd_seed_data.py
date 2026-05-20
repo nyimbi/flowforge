@@ -26,12 +26,13 @@ from __future__ import annotations
 
 import compileall
 import hashlib
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from flowforge_cli.jtbd import generate
 from flowforge_cli.jtbd.generators import _fixture_registry, seed_data
-from flowforge_cli.jtbd.normalize import normalize
+from flowforge_cli.jtbd.normalize import NormalizedField, normalize
 
 
 # ---------------------------------------------------------------------------
@@ -94,6 +95,20 @@ def _bundle() -> dict[str, Any]:
 			}
 		],
 	}
+
+
+def _field(kind: str, validation: dict[str, Any] | None = None) -> NormalizedField:
+	return NormalizedField(
+		id=f"{kind}_field",
+		kind=kind,
+		label=f"{kind.title()} Field",
+		required=False,
+		pii=False,
+		sa_type="String",
+		sql_type="TEXT",
+		ts_component="Input",
+		validation=validation or {},
+	)
 
 
 # ---------------------------------------------------------------------------
@@ -237,6 +252,19 @@ def test_faker_dispatch_signature_file_refs() -> None:
 	assert '"policy_doc": faker.uuid4()' in seed_module.content
 
 
+def test_faker_dispatch_unknown_kind_falls_back_to_word() -> None:
+	assert seed_data._faker_expr(_field("custom_kind")) == "faker.word()"
+
+
+def test_faker_dispatch_defaults_when_validation_is_absent() -> None:
+	assert (
+		seed_data._faker_expr(_field("money"))
+		== "round(faker.pyfloat(left_digits=5, right_digits=2, positive=True), 2)"
+	)
+	assert seed_data._faker_expr(_field("number")) == "faker.pyint()"
+	assert seed_data._faker_expr(_field("enum")) == "faker.word()"
+
+
 # ---------------------------------------------------------------------------
 # state-path BFS
 # ---------------------------------------------------------------------------
@@ -269,6 +297,40 @@ def test_seed_paths_chain_to_terminal_states() -> None:
 	(seed_module,) = [f for f in files if f.path.endswith("seed_claim_intake.py")]
 	# done is reached by submit() + approve → suffix is ("approve",)
 	assert '("done", ("approve",))' in seed_module.content
+
+
+def test_shortest_event_path_handles_identity_cycles_and_unreachable() -> None:
+	jtbd = normalize(_bundle()).jtbds[0]
+	jtbd = replace(
+		jtbd,
+		transitions=(
+			{"from_state": "intake", "event": "loop", "to_state": "intake", "priority": 0},
+			{"from_state": "intake", "event": "submit", "to_state": "review", "priority": 1},
+		),
+	)
+
+	assert seed_data._shortest_event_path(jtbd, "intake", "intake") == []
+	assert seed_data._shortest_event_path(jtbd, "intake", "review") == ["submit"]
+	assert seed_data._shortest_event_path(jtbd, "intake", "missing") is None
+
+
+def test_seed_event_paths_skip_blank_and_unreachable_states() -> None:
+	jtbd = normalize(_bundle()).jtbds[0]
+	jtbd = replace(
+		jtbd,
+		initial_state="start",
+		states=(
+			{"name": "", "kind": "intermediate"},
+			{"name": "start", "kind": "initial"},
+			{"name": "review", "kind": "intermediate"},
+			{"name": "orphan", "kind": "terminal_success"},
+		),
+		transitions=(
+			{"from_state": "start", "event": "open", "to_state": "review", "priority": 0},
+		),
+	)
+
+	assert seed_data._seed_event_paths(jtbd) == [("review", ("open",))]
 
 
 # ---------------------------------------------------------------------------

@@ -1408,3 +1408,33 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: passed with one optional `mmdc` skip and
     overall package coverage 78%.
+
+## CLI coverage slice - seed-data generator
+
+- Baseline measurement:
+  - After closing property-test generator coverage, rounded `flowforge-cli`
+    package coverage was 78%.
+  - `jtbd/generators/seed_data.py` was 93% covered; remaining gaps were faker
+    fallback branches and seed event-path edge cases for identity paths,
+    already-visited states, unreachable states, blank state names, and
+    non-`submit` path suffixes.
+- Action:
+  - Added focused seed-data tests for unknown field-kind fallback, default
+    money/number/enum faker expressions without validation, shortest-path
+    identity/cycle/unreachable behavior, and seed-event path filtering for
+    blank, initial, unreachable, and non-`submit` states.
+- Result:
+  - `flowforge_cli.jtbd.generators.seed_data` now reaches 100% statement and
+    branch coverage.
+  - Overall `flowforge-cli` rounded package coverage remains 78%.
+- Verification:
+  - `uv run pytest tests/test_jtbd_seed_data.py -q --cov=flowforge_cli.jtbd.generators.seed_data --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `26 passed`, 100% statement and branch
+    coverage for `seed_data.py`.
+  - `uv run ruff check tests/test_jtbd_seed_data.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_jtbd_seed_data.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: passed with one optional `mmdc` skip and
+    overall package coverage 78%.
