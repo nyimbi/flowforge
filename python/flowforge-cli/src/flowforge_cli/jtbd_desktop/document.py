@@ -64,6 +64,7 @@ def build_template_from_jtbd(jtbd: dict[str, Any], description: str = "") -> dic
 
 	jtbd_copy = copy.deepcopy(jtbd)
 	_strip_storage_metadata(jtbd_copy)
+	jtbd_copy["requires"] = []
 	template_id = normalise_id(str(jtbd_copy.get("id") or jtbd_copy.get("title") or "template"))
 	return {
 		"id": template_id,
@@ -90,6 +91,11 @@ def create_jtbd_from_template(
 	src["title"] = base_title
 	src["status"] = "draft"
 	_strip_storage_metadata(src)
+	src["requires"] = [
+		str(required)
+		for required in (src.get("requires") or [])
+		if str(required) in existing_ids and str(required) != jtbd_id
+	]
 	src.setdefault("annotations", {})
 	src["annotations"]["source_template"] = str(template.get("id") or "")
 	return src
@@ -446,12 +452,30 @@ class JtbdDocument:
 			raise ValueError("a JTBD cannot depend on itself")
 		if required not in set(self.jtbd_ids()):
 			raise ValueError(f"unknown dependency id: {required}")
+		if self._depends_on(required, jtbd_id):
+			raise ValueError(f"dependency cycle would be created: {jtbd_id} -> {required}")
 		requires = list(jtbd.get("requires") or [])
 		if required not in requires:
 			requires.append(required)
 			jtbd["requires"] = requires
 			jtbd.pop("spec_hash", None)
 			self.dirty = True
+
+	def _depends_on(self, source_id: str, target_id: str) -> bool:
+		"""Return true if source already depends on target transitively."""
+
+		by_id = {str(j.get("id") or ""): j for j in self.bundle.get("jtbds", [])}
+		seen: set[str] = set()
+		stack = [source_id]
+		while stack:
+			current = stack.pop()
+			if current == target_id:
+				return True
+			if current in seen:
+				continue
+			seen.add(current)
+			stack.extend(str(r) for r in (by_id.get(current, {}).get("requires") or []))
+		return False
 
 	def remove_dependency(self, index: int, required_id: str) -> None:
 		"""Remove a composition dependency from a JTBD if present."""

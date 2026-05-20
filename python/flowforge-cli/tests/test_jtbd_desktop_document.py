@@ -153,6 +153,19 @@ def test_visual_composition_rejects_invalid_dependencies() -> None:
 			raise AssertionError(f"invalid dependency should be rejected: {bad!r}")
 
 
+def test_visual_composition_rejects_cycles_at_edit_time() -> None:
+	doc = JtbdDocument(create_default_bundle())
+	review = doc.add_jtbd("Review case")
+	doc.add_dependency(review, "intake_case")
+
+	try:
+		doc.add_dependency(0, "review_case")
+	except ValueError as exc:
+		assert "cycle" in str(exc)
+	else:  # pragma: no cover - defensive assertion.
+		raise AssertionError("cycle-forming dependency should be rejected")
+
+
 def test_add_from_template_and_prompt_manage_unique_jtbd_list() -> None:
 	doc = JtbdDocument(create_default_bundle())
 	library = create_template_library()
@@ -186,13 +199,34 @@ def test_template_library_roundtrip(tmp_path: Path) -> None:
 
 def test_template_export_and_ai_prompt() -> None:
 	bundle = create_default_bundle()
+	bundle["jtbds"][0]["requires"] = ["missing_in_target"]
 	template = build_template_from_jtbd(bundle["jtbds"][0], description="Reusable intake")
 	jtbd = create_jtbd_from_template(template, {"intake_case"})
 	prompt = build_ai_authoring_prompt(bundle, bundle["jtbds"][0])
 
 	assert template["description"] == "Reusable intake"
+	assert template["jtbd"]["requires"] == []
 	assert jtbd["id"] == "intake_case_2"
+	assert jtbd["requires"] == []
 	assert "Selected JTBD JSON" in prompt
+
+
+def test_template_import_drops_dependencies_missing_from_target_bundle() -> None:
+	bundle = create_default_bundle()
+	bundle["jtbds"][0]["requires"] = ["intake_case", "unknown_job"]
+	template = {
+		"id": "intake_variant",
+		"name": "Intake variant",
+		"description": "",
+		"jtbd": bundle["jtbds"][0],
+	}
+
+	imported = create_jtbd_from_template(template, {"intake_case"})
+	doc = JtbdDocument(create_default_bundle())
+	doc.bundle["jtbds"].append(imported)
+
+	assert imported["requires"] == ["intake_case"]
+	assert doc.validate().ok
 
 
 def test_templates_and_duplicates_strip_storage_metadata() -> None:
