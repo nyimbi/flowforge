@@ -1128,3 +1128,32 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `771 passed`, `1 skipped`, overall package
     coverage 77%.
+
+## CLI coverage slice - generated frontend CLI
+
+- Baseline measurement:
+  - After closing diagram generator coverage, rounded `flowforge-cli` package
+    coverage was 77%.
+  - `jtbd/generators/frontend_cli.py` was 92% covered; the remaining gaps were
+    helper-level integer/boolean Typer option mappings and invalid/empty
+    transition-event filtering.
+- Action:
+  - Added focused tests for supported scalar kind mapping (`integer`, `number`,
+    `money`, `boolean`, fallback string kinds).
+  - Added an events extraction test that verifies empty and non-string events
+    are ignored while valid event names are sorted and retained.
+- Result:
+  - `flowforge_cli.jtbd.generators.frontend_cli` now reaches 100% statement
+    and branch coverage.
+  - Overall `flowforge-cli` rounded package coverage remains 77%.
+- Verification:
+  - `uv run pytest tests/test_frontend_cli_generator.py -q --cov=flowforge_cli.jtbd.generators.frontend_cli --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `20 passed`, 100% statement and branch
+    coverage for `frontend_cli.py`.
+  - `uv run ruff check tests/test_frontend_cli_generator.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_frontend_cli_generator.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `773 passed`, `1 skipped`, overall package
+    coverage 77%.
