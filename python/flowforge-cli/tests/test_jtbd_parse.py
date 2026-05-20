@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+from flowforge_cli.jtbd import parse as parse_mod
 from flowforge_cli.jtbd.parse import JTBDParseError, parse_bundle
 
 
@@ -40,6 +41,22 @@ def _ok_bundle() -> dict[str, Any]:
 
 def test_ok_bundle_parses() -> None:
 	parse_bundle(_ok_bundle())
+
+
+def test_load_schema_uses_editable_install_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+	"""Fallback path loads the core package schema when resources are unavailable."""
+	monkeypatch.setattr(parse_mod, "_SCHEMA", None)
+
+	def missing_resource(_package: str) -> Any:
+		raise FileNotFoundError("blocked resource lookup")
+
+	monkeypatch.setattr(parse_mod, "_ir_files", missing_resource)
+
+	schema = parse_mod._load_schema()
+
+	assert isinstance(schema, dict)
+	assert "properties" in schema
+	assert parse_mod._SCHEMA is schema
 
 
 def test_missing_pii_for_text_kind_raises() -> None:

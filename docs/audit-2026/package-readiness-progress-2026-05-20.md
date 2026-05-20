@@ -1466,3 +1466,30 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: passed with one optional `mmdc` skip and
     overall package coverage 78%.
+
+## CLI coverage slice - JTBD parser
+
+- Baseline measurement:
+  - After closing JTBD conflict solver coverage, rounded `flowforge-cli`
+    package coverage was 78%.
+  - `jtbd/parse.py` was 90% covered; the remaining gap was the editable-install
+    schema fallback used when importlib resources cannot resolve the core
+    JTBD schema.
+- Action:
+  - Added a focused parser test that clears the schema cache, forces resource
+    lookup failure, and verifies the fallback loads and caches the schema from
+    the installed core package path.
+- Result:
+  - `flowforge_cli.jtbd.parse` now reaches 100% statement and branch coverage.
+  - Overall `flowforge-cli` rounded package coverage remains 78%.
+- Verification:
+  - `uv run pytest tests/test_jtbd_parse.py -q --cov=flowforge_cli.jtbd.parse --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `6 passed`, 100% statement and branch
+    coverage for `parse.py`.
+  - `uv run ruff check tests/test_jtbd_parse.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_jtbd_parse.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: passed with one optional `mmdc` skip and
+    overall package coverage 78%.
