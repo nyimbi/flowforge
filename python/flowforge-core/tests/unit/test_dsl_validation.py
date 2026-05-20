@@ -96,6 +96,18 @@ def test_validator_loads_real_schema_for_workflow_def() -> None:
 	json.loads(schema_path.read_text())  # parses
 
 
+def test_validator_schema_loader_falls_back_to_source_tree(monkeypatch: pytest.MonkeyPatch) -> None:
+	from flowforge.compiler import validator
+
+	def missing_package_data(_package: str) -> object:
+		raise ModuleNotFoundError("package data unavailable")
+
+	monkeypatch.setattr(validator, "_WD_SCHEMA", None)
+	monkeypatch.setattr(validator, "files", missing_package_data)
+
+	assert validator._wd_schema()["type"] == "object"
+
+
 def test_validator_reports_schema_errors_and_strict_raises() -> None:
 	bad = _basic_def()
 	del bad["key"]

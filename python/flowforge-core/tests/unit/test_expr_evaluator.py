@@ -68,6 +68,7 @@ def test_remaining_builtin_operator_semantics() -> None:
 	assert evaluate({">=": [2, 2]}, {}) is True
 	assert evaluate({"<": [1, 2]}, {}) is True
 	assert evaluate({"<=": [2, 2]}, {}) is True
+	assert evaluate({"+": []}, {}) == 0
 	assert evaluate({"-": [7, 3]}, {}) == 4
 	assert evaluate({"*": [2, 3, 4]}, {}) == 24
 	assert evaluate({"*": []}, {}) == 1
@@ -113,14 +114,20 @@ def test_register_op_infers_default_and_variadic_arity_under_test_unfreeze() -> 
 	def variadic(prefix: str, *items: object) -> str:
 		return f"{prefix}:{len(items)}"
 
+	def keyword_only(a: int, *, flag: bool = False, **kwargs: object) -> tuple[int, bool, dict[str, object]]:
+		return a, flag, kwargs
+
 	with _test_only_unfreeze():
 		register_op("defaulted", defaulted)
 		register_op("variadic", variadic)
+		register_op("keyword_only", keyword_only)
 		assert evaluate({"defaulted": [2]}, {}) == 12
 		assert evaluate({"defaulted": [2, 3]}, {}) == 5
 		assert evaluate({"variadic": ["n", 1, 2, 3]}, {}) == "n:3"
+		assert evaluate({"keyword_only": 7}, {}) == (7, False, {})
 		assert check_arity({"defaulted": []})
 		assert check_arity({"defaulted": [1, 2, 3]})
+		assert check_arity({"keyword_only": [1, 2]})
 
 
 def test_register_op_rejects_invalid_arity_declarations_under_test_unfreeze() -> None:

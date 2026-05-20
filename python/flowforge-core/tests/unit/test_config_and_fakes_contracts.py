@@ -11,6 +11,7 @@ from flowforge import config
 from flowforge.config import (
 	ProductionConfigError,
 	RuntimeConfig,
+	_is_testing_fake,
 	production_config_errors,
 	use_runtime_config,
 	validate_production_config,
@@ -76,6 +77,7 @@ def test_production_config_detects_legacy_testing_fake_class_names() -> None:
 	class NoopTracing:
 		pass
 
+	assert _is_testing_fake(None) is False
 	runtime = RuntimeConfig(tracing=NoopTracing())
 
 	assert production_config_errors(runtime, required_ports=("tracing",)) == [
