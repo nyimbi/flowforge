@@ -77,3 +77,73 @@ Code audit 5 - JS/UI/generated frontend:
 - Continue expanding package-level 100% coverage beyond `flowforge-core`.
 - Keep repeating review/fix/verify/commit cycles until package publishing
   evidence is complete.
+
+## Design review audits
+
+Design audit 1 - architecture and package boundaries:
+
+- Result: no new blocker found in this slice.
+- Evidence reviewed: the core remains documented as I/O-free with host-wired
+  ports, the package surface stays split across 16 shipping packages plus
+  workspace-only domain packages, and the conformance suite remains the
+  standing architectural invariant contract.
+- Note: one attempted architecture subagent lane shut down without a usable
+  mailbox report; direct review supplied the evidence for this audit.
+
+Design audit 2 - API/CLI developer experience:
+
+- Result: no new blocker found after wheel-level CLI smoke.
+- Evidence reviewed: `flowforge --help` from a clean wheel install exposes the
+  scaffold, validation, simulation, audit, JTBD, pre-upgrade, migration-safety,
+  bundle-diff, and tutorial surfaces without import failures.
+
+Design audit 3 - generated app UX:
+
+- Result: no new blocker found.
+- Evidence reviewed: generated frontend design supports the legacy skeleton
+  path for byte-stable old bundles and an opt-in real `FormRenderer` path with
+  form specs, validators, conditional visibility, PII reveal controls, runtime
+  client wiring, idempotency keys, and tenant headers. Existing tests cover both
+  paths and byte determinism.
+
+Design audit 4 - PyPI packaging and release design:
+
+- Finding: PyPI artifact readiness was documented as a manual build/check/smoke
+  sequence but was not exposed as a first-class repeatable release target.
+- Action: added `scripts/audit_2026/pypi_build_smoke.py`, wired
+  `make audit-2026-pypi-build`, included it in the local and external release
+  gates, and updated `docs/release/PUBLISHING.md` to make the target canonical.
+
+Design audit 5 - operations, security, and reliability:
+
+- Result: no new blocker found in this slice.
+- Evidence reviewed: the external release gate already fails closed on local
+  skip escapes, visual/browser proof gaps, polish-copy sidecar gaps, optional
+  UMS parity, and live Postgres checks; the new PyPI target now extends that
+  release gate to package artifact build/check/smoke evidence.
+
+## Design-audit verification evidence
+
+- Manual package proof before adding the target:
+  - Built the 16 strategic packages into
+    `/private/tmp/flowforge-pypi-readiness-dist`.
+  - `uv run --with twine python -m twine check ...` passed for all 16 wheels
+    and all 16 sdists.
+  - Clean venv install of `flowforge-cli` from the built artifacts succeeded;
+    `/private/tmp/flowforge-cli-wheel-smoke/bin/flowforge --help` printed the
+    CLI help without `ModuleNotFoundError`.
+- `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`
+  - Result: built 32 artifacts for 16 packages, `twine check` passed for all,
+    clean wheel smoke installed `flowforge-cli`, and `flowforge --help` ran.
+- `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q --tb=short`
+  - Result: `16 passed`.
+- `uv run ruff check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`
+  - Result: clean.
+
+## Remaining work after design-audit slice
+
+- Continue broader package-level coverage work beyond `flowforge-core`.
+- Run additional code/design review loops as new package-surface changes land.
+- External release qualification still requires a browser-capable environment
+  for visual DOM/browser E2E and live Postgres checks; local macOS sandbox runs
+  can document skips but cannot replace that release evidence.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import re
 import tomllib
 from pathlib import Path
@@ -284,7 +285,30 @@ def test_flowforge_cli_wheel_includes_runtime_package() -> None:
 
 def test_publishing_docs_require_cli_wheel_smoke() -> None:
 	publishing = _read("docs/release/PUBLISHING.md")
+	makefile = _read("Makefile")
+	script = _read("scripts/audit_2026/pypi_build_smoke.py")
 
+	assert ".PHONY: audit-2026-pypi-build" in makefile
+	assert "scripts/audit_2026/pypi_build_smoke.py" in makefile
+	assert "$(MAKE) audit-2026-pypi-build" in makefile
+	tree = ast.parse(script)
+	strategic_assignment = next(
+		node for node in tree.body
+		if isinstance(node, ast.Assign)
+		and any(isinstance(target, ast.Name) and target.id == "STRATEGIC_PACKAGES" for target in node.targets)
+	)
+	strategic_packages = ast.literal_eval(strategic_assignment.value)
+	assert len(strategic_packages) == 16
+	assert "flowforge-core" in strategic_packages
+	assert "flowforge-cli" in strategic_packages
+	assert "flowforge-jtbd-hub" in strategic_packages
+	assert '"uv", "build"' in script
+	assert '"twine", "check"' in script
+	assert '"--find-links"' in script
+	assert '"flowforge-cli"' in script
+	assert '"--help"' in script
+	assert "EXPECTED_ARTIFACTS = len(STRATEGIC_PACKAGES) * 2" in script
+	assert "make audit-2026-pypi-build" in publishing
 	assert "flowforge-cli-wheel-smoke" in publishing
 	assert "--find-links dist flowforge-cli" in publishing
 	assert "flowforge --help" in publishing

@@ -44,11 +44,20 @@ uv run --with pyyaml \
 
 # 4. Conformance suite.
 uv run pytest tests/conformance/ -v
+
+# 5. PyPI artifact gate — builds all 16 shipping packages, runs
+#    `twine check`, and smoke-installs the flowforge-cli wheel.
+make audit-2026-pypi-build
 ```
 
 ## Build
 
-`uv build` produces an sdist + wheel per package. Run per-package:
+`make audit-2026-pypi-build` is the canonical release gate. It runs the
+build loop below, checks every wheel/sdist with `twine`, then installs
+`flowforge-cli` from the built artifacts into a clean venv and runs
+`flowforge --help`.
+
+`uv build` produces an sdist + wheel per package. The underlying loop is:
 
 ```bash
 for pkg in flowforge-core flowforge-fastapi flowforge-sqlalchemy \

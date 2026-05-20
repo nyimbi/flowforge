@@ -50,6 +50,7 @@ help:
 	@echo "  audit-2026-core-coverage  flowforge-core coverage ratchet toward 100%"
 	@echo "  audit-2026-property-coverage  every generator has a property test + seed uniqueness (W4a / ADR-003)"
 	@echo "  audit-2026-i18n-coverage  no untranslated strings in compliance: JTBDs (W4b / item 17)"
+	@echo "  audit-2026-pypi-build  build/check/smoke the 16 PyPI-publishable packages"
 	@echo "  audit-2026-signoff        signoff-checklist gate (P0/P1 rows)"
 
 .PHONY: setup
@@ -91,6 +92,7 @@ audit-2026-release-local: \
 		audit-2026-core-coverage \
 		audit-2026-property-coverage \
 		audit-2026-i18n-coverage \
+		audit-2026-pypi-build \
 		audit-2026-signoff
 	@echo ""
 	@echo "audit-2026-release-local: fail-closed local release gate passed."
@@ -107,6 +109,7 @@ audit-2026-release-external:
 		exit 1; \
 	fi
 	$(MAKE) audit-2026-release-external-preflight
+	$(MAKE) audit-2026-pypi-build
 	$(MAKE) audit-2026-visual-regression-dom
 	$(MAKE) audit-2026-browser-e2e
 	$(MAKE) audit-2026-polish-copy-sidecar
@@ -126,6 +129,10 @@ audit-2026-release-external-preflight:
 .PHONY: audit-2026-polish-copy-sidecar
 audit-2026-polish-copy-sidecar:
 	uv run python scripts/audit_2026/check_polish_copy_sidecar.py
+
+.PHONY: audit-2026-pypi-build
+audit-2026-pypi-build:
+	uv run python scripts/audit_2026/pypi_build_smoke.py
 
 .PHONY: audit-2026-unit
 audit-2026-unit:
