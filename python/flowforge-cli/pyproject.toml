@@ -122,12 +122,6 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/flowforge_cli"]
 
-[tool.hatch.build]
-include = [
-	"src/flowforge_cli/templates/**/*",
-	"src/flowforge_cli/jtbd/templates/**/*",
-]
-
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

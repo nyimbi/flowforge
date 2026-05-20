@@ -68,10 +68,16 @@ Outputs land in `dist/`.
 ```bash
 uv run --with twine \
 	python -m twine check dist/*.whl dist/*.tar.gz
+
+python -m venv /tmp/flowforge-cli-wheel-smoke
+/tmp/flowforge-cli-wheel-smoke/bin/python -m pip install \
+	--find-links dist flowforge-cli
+/tmp/flowforge-cli-wheel-smoke/bin/flowforge --help >/dev/null
 ```
 
-Every artifact should report `PASSED` (no warnings). Common failure
-modes:
+Every artifact should report `PASSED` (no warnings), and the clean
+`flowforge-cli` wheel smoke must print help without `ModuleNotFoundError`.
+Common failure modes:
 
 - `long_description missing` → README.md not picked up. Confirm
   `readme = "README.md"` in the package's `pyproject.toml` and the

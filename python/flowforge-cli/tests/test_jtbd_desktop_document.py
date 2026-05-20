@@ -129,12 +129,18 @@ def test_add_from_template_and_prompt_manage_unique_jtbd_list() -> None:
 
 	template_index = doc.add_jtbd_from_template(library["templates"][0])
 	prompt_index = doc.add_jtbd_from_prompt("Collect customer email and payment amount for approval")
+	direct_draft = create_jtbd_from_prompt(
+		"Screen new vendor tax form and contact email",
+		{"screen_new_vendor_tax_form_and_contact"},
+	)
 
 	assert doc.get_jtbd(template_index)["annotations"]["source_template"] == "approval_intake"
 	assert doc.get_jtbd(prompt_index)["annotations"]["ai_assist"]["review_required"] is True
 	assert len(set(doc.jtbd_ids())) == len(doc.jtbd_ids())
 	assert any(f["kind"] == "email" for f in doc.get_jtbd(prompt_index)["data_capture"])
 	assert any(f["kind"] == "money" for f in doc.get_jtbd(prompt_index)["data_capture"])
+	assert direct_draft["id"] == "screen_new_vendor_tax_form_and_contact_2"
+	assert any(f["kind"] == "email" for f in direct_draft["data_capture"])
 
 
 def test_template_library_roundtrip(tmp_path: Path) -> None:

@@ -231,6 +231,30 @@ def test_internal_python_dependencies_are_compatibly_bounded() -> None:
 	assert failures == []
 
 
+def test_flowforge_cli_wheel_includes_runtime_package() -> None:
+	"""The console-script package must not whitelist only template assets."""
+
+	data = tomllib.loads((ROOT / "python" / "flowforge-cli" / "pyproject.toml").read_text(
+		encoding="utf-8"
+	))
+	hatch = data.get("tool", {}).get("hatch", {})
+	assert hatch.get("build", {}).get("targets", {}).get("wheel", {}).get("packages") == [
+		"src/flowforge_cli"
+	]
+	assert "include" not in hatch.get("build", {}), (
+		"flowforge-cli wheel must include runtime modules, not only template assets"
+	)
+
+
+def test_publishing_docs_require_cli_wheel_smoke() -> None:
+	publishing = _read("docs/release/PUBLISHING.md")
+
+	assert "flowforge-cli-wheel-smoke" in publishing
+	assert "--find-links dist flowforge-cli" in publishing
+	assert "flowforge --help" in publishing
+	assert "ModuleNotFoundError" in publishing
+
+
 def test_dom_baselines_do_not_embed_ci_checkout_paths() -> None:
 	normalizer = _read("tests/visual_regression/lib/dom_normalize.ts")
 	assert "data-vite-dev-id" in normalizer
