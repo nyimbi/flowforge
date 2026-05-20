@@ -6,7 +6,6 @@ channels that need HTTP — no network calls, no credentials.
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 import pytest
@@ -133,6 +132,22 @@ class TestRegisterAndRender:
 		# _timezone key is consumed internally; should not break rendering
 		_, body = await n.render("welcome", "en", {"name": "TZ", "code": "1", "_timezone": "America/New_York"})
 		assert "TZ" in body
+
+	async def test_render_unknown_timezone_records_utc_fallback(self, spec_en: NotificationSpec) -> None:
+		n = MultiChannelNotifier()
+		await n.register_template(spec_en)
+
+		subject, _ = await n.render(
+			"welcome",
+			"en",
+			{"name": "TZ", "code": "1", "_timezone": "Not/AZone"},
+		)
+
+		assert subject == "Welcome, TZ!"
+		assert n.last_tz_fallback is not None
+		assert n.last_tz_fallback["requested"] == "Not/AZone"
+		assert n.last_tz_fallback["fallback"] == "UTC"
+		assert isinstance(n.last_tz_fallback["cause"], Exception)
 
 
 # ---------------------------------------------------------------------------

@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import pytest
+import httpx
 
 from flowforge_notify_multichannel.transports import (
 	EmailAdapter,
@@ -22,6 +23,11 @@ from flowforge_notify_multichannel.transports import (
 	SlackAdapter,
 	SMSAdapter,
 	WebhookAdapter,
+	_is_private_host,
+	_parse_allowed_hosts,
+	_url_allowed,
+	_url_host,
+	verify_webhook_signature,
 )
 
 
@@ -58,6 +64,120 @@ class FakeHTTPClient:
 	async def post(self, url: str, **kwargs: Any) -> FakeResponse:
 		self.calls.append({"url": url, **kwargs})
 		return self._response
+
+
+class RaisingHTTPClient:
+	async def post(self, url: str, **kwargs: Any) -> FakeResponse:
+		request = httpx.Request("POST", url)
+		raise httpx.RequestError("network down", request=request)
+
+
+class FakeAsyncClient:
+	def __init__(self, response: FakeResponse, calls: list[dict[str, Any]]) -> None:
+		self._response = response
+		self._calls = calls
+
+	async def __aenter__(self) -> "FakeAsyncClient":
+		return self
+
+	async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
+		return None
+
+	async def post(self, url: str, **kwargs: Any) -> FakeResponse:
+		self._calls.append({"url": url, **kwargs})
+		return self._response
+
+
+class FakeAsyncClientFactory:
+	def __init__(self, responses: list[FakeResponse]) -> None:
+		self._responses = responses
+		self.calls: list[dict[str, Any]] = []
+
+	def __call__(self, **kwargs: Any) -> FakeAsyncClient:
+		assert kwargs["timeout"] == 10.0
+		return FakeAsyncClient(self._responses.pop(0), self.calls)
+
+
+# ---------------------------------------------------------------------------
+# URL helpers and signature verification
+# ---------------------------------------------------------------------------
+
+
+def test_webhook_url_safety_helpers_cover_rejection_reasons() -> None:
+	assert _parse_allowed_hosts(" Hooks.Example.com, ,api.example.com ") == frozenset(
+		{"hooks.example.com", "api.example.com"}
+	)
+	assert _url_host("http://hooks.example.com") is None
+	assert _url_host("https://hooks.example.com/path") == "hooks.example.com"
+	assert _is_private_host("localhost") is True
+	assert _is_private_host("203.0.113.10") is True
+	assert _is_private_host("hooks.example.com") is False
+	assert _url_allowed(
+		"http://hooks.example.com",
+		allowed_hosts=frozenset(),
+		allow_any_public_host=True,
+	) == "url must be https and include a host"
+	assert _url_allowed(
+		"https://hooks.example.com",
+		allowed_hosts=frozenset(),
+		allow_any_public_host=False,
+	) == "no webhook host allow-list configured"
+
+
+def test_verify_webhook_signature_rejects_malformed_values_and_accepts_valid_ones() -> None:
+	payload = b'{"ok":true}'
+	secret = "s3cr3t"
+	valid = "sha256=" + hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
+	valid_bytes_secret = "sha256=" + hmac.new(b"s3cr3t", payload, hashlib.sha256).hexdigest()
+
+	assert verify_webhook_signature(payload, None, secret) is False
+	assert verify_webhook_signature(payload, "md5=bad", secret) is False
+	assert verify_webhook_signature(payload, "sha256=abc", secret) is False
+	assert verify_webhook_signature(payload, "sha256=" + ("g" * 64), secret) is False
+	assert verify_webhook_signature(payload, valid, secret) is True
+	assert verify_webhook_signature(payload, valid_bytes_secret, b"s3cr3t") is True
+	assert verify_webhook_signature(payload + b"x", valid, secret) is False
+
+
+async def test_http_adapters_use_default_async_client_when_no_client_injected(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	factory = FakeAsyncClientFactory(
+		[
+			FakeResponse(202, _json={"MessageId": "ses-async"}),
+			FakeResponse(201, _json={"sid": "SM-async"}),
+			FakeResponse(200, _json={"name": "projects/p/messages/async"}),
+			FakeResponse(204, ""),
+			FakeResponse(200, "ok"),
+		]
+	)
+	monkeypatch.setattr("httpx.AsyncClient", factory)
+
+	ses_result = await SESEmailAdapter(
+		access_key="AKID",
+		secret_key="SECRET",
+	).deliver("to@ses.test", "S", "B", {})
+	sms_result = await SMSAdapter(
+		account_sid="AC1",
+		auth_token="t",
+		from_number="+1",
+	).deliver("+15551234567", "S", "B", {})
+	fcm_result = await FCMPushAdapter(
+		project_id="p",
+		access_token="tok",
+	).deliver("device", "S", "B", {})
+	webhook_result = await WebhookAdapter(
+		secret="s",
+		allowed_hosts={"hooks.example.com"},
+	).deliver("https://hooks.example.com/hook", "S", "B", {})
+	slack_result = await SlackAdapter().deliver("https://hooks.slack.com/x", "S", "B", {})
+
+	assert ses_result.provider_id == "ses-async"
+	assert sms_result.provider_id == "SM-async"
+	assert fcm_result.provider_id == "projects/p/messages/async"
+	assert webhook_result.ok is True
+	assert slack_result.ok is True
+	assert len(factory.calls) == 5
 
 
 # ---------------------------------------------------------------------------
@@ -121,9 +241,15 @@ class TestEmailAdapter:
 			from_addr="from@test.com",
 			start_tls=False,
 		)
-		result = await adapter.deliver("to@test.com", "Subject", "Body text", {})
+		result = await adapter.deliver(
+			"to@test.com",
+			"Subject",
+			"Body text",
+			{"body_html": "<p>Body text</p>"},
+		)
 		assert result.ok
 		assert len(sent) == 1
+		assert "text/html" in sent[0][0].as_string()
 
 	async def test_deliver_returns_error_on_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
 		async def fail_send(*a: Any, **kw: Any) -> None:
@@ -135,6 +261,19 @@ class TestEmailAdapter:
 		result = await adapter.deliver("to@test.com", "S", "B", {})
 		assert not result.ok
 		assert "no smtp" in (result.error or "")
+
+	async def test_deliver_returns_error_on_smtp_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
+		import aiosmtplib
+
+		async def fail_send(*a: Any, **kw: Any) -> None:
+			raise aiosmtplib.SMTPException("smtp refused")
+
+		monkeypatch.setattr("aiosmtplib.send", fail_send)
+
+		adapter = EmailAdapter(host="localhost", port=9999, start_tls=False)
+		result = await adapter.deliver("to@test.com", "S", "B", {})
+		assert not result.ok
+		assert "smtp refused" in (result.error or "")
 
 	def test_channel_name(self) -> None:
 		assert EmailAdapter.channel == "email"
@@ -151,6 +290,7 @@ class TestSESEmailAdapter:
 		adapter = SESEmailAdapter(
 			access_key="AKID",
 			secret_key="SECRET",
+			session_token="SESSION",
 			region="us-east-1",
 			from_addr="from@ses.test",
 			_http_client=fake,
@@ -161,6 +301,7 @@ class TestSESEmailAdapter:
 		assert len(fake.calls) == 1
 		headers = fake.calls[0]["headers"]
 		assert headers["Authorization"].startswith("AWS4-HMAC-SHA256 ")
+		assert headers["X-Amz-Security-Token"] == "SESSION"
 		assert "X-Amz-Access-Key-Id" not in headers
 
 	async def test_deliver_requires_credentials(self) -> None:
@@ -177,6 +318,12 @@ class TestSESEmailAdapter:
 		result = await adapter.deliver("to@ses.test", "S", "B", {})
 		assert not result.ok
 		assert "500" in (result.error or "")
+
+	async def test_deliver_request_error(self) -> None:
+		adapter = SESEmailAdapter(access_key="AKID", secret_key="SECRET", _http_client=RaisingHTTPClient())
+		result = await adapter.deliver("to@ses.test", "S", "B", {})
+		assert not result.ok
+		assert "network down" in (result.error or "")
 
 	def test_channel_name(self) -> None:
 		assert SESEmailAdapter.channel == "email"
@@ -212,6 +359,17 @@ class TestSMSAdapter:
 		result = await adapter.deliver("+15551234567", "S", "B", {})
 		assert not result.ok
 
+	async def test_deliver_request_error(self) -> None:
+		adapter = SMSAdapter(
+			account_sid="AC1",
+			auth_token="t",
+			from_number="+1",
+			_http_client=RaisingHTTPClient(),
+		)
+		result = await adapter.deliver("+15551234567", "S", "B", {})
+		assert not result.ok
+		assert "network down" in (result.error or "")
+
 	def test_channel_name(self) -> None:
 		assert SMSAdapter.channel == "sms"
 
@@ -240,6 +398,12 @@ class TestFCMPushAdapter:
 		adapter = FCMPushAdapter(project_id="p", access_token="bad", _http_client=fake)
 		result = await adapter.deliver("tok", "S", "B", {})
 		assert not result.ok
+
+	async def test_deliver_request_error(self) -> None:
+		adapter = FCMPushAdapter(project_id="p", access_token="bad", _http_client=RaisingHTTPClient())
+		result = await adapter.deliver("tok", "S", "B", {})
+		assert not result.ok
+		assert "network down" in (result.error or "")
 
 	def test_channel_name(self) -> None:
 		assert FCMPushAdapter.channel == "push"
@@ -289,6 +453,12 @@ class TestWebhookAdapter:
 		adapter = WebhookAdapter(secret="s", allowed_hosts={"h.com"}, _http_client=fake)
 		result = await adapter.deliver("https://h.com/", "S", "B", {})
 		assert not result.ok
+
+	async def test_deliver_request_error(self) -> None:
+		adapter = WebhookAdapter(secret="s", allowed_hosts={"h.com"}, _http_client=RaisingHTTPClient())
+		result = await adapter.deliver("https://h.com/", "S", "B", {})
+		assert not result.ok
+		assert "network down" in (result.error or "")
 
 	async def test_requires_explicit_secret(self) -> None:
 		with pytest.raises(ValueError):
@@ -350,6 +520,12 @@ class TestSlackAdapter:
 		adapter = SlackAdapter(_http_client=fake)
 		result = await adapter.deliver("https://hooks.slack.com/bad", "S", "B", {})
 		assert not result.ok
+
+	async def test_deliver_request_error(self) -> None:
+		adapter = SlackAdapter(_http_client=RaisingHTTPClient())
+		result = await adapter.deliver("https://hooks.slack.com/bad", "S", "B", {})
+		assert not result.ok
+		assert "network down" in (result.error or "")
 
 	async def test_rejects_non_slack_url(self) -> None:
 		fake = FakeHTTPClient(FakeResponse(200, "ok"))

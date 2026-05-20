@@ -367,3 +367,34 @@ Design audit 5 - operations, security, and reliability:
     `17 passed`.
   - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`:
     passed for all eight closed packages.
+
+## Package coverage slice - flowforge-notify-multichannel
+
+- Baseline measurement:
+  - `flowforge-notify-multichannel`: `58 passed`, 85% package coverage.
+  - Remaining uncovered risk was concentrated in URL allow-list helper
+    branches, SMTP HTML and provider exception paths, default `httpx`
+    client-context paths, request-error handling for HTTP transports,
+    webhook signature rejection shapes, and timezone fallback observability.
+- Action: added focused tests for:
+  - Webhook URL parsing, private-host rejection, no-allow-list rejection, and
+    HMAC signature malformed/valid/invalid comparisons.
+  - SMTP HTML multipart delivery and `aiosmtplib.SMTPException` handling.
+  - SES session-token signing, injected-client `RequestError` failures, and
+    default `httpx.AsyncClient` success paths across SES, Twilio, FCM,
+    webhook, and Slack.
+  - Router fallback to UTC for an unknown timezone while preserving the
+    original exception in `last_tz_fallback`.
+- Result: `flowforge-notify-multichannel` now reaches 100% statement and
+  branch coverage and has been added to the closed-package coverage ratchet.
+- Verification:
+  - `uv run pytest tests -q --cov=flowforge_notify_multichannel --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-notify-multichannel`: `68 passed`.
+  - `uv run ruff check python/flowforge-notify-multichannel/tests/test_transports.py python/flowforge-notify-multichannel/tests/test_router.py scripts/audit_2026/closed_package_coverage.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright python/flowforge-notify-multichannel/tests/test_transports.py python/flowforge-notify-multichannel/tests/test_router.py scripts/audit_2026/closed_package_coverage.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q --tb=short`:
+    `17 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`:
+    passed for all nine closed packages.
