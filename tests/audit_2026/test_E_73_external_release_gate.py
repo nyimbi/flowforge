@@ -232,6 +232,10 @@ def test_external_release_gate_is_wired_as_manual_release_workflow() -> None:
         "PyPI artifact checksum manifest verified against retained \\`dist/*\\` artifacts"
         in workflow
     )
+    assert (
+        "PyPI artifact checksum manifest schema/version/package identities verified"
+        in workflow
+    )
     assert "Write external release evidence summary" in workflow
     assert "external-release-evidence-current.md" in workflow
     assert "GITHUB_RUN_ID" in workflow

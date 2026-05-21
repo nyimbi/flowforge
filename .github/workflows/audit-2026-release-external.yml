@@ -195,6 +195,7 @@ jobs:
           - Uploadable PyPI artifacts under \`dist/*\` from \`audit-2026-pypi-build-dist\`.
           - PyPI artifact checksum manifest \`docs/audit-2026/external-release-pypi-artifacts-current.json\`.
           - PyPI artifact checksum manifest verified against retained \`dist/*\` artifacts.
+          - PyPI artifact checksum manifest schema/version/package identities verified.
           - External release runbook and evidence template.
           EOF
 

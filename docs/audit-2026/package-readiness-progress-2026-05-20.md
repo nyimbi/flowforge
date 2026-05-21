@@ -4309,3 +4309,30 @@ Design audit 5 - operations, security, and reliability:
     `56 passed`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## External release manifest evidence summary audit
+
+- Code review finding:
+  - The external release workflow uploaded the schema-2 checksum manifest and
+    ran the retained-artifact verifier, but the generated evidence summary still
+    described only retained `dist/*` artifact verification. Reviewers reading
+    the evidence summary could miss that release version and package identity
+    metadata were verified as part of the manifest gate.
+- Action:
+  - Updated `.github/workflows/audit-2026-release-external.yml` so generated
+    evidence summaries explicitly state that PyPI artifact checksum manifest
+    schema, version, and package identities were verified.
+  - Added a workflow ratchet for that evidence-summary line.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format tests/audit_2026/test_E_73_external_release_gate.py`:
+    `1 file left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused workflow ratchet:
+    `1 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `56 passed`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
