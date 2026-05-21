@@ -129,6 +129,23 @@ def test_multi_language_emits_one_catalog_per_language_plus_useT() -> None:
 	]
 
 
+def test_duplicate_project_locales_are_deduplicated_in_order() -> None:
+	raw = _bundle(languages=["fr-CA", "fr-CA", "en", "en"])
+	raw["project"]["currencies"] = ["CAD", "CAD", "USD"]
+
+	norm = normalize(raw)
+	out = gen.generate(norm)
+	paths = sorted(f.path for f in out)
+
+	assert norm.project.languages == ("fr-CA", "en")
+	assert norm.project.currencies == ("CAD", "USD")
+	assert paths == [
+		"frontend/src/claims_demo/i18n/en.json",
+		"frontend/src/claims_demo/i18n/fr-CA.json",
+		"frontend/src/claims_demo/i18n/useT.ts",
+	]
+
+
 def test_per_bundle_aggregation_with_multi_jtbd_bundle() -> None:
 	"""5-JTBD building-permit bundle still emits one i18n set, not five."""
 

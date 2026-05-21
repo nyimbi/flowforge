@@ -204,6 +204,12 @@ def _norm_field(
 	)
 
 
+def _ordered_unique(values: tuple[str, ...]) -> tuple[str, ...]:
+	"""Return values with duplicates removed while preserving first occurrence."""
+
+	return tuple(dict.fromkeys(values))
+
+
 def _norm_doc(raw: dict[str, Any]) -> NormalizedDocReq:
 	return NormalizedDocReq(
 		kind=raw["kind"],
@@ -343,8 +349,8 @@ def normalize(
 		domain=proj["domain"],
 		tenancy=proj.get("tenancy", "single"),
 		frontend_framework=proj.get("frontend_framework", "nextjs"),
-		languages=tuple(proj.get("languages") or ("en",)),
-		currencies=tuple(proj.get("currencies") or ("USD",)),
+		languages=_ordered_unique(tuple(proj.get("languages") or ("en",))),
+		currencies=_ordered_unique(tuple(proj.get("currencies") or ("USD",))),
 		form_renderer=form_renderer,
 		idempotency_ttl_hours=idempotency_ttl_hours,
 		lineage_retention_years=lineage_retention_years,

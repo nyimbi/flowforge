@@ -2852,6 +2852,42 @@ Design audit 5 - operations, security, and reliability:
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
 
+## CLI locale-list normalization audit
+
+- Code/design audit finding:
+  - `project.languages` and `project.currencies` were normalized as raw
+    tuples. Duplicate locale declarations could therefore produce duplicate
+    generated catalog paths and duplicate `AVAILABLE_LANGUAGES` entries in
+    `useT.ts`, while duplicate currency declarations could leak into downstream
+    project consumers. The pipeline's later path dedupe masked part of the
+    issue, but direct generator output and generated metadata were still noisy.
+- Action:
+  - Added order-preserving project-list deduplication in JTBD normalization for
+    languages and currencies. The first entry remains authoritative so default
+    locale/currency semantics are unchanged.
+  - Added an i18n regression test proving duplicate locale/currency input is
+    normalized to first-seen unique values and emits one catalog per locale.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check src/flowforge_cli/jtbd/normalize.py tests/test_i18n_generator.py`
+    from `python/flowforge-cli`: clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright src/flowforge_cli/jtbd/normalize.py tests/test_i18n_generator.py`
+    from `python/flowforge-cli`: `0 errors, 0 warnings, 0 informations`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/test_i18n_generator.py -q`
+    from `python/flowforge-cli`: `52 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/test_i18n_generator.py -q --cov=flowforge_cli.jtbd.generators.i18n --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `52 passed`, targeted i18n generator coverage
+    stayed at 100% statement and branch coverage.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `888 passed, 1 skipped`, package coverage
+    stayed at 100% statement and branch coverage.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`
+    from the repo root: built 16 packages / 32 artifacts, passed `twine check`,
+    installed all shipping wheels into a clean venv, imported all 16 shipping
+    packages, completed `flowforge --help`, and finished with
+    `pypi-build-smoke: passed`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
+
 ## PyPI release version coherence audit
 
 - Code review finding:
