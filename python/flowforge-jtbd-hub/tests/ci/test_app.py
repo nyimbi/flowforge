@@ -14,9 +14,14 @@ from flowforge_jtbd.registry.manifest import (
 	bundle_hash,
 )
 from flowforge_jtbd.registry.signing import sign_manifest
-from flowforge_jtbd_hub.registry import PackageRegistry
+from flowforge_jtbd_hub.app import _AuthHeaderRequest, create_app
+from flowforge_jtbd_hub.registry import (
+	HubError,
+	PackageRegistry,
+	TamperedPayloadError,
+)
 from flowforge_signing_kms import HmacDevSigning
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 
 pytestmark = pytest.mark.asyncio
 
@@ -59,6 +64,16 @@ async def test_health_endpoint(app_client: AsyncClient) -> None:
 	r = await app_client.get("/health")
 	assert r.status_code == 200
 	assert r.json() == {"status": "ok"}
+
+
+async def test_auth_header_request_surfaces_case_variants() -> None:
+	empty = _AuthHeaderRequest(None)
+	assert empty.headers == {}
+	with_header = _AuthHeaderRequest("Bearer token")
+	assert with_header.headers == {
+		"Authorization": "Bearer token",
+		"authorization": "Bearer token",
+	}
 
 
 async def test_publish_then_search_finds_package(
@@ -118,6 +133,20 @@ async def test_publish_duplicate_version_409(
 	assert r.status_code == 409
 
 
+async def test_package_detail_success_and_missing(
+	app_client: AsyncClient, signing: HmacDevSigning
+) -> None:
+	await _publish(app_client, signing)
+	found = await app_client.get(
+		"/api/jtbd-hub/packages/flowforge-jtbd-insurance/1.0.0"
+	)
+	assert found.status_code == 200
+	assert found.json()["manifest"]["name"] == "flowforge-jtbd-insurance"
+
+	missing = await app_client.get("/api/jtbd-hub/packages/nope/0.0.0")
+	assert missing.status_code == 404
+
+
 async def test_publish_unsigned_403(app_client: AsyncClient) -> None:
 	manifest = JtbdManifest(
 		name="pkg-unsigned",
@@ -155,6 +184,44 @@ async def test_publish_tampered_bundle_400(
 		},
 	)
 	assert r.status_code == 400
+
+
+async def test_publish_rejects_bad_base64(app_client: AsyncClient) -> None:
+	manifest = JtbdManifest(name="pkg-bad-base64", version="1.0.0")
+	r = await app_client.post(
+		"/api/jtbd-hub/packages",
+		headers=AUTH_HEADERS,
+		json={
+			"manifest": manifest.model_dump(mode="json"),
+			"bundle_b64": "not base64!",
+			"allow_unsigned": True,
+		},
+	)
+	assert r.status_code == 400
+	assert "bundle_b64 is not valid base64" in r.json()["detail"]
+
+
+async def test_publish_maps_generic_registry_error(
+	app_client: AsyncClient,
+	registry: PackageRegistry,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	async def fail_publish(*_args: object, **_kwargs: object) -> object:
+		raise HubError("registry closed")
+
+	monkeypatch.setattr(registry, "publish", fail_publish)
+	manifest = JtbdManifest(name="pkg-registry-error", version="1.0.0")
+	r = await app_client.post(
+		"/api/jtbd-hub/packages",
+		headers=AUTH_HEADERS,
+		json={
+			"manifest": manifest.model_dump(mode="json"),
+			"bundle_b64": base64.b64encode(b"{}").decode("ascii"),
+			"allow_unsigned": True,
+		},
+	)
+	assert r.status_code == 400
+	assert r.json()["detail"] == "registry closed"
 
 
 async def test_install_with_trusted_key(
@@ -213,6 +280,33 @@ async def test_install_404_for_unknown_package(
 	assert r.status_code == 404
 
 
+async def test_install_maps_tamper_and_generic_errors(
+	app_client: AsyncClient,
+	registry: PackageRegistry,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	async def fail_tamper(*_args: object, **_kwargs: object) -> object:
+		raise TamperedPayloadError("stored payload changed")
+
+	monkeypatch.setattr(registry, "install", fail_tamper)
+	tampered = await app_client.post(
+		"/api/jtbd-hub/packages/pkg/1.0.0/install",
+		json={"trusted_signing_keys": []},
+	)
+	assert tampered.status_code == 409
+
+	async def fail_generic(*_args: object, **_kwargs: object) -> object:
+		raise HubError("trust parser failed")
+
+	monkeypatch.setattr(registry, "install", fail_generic)
+	generic = await app_client.post(
+		"/api/jtbd-hub/packages/pkg/1.0.0/install",
+		json={"trusted_signing_keys": []},
+	)
+	assert generic.status_code == 400
+	assert generic.json()["detail"] == "trust parser failed"
+
+
 async def test_rate_uses_authenticated_principal_not_payload_user(
 	app_client: AsyncClient, signing: HmacDevSigning
 ) -> None:
@@ -255,6 +349,51 @@ async def test_rate_requires_authentication(
 		"/api/jtbd-hub/packages/flowforge-jtbd-insurance/1.0.0/ratings",
 		json={"user_id": "alice", "stars": 5},
 	)
+	assert r.status_code == 401
+
+
+async def test_rate_missing_package_returns_404(app_client: AsyncClient) -> None:
+	r = await app_client.post(
+		"/api/jtbd-hub/packages/nope/0.0.0/ratings",
+		headers=AUTH_HEADERS,
+		json={"user_id": "alice", "stars": 5},
+	)
+	assert r.status_code == 404
+
+
+async def test_demote_and_verified_missing_package_return_404(
+	app_client: AsyncClient,
+) -> None:
+	demote = await app_client.post(
+		"/api/jtbd-hub/packages/nope/0.0.0/demote",
+		headers=AUTH_HEADERS,
+		json={"reason": "gone"},
+	)
+	assert demote.status_code == 404
+
+	verified = await app_client.post(
+		"/api/jtbd-hub/packages/nope/0.0.0/verified",
+		headers=AUTH_HEADERS,
+		json={"verified": True},
+	)
+	assert verified.status_code == 404
+
+
+async def test_principal_extractor_failure_maps_to_401(
+	registry: PackageRegistry,
+) -> None:
+	def fail_extract(request: object) -> None:
+		assert request is not None
+		raise ValueError("bad token")
+
+	app = create_app(registry, principal_extractor=fail_extract)
+	transport = ASGITransport(app=app)
+	async with AsyncClient(transport=transport, base_url="http://hub.test") as client:
+		r = await client.post(
+			"/api/jtbd-hub/packages/nope/0.0.0/ratings",
+			headers={"Authorization": "Bearer invalid"},
+			json={"user_id": "alice", "stars": 5},
+		)
 	assert r.status_code == 401
 
 

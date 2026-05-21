@@ -17,7 +17,10 @@ from flowforge_jtbd_hub.registry import (
 	PackageRegistry,
 	TamperedPayloadError,
 	UnsignedManifestError,
+	UnsignedPackageRejected,
 	UntrustedSignatureError,
+	_emit_audit_event,
+	utc_now,
 )
 from flowforge_jtbd_hub.reputation import DefaultReputationScorer
 from flowforge_jtbd_hub.trust import TrustConfig, TrustedKey
@@ -69,6 +72,18 @@ async def test_publish_allows_unsigned_with_flag(
 		manifest, sample_bundle, allow_unsigned=True
 	)
 	assert result.package.manifest.signature is None
+	assert result.package.to_summary()["rating_count"] == 0
+
+
+async def test_publish_allows_missing_bundle_hash_when_signed(
+	registry: PackageRegistry, signing: HmacDevSigning, sample_bundle: bytes
+) -> None:
+	manifest = await sign_manifest(
+		_make_manifest(bundle=sample_bundle).model_copy(update={"bundle_hash": None}),
+		signing,
+	)
+	result = await registry.publish(manifest, sample_bundle)
+	assert result.package.manifest.bundle_hash is None
 
 
 async def test_publish_detects_tampered_bundle(
@@ -117,6 +132,41 @@ async def test_install_with_trusted_key_succeeds(
 	assert registry.get("flowforge-jtbd-insurance", "1.0.0").downloads == 1
 
 
+async def test_install_uses_recent_verify_cache(
+	signing: HmacDevSigning, sample_bundle: bytes
+) -> None:
+	class CountingSigning:
+		def __init__(self, inner: HmacDevSigning) -> None:
+			self.inner = inner
+			self.verify_calls = 0
+
+		async def sign_payload(self, payload: bytes) -> bytes:
+			return await self.inner.sign_payload(payload)
+
+		async def verify(
+			self, payload: bytes, signature: bytes, key_id: str
+		) -> bool:
+			self.verify_calls += 1
+			return await self.inner.verify(payload, signature, key_id)
+
+		def current_key_id(self) -> str:
+			return self.inner.current_key_id()
+
+	counting = CountingSigning(signing)
+	registry = PackageRegistry(signing=counting)
+	manifest = await sign_manifest(_make_manifest(bundle=sample_bundle), counting)
+	await registry.publish(manifest, sample_bundle)
+	trust = TrustConfig(
+		trusted_signing_keys=[TrustedKey(id=counting.current_key_id())],
+	)
+
+	await registry.install("flowforge-jtbd-insurance", "1.0.0", trust=trust)
+	await registry.install("flowforge-jtbd-insurance", "1.0.0", trust=trust)
+
+	assert counting.verify_calls == 2
+	assert registry.get("flowforge-jtbd-insurance", "1.0.0").downloads == 2
+
+
 async def test_install_untrusted_key_raises(
 	registry: PackageRegistry, signing: HmacDevSigning, sample_bundle: bytes
 ) -> None:
@@ -144,6 +194,82 @@ async def test_install_allow_untrusted_overrides(
 	assert result.bundle == sample_bundle
 
 
+async def test_install_allow_untrusted_handles_reverify_failure(
+	registry: PackageRegistry, signing: HmacDevSigning, sample_bundle: bytes
+) -> None:
+	manifest = await sign_manifest(_make_manifest(bundle=sample_bundle), signing)
+	await registry.publish(manifest, sample_bundle)
+
+	class RejectingSigning:
+		async def verify(
+			self, _payload: bytes, _signature: bytes, _key_id: str
+		) -> bool:
+			return False
+
+	registry._signing = RejectingSigning()
+	with pytest.raises(UntrustedSignatureError):
+		await registry.install(
+			"flowforge-jtbd-insurance",
+			"1.0.0",
+			trust=TrustConfig(
+				trusted_signing_keys=[TrustedKey(id=signing.current_key_id())]
+			),
+		)
+	result = await registry.install(
+		"flowforge-jtbd-insurance",
+		"1.0.0",
+		trust=TrustConfig(
+			trusted_signing_keys=[TrustedKey(id=signing.current_key_id())]
+		),
+		allow_untrusted=True,
+	)
+	assert result.verified_signature is False
+
+
+async def test_install_unsigned_requires_explicit_accept_and_audits(
+	registry: PackageRegistry,
+	sample_bundle: bytes,
+) -> None:
+	manifest = _make_manifest(bundle=sample_bundle)
+	await registry.publish(manifest, sample_bundle, allow_unsigned=True)
+
+	with pytest.raises(UnsignedPackageRejected, match="PACKAGE_INSTALL_UNSIGNED"):
+		await registry.install(
+			"flowforge-jtbd-insurance", "1.0.0", trust=TrustConfig()
+		)
+
+	events: list[tuple[str, dict[str, str]]] = []
+
+	async def async_hook(event: str, payload: dict[str, str]) -> None:
+		events.append((event, payload))
+
+	def sync_hook(event: str, payload: dict[str, str]) -> None:
+		events.append((event, payload))
+
+	registry_with_hook = PackageRegistry(
+		signing=registry._signing, audit_hook=sync_hook
+	)
+	await registry_with_hook.publish(
+		manifest.model_copy(update={"name": "pkg-unsigned"}),
+		sample_bundle,
+		allow_unsigned=True,
+	)
+	result = await registry_with_hook.install(
+		"pkg-unsigned",
+		"1.0.0",
+		trust=TrustConfig(),
+		accept_unsigned=True,
+		audit_emit=async_hook,
+	)
+
+	assert result.verified_signature is False
+	assert [event for event, _ in events] == [
+		"PACKAGE_INSTALL_UNSIGNED",
+		"PACKAGE_INSTALL_UNSIGNED",
+	]
+	assert all(payload["name"] == "pkg-unsigned" for _, payload in events)
+
+
 async def test_install_verified_publishers_only_blocks_unverified(
 	registry: PackageRegistry, signing: HmacDevSigning, sample_bundle: bytes
 ) -> None:
@@ -163,6 +289,59 @@ async def test_install_verified_publishers_only_blocks_unverified(
 		"flowforge-jtbd-insurance", "1.0.0", trust=trust
 	)
 	assert result.verified_signature is True
+
+
+async def test_install_allow_untrusted_overrides_unverified_badge(
+	registry: PackageRegistry, signing: HmacDevSigning, sample_bundle: bytes
+) -> None:
+	manifest = await sign_manifest(_make_manifest(bundle=sample_bundle), signing)
+	await registry.publish(manifest, sample_bundle)
+	result = await registry.install(
+		"flowforge-jtbd-insurance",
+		"1.0.0",
+		trust=TrustConfig(
+			trusted_signing_keys=[TrustedKey(id=signing.current_key_id())],
+			verified_publishers_only=True,
+		),
+		allow_untrusted=True,
+	)
+	assert result.bundle == sample_bundle
+
+
+async def test_install_detects_corrupt_stored_bundle(
+	registry: PackageRegistry, signing: HmacDevSigning, sample_bundle: bytes
+) -> None:
+	manifest = await sign_manifest(_make_manifest(bundle=sample_bundle), signing)
+	await registry.publish(manifest, sample_bundle)
+	registry.get("flowforge-jtbd-insurance", "1.0.0").bundle = b"corrupt"
+
+	with pytest.raises(TamperedPayloadError):
+		await registry.install(
+			"flowforge-jtbd-insurance",
+			"1.0.0",
+			trust=TrustConfig(
+				trusted_signing_keys=[TrustedKey(id=signing.current_key_id())]
+			),
+		)
+
+
+async def test_install_skips_tamper_guard_when_manifest_has_no_bundle_hash(
+	registry: PackageRegistry, signing: HmacDevSigning, sample_bundle: bytes
+) -> None:
+	manifest = await sign_manifest(
+		_make_manifest(bundle=sample_bundle).model_copy(update={"bundle_hash": None}),
+		signing,
+	)
+	await registry.publish(manifest, sample_bundle)
+	registry.get("flowforge-jtbd-insurance", "1.0.0").bundle = b"changed"
+	result = await registry.install(
+		"flowforge-jtbd-insurance",
+		"1.0.0",
+		trust=TrustConfig(
+			trusted_signing_keys=[TrustedKey(id=signing.current_key_id())]
+		),
+	)
+	assert result.bundle == b"changed"
 
 
 async def test_install_missing_package_raises(
@@ -219,6 +398,62 @@ async def test_search_query_and_domain(
 	assert {p.name for p in by_domain} == {"pkg-claims"}
 
 
+async def test_search_matches_description_tags_and_empty_domain(
+	registry: PackageRegistry, signing: HmacDevSigning
+) -> None:
+	bundle = b'{"a":1}'
+	manifest = await sign_manifest(
+		_make_manifest(
+			name="pkg-neutral",
+			bundle=bundle,
+			tags=[],
+		).model_copy(update={"description": "Back office reconciler"}),
+		signing,
+	)
+	await registry.publish(manifest, bundle)
+	pkg = registry.get("pkg-neutral", "1.0.0")
+
+	assert pkg.domain == ""
+	assert registry.search(query="office")[0].name == "pkg-neutral"
+	assert registry.search(query="neutral")[0].name == "pkg-neutral"
+	assert registry.search(query="missing") == []
+	assert registry.search(domain="insurance") == []
+
+	tagged_bundle = b'{"b":2}'
+	tagged = await sign_manifest(
+		_make_manifest(
+			name="pkg-tagged",
+			bundle=tagged_bundle,
+			tags=["payments"],
+		).model_copy(update={"description": "Generic reconciler"}),
+		signing,
+	)
+	await registry.publish(tagged, tagged_bundle)
+	assert registry.search(query="payments")[0].name == "pkg-tagged"
+
+
+async def test_set_scorer_reorders_search_results(
+	registry: PackageRegistry, signing: HmacDevSigning
+) -> None:
+	bundle_a = b'{"a":1}'
+	bundle_b = b'{"b":2}'
+	await registry.publish(
+		await sign_manifest(_make_manifest(name="pkg-a", bundle=bundle_a), signing),
+		bundle_a,
+	)
+	await registry.publish(
+		await sign_manifest(_make_manifest(name="pkg-b", bundle=bundle_b), signing),
+		bundle_b,
+	)
+
+	class ReverseNameScorer:
+		def score(self, package: object, *, now: datetime) -> float:
+			return 10.0 if getattr(package, "name") == "pkg-a" else 1.0
+
+	registry.set_scorer(ReverseNameScorer())
+	assert [pkg.name for pkg in registry.search()] == ["pkg-a", "pkg-b"]
+
+
 async def test_rate_replaces_user_rating(
 	registry: PackageRegistry, signing: HmacDevSigning, sample_bundle: bytes
 ) -> None:
@@ -234,6 +469,17 @@ async def test_rate_replaces_user_rating(
 	pkg = registry.get("flowforge-jtbd-insurance", "1.0.0")
 	assert pkg.rating_count == 1
 	assert pkg.average_stars == 5.0
+
+
+async def test_rate_demote_and_verify_missing_package_raise(
+	registry: PackageRegistry,
+) -> None:
+	with pytest.raises(PackageNotFoundError):
+		await registry.rate("nope", "0.0.0", user_id="alice", stars=5)
+	with pytest.raises(PackageNotFoundError):
+		await registry.demote("nope", "0.0.0", reason="gone")
+	with pytest.raises(PackageNotFoundError):
+		await registry.mark_verified("nope", "0.0.0")
 
 
 async def test_rate_rejects_out_of_range_stars(
@@ -286,3 +532,29 @@ async def test_reputation_decays_with_age() -> None:
 	demoted = _P(age_days=0)
 	demoted.demoted = True
 	assert scorer.score(demoted, now=now) < new
+
+
+async def test_audit_emit_helper_ignores_missing_and_failing_hooks() -> None:
+	events: list[str] = []
+
+	def failing_hook(_event: str, _payload: dict[str, str]) -> None:
+		raise RuntimeError("sink down")
+
+	async def async_hook(event: str, _payload: dict[str, str]) -> None:
+		events.append(event)
+
+	await _emit_audit_event(
+		None,
+		failing_hook,
+		event="IGNORED",
+		payload={"name": "pkg"},
+	)
+	await _emit_audit_event(
+		None,
+		async_hook,
+		event="RECORDED",
+		payload={"name": "pkg"},
+	)
+
+	assert events == ["RECORDED"]
+	assert utc_now().tzinfo is not None

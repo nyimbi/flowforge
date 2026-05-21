@@ -1924,3 +1924,41 @@ Design audit 5 - operations, security, and reliability:
   - Plain `make audit-2026-closed-package-coverage` still hit a local uv cache
     sandbox error under `~/.cache/uv`; rerunning with the audit-local
     `/private/tmp` uv cache resolved the environment issue.
+
+## Package coverage slice - flowforge-jtbd-hub
+
+- Baseline measurement:
+  - `flowforge-jtbd-hub`: `66 passed`, 86% package coverage before this
+    slice.
+  - The largest gaps were FastAPI error mapping, registry trust/install edge
+    cases, trust-file fallback/error paths, and one unused auth helper closure.
+- Action:
+  - Removed the unused `_require_admin` closure from the FastAPI app; all admin
+    routes already use the narrower permission dependency.
+  - Added API tests for auth header shimming, package detail success/404,
+    invalid base64 publish, generic registry publish failures, install tamper
+    and generic failures, missing package rating/demote/verified routes, and
+    failing principal extractors.
+  - Added registry tests for missing bundle hashes, verify-cache reuse,
+    unsigned install audit events, untrusted override behavior, stored bundle
+    tamper checks, tag/description/name search matching, scorer replacement,
+    missing mutation targets, and best-effort audit hook failures.
+  - Added trust resolver tests for missing env files, non-mapping YAML,
+    absent/no-trust pyproject fallback, invalid pyproject trust tables, and
+    merged verified-key settings.
+  - Added `flowforge-jtbd-hub` to the closed-package coverage ratchet and
+    release-gate ratchet test.
+- Result:
+  - `flowforge-jtbd-hub` now reaches 100% statement and branch coverage.
+  - The closed-package coverage ratchet now tracks 15 packages.
+- Verification:
+  - `uv run pytest tests -q --cov=flowforge_jtbd_hub --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-jtbd-hub`: `90 passed`, package coverage 100%.
+  - `uv run ruff check src tests`
+    from `python/flowforge-jtbd-hub`: clean.
+  - `uv run pyright src tests`
+    from `python/flowforge-jtbd-hub`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q --tb=short`
+    from the repo root: `17 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`
+    from the repo root: passed for 15 packages, including `flowforge-jtbd-hub`.

@@ -69,6 +69,12 @@ def test_env_path_wins_over_user_and_system(tmp_path) -> None:  # type: ignore[n
 	assert ids == ["kms:env-key"]
 
 
+def test_env_path_pointing_at_missing_file_raises(tmp_path) -> None:  # type: ignore[no-untyped-def]
+	missing = tmp_path / "missing-env.yaml"
+	with pytest.raises(TrustConfigError, match="FLOWFORGE_TRUST_FILE"):
+		resolve_trust_config(env={"FLOWFORGE_TRUST_FILE": str(missing)})
+
+
 def test_user_path_used_when_no_flag_or_env(tmp_path) -> None:  # type: ignore[no-untyped-def]
 	user = tmp_path / "user.yaml"
 	_write_yaml(
@@ -129,6 +135,28 @@ def test_pyproject_table_used_when_yaml_absent(tmp_path) -> None:  # type: ignor
 	)
 
 
+def test_pyproject_absent_or_without_trust_falls_back_to_default(tmp_path) -> None:  # type: ignore[no-untyped-def]
+	missing_pyproject = tmp_path / "missing-pyproject.toml"
+	missing = resolve_trust_config(
+		env={},
+		user_path=tmp_path / "missing-user.yaml",
+		system_path=tmp_path / "missing-system.yaml",
+		pyproject_path=missing_pyproject,
+	)
+	assert missing.source == "default"
+	assert str(missing_pyproject) in missing.probed
+
+	pyproject = tmp_path / "pyproject.toml"
+	pyproject.write_text("[tool.flowforge]\n", "utf-8")
+	no_trust = resolve_trust_config(
+		env={},
+		user_path=tmp_path / "missing-user.yaml",
+		system_path=tmp_path / "missing-system.yaml",
+		pyproject_path=pyproject,
+	)
+	assert no_trust.source == "default"
+
+
 def test_invalid_yaml_raises(tmp_path) -> None:  # type: ignore[no-untyped-def]
 	bad = tmp_path / "bad.yaml"
 	bad.write_text(": :: not yaml :: :\n", "utf-8")
@@ -142,6 +170,13 @@ def test_unknown_keys_in_yaml_raise(tmp_path) -> None:  # type: ignore[no-untype
 		"trusted_signing_keys:\n  - id: x\n    extra: nope\n", "utf-8"
 	)
 	with pytest.raises(TrustConfigError):
+		resolve_trust_config(flag_path=bad)
+
+
+def test_non_mapping_yaml_raises(tmp_path) -> None:  # type: ignore[no-untyped-def]
+	bad = tmp_path / "list.yaml"
+	bad.write_text("- not\n- a\n- mapping\n", "utf-8")
+	with pytest.raises(TrustConfigError, match="must be a mapping"):
 		resolve_trust_config(flag_path=bad)
 
 
@@ -174,12 +209,46 @@ def test_merge_trusted_keys_unions_sets() -> None:
 	a = TrustConfig(trusted_signing_keys=[TrustedKey(id="kms:a")])
 	b = TrustConfig(
 		trusted_signing_keys=[TrustedKey(id="kms:b")],
+		verified_signing_keys=[TrustedKey(id="kms:verified")],
+		verified_publishers_only=True,
 		trust_verified_badge=True,
 	)
 	merged = merge_trusted_keys(a, b)
 	ids = sorted(k.id for k in merged.trusted_signing_keys)
 	assert ids == ["kms:a", "kms:b"]
+	assert [k.id for k in merged.verified_signing_keys] == ["kms:verified"]
+	assert merged.verified_publishers_only is True
 	assert merged.trust_verified_badge is True
+
+
+def test_pyproject_trust_table_must_be_mapping(tmp_path) -> None:  # type: ignore[no-untyped-def]
+	pyproject = tmp_path / "pyproject.toml"
+	pyproject.write_text('[tool.flowforge]\ntrust = "bad"\n', "utf-8")
+	with pytest.raises(TrustConfigError, match="must be a table"):
+		resolve_trust_config(
+			env={},
+			user_path=tmp_path / "missing-user.yaml",
+			system_path=tmp_path / "missing-system.yaml",
+			pyproject_path=pyproject,
+		)
+
+
+def test_invalid_pyproject_trust_config_raises(tmp_path) -> None:  # type: ignore[no-untyped-def]
+	pyproject = tmp_path / "pyproject.toml"
+	pyproject.write_text(
+		"[tool.flowforge.trust]\n"
+		"[[tool.flowforge.trust.trusted_signing_keys]]\n"
+		'id = "kms:pyproject-key"\n'
+		'extra = "nope"\n',
+		"utf-8",
+	)
+	with pytest.raises(TrustConfigError, match=r"\[tool\.flowforge\.trust\]"):
+		resolve_trust_config(
+			env={},
+			user_path=tmp_path / "missing-user.yaml",
+			system_path=tmp_path / "missing-system.yaml",
+			pyproject_path=pyproject,
+		)
 
 
 def test_trust_set_from_keys_helper() -> None:

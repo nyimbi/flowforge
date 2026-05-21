@@ -248,28 +248,6 @@ def create_app(
 		# Fall through to the legacy bridge.
 		return _legacy_token_principal(authorization)
 
-	def _require_admin(
-		request: Request,
-		authorization: str | None = Header(default=None),
-	) -> Principal:
-		"""E-73 / E-58 backward-compat: authenticate any admin route.
-
-		Returns a :class:`Principal`. Routes that need finer permission
-		distinctions use :func:`_require_permission` instead. When
-		neither principal_extractor nor admin_token is configured, app
-		startup requires explicit dev_mode=True before this permissive
-		local fallback can be reached.
-		"""
-		if dev_mode and principal_extractor is None and not allowed_tokens:
-			return LEGACY_ADMIN_PRINCIPAL
-		principal = _resolve_principal(authorization, request)
-		if principal is None:
-			raise HTTPException(
-				status_code=status.HTTP_401_UNAUTHORIZED,
-				detail="missing or invalid admin token",
-			)
-		return principal
-
 	def _require_permission(perm: Permission):
 		"""E-73 dependency factory. Returns a FastAPI dependency that
 		checks the resolved Principal carries ``perm``. 401 if no
