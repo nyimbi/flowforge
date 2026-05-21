@@ -21,6 +21,8 @@ Covers:
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -505,6 +507,66 @@ def test_useT_default_context_uses_default_language_catalog() -> None:
 	assert "\tlang: DEFAULT_LANGUAGE," in tsx
 	assert "\tcatalog: defaultCatalog as TranslationCatalog," in tsx
 	assert "const fallback = (fallbackCatalog as TranslationCatalog)[key];" in tsx
+
+
+@pytest.mark.parametrize("languages", (["en", "fr-CA"], ["fr-CA", "en"]))
+def test_useT_typescript_compiles_catalog_import_shapes(
+	languages: list[str],
+	tmp_path: Path,
+) -> None:
+	tsc = shutil.which("tsc")
+	if not tsc:
+		pytest.skip("tsc not on PATH")
+
+	norm = normalize(_bundle(languages=languages))
+	files = {f.path: f.content for f in gen.generate(norm)}
+	i18n_root = tmp_path / "src" / "i18n"
+	i18n_root.mkdir(parents=True)
+	for path, content in files.items():
+		if path.endswith("/i18n/useT.ts") or path.endswith(".json"):
+			(i18n_root / Path(path).name).write_text(content, encoding="utf-8")
+	(i18n_root / "react.d.ts").write_text(
+		"""declare module "react" {
+\texport interface Context<T> {}
+\texport function createContext<T>(value: T): Context<T>;
+\texport function useContext<T>(context: Context<T>): T;
+\texport function useCallback<T extends (...args: any[]) => any>(
+\t\tcallback: T,
+\t\tdeps: readonly unknown[],
+\t): T;
+}
+""",
+		encoding="utf-8",
+	)
+	(tmp_path / "tsconfig.json").write_text(
+		json.dumps(
+			{
+				"compilerOptions": {
+					"allowSyntheticDefaultImports": True,
+					"esModuleInterop": True,
+					"module": "ESNext",
+					"moduleResolution": "bundler",
+					"noEmit": True,
+					"resolveJsonModule": True,
+					"skipLibCheck": True,
+					"strict": True,
+					"target": "ESNext",
+					"types": [],
+				},
+				"include": ["src/i18n/**/*.ts", "src/i18n/**/*.json"],
+			},
+			indent=2,
+		),
+		encoding="utf-8",
+	)
+
+	result = subprocess.run(
+		[tsc, "-p", str(tmp_path)],
+		capture_output=True,
+		text=True,
+	)
+
+	assert result.returncode == 0, result.stdout + result.stderr
 
 
 # ---------------------------------------------------------------------------

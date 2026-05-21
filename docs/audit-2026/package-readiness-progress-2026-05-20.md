@@ -2888,6 +2888,37 @@ Design audit 5 - operations, security, and reliability:
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
 
+## CLI generated useT TypeScript proof audit
+
+- Code review finding:
+  - The existing generated TypeScript syntax gate only wrote generated `.tsx`
+    files into its temporary compiler project. It did not compile the generated
+    `useT.ts` hook, so catalog import-shape mistakes in the default/fallback
+    i18n hook could pass with only string-level assertions.
+- Action:
+  - Added a focused `tsc` proof for generated `useT.ts`. The test writes the
+    generated hook plus JSON catalogs into a temporary TypeScript project,
+    stubs the minimal React API used by the hook, enables JSON module imports,
+    and compiles both same-locale and non-English-default locale shapes.
+  - The harness uses modern bundler module resolution so current TypeScript
+    versions do not fail on deprecated `node10` resolution before checking the
+    generated hook.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check tests/test_i18n_generator.py`
+    from `python/flowforge-cli`: clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright tests/test_i18n_generator.py`
+    from `python/flowforge-cli`: `0 errors, 0 warnings, 0 informations`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/test_i18n_generator.py -q`
+    from `python/flowforge-cli`: `54 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/test_i18n_generator.py -q --cov=flowforge_cli.jtbd.generators.i18n --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `54 passed`, targeted i18n generator coverage
+    stayed at 100% statement and branch coverage.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `890 passed, 1 skipped`, package coverage
+    stayed at 100% statement and branch coverage.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
+
 ## PyPI release version coherence audit
 
 - Code review finding:
