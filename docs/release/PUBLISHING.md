@@ -61,14 +61,15 @@ make audit-2026-pypi-build
 `make audit-2026-pypi-build` is the canonical release gate. It discovers
 shipping packages from the workspace metadata, builds each package, requires
 exactly one wheel and one sdist per package, verifies PEP 561 `py.typed`
-markers are present in typed package wheels, verifies each wheel and sdist
-contains the declared `LICENSE` file, verifies the wheel's own
+markers are present in typed package wheels, verifies wheel `METADATA` /
+sdist `PKG-INFO` `Name` fields match the shipping package, verifies each wheel
+and sdist contains the declared `LICENSE` file, verifies the wheel's own
 `.dist-info/METADATA` and top-level sdist `PKG-INFO` `Requires-Dist` metadata
 keep internal Flowforge dependencies on the exact `>=0.1.0,<0.2.0`
-compatibility bound, with no extra internal dependency specifiers, and limited to shipping
-distributions, checks every wheel/sdist with `twine`, then installs every
-shipping wheel from the built artifacts into a clean venv, imports every
-shipping package, and runs `flowforge --help`.
+compatibility bound, with no extra internal dependency specifiers, and limited
+to shipping distributions, checks every wheel/sdist with `twine`, then
+installs every shipping wheel from the built artifacts into a clean venv,
+imports every shipping package, and runs `flowforge --help`.
 
 `uv build` produces an sdist + wheel per package. Do not maintain a separate
 manual package list for release builds; the gate discovers shipping packages

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import email.message
 import email.parser
 import os
 import re
@@ -217,16 +218,15 @@ def _assert_artifacts_include_license_files(
         )
 
 
-def _wheel_requires_dist(wheel: Path) -> list[str]:
+def _wheel_metadata(wheel: Path) -> email.message.Message:
     with zipfile.ZipFile(wheel) as archive:
         wheel_names = set(archive.namelist())
         metadata_path = _wheel_metadata_path(wheel, wheel_names)
         metadata = archive.read(metadata_path).decode("utf-8")
-    parsed = email.parser.Parser().parsestr(metadata)
-    return list(parsed.get_all("Requires-Dist", []) or [])
+    return email.parser.Parser().parsestr(metadata)
 
 
-def _sdist_requires_dist(sdist: Path) -> list[str]:
+def _sdist_metadata(sdist: Path) -> email.message.Message:
     with tarfile.open(sdist) as archive:
         sdist_root = sdist.name.removesuffix(".tar.gz")
         metadata_path = f"{sdist_root}/PKG-INFO"
@@ -238,8 +238,42 @@ def _sdist_requires_dist(sdist: Path) -> list[str]:
         if member is None:
             raise SystemExit(f"{sdist.name}: could not read sdist PKG-INFO")
         metadata = member.read().decode("utf-8")
-    parsed = email.parser.Parser().parsestr(metadata)
-    return list(parsed.get_all("Requires-Dist", []) or [])
+    return email.parser.Parser().parsestr(metadata)
+
+
+def _wheel_requires_dist(wheel: Path) -> list[str]:
+    return list(_wheel_metadata(wheel).get_all("Requires-Dist", []) or [])
+
+
+def _sdist_requires_dist(sdist: Path) -> list[str]:
+    return list(_sdist_metadata(sdist).get_all("Requires-Dist", []) or [])
+
+
+def _assert_artifact_metadata_names(
+    wheels_by_distribution: Mapping[str, Path],
+    sdists_by_distribution: Mapping[str, Path],
+    packages: tuple[ShippingPackage, ...],
+) -> None:
+    issues: list[str] = []
+    for package in packages:
+        key = _distribution_key(package.distribution_name)
+        wheel_name = _wheel_metadata(wheels_by_distribution[key]).get("Name", "")
+        if _distribution_key(wheel_name) != key:
+            issues.append(
+                f"{package.directory}: wheel METADATA Name {wheel_name!r} "
+                f"does not match {package.distribution_name!r}"
+            )
+        sdist_name = _sdist_metadata(sdists_by_distribution[key]).get("Name", "")
+        if _distribution_key(sdist_name) != key:
+            issues.append(
+                f"{package.directory}: sdist PKG-INFO Name {sdist_name!r} "
+                f"does not match {package.distribution_name!r}"
+            )
+    if issues:
+        raise SystemExit(
+            "built artifact metadata names do not match the shipping package set:\n  "
+            + "\n  ".join(issues)
+        )
 
 
 def _requirement_name(requirement: str) -> str:
@@ -396,6 +430,11 @@ def main(argv: list[str] | None = None) -> int:
     wheels_by_distribution, sdists_by_distribution = _assert_exact_artifacts_by_package(
         wheels,
         sdists,
+        packages,
+    )
+    _assert_artifact_metadata_names(
+        wheels_by_distribution,
+        sdists_by_distribution,
         packages,
     )
     _assert_wheels_include_py_typed(wheels_by_distribution, packages)

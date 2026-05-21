@@ -424,6 +424,9 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "_assert_clean_venv_installs_shipping_packages(" in script
     assert "expected_artifacts = len(packages) * 2" in script
     assert "expected {len(packages)} wheels and {len(packages)} sdists" in script
+    assert "_assert_artifact_metadata_names(" in script
+    assert "wheel `METADATA`" in publishing
+    assert "sdist `PKG-INFO` `Name` fields" in publishing
     assert "_assert_wheels_include_py_typed(wheels_by_distribution, packages)" in script
     assert "_assert_artifacts_include_license_files(" in script
     assert "_assert_artifact_internal_dependencies_bounded(" in script
@@ -481,6 +484,39 @@ def test_pypi_build_smoke_rejects_missing_or_duplicate_package_artifacts(
 
     with pytest.raises(SystemExit, match="flowforge-cli"):
         pypi_build_smoke._assert_exact_artifacts_by_package(wheels, sdists, packages)
+
+
+def test_pypi_build_smoke_rejects_artifact_metadata_name_mismatches(
+    tmp_path: Path,
+) -> None:
+    package = package_sets.ShippingPackage(
+        directory="flowforge-cli",
+        distribution_name="flowforge-cli",
+        import_package="flowforge_cli",
+    )
+    wheel = tmp_path / "flowforge_cli-0.1.0-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr(
+            "flowforge_cli-0.1.0.dist-info/METADATA",
+            "Metadata-Version: 2.4\nName: other\nVersion: 0.1.0\n",
+        )
+    sdist = tmp_path / "flowforge_cli-0.1.0.tar.gz"
+    package_dir = tmp_path / "flowforge_cli-0.1.0"
+    package_dir.mkdir()
+    pkg_info = package_dir / "PKG-INFO"
+    pkg_info.write_text(
+        "Metadata-Version: 2.4\nName: other\nVersion: 0.1.0\n",
+        encoding="utf-8",
+    )
+    with tarfile.open(sdist, "w:gz") as archive:
+        archive.add(pkg_info, arcname="flowforge_cli-0.1.0/PKG-INFO")
+
+    with pytest.raises(SystemExit, match="metadata names"):
+        pypi_build_smoke._assert_artifact_metadata_names(
+            {"flowforge-cli": wheel},
+            {"flowforge-cli": sdist},
+            (package,),
+        )
 
 
 def test_pypi_build_smoke_rejects_non_temp_output_dirs_before_creation(
