@@ -954,6 +954,43 @@ def _flowforge_core_shipping_package():
     )
 
 
+def _minimal_publication_metadata(
+    *,
+    distribution: str = "flowforge",
+    version: str = "0.1.0",
+    metadata_name: str | None = None,
+    metadata_version: str | None = None,
+    metadata_summary: str | None = None,
+) -> str:
+    project = pypi_build_smoke._package_project_metadata(
+        _flowforge_core_shipping_package()
+    )
+    lines = [
+        "Metadata-Version: 2.4",
+        f"Name: {metadata_name or distribution}",
+        f"Version: {metadata_version or version}",
+        f"Summary: {metadata_summary or project['description']}",
+        f"Requires-Python: {project['requires-python']}",
+        f"License-Expression: {project['license']}",
+    ]
+    lines.extend(f"License-File: {item}" for item in project["license-files"])
+    author = project["authors"][0]
+    maintainer = project["maintainers"][0]
+    lines.extend(
+        [
+            f"Author-email: {author['name']} <{author['email']}>",
+            f"Maintainer-email: {maintainer['name']} <{maintainer['email']}>",
+            f"Keywords: {', '.join(project['keywords'])}",
+        ]
+    )
+    lines.extend(f"Classifier: {item}" for item in project["classifiers"])
+    lines.extend(
+        f"Project-URL: {label}, {url}" for label, url in project["urls"].items()
+    )
+    lines.extend(["Description-Content-Type: text/markdown", "", "# Flowforge"])
+    return "\n".join(lines) + "\n"
+
+
 def _write_minimal_wheel(
     path: Path,
     *,
@@ -961,19 +998,19 @@ def _write_minimal_wheel(
     version: str = "0.1.0",
     metadata_name: str | None = None,
     metadata_version: str | None = None,
+    metadata_summary: str | None = None,
     include_license: bool = True,
     include_py_typed: bool = True,
 ) -> None:
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr(
             f"{distribution}-{version}.dist-info/METADATA",
-            "\n".join(
-                [
-                    "Metadata-Version: 2.4",
-                    f"Name: {metadata_name or distribution}",
-                    f"Version: {metadata_version or version}",
-                    "",
-                ]
+            _minimal_publication_metadata(
+                distribution=distribution,
+                version=version,
+                metadata_name=metadata_name,
+                metadata_version=metadata_version,
+                metadata_summary=metadata_summary,
             ),
         )
         if include_license:
@@ -989,19 +1026,19 @@ def _write_minimal_sdist(
     version: str = "0.1.0",
     metadata_name: str | None = None,
     metadata_version: str | None = None,
+    metadata_summary: str | None = None,
     include_license: bool = True,
 ) -> None:
     root = f"{distribution}-{version}"
     metadata = path.parent / f"{path.name}.PKG-INFO"
     license_file = path.parent / f"{path.name}.LICENSE"
     metadata.write_text(
-        "\n".join(
-            [
-                "Metadata-Version: 2.4",
-                f"Name: {metadata_name or distribution}",
-                f"Version: {metadata_version or version}",
-                "",
-            ]
+        _minimal_publication_metadata(
+            distribution=distribution,
+            version=version,
+            metadata_name=metadata_name,
+            metadata_version=metadata_version,
+            metadata_summary=metadata_summary,
         ),
         encoding="utf-8",
     )
@@ -1138,6 +1175,24 @@ def test_pypi_artifact_manifest_verifier_rejects_missing_artifact_payloads(
     pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
 
     with pytest.raises(SystemExit, match="py.typed"):
+        verify_pypi_artifact_manifest.verify_manifest(
+            dist_dir=tmp_path,
+            manifest_path=manifest_path,
+            expected_packages=(_flowforge_core_shipping_package(),),
+        )
+
+
+def test_pypi_artifact_manifest_verifier_rejects_publication_metadata_drift(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "flowforge-0.1.0-py3-none-any.whl"
+    sdist = tmp_path / "flowforge-0.1.0.tar.gz"
+    _write_minimal_wheel(wheel, metadata_summary="wrong summary")
+    _write_minimal_sdist(sdist)
+    manifest_path = tmp_path / "manifest.json"
+    pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
+
+    with pytest.raises(SystemExit, match="Summary"):
         verify_pypi_artifact_manifest.verify_manifest(
             dist_dir=tmp_path,
             manifest_path=manifest_path,

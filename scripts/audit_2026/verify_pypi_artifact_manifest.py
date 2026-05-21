@@ -16,6 +16,8 @@ from typing import Any
 
 from package_sets import ShippingPackage
 from package_sets import shipping_packages
+from pypi_build_smoke import _package_project_metadata
+from pypi_build_smoke import _publication_metadata_issues
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -142,6 +144,23 @@ def _assert_metadata_identity(
         )
 
 
+def _assert_publication_metadata(
+    *,
+    package: ShippingPackage,
+    metadata: email.message.Message,
+    source: str,
+    issues: list[str],
+) -> None:
+    issues.extend(
+        _publication_metadata_issues(
+            package,
+            _package_project_metadata(package),
+            metadata,
+            source=source,
+        )
+    )
+
+
 def _assert_wheel_payloads(
     *,
     wheel: Path,
@@ -249,11 +268,18 @@ def _assert_shipping_artifact_identities(
                     f"{display_name}: wheel version {wheel_version!r} "
                     f"does not match release version {release_version!r}"
                 )
+            wheel_metadata = _wheel_metadata(wheel)
             _assert_metadata_identity(
                 artifact=wheel,
-                metadata=_wheel_metadata(wheel),
+                metadata=wheel_metadata,
                 display_name=display_name,
                 release_version=release_version,
+                issues=issues,
+            )
+            _assert_publication_metadata(
+                package=package,
+                metadata=wheel_metadata,
+                source="wheel METADATA",
                 issues=issues,
             )
             _assert_wheel_payloads(wheel=wheel, package=package, issues=issues)
@@ -267,11 +293,18 @@ def _assert_shipping_artifact_identities(
                     f"{display_name}: sdist version {sdist_version!r} "
                     f"does not match release version {release_version!r}"
                 )
+            sdist_metadata = _sdist_metadata(sdist)
             _assert_metadata_identity(
                 artifact=sdist,
-                metadata=_sdist_metadata(sdist),
+                metadata=sdist_metadata,
                 display_name=display_name,
                 release_version=release_version,
+                issues=issues,
+            )
+            _assert_publication_metadata(
+                package=package,
+                metadata=sdist_metadata,
+                source="sdist PKG-INFO",
                 issues=issues,
             )
             _assert_sdist_payloads(sdist=sdist, package=package, issues=issues)

@@ -4174,3 +4174,38 @@ Design audit 5 - operations, security, and reliability:
     identity, `py.typed`, wheel license, and sdist license checks enforced.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI artifact manifest publication-metadata audit
+
+- Code review finding:
+  - The standalone manifest verifier inspected retained artifact names,
+    versions, checksums, and required payload files, but it still did not compare
+    publication-facing metadata against each package's `pyproject.toml`. A
+    retained artifact could therefore preserve checksum integrity while
+    presenting stale or incomplete Summary, Requires-Python, license, author,
+    maintainer, keyword, classifier, project URL, or README metadata.
+- Action:
+  - Reused the PyPI build smoke's publication-metadata issue checker from
+    `verify_pypi_artifact_manifest.py` so the standalone verifier enforces the
+    same source-to-artifact metadata fidelity as the build gate.
+  - Updated verifier fixture artifacts to include minimal valid publication
+    metadata derived from the real `flowforge-core` `pyproject.toml`.
+  - Added a retained-artifact regression for publication metadata drift.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format scripts/audit_2026/verify_pypi_artifact_manifest.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `1 file reformatted, 1 file left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check scripts/audit_2026/verify_pypi_artifact_manifest.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright scripts/audit_2026/verify_pypi_artifact_manifest.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused publication metadata verifier tests:
+    `2 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `54 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-artifact-manifest`:
+    verified the retained checksum manifest against repository `dist/` with
+    package count, distribution identity, release-version, embedded metadata
+    identity, publication metadata fidelity, `py.typed`, wheel license, and
+    sdist license checks enforced.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
