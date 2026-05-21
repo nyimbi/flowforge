@@ -18,6 +18,10 @@ from package_sets import ShippingPackage
 from package_sets import shipping_packages
 from pypi_build_smoke import _package_project_metadata
 from pypi_build_smoke import _publication_metadata_issues
+from pypi_build_smoke import _assert_artifact_internal_dependencies_bounded
+from pypi_build_smoke import _internal_dependency_bounds_for_release
+from pypi_build_smoke import _shipping_distribution_keys
+from pypi_build_smoke import _workspace_distribution_keys
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -240,7 +244,7 @@ def _assert_shipping_artifact_identities(
     packages: tuple[ShippingPackage, ...],
     *,
     release_version: str,
-) -> None:
+) -> tuple[dict[str, Path], dict[str, Path]]:
     expected = {
         _distribution_key(package.distribution_name): package for package in packages
     }
@@ -254,6 +258,8 @@ def _assert_shipping_artifact_identities(
         )
 
     issues: list[str] = []
+    wheels_by_distribution: dict[str, Path] = {}
+    sdists_by_distribution: dict[str, Path] = {}
     for distribution, package in sorted(expected.items()):
         display_name = package.distribution_name
         wheels = grouped.get((distribution, "wheel"), [])
@@ -283,6 +289,7 @@ def _assert_shipping_artifact_identities(
                 issues=issues,
             )
             _assert_wheel_payloads(wheel=wheel, package=package, issues=issues)
+            wheels_by_distribution[distribution] = wheel
         if len(sdists) != 1:
             issues.append(f"{display_name}: expected 1 sdist, found {len(sdists)}")
         else:
@@ -308,6 +315,7 @@ def _assert_shipping_artifact_identities(
                 issues=issues,
             )
             _assert_sdist_payloads(sdist=sdist, package=package, issues=issues)
+            sdists_by_distribution[distribution] = sdist
 
     unexpected = sorted(seen_distributions - set(expected))
     if unexpected:
@@ -318,6 +326,7 @@ def _assert_shipping_artifact_identities(
             "dist artifacts do not match shipping package set:\n  "
             + "\n  ".join(issues)
         )
+    return wheels_by_distribution, sdists_by_distribution
 
 
 def verify_manifest(
@@ -399,10 +408,21 @@ def verify_manifest(
         raise SystemExit(
             "artifact manifest does not match dist artifacts:\n  " + "\n  ".join(issues)
         )
-    _assert_shipping_artifact_identities(
-        artifacts,
-        expected_packages,
-        release_version=release_version,
+    wheels_by_distribution, sdists_by_distribution = (
+        _assert_shipping_artifact_identities(
+            artifacts,
+            expected_packages,
+            release_version=release_version,
+        )
+    )
+    _assert_artifact_internal_dependencies_bounded(
+        wheels_by_distribution,
+        sdists_by_distribution,
+        internal_distribution_keys=_workspace_distribution_keys(),
+        shipping_distribution_keys=_shipping_distribution_keys(expected_packages),
+        expected_internal_dependency_bounds=_internal_dependency_bounds_for_release(
+            release_version
+        ),
     )
 
 

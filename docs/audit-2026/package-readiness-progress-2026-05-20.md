@@ -4209,3 +4209,38 @@ Design audit 5 - operations, security, and reliability:
     sdist license checks enforced.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI artifact manifest dependency-bounds audit
+
+- Code review finding:
+  - The standalone manifest verifier now checked retained artifact integrity,
+    identity, payloads, and publication metadata, but it did not verify internal
+    Flowforge dependency bounds in retained wheel `METADATA` or sdist
+    `PKG-INFO`. A retained artifact set could therefore preserve checksums while
+    carrying stale or under-bounded internal dependencies.
+- Action:
+  - Reused the PyPI build smoke's internal dependency bound checker from
+    `verify_pypi_artifact_manifest.py`.
+  - The standalone verifier now rejects retained artifacts with unpublished
+    internal Flowforge dependencies or internal dependencies that do not match
+    the derived release-version window.
+  - Added a retained-artifact regression for wheel and sdist dependency bound
+    drift.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format scripts/audit_2026/verify_pypi_artifact_manifest.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `1 file reformatted, 1 file left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check scripts/audit_2026/verify_pypi_artifact_manifest.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright scripts/audit_2026/verify_pypi_artifact_manifest.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused dependency-bound verifier tests:
+    `2 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `55 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-artifact-manifest`:
+    verified the retained checksum manifest against repository `dist/` with
+    package count, distribution identity, release-version, embedded metadata
+    identity, publication metadata fidelity, `py.typed`, wheel license, sdist
+    license, and internal dependency bound checks enforced.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

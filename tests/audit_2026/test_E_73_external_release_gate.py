@@ -961,6 +961,7 @@ def _minimal_publication_metadata(
     metadata_name: str | None = None,
     metadata_version: str | None = None,
     metadata_summary: str | None = None,
+    requires_dist: tuple[str, ...] = (),
 ) -> str:
     project = pypi_build_smoke._package_project_metadata(
         _flowforge_core_shipping_package()
@@ -987,6 +988,7 @@ def _minimal_publication_metadata(
     lines.extend(
         f"Project-URL: {label}, {url}" for label, url in project["urls"].items()
     )
+    lines.extend(f"Requires-Dist: {requirement}" for requirement in requires_dist)
     lines.extend(["Description-Content-Type: text/markdown", "", "# Flowforge"])
     return "\n".join(lines) + "\n"
 
@@ -999,6 +1001,7 @@ def _write_minimal_wheel(
     metadata_name: str | None = None,
     metadata_version: str | None = None,
     metadata_summary: str | None = None,
+    requires_dist: tuple[str, ...] = (),
     include_license: bool = True,
     include_py_typed: bool = True,
 ) -> None:
@@ -1011,6 +1014,7 @@ def _write_minimal_wheel(
                 metadata_name=metadata_name,
                 metadata_version=metadata_version,
                 metadata_summary=metadata_summary,
+                requires_dist=requires_dist,
             ),
         )
         if include_license:
@@ -1027,6 +1031,7 @@ def _write_minimal_sdist(
     metadata_name: str | None = None,
     metadata_version: str | None = None,
     metadata_summary: str | None = None,
+    requires_dist: tuple[str, ...] = (),
     include_license: bool = True,
 ) -> None:
     root = f"{distribution}-{version}"
@@ -1039,6 +1044,7 @@ def _write_minimal_sdist(
             metadata_name=metadata_name,
             metadata_version=metadata_version,
             metadata_summary=metadata_summary,
+            requires_dist=requires_dist,
         ),
         encoding="utf-8",
     )
@@ -1193,6 +1199,24 @@ def test_pypi_artifact_manifest_verifier_rejects_publication_metadata_drift(
     pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
 
     with pytest.raises(SystemExit, match="Summary"):
+        verify_pypi_artifact_manifest.verify_manifest(
+            dist_dir=tmp_path,
+            manifest_path=manifest_path,
+            expected_packages=(_flowforge_core_shipping_package(),),
+        )
+
+
+def test_pypi_artifact_manifest_verifier_rejects_internal_dependency_drift(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "flowforge-0.1.0-py3-none-any.whl"
+    sdist = tmp_path / "flowforge-0.1.0.tar.gz"
+    _write_minimal_wheel(wheel, requires_dist=("flowforge-cli>=0.1.0",))
+    _write_minimal_sdist(sdist, requires_dist=("flowforge-cli>=0.1.0",))
+    manifest_path = tmp_path / "manifest.json"
+    pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
+
+    with pytest.raises(SystemExit, match="publish invalid dependencies"):
         verify_pypi_artifact_manifest.verify_manifest(
             dist_dir=tmp_path,
             manifest_path=manifest_path,
