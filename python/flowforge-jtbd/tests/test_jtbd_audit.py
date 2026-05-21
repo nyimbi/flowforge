@@ -7,10 +7,10 @@ from typing import Any
 
 from flowforge import config
 from flowforge_jtbd.audit import (
-	JtbdAuditLogger,
-	JtbdEditAction,
-	build_audit_event,
-	diff_spec_keys,
+    JtbdAuditLogger,
+    JtbdEditAction,
+    build_audit_event,
+    diff_spec_keys,
 )
 
 
@@ -20,32 +20,32 @@ from flowforge_jtbd.audit import (
 
 
 def _spec(jtbd_id: str = "claim_intake", **overrides: Any) -> dict[str, Any]:
-	s: dict[str, Any] = {
-		"id": jtbd_id,
-		"situation": "policyholder files an FNOL",
-		"motivation": "recover losses",
-		"outcome": "claim accepted",
-	}
-	s.update(overrides)
-	return s
+    s: dict[str, Any] = {
+        "id": jtbd_id,
+        "situation": "policyholder files an FNOL",
+        "motivation": "recover losses",
+        "outcome": "claim accepted",
+    }
+    s.update(overrides)
+    return s
 
 
 def _run(coro: Any) -> Any:
-	try:
-		loop = asyncio.get_event_loop()
-	except RuntimeError:
-		loop = asyncio.new_event_loop()
-		asyncio.set_event_loop(loop)
-	return loop.run_until_complete(coro)
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    return loop.run_until_complete(coro)
 
 
 class _RecordingAuditSink:
-	def __init__(self) -> None:
-		self.events: list[Any] = []
+    def __init__(self) -> None:
+        self.events: list[Any] = []
 
-	async def record(self, event: Any) -> str:
-		self.events.append(event)
-		return f"event-{len(self.events)}"
+    async def record(self, event: Any) -> str:
+        self.events.append(event)
+        return f"event-{len(self.events)}"
 
 
 # ---------------------------------------------------------------------------
@@ -54,43 +54,43 @@ class _RecordingAuditSink:
 
 
 def test_diff_keys_no_changes() -> None:
-	s = _spec()
-	assert diff_spec_keys(s, s) == []
+    s = _spec()
+    assert diff_spec_keys(s, s) == []
 
 
 def test_diff_keys_added_key() -> None:
-	old = _spec()
-	new = {**_spec(), "sla": {"breach_seconds": 3600}}
-	assert "sla" in diff_spec_keys(old, new)
+    old = _spec()
+    new = {**_spec(), "sla": {"breach_seconds": 3600}}
+    assert "sla" in diff_spec_keys(old, new)
 
 
 def test_diff_keys_removed_key() -> None:
-	old = {**_spec(), "title": "File a claim"}
-	new = _spec()
-	assert "title" in diff_spec_keys(old, new)
+    old = {**_spec(), "title": "File a claim"}
+    new = _spec()
+    assert "title" in diff_spec_keys(old, new)
 
 
 def test_diff_keys_changed_value() -> None:
-	old = _spec(outcome="claim accepted")
-	new = _spec(outcome="claim queued for triage")
-	assert "outcome" in diff_spec_keys(old, new)
+    old = _spec(outcome="claim accepted")
+    new = _spec(outcome="claim queued for triage")
+    assert "outcome" in diff_spec_keys(old, new)
 
 
 def test_diff_keys_both_none_returns_empty() -> None:
-	assert diff_spec_keys(None, None) == []
+    assert diff_spec_keys(None, None) == []
 
 
 def test_diff_keys_old_none_all_new_keys() -> None:
-	new = _spec()
-	keys = diff_spec_keys(None, new)
-	assert set(keys) == set(new.keys())
+    new = _spec()
+    keys = diff_spec_keys(None, new)
+    assert set(keys) == set(new.keys())
 
 
 def test_diff_keys_sorted() -> None:
-	old = _spec()
-	new = {**_spec(), "zzz": 1, "aaa": 2}
-	keys = diff_spec_keys(old, new)
-	assert keys == sorted(keys)
+    old = _spec()
+    new = {**_spec(), "zzz": 1, "aaa": 2}
+    keys = diff_spec_keys(old, new)
+    assert keys == sorted(keys)
 
 
 # ---------------------------------------------------------------------------
@@ -99,77 +99,77 @@ def test_diff_keys_sorted() -> None:
 
 
 def test_build_event_created() -> None:
-	evt = build_audit_event(
-		JtbdEditAction.created,
-		jtbd_id="claim_intake",
-		version="1.0.0",
-		actor_id="user-1",
-		tenant_id="tenant-A",
-		new_spec=_spec(),
-	)
-	assert evt.kind == "jtbd.spec_version.created"
-	assert evt.subject_kind == "jtbd_spec_version"
-	assert evt.subject_id == "claim_intake@1.0.0"
-	assert evt.payload["jtbd_id"] == "claim_intake"
-	assert evt.payload["version"] == "1.0.0"
-	assert evt.payload["actor_id"] == "user-1"
-	assert evt.payload["old_hash"] is None
-	assert evt.payload["new_hash"] is not None
-	assert evt.payload["new_hash"].startswith("sha256:")
+    evt = build_audit_event(
+        JtbdEditAction.created,
+        jtbd_id="claim_intake",
+        version="1.0.0",
+        actor_id="user-1",
+        tenant_id="tenant-A",
+        new_spec=_spec(),
+    )
+    assert evt.kind == "jtbd.spec_version.created"
+    assert evt.subject_kind == "jtbd_spec_version"
+    assert evt.subject_id == "claim_intake@1.0.0"
+    assert evt.payload["jtbd_id"] == "claim_intake"
+    assert evt.payload["version"] == "1.0.0"
+    assert evt.payload["actor_id"] == "user-1"
+    assert evt.payload["old_hash"] is None
+    assert evt.payload["new_hash"] is not None
+    assert evt.payload["new_hash"].startswith("sha256:")
 
 
 def test_build_event_edited_has_both_hashes() -> None:
-	old = _spec(outcome="old outcome")
-	new = _spec(outcome="new outcome")
-	evt = build_audit_event(
-		JtbdEditAction.edited,
-		jtbd_id="claim_intake",
-		version="1.1.0",
-		actor_id="user-2",
-		tenant_id="tenant-A",
-		old_spec=old,
-		new_spec=new,
-	)
-	assert evt.payload["old_hash"] != evt.payload["new_hash"]
-	assert "outcome" in evt.payload["diff_keys"]
+    old = _spec(outcome="old outcome")
+    new = _spec(outcome="new outcome")
+    evt = build_audit_event(
+        JtbdEditAction.edited,
+        jtbd_id="claim_intake",
+        version="1.1.0",
+        actor_id="user-2",
+        tenant_id="tenant-A",
+        old_spec=old,
+        new_spec=new,
+    )
+    assert evt.payload["old_hash"] != evt.payload["new_hash"]
+    assert "outcome" in evt.payload["diff_keys"]
 
 
 def test_build_event_deprecated_no_spec() -> None:
-	evt = build_audit_event(
-		JtbdEditAction.deprecated,
-		jtbd_id="old_intake",
-		version="1.0.0",
-		actor_id="curator-1",
-		tenant_id="tenant-A",
-	)
-	assert evt.kind == "jtbd.spec_version.deprecated"
-	assert evt.payload["old_hash"] is None
-	assert evt.payload["new_hash"] is None
-	assert evt.payload["diff_keys"] == []
+    evt = build_audit_event(
+        JtbdEditAction.deprecated,
+        jtbd_id="old_intake",
+        version="1.0.0",
+        actor_id="curator-1",
+        tenant_id="tenant-A",
+    )
+    assert evt.kind == "jtbd.spec_version.deprecated"
+    assert evt.payload["old_hash"] is None
+    assert evt.payload["new_hash"] is None
+    assert evt.payload["diff_keys"] == []
 
 
 def test_build_event_extra_fields_merged() -> None:
-	evt = build_audit_event(
-		JtbdEditAction.replaced_by_set,
-		jtbd_id="old_intake",
-		version="1.0.0",
-		actor_id="user-1",
-		tenant_id="tenant-A",
-		extra={"replaced_by": "new_intake"},
-	)
-	assert evt.payload["replaced_by"] == "new_intake"
+    evt = build_audit_event(
+        JtbdEditAction.replaced_by_set,
+        jtbd_id="old_intake",
+        version="1.0.0",
+        actor_id="user-1",
+        tenant_id="tenant-A",
+        extra={"replaced_by": "new_intake"},
+    )
+    assert evt.payload["replaced_by"] == "new_intake"
 
 
 def test_build_event_ai_drafted() -> None:
-	evt = build_audit_event(
-		JtbdEditAction.ai_drafted,
-		jtbd_id="ai_claim",
-		version="0.1.0",
-		actor_id="system",
-		tenant_id="tenant-B",
-		new_spec=_spec("ai_claim"),
-	)
-	assert evt.kind == "jtbd.spec_version.ai_drafted"
+    evt = build_audit_event(
+        JtbdEditAction.ai_drafted,
+        jtbd_id="ai_claim",
+        version="0.1.0",
+        actor_id="system",
+        tenant_id="tenant-B",
+        new_spec=_spec("ai_claim"),
+    )
+    assert evt.kind == "jtbd.spec_version.ai_drafted"
 
 
 # ---------------------------------------------------------------------------
@@ -178,14 +178,21 @@ def test_build_event_ai_drafted() -> None:
 
 
 def test_all_nine_actions_defined() -> None:
-	actions = list(JtbdEditAction)
-	assert len(actions) == 9
-	names = {a.value for a in actions}
-	expected = {
-		"created", "edited", "submitted", "approved", "rejected",
-		"deprecated", "archived", "replaced_by_set", "ai_drafted",
-	}
-	assert names == expected
+    actions = list(JtbdEditAction)
+    assert len(actions) == 9
+    names = {a.value for a in actions}
+    expected = {
+        "created",
+        "edited",
+        "submitted",
+        "approved",
+        "rejected",
+        "deprecated",
+        "archived",
+        "replaced_by_set",
+        "ai_drafted",
+    }
+    assert names == expected
 
 
 # ---------------------------------------------------------------------------
@@ -194,72 +201,98 @@ def test_all_nine_actions_defined() -> None:
 
 
 def test_logger_buffers_when_no_sink() -> None:
-	logger = JtbdAuditLogger(tenant_id="tenant-1")
-	event_id = _run(logger.record(
-		JtbdEditAction.created,
-		jtbd_id="claim_intake",
-		version="1.0.0",
-		actor_id="user-1",
-		new_spec=_spec(),
-	))
-	assert event_id == "buffered"
-	assert len(logger.buffered) == 1
-	assert logger.buffered[0].kind == "jtbd.spec_version.created"
+    logger = JtbdAuditLogger(tenant_id="tenant-1")
+    event_id = _run(
+        logger.record(
+            JtbdEditAction.created,
+            jtbd_id="claim_intake",
+            version="1.0.0",
+            actor_id="user-1",
+            new_spec=_spec(),
+        )
+    )
+    assert event_id == "buffered"
+    assert len(logger.buffered) == 1
+    assert logger.buffered[0].kind == "jtbd.spec_version.created"
 
 
 def test_logger_record_created_helper() -> None:
-	logger = JtbdAuditLogger(tenant_id="tenant-1")
-	_run(logger.record_created("claim_intake", "1.0.0", "user-1", spec=_spec()))
-	assert len(logger.buffered) == 1
-	assert logger.buffered[0].payload["new_hash"] is not None
+    logger = JtbdAuditLogger(tenant_id="tenant-1")
+    _run(logger.record_created("claim_intake", "1.0.0", "user-1", spec=_spec()))
+    assert len(logger.buffered) == 1
+    assert logger.buffered[0].payload["new_hash"] is not None
 
 
 def test_logger_record_edited_computes_diff() -> None:
-	logger = JtbdAuditLogger(tenant_id="tenant-1")
-	old = _spec(outcome="old")
-	new = _spec(outcome="new")
-	_run(logger.record_edited("claim_intake", "1.1.0", "user-2", old_spec=old, new_spec=new))
-	evt = logger.buffered[0]
-	assert "outcome" in evt.payload["diff_keys"]
+    logger = JtbdAuditLogger(tenant_id="tenant-1")
+    old = _spec(outcome="old")
+    new = _spec(outcome="new")
+    _run(
+        logger.record_edited(
+            "claim_intake", "1.1.0", "user-2", old_spec=old, new_spec=new
+        )
+    )
+    evt = logger.buffered[0]
+    assert "outcome" in evt.payload["diff_keys"]
 
 
 def test_logger_record_deprecated_includes_replaced_by() -> None:
-	logger = JtbdAuditLogger(tenant_id="tenant-1")
-	_run(logger.record_deprecated(
-		"old_intake", "1.0.0", "curator-1", replaced_by="new_intake"
-	))
-	evt = logger.buffered[0]
-	assert evt.payload.get("replaced_by") == "new_intake"
-	assert evt.kind == "jtbd.spec_version.deprecated"
+    logger = JtbdAuditLogger(tenant_id="tenant-1")
+    _run(
+        logger.record_deprecated(
+            "old_intake", "1.0.0", "curator-1", replaced_by="new_intake"
+        )
+    )
+    evt = logger.buffered[0]
+    assert evt.payload.get("replaced_by") == "new_intake"
+    assert evt.kind == "jtbd.spec_version.deprecated"
+
+
+def test_logger_record_deprecated_merges_extra_fields() -> None:
+    logger = JtbdAuditLogger(tenant_id="tenant-1")
+    _run(
+        logger.record_deprecated(
+            "old_intake",
+            "1.0.0",
+            "curator-1",
+            replaced_by="new_intake",
+            extra={"reason": "superseded"},
+        )
+    )
+    evt = logger.buffered[0]
+    assert evt.payload["replaced_by"] == "new_intake"
+    assert evt.payload["reason"] == "superseded"
 
 
 def test_logger_tenant_id_in_every_event() -> None:
-	logger = JtbdAuditLogger(tenant_id="my-tenant")
-	_run(logger.record(JtbdEditAction.submitted, "x", "1.0.0", "user-1"))
-	assert logger.buffered[0].tenant_id == "my-tenant"
+    logger = JtbdAuditLogger(tenant_id="my-tenant")
+    _run(logger.record(JtbdEditAction.submitted, "x", "1.0.0", "user-1"))
+    assert logger.buffered[0].tenant_id == "my-tenant"
 
 
 def test_logger_uses_scoped_runtime_audit_sink() -> None:
-	config.reset_to_fakes()
-	global_sink = _RecordingAuditSink()
-	scoped_sink = _RecordingAuditSink()
-	config.audit = global_sink
-	runtime_config = config.snapshot_runtime_config()
-	runtime_config.audit = scoped_sink
+    config.reset_to_fakes()
+    global_sink = _RecordingAuditSink()
+    scoped_sink = _RecordingAuditSink()
+    config.audit = global_sink
+    runtime_config = config.snapshot_runtime_config()
+    runtime_config.audit = scoped_sink
 
-	logger = JtbdAuditLogger(tenant_id="tenant-scoped")
-	with config.use_runtime_config(runtime_config):
-		event_id = _run(logger.record_created(
-			"claim_intake",
-			"1.0.0",
-			"user-1",
-			spec=_spec(),
-		))
+    logger = JtbdAuditLogger(tenant_id="tenant-scoped")
+    with config.use_runtime_config(runtime_config):
+        event_id = _run(
+            logger.record_created(
+                "claim_intake",
+                "1.0.0",
+                "user-1",
+                spec=_spec(),
+            )
+        )
 
-	assert event_id == "event-1"
-	assert global_sink.events == []
-	assert len(scoped_sink.events) == 1
-	assert scoped_sink.events[0].tenant_id == "tenant-scoped"
+    assert event_id == "event-1"
+    assert global_sink.events == []
+    assert len(scoped_sink.events) == 1
+    assert scoped_sink.events[0].tenant_id == "tenant-scoped"
 
 
 # ---------------------------------------------------------------------------
@@ -268,14 +301,25 @@ def test_logger_uses_scoped_runtime_audit_sink() -> None:
 
 
 def test_identical_specs_produce_same_hash() -> None:
-	s = _spec()
-	evt1 = build_audit_event(
-		JtbdEditAction.created, jtbd_id="x", version="1", actor_id="u", tenant_id="t",
-		new_spec=s,
-	)
-	evt2 = build_audit_event(
-		JtbdEditAction.edited, jtbd_id="x", version="1", actor_id="u", tenant_id="t",
-		old_spec=s, new_spec=s,
-	)
-	assert evt1.payload["new_hash"] == evt2.payload["old_hash"] == evt2.payload["new_hash"]
-	assert evt2.payload["diff_keys"] == []
+    s = _spec()
+    evt1 = build_audit_event(
+        JtbdEditAction.created,
+        jtbd_id="x",
+        version="1",
+        actor_id="u",
+        tenant_id="t",
+        new_spec=s,
+    )
+    evt2 = build_audit_event(
+        JtbdEditAction.edited,
+        jtbd_id="x",
+        version="1",
+        actor_id="u",
+        tenant_id="t",
+        old_spec=s,
+        new_spec=s,
+    )
+    assert (
+        evt1.payload["new_hash"] == evt2.payload["old_hash"] == evt2.payload["new_hash"]
+    )
+    assert evt2.payload["diff_keys"] == []
