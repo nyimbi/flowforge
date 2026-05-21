@@ -455,6 +455,8 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "_assert_exact_artifacts_by_package(" in script
     assert "make audit-2026-pypi-build" in publishing
     assert "make audit-2026-pypi-build-dist" in publishing
+    assert "canonical non-destructive artifact readiness gate" in publishing
+    assert "canonical publication-staging gate for releases" in publishing
     assert "--allow-repo-dist" in script
     assert "--allow-repo-dist" in makefile
     assert "--allow-repo-dist" in publishing

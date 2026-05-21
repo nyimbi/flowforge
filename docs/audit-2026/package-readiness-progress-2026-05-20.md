@@ -3636,3 +3636,31 @@ Design audit 5 - operations, security, and reliability:
     imported all 16 shipping import packages, and completed `flowforge --help`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI publishing target terminology audit
+
+- Code review finding:
+  - After adding the publication-staging target, the publishing guide still
+    described the temp-output `audit-2026-pypi-build` target as the canonical
+    release gate. That wording could lead operators to run only the
+    non-destructive readiness smoke before uploading `dist/*`.
+- Action:
+  - Clarified that `audit-2026-pypi-build` is the canonical non-destructive
+    artifact readiness gate, while `audit-2026-pypi-build-dist` is the
+    canonical publication-staging gate for releases.
+  - Added release-doc ratchets for those two terms so future edits keep the
+    temp and uploadable `dist/*` paths distinct.
+- Verification:
+  - `uv run ruff format tests/audit_2026/test_E_73_external_release_gate.py`:
+    `1 file left unchanged`.
+  - `uv run ruff check tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_publishing_docs_require_cli_wheel_smoke -q`:
+    `1 passed`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `38 passed`.
+  - `git diff --check`: clean.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
