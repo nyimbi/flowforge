@@ -2141,6 +2141,42 @@ Design audit 5 - operations, security, and reliability:
     DSL spec branches, exporter helpers, lint conflict edges, Claude LLM port
     branches, and template cache branches.
 
+## Package coverage slice - flowforge-jtbd exporters
+
+- Baseline measurement:
+  - `flowforge_jtbd.exporters.__init__` had uncovered module-level convenience
+    helpers, and `flowforge_jtbd.exporters.storymap` had an uncovered
+    data-capture sensitivity branch.
+- Action:
+  - Added module-level exporter helper coverage for `register`,
+    `available_exporters`, and `export` through a temporary JSON exporter.
+  - Added Story Map coverage for data-capture fields with explicit sensitivity
+    metadata.
+  - Applied formatter normalization to the touched exporter test file.
+- Result:
+  - `flowforge_jtbd.exporters.__init__`, `flowforge_jtbd.exporters.bpmn`, and
+    `flowforge_jtbd.exporters.storymap` now reach 100% statement and branch
+    coverage in the focused gate.
+  - Overall `flowforge-jtbd` rounded package coverage increased from 96% to
+    97%.
+- Verification:
+  - `uv run pytest tests/test_exporters.py -q --cov=flowforge_jtbd.exporters --cov=flowforge_jtbd.exporters.storymap --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-jtbd`: `23 passed`, targeted exporter modules 100%.
+  - `uv run ruff check tests/test_exporters.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run ruff format --check tests/test_exporters.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run pyright tests/test_exporters.py`
+    from `python/flowforge-jtbd`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_jtbd --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-jtbd`: `588 passed`, one optional skip, one expected
+    in-memory embedding-store performance warning, and package coverage 97%.
+- Remaining risk:
+  - `flowforge-jtbd` is not yet ready for the closed-package coverage ratchet.
+    Remaining gaps are concentrated in AI quality scoring, recommender edges,
+    DSL spec branches, lint conflict edges, Claude LLM port branches, and
+    template cache branches.
+
 ## Package coverage slice - flowforge-jtbd audit logger
 
 - Baseline measurement:
