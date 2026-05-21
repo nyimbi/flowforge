@@ -429,6 +429,8 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "_assert_artifact_internal_dependencies_bounded(" in script
     assert "Requires-Dist" in script
     assert "PKG-INFO" in script
+    assert "top-level sdist PKG-INFO" in script
+    assert "top-level sdist `PKG-INFO`" in publishing
     assert "_shipping_distribution_keys(packages)" in script
     assert "unpublished internal Flowforge dependencies" in script
     assert "zipfile.ZipFile" in script
@@ -690,6 +692,42 @@ def test_pypi_build_smoke_rejects_unpublished_internal_artifact_dependencies(
             {"flowforge-cli": wheel},
             {"flowforge-cli": sdist},
             internal_distribution_keys=frozenset({"flowforge-jtbd-insurance"}),
+            shipping_distribution_keys=frozenset({"flowforge-jtbd"}),
+        )
+
+
+def test_pypi_build_smoke_requires_top_level_sdist_pkg_info_for_dependencies(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "flowforge_cli-0.1.0-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr(
+            "flowforge_cli-0.1.0.dist-info/METADATA",
+            "Metadata-Version: 2.4\nName: flowforge-cli\nVersion: 0.1.0\n",
+        )
+    sdist = tmp_path / "flowforge_cli-0.1.0.tar.gz"
+    package_dir = tmp_path / "flowforge_cli-0.1.0"
+    nested_dir = package_dir / "src" / "flowforge_cli.egg-info"
+    nested_dir.mkdir(parents=True)
+    nested_pkg_info = nested_dir / "PKG-INFO"
+    nested_pkg_info.write_text(
+        "Metadata-Version: 2.4\n"
+        "Name: flowforge-cli\n"
+        "Version: 0.1.0\n"
+        "Requires-Dist: flowforge_jtbd>=0.1.0,<0.2.0\n",
+        encoding="utf-8",
+    )
+    with tarfile.open(sdist, "w:gz") as archive:
+        archive.add(
+            nested_pkg_info,
+            arcname="flowforge_cli-0.1.0/src/flowforge_cli.egg-info/PKG-INFO",
+        )
+
+    with pytest.raises(SystemExit, match="top-level sdist PKG-INFO"):
+        pypi_build_smoke._assert_artifact_internal_dependencies_bounded(
+            {"flowforge-cli": wheel},
+            {"flowforge-cli": sdist},
+            internal_distribution_keys=frozenset({"flowforge-jtbd"}),
             shipping_distribution_keys=frozenset({"flowforge-jtbd"}),
         )
 

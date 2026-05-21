@@ -217,15 +217,13 @@ def _wheel_requires_dist(wheel: Path) -> list[str]:
 
 def _sdist_requires_dist(sdist: Path) -> list[str]:
     with tarfile.open(sdist) as archive:
-        metadata_files = [
-            name for name in archive.getnames() if name.endswith("/PKG-INFO")
-        ]
-        if len(metadata_files) != 1:
+        sdist_root = sdist.name.removesuffix(".tar.gz")
+        metadata_path = f"{sdist_root}/PKG-INFO"
+        if metadata_path not in archive.getnames():
             raise SystemExit(
-                f"{sdist.name}: expected exactly one sdist PKG-INFO file, "
-                f"found {len(metadata_files)}"
+                f"{sdist.name}: expected top-level sdist PKG-INFO at {metadata_path}"
             )
-        member = archive.extractfile(metadata_files[0])
+        member = archive.extractfile(metadata_path)
         if member is None:
             raise SystemExit(f"{sdist.name}: could not read sdist PKG-INFO")
         metadata = member.read().decode("utf-8")
