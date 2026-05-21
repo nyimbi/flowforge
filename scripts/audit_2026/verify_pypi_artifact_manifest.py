@@ -8,6 +8,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from package_sets import shipping_packages
+
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DIST_DIR = ROOT / "dist"
@@ -65,7 +67,18 @@ def _manifest_artifacts(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     return normalized
 
 
-def verify_manifest(*, dist_dir: Path, manifest_path: Path) -> None:
+def _expected_release_artifact_count() -> int:
+    return len(shipping_packages()) * 2
+
+
+def verify_manifest(
+    *,
+    dist_dir: Path,
+    manifest_path: Path,
+    expected_artifact_count: int | None = None,
+) -> None:
+    if expected_artifact_count is None:
+        expected_artifact_count = _expected_release_artifact_count()
     manifest = _load_manifest(manifest_path)
     if manifest.get("schema_version") != 1:
         raise SystemExit("artifact manifest schema_version must be 1")
@@ -98,6 +111,11 @@ def verify_manifest(*, dist_dir: Path, manifest_path: Path) -> None:
         raise SystemExit(
             "artifact manifest artifact_count does not match artifacts list: "
             f"{expected_count!r} != {len(manifest_entries)}"
+        )
+    if expected_count != expected_artifact_count:
+        raise SystemExit(
+            "artifact manifest artifact_count does not match shipping package set: "
+            f"{expected_count!r} != {expected_artifact_count}"
         )
     if expected_count != len(actual_by_name):
         raise SystemExit(

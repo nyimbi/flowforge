@@ -4000,3 +4000,41 @@ Design audit 5 - operations, security, and reliability:
   - `git diff --check`: clean.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI artifact manifest completeness audit
+
+- Code review finding:
+  - The standalone PyPI artifact manifest verifier compared the manifest with
+    whatever files were currently present in `dist/`, but did not independently
+    enforce that the artifact set was complete for the shipping package set. An
+    empty or partial `dist/` paired with a matching empty or partial manifest
+    could therefore pass the verifier outside the build target that normally
+    creates the artifacts.
+- Action:
+  - Tightened `verify_pypi_artifact_manifest.py` so the default verifier derives
+    the expected release artifact count from `shipping_packages()` and requires
+    two artifacts per shipping package before comparing manifest entries with
+    `dist/*`.
+  - Kept small unit-fixture manifests explicit by allowing an
+    `expected_artifact_count` override in direct tests.
+  - Added a regression proving an empty release manifest/dist pair is rejected
+    against the shipping package set.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format scripts/audit_2026/verify_pypi_artifact_manifest.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `2 files left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check scripts/audit_2026/verify_pypi_artifact_manifest.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright scripts/audit_2026/verify_pypi_artifact_manifest.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused manifest verifier tests:
+    `4 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `49 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build-dist audit-2026-pypi-artifact-manifest`:
+    built 16 packages / 32 artifacts into repository `dist/`, passed
+    `twine check` on every artifact, installed all 16 wheels into a clean venv,
+    imported all 16 shipping packages, completed `flowforge --help`, wrote the
+    checksum manifest, and verified the manifest against `dist/*` with the
+    shipping package count enforced.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
