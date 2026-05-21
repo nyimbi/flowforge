@@ -4589,6 +4589,40 @@ Design audit 5 - operations, security, and reliability:
   - The required elevated rerun was blocked by the automatic approval reviewer.
   - Push remains blocked locally by missing GitHub HTTPS credentials.
 
+## Offline local release gate evidence
+
+- Code review finding:
+  - A non-offline `audit-2026-release-local` run reached the PyPI build smoke
+    and then failed resolving `hatchling` from PyPI due DNS. That left the
+    release-local evidence ambiguous: the package gate itself might have been
+    broken, or only the network dependency resolution was unavailable in this
+    shell.
+- Action:
+  - Re-ran the PyPI build smoke and full local release gate with
+    `UV_OFFLINE=1` and the warmed `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache`
+    cache to prove the gate does not need a live network once its build/runtime
+    dependencies are cached.
+- Verification:
+  - `UV_OFFLINE=1 UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`:
+    `pypi-build-smoke: passed for 16 packages and 32 artifacts`, including
+    `twine check`, clean wheel installation, all 16 shipping-package imports,
+    and `flowforge --help`.
+  - `UV_OFFLINE=1 UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-local`:
+    `audit-2026-release-local: fail-closed local release gate passed`.
+  - The full local release gate also reported:
+    ratchets `7 / 7`, conformance `11 passed`, Python cross-runtime
+    `253 passed`, JS cross-runtime `253 passed`, edge bank `10 passed`,
+    PromQL `12` + `3` rules validated, core coverage `181 passed` at 100%
+    statement/branch coverage, property coverage `1 passed`, seed uniqueness
+    `3 passed`, i18n coverage `0 error(s), 0 warning(s)`, closed
+    shipping-package coverage passed for all 16 packages at 100%, PyPI build
+    smoke passed for 16 packages and 32 artifacts, polish-copy sidecar gate
+    passed, and signoff inspection passed for 11 populated rows.
+- Remaining risk:
+  - Non-offline release-local still depends on DNS/index availability for uncached
+    build/runtime dependencies.
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
+
 ## External evidence template sidecar-authoring audit
 
 - Code review finding:
