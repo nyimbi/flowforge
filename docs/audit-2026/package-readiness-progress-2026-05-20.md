@@ -3533,3 +3533,26 @@ Design audit 5 - operations, security, and reliability:
     passed against `examples/insurance_claim/jtbd-bundle.json.overrides.json`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## Aggregate local release gate evidence
+
+- Action:
+  - Re-ran the full fail-closed local release gate after the PyPI artifact
+    metadata and polish-copy sidecar release-gate hardening slices.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-local`:
+    passed.
+  - Covered ratchets, conformance, audit unit tests, property tests,
+    integration/e2e, Python and JavaScript cross-runtime parity, edge cases,
+    observability PromQL checks, core coverage, property/i18n coverage, the
+    closed-package 100% statement/branch coverage ratchet for all 16 shipping
+    packages, PyPI build/twine/install/import/CLI smoke for 16 packages and 32
+    artifacts, and signoff verification.
+  - The gate still prints the documented external-release checks that remain
+    outside standalone local qualification: visual DOM baselines, browser
+    Playwright full-stack, reviewed polish-copy sidecar, optional downstream
+    UMS parity, and live Postgres contention/drain verification.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
+  - Completion still requires fresh external-release evidence in a
+    browser/Postgres-capable release environment before final PyPI publication.
