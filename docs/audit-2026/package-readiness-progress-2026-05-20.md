@@ -2040,3 +2040,35 @@ Design audit 5 - operations, security, and reliability:
     Remaining gaps are concentrated in AI quality scoring, recommender edges,
     DSL/spec/exporter helpers, lint conflict edges, Claude LLM port branches,
     manifest serialization, and template cache branches.
+
+## Package coverage slice - flowforge-jtbd NL generator
+
+- Baseline measurement:
+  - `flowforge_jtbd.ai.nl_to_jtbd` had two partial branch gaps in defensive
+    dedupe loops for inferred compliance and sensitivity tags.
+- Action:
+  - Removed unreachable dedupe loops; both inference helpers iterate unique
+    dictionary keys and can return their ordered hit lists directly.
+  - Applied formatter normalization to the touched source file.
+- Result:
+  - `flowforge_jtbd.ai.nl_to_jtbd` now reaches 100% statement and branch
+    coverage in the focused gate.
+  - Overall `flowforge-jtbd` remains at rounded 96% package coverage, with one
+    AI module fully closed and fewer total statements/branches.
+- Verification:
+  - `uv run pytest tests/unit/test_ai_nl_to_jtbd.py -q --cov=flowforge_jtbd.ai.nl_to_jtbd --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-jtbd`: `19 passed`, targeted module coverage 100%.
+  - `uv run ruff check src/flowforge_jtbd/ai/nl_to_jtbd.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run ruff format --check src/flowforge_jtbd/ai/nl_to_jtbd.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run pyright src/flowforge_jtbd/ai/nl_to_jtbd.py`
+    from `python/flowforge-jtbd`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_jtbd --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-jtbd`: `582 passed`, one optional skip, one expected
+    in-memory embedding-store performance warning, and package coverage 96%.
+- Remaining risk:
+  - `flowforge-jtbd` is not yet ready for the closed-package coverage ratchet.
+    Remaining gaps are concentrated in AI quality scoring, recommender edges,
+    DSL/spec/exporter helpers, lint conflict edges, Claude LLM port branches,
+    manifest serialization, and template cache branches.
