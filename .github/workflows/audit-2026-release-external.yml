@@ -194,6 +194,7 @@ jobs:
           - Reviewed sidecar \`examples/insurance_claim/jtbd-bundle.json.overrides.json\`.
           - Uploadable PyPI artifacts under \`dist/*\` from \`audit-2026-pypi-build-dist\`.
           - PyPI artifact checksum manifest \`docs/audit-2026/external-release-pypi-artifacts-current.json\`.
+          - PyPI artifact checksum manifest verified against retained \`dist/*\` artifacts.
           - External release runbook and evidence template.
           EOF
 

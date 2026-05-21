@@ -41,6 +41,7 @@ approval record.
   - Artifact URL:
   - Uploadable PyPI `dist/*` artifacts present in artifact:
   - PyPI artifact checksum manifest URL/path:
+  - `make audit-2026-pypi-artifact-manifest` result:
   - `run_ums_parity` input:
   - `backend_repository` input:
   - `backend_ref` input:
@@ -57,6 +58,7 @@ approval record.
 - Real-key polish-copy sidecar gate (`make audit-2026-polish-copy-sidecar`):
 - PyPI publication artifacts (`make audit-2026-pypi-build-dist`):
 - PyPI artifact checksum manifest reviewed:
+- PyPI artifact checksum manifest verified against retained `dist/*` artifacts:
 - Optional downstream UMS workflow-def parity, if requested:
 - Live Postgres stale snapshot rejection:
 - Live Postgres SKIP LOCKED outbox drain:

@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts" / "audit_2026"))
 package_sets = importlib.import_module("package_sets")
 pypi_build_smoke = importlib.import_module("pypi_build_smoke")
+verify_pypi_artifact_manifest = importlib.import_module("verify_pypi_artifact_manifest")
 PINNED_SECRET_WORKFLOW_ACTIONS = {
     "actions/checkout": "34e114876b0b11c390a56381ad16ebd13914f8d5",
     "actions/setup-node": "49933ea5288caeca8642d1e84afbd3f7d6820020",
@@ -205,6 +206,10 @@ def test_external_release_gate_is_wired_as_manual_release_workflow() -> None:
         "PyPI artifact checksum manifest \\`docs/audit-2026/external-release-pypi-artifacts-current.json\\`"
         in workflow
     )
+    assert (
+        "PyPI artifact checksum manifest verified against retained \\`dist/*\\` artifacts"
+        in workflow
+    )
     assert "Write external release evidence summary" in workflow
     assert "external-release-evidence-current.md" in workflow
     assert "GITHUB_RUN_ID" in workflow
@@ -374,7 +379,9 @@ def test_external_release_evidence_template_tracks_required_proofs() -> None:
         "Browser full-stack Playwright",
         "Real-key polish-copy sidecar gate",
         "make audit-2026-pypi-build-dist",
+        "make audit-2026-pypi-artifact-manifest",
         "PyPI artifact checksum manifest reviewed",
+        "PyPI artifact checksum manifest verified against retained `dist/*` artifacts",
         "UMS workflow-def parity",
         "Live Postgres tenant/ordinal index plan",
     ]:
@@ -503,9 +510,12 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
 
     assert ".PHONY: audit-2026-pypi-build" in makefile
     assert ".PHONY: audit-2026-pypi-build-dist" in makefile
+    assert ".PHONY: audit-2026-pypi-artifact-manifest" in makefile
     assert "scripts/audit_2026/pypi_build_smoke.py" in makefile
+    assert "scripts/audit_2026/verify_pypi_artifact_manifest.py" in makefile
     assert "$(MAKE) audit-2026-pypi-build" in makefile
     assert "$(MAKE) audit-2026-pypi-build-dist" in makefile
+    assert "$(MAKE) audit-2026-pypi-artifact-manifest" in makefile
     assert "pypi_build_smoke.py --dist-dir dist --allow-repo-dist" in makefile
     assert (
         "--artifact-manifest docs/audit-2026/external-release-pypi-artifacts-current.json"
@@ -567,6 +577,8 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "--artifact-manifest" in script
     assert "external-release-pypi-artifacts-current.json" in publishing
     assert "SHA-256 digest" in publishing
+    assert "make audit-2026-pypi-artifact-manifest" in publishing
+    assert "before any `twine upload` command" in publishing
     assert "validates the same `dist/*` files that are uploaded" in publishing
     assert "deletes and recreates the repository `dist/` directory" in publishing
     assert "flowforge-cli-wheel-smoke" in publishing
@@ -833,6 +845,59 @@ def test_pypi_build_smoke_rejects_non_temp_artifact_manifest(
         pypi_build_smoke._resolve_artifact_manifest_path(outside)
 
     assert not outside.exists()
+
+
+def test_pypi_artifact_manifest_verifier_accepts_matching_dist(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "flowforge-0.1.0-py3-none-any.whl"
+    sdist = tmp_path / "flowforge-0.1.0.tar.gz"
+    wheel.write_bytes(b"wheel bytes")
+    sdist.write_bytes(b"sdist bytes")
+    manifest_path = tmp_path / "manifest.json"
+    pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
+
+    verify_pypi_artifact_manifest.verify_manifest(
+        dist_dir=tmp_path,
+        manifest_path=manifest_path,
+    )
+
+
+def test_pypi_artifact_manifest_verifier_rejects_digest_drift(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "flowforge-0.1.0-py3-none-any.whl"
+    sdist = tmp_path / "flowforge-0.1.0.tar.gz"
+    wheel.write_bytes(b"wheel bytes")
+    sdist.write_bytes(b"sdist bytes")
+    manifest_path = tmp_path / "manifest.json"
+    pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
+    wheel.write_bytes(b"tampered wheel bytes")
+
+    with pytest.raises(SystemExit, match="sha256 mismatch"):
+        verify_pypi_artifact_manifest.verify_manifest(
+            dist_dir=tmp_path,
+            manifest_path=manifest_path,
+        )
+
+
+def test_pypi_artifact_manifest_verifier_rejects_missing_manifest_entry(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "flowforge-0.1.0-py3-none-any.whl"
+    sdist = tmp_path / "flowforge-0.1.0.tar.gz"
+    extra = tmp_path / "flowforge_cli-0.1.0-py3-none-any.whl"
+    wheel.write_bytes(b"wheel bytes")
+    sdist.write_bytes(b"sdist bytes")
+    extra.write_bytes(b"extra wheel bytes")
+    manifest_path = tmp_path / "manifest.json"
+    pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
+
+    with pytest.raises(SystemExit, match="artifact_count does not match dist"):
+        verify_pypi_artifact_manifest.verify_manifest(
+            dist_dir=tmp_path,
+            manifest_path=manifest_path,
+        )
 
 
 def test_pypi_build_smoke_rejects_artifacts_missing_license_files(

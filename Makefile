@@ -53,6 +53,7 @@ help:
 	@echo "  audit-2026-closed-package-coverage  100% coverage ratchet for closed shipping packages"
 	@echo "  audit-2026-pypi-build  build/check/smoke the 16 PyPI-publishable packages"
 	@echo "  audit-2026-pypi-build-dist  build/check/smoke uploadable dist/ artifacts"
+	@echo "  audit-2026-pypi-artifact-manifest  verify dist/ artifacts against checksum manifest"
 	@echo "  audit-2026-signoff        signoff-checklist gate (P0/P1 rows)"
 
 .PHONY: setup
@@ -113,6 +114,7 @@ audit-2026-release-external:
 	fi
 	$(MAKE) audit-2026-release-external-preflight
 	$(MAKE) audit-2026-pypi-build-dist
+	$(MAKE) audit-2026-pypi-artifact-manifest
 	$(MAKE) audit-2026-visual-regression-dom
 	$(MAKE) audit-2026-browser-e2e
 	$(MAKE) audit-2026-polish-copy-sidecar
@@ -140,6 +142,10 @@ audit-2026-pypi-build:
 .PHONY: audit-2026-pypi-build-dist
 audit-2026-pypi-build-dist:
 	uv run python scripts/audit_2026/pypi_build_smoke.py --dist-dir dist --allow-repo-dist --artifact-manifest docs/audit-2026/external-release-pypi-artifacts-current.json
+
+.PHONY: audit-2026-pypi-artifact-manifest
+audit-2026-pypi-artifact-manifest:
+	uv run python scripts/audit_2026/verify_pypi_artifact_manifest.py --dist-dir dist --manifest docs/audit-2026/external-release-pypi-artifacts-current.json
 
 .PHONY: audit-2026-closed-package-coverage
 audit-2026-closed-package-coverage:

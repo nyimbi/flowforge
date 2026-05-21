@@ -222,6 +222,13 @@ FLOWFORGE_TEST_PG_URL=postgresql://127.0.0.1:5432/postgres \
 make audit-2026-release-external
 ```
 
+Before uploading or reviewing retained publication artifacts, verify the
+checksum manifest against the exact `dist/*` files:
+
+```bash
+make audit-2026-pypi-artifact-manifest
+```
+
 Use a CI-specific `FLOWFORGE_TEST_PG_URL` for release CI; the localhost URL
 above is only an example for this workstation.
 
@@ -246,3 +253,5 @@ Acceptance criteria:
   uploadable PyPI `dist/*` artifacts, the PyPI artifact checksum manifest, DOM
   baselines, Playwright reports/results when present, the reviewed sidecar, and
   the evidence/runbook documents.
+- `make audit-2026-pypi-artifact-manifest` verifies the manifest against the
+  retained `dist/*` files before upload or release evidence signoff.

@@ -3776,3 +3776,48 @@ Design audit 5 - operations, security, and reliability:
   - `git diff --check`: clean.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI artifact manifest verification audit
+
+- Code review finding:
+  - External release evidence retained uploadable `dist/*` artifacts and a
+    checksum manifest, but there was no standalone verifier proving that a
+    retained manifest still matched the current artifact directory before
+    upload or release evidence review. A stale manifest could therefore remain
+    attached to evidence after artifacts were regenerated or tampered with.
+- Action:
+  - Added `scripts/audit_2026/verify_pypi_artifact_manifest.py`, which parses
+    the manifest, enforces schema version 1, rejects duplicate/stale/missing
+    artifact entries, and independently recomputes artifact kind, path, byte
+    size, and SHA-256 digest from `dist/*`.
+  - Added `make audit-2026-pypi-artifact-manifest` and wired
+    `audit-2026-release-external` to run it immediately after
+    `audit-2026-pypi-build-dist`.
+  - Updated the release workflow summary, publishing guide, external release
+    runbook, evidence template, and ratchets so reviewers and operators must
+    verify the manifest against retained artifacts before upload/signoff.
+  - Added regression tests proving the verifier accepts matching artifacts,
+    rejects digest drift, and rejects artifact-count drift.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format scripts/audit_2026/verify_pypi_artifact_manifest.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `2 files reformatted`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check scripts/audit_2026/verify_pypi_artifact_manifest.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright scripts/audit_2026/verify_pypi_artifact_manifest.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused manifest/docs/workflow tests:
+    `6 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `45 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-artifact-manifest`:
+    verified `docs/audit-2026/external-release-pypi-artifacts-current.json`
+    against repository `dist/`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build-dist audit-2026-pypi-artifact-manifest`:
+    built 16 packages / 32 artifacts into repository `dist/`, passed
+    `twine check` on every artifact, installed all 16 wheels into a clean venv,
+    imported all 16 shipping packages, completed `flowforge --help`, wrote the
+    checksum manifest, and verified that manifest against the retained
+    artifacts.
+  - `git diff --check`: clean.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

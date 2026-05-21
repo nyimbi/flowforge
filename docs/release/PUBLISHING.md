@@ -104,10 +104,18 @@ validates the same `dist/*` files that are uploaded. Under the hood the target
 passes `--dist-dir dist --allow-repo-dist` to the smoke script and writes a
 JSON checksum manifest at
 `docs/audit-2026/external-release-pypi-artifacts-current.json`.
+Before upload or evidence review, verify that the retained manifest still
+matches the current artifact bytes:
+
+```bash
+make audit-2026-pypi-artifact-manifest
+```
 
 ## Validate
 
 ```bash
+make audit-2026-pypi-artifact-manifest
+
 uv run --with twine \
 	python -m twine check dist/*.whl dist/*.tar.gz
 
@@ -129,7 +137,8 @@ Every artifact should report `PASSED` (no warnings), and the clean
 wheel smoke must import every shipping package and print CLI help without
 `ModuleNotFoundError`. For releases, retain the checksum manifest with the
 external release evidence so reviewers can match each uploaded artifact by
-filename, size, and SHA-256 digest.
+filename, size, and SHA-256 digest. `make audit-2026-pypi-artifact-manifest`
+must pass before any `twine upload` command.
 Common failure modes:
 
 - `long_description missing` → README.md not picked up. Confirm
@@ -146,6 +155,7 @@ Common failure modes:
 
 ```bash
 # Test PyPI first.
+make audit-2026-pypi-artifact-manifest
 uv run --with twine \
 	python -m twine upload --repository testpypi dist/*
 
