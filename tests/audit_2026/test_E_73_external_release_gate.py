@@ -426,8 +426,9 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "expected {len(packages)} wheels and {len(packages)} sdists" in script
     assert "_assert_wheels_include_py_typed(wheels_by_distribution, packages)" in script
     assert "_assert_artifacts_include_license_files(" in script
-    assert "_assert_wheel_internal_dependencies_bounded(" in script
+    assert "_assert_artifact_internal_dependencies_bounded(" in script
     assert "Requires-Dist" in script
+    assert "PKG-INFO" in script
     assert "zipfile.ZipFile" in script
     assert "tarfile.open" in script
     assert "_assert_exact_artifacts_by_package(" in script
@@ -550,7 +551,7 @@ def test_pypi_build_smoke_installs_and_imports_all_shipping_wheels(
     assert calls[-1][-1] == "--help"
 
 
-def test_pypi_build_smoke_rejects_unbounded_internal_wheel_dependencies(
+def test_pypi_build_smoke_rejects_unbounded_internal_artifact_dependencies(
     tmp_path: Path,
 ) -> None:
     wheel = tmp_path / "flowforge_cli-0.1.0-py3-none-any.whl"
@@ -562,10 +563,24 @@ def test_pypi_build_smoke_rejects_unbounded_internal_wheel_dependencies(
             "Version: 0.1.0\n"
             "Requires-Dist: flowforge_jtbd\n",
         )
+    sdist = tmp_path / "flowforge_cli-0.1.0.tar.gz"
+    package_dir = tmp_path / "flowforge_cli-0.1.0"
+    package_dir.mkdir()
+    pkg_info = package_dir / "PKG-INFO"
+    pkg_info.write_text(
+        "Metadata-Version: 2.4\n"
+        "Name: flowforge-cli\n"
+        "Version: 0.1.0\n"
+        "Requires-Dist: flowforge_jtbd\n",
+        encoding="utf-8",
+    )
+    with tarfile.open(sdist, "w:gz") as archive:
+        archive.add(pkg_info, arcname="flowforge_cli-0.1.0/PKG-INFO")
 
     with pytest.raises(SystemExit, match="unbounded internal Flowforge"):
-        pypi_build_smoke._assert_wheel_internal_dependencies_bounded(
+        pypi_build_smoke._assert_artifact_internal_dependencies_bounded(
             {"flowforge-cli": wheel},
+            {"flowforge-cli": sdist},
             internal_distribution_keys=frozenset({"flowforge-jtbd"}),
         )
 

@@ -3088,3 +3088,61 @@ Design audit 5 - operations, security, and reliability:
     import packages, and completed `flowforge --help`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## Current-head local release rerun after wheel metadata audit
+
+- Trigger:
+  - After committing built-wheel `Requires-Dist` metadata validation, reran the
+    local release gate against the new branch head.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-local`:
+    `audit-2026-release-local: fail-closed local release gate passed`.
+  - The run included ratchets, conformance, audit unit tests, property tests,
+    integration/e2e, Python and JS cross-runtime parity, edge cases,
+    observability, core/property/i18n coverage gates, 16-package
+    closed-package coverage at 100% statement/branch, 16-package /
+    32-artifact PyPI build and `twine check`, all-shipping-wheel clean-venv
+    install/import smoke, `flowforge --help`, and signoff validation.
+- Remaining risk:
+  - The local gate still correctly records external release checks as required:
+    visual DOM baselines, browser Playwright full-stack, reviewed polish-copy
+    sidecar, optional downstream UMS parity, and live Postgres
+    contention/drain verification.
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI sdist metadata dependency audit
+
+- Code/design audit finding:
+  - The artifact dependency-bound check inspected wheel `.dist-info/METADATA`
+    but not uploaded sdist `PKG-INFO`. Because Flowforge uploads both wheels
+    and sdists, dependency metadata generated into the sdist could have drifted
+    from source manifests and published an unbounded internal `Requires-Dist`
+    dependency for source-install consumers.
+- Action:
+  - Hardened `scripts/audit_2026/pypi_build_smoke.py` to parse both wheel
+    `METADATA` and sdist `PKG-INFO` for each built artifact.
+  - Renamed the dependency metadata gate to artifact scope and made failures
+    report whether the unbounded internal dependency came from a wheel or sdist.
+  - Extended the focused ratchet to build a minimal wheel and sdist with
+    unbounded `Requires-Dist: flowforge_jtbd` metadata and verify the helper
+    rejects the artifact pair.
+  - Updated the publishing guide to document wheel and sdist dependency
+    metadata validation.
+- Verification:
+  - `uv run ruff check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run ruff format --check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `2 files already formatted`.
+  - `uv run pyright scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_pypi_build_smoke_rejects_unbounded_internal_artifact_dependencies tests/audit_2026/test_E_73_external_release_gate.py::test_publishing_docs_require_cli_wheel_smoke -q`:
+    `2 passed`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `26 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`:
+    built and checked 16 packages / 32 artifacts, inspected wheel `METADATA`
+    and sdist `PKG-INFO` for bounded internal dependencies, installed all 16
+    freshly built wheel files into a clean venv, imported all 16 shipping
+    import packages, and completed `flowforge --help`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

@@ -200,13 +200,32 @@ def _wheel_requires_dist(wheel: Path) -> list[str]:
     return list(parsed.get_all("Requires-Dist", []) or [])
 
 
+def _sdist_requires_dist(sdist: Path) -> list[str]:
+    with tarfile.open(sdist) as archive:
+        metadata_files = [
+            name for name in archive.getnames() if name.endswith("/PKG-INFO")
+        ]
+        if len(metadata_files) != 1:
+            raise SystemExit(
+                f"{sdist.name}: expected exactly one sdist PKG-INFO file, "
+                f"found {len(metadata_files)}"
+            )
+        member = archive.extractfile(metadata_files[0])
+        if member is None:
+            raise SystemExit(f"{sdist.name}: could not read sdist PKG-INFO")
+        metadata = member.read().decode("utf-8")
+    parsed = email.parser.Parser().parsestr(metadata)
+    return list(parsed.get_all("Requires-Dist", []) or [])
+
+
 def _requirement_name(requirement: str) -> str:
     match = re.match(r"\s*([A-Za-z0-9_.-]+)", requirement)
     return _distribution_key(match.group(1)) if match else ""
 
 
-def _assert_wheel_internal_dependencies_bounded(
+def _assert_artifact_internal_dependencies_bounded(
     wheels_by_distribution: Mapping[str, Path],
+    sdists_by_distribution: Mapping[str, Path],
     *,
     internal_distribution_keys: frozenset[str],
 ) -> None:
@@ -217,10 +236,17 @@ def _assert_wheel_internal_dependencies_bounded(
             if name not in internal_distribution_keys:
                 continue
             if ">=0.1.0" not in requirement or "<0.2.0" not in requirement:
-                failures.append(f"{distribution_key}: {requirement}")
+                failures.append(f"{distribution_key} wheel: {requirement}")
+    for distribution_key, sdist in sdists_by_distribution.items():
+        for requirement in _sdist_requires_dist(sdist):
+            name = _requirement_name(requirement)
+            if name not in internal_distribution_keys:
+                continue
+            if ">=0.1.0" not in requirement or "<0.2.0" not in requirement:
+                failures.append(f"{distribution_key} sdist: {requirement}")
     if failures:
         raise SystemExit(
-            "built wheels publish unbounded internal Flowforge dependencies:\n  "
+            "built artifacts publish unbounded internal Flowforge dependencies:\n  "
             + "\n  ".join(failures)
         )
 
@@ -314,8 +340,9 @@ def main(argv: list[str] | None = None) -> int:
         sdists_by_distribution,
         packages,
     )
-    _assert_wheel_internal_dependencies_bounded(
+    _assert_artifact_internal_dependencies_bounded(
         wheels_by_distribution,
+        sdists_by_distribution,
         internal_distribution_keys=_workspace_distribution_keys(),
     )
 

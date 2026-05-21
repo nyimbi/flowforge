@@ -49,9 +49,10 @@ uv run pytest tests/conformance/ -v
 #    exactly one wheel and one sdist per package, checks that typed
 #    packages include `py.typed` in their wheels, verifies declared
 #    license files are present in wheel/sdist payloads, verifies built
-#    wheel metadata keeps internal Flowforge dependencies bounded, runs
-#    `twine check`, smoke-installs every shipping wheel, imports every
-#    shipping package, and runs the flowforge-cli console entrypoint.
+#    wheel and sdist metadata keep internal Flowforge dependencies
+#    bounded, runs `twine check`, smoke-installs every shipping wheel,
+#    imports every shipping package, and runs the flowforge-cli console
+#    entrypoint.
 make audit-2026-pypi-build
 ```
 
@@ -61,11 +62,11 @@ make audit-2026-pypi-build
 shipping packages from the workspace metadata, builds each package, requires
 exactly one wheel and one sdist per package, verifies PEP 561 `py.typed`
 markers are present in typed package wheels, verifies each wheel and sdist
-contains the declared `LICENSE` file, verifies built wheel `Requires-Dist`
-metadata keeps internal Flowforge dependencies bounded, checks every
-wheel/sdist with `twine`, then installs every shipping wheel from the built
-artifacts into a clean venv, imports every shipping package, and runs
-`flowforge --help`.
+contains the declared `LICENSE` file, verifies built wheel `METADATA` and
+sdist `PKG-INFO` `Requires-Dist` metadata keep internal Flowforge dependencies
+bounded, checks every wheel/sdist with `twine`, then installs every shipping
+wheel from the built artifacts into a clean venv, imports every shipping
+package, and runs `flowforge --help`.
 
 `uv build` produces an sdist + wheel per package. Do not maintain a separate
 manual package list for release builds; the gate discovers shipping packages
