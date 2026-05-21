@@ -3,20 +3,33 @@
 from __future__ import annotations
 
 import json
+import types
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from flowforge_cli.jtbd_desktop import app as app_module
+from flowforge_cli.jtbd_desktop.document import (
+	JtbdDocument,
+	ValidationResult,
+	create_default_bundle,
+)
 
 
 class FakeItem:
 	def __init__(self, text: object) -> None:
 		self._text = str(text)
+		self.data: dict[object, object] = {}
 
 	def text(self) -> str:
 		return self._text
+
+	def setText(self, text: object) -> None:
+		self._text = str(text)
+
+	def setData(self, role: object, value: object) -> None:
+		self.data[role] = value
 
 
 class FakeTable:
@@ -67,6 +80,282 @@ class FakeCombo:
 
 	def setCurrentIndex(self, index: int) -> None:
 		self.current_index = index
+
+
+class FakeText:
+	def __init__(self, value: str = "") -> None:
+		self.value = value
+
+	def text(self) -> str:
+		return self.value
+
+	def setText(self, value: object) -> None:
+		self.value = str(value)
+
+	def toPlainText(self) -> str:
+		return self.value
+
+	def setPlainText(self, value: object) -> None:
+		self.value = str(value)
+
+
+class FakeChoice(FakeText):
+	def currentText(self) -> str:
+		return self.value
+
+	def setCurrentText(self, value: object) -> None:
+		self.value = str(value)
+
+
+class FakeCheck:
+	def __init__(self, checked: bool = False) -> None:
+		self.checked = checked
+
+	def isChecked(self) -> bool:
+		return self.checked
+
+	def setChecked(self, checked: bool) -> None:
+		self.checked = checked
+
+
+class FakeList:
+	def __init__(self) -> None:
+		self.items: list[FakeItem | str] = []
+		self.current = -1
+
+	def clear(self) -> None:
+		self.items.clear()
+
+	def addItem(self, item: FakeItem | str) -> None:
+		self.items.append(item)
+
+	def count(self) -> int:
+		return len(self.items)
+
+	def setCurrentRow(self, row: int) -> None:
+		self.current = row
+
+	def item(self, index: int) -> FakeItem | None:
+		item = self.items[index] if 0 <= index < len(self.items) else None
+		return item if isinstance(item, FakeItem) else None
+
+	def currentRow(self) -> int:
+		return self.current
+
+
+class FakeStatusBar:
+	def __init__(self) -> None:
+		self.messages: list[tuple[str, int]] = []
+
+	def showMessage(self, message: str, timeout: int = 0) -> None:
+		self.messages.append((message, timeout))
+
+
+class FakeDataChoice:
+	def __init__(self, data: object) -> None:
+		self.data = data
+
+	def currentData(self) -> object:
+		return self.data
+
+
+class FakeMessageBox:
+	class StandardButton:
+		Yes = 1
+		No = 2
+
+	def __init__(self) -> None:
+		self.next_question: object = self.StandardButton.Yes
+		self.calls: list[tuple[str, str, str]] = []
+
+	def critical(self, _parent: object, title: str, message: str) -> None:
+		self.calls.append(("critical", title, message))
+
+	def warning(self, _parent: object, title: str, message: str) -> None:
+		self.calls.append(("warning", title, message))
+
+	def information(self, _parent: object, title: str, message: str) -> None:
+		self.calls.append(("information", title, message))
+
+	def question(self, _parent: object, title: str, message: str, *_args: object) -> object:
+		self.calls.append(("question", title, message))
+		return self.next_question
+
+
+class FakeClipboard:
+	def __init__(self) -> None:
+		self.text = ""
+
+	def setText(self, text: str) -> None:
+		self.text = text
+
+
+class FakeApplication:
+	clipboard_obj = FakeClipboard()
+	instance_obj: object | None = None
+
+	@classmethod
+	def clipboard(cls) -> FakeClipboard:
+		return cls.clipboard_obj
+
+	@classmethod
+	def instance(cls) -> object | None:
+		return cls.instance_obj
+
+
+class FakePalette:
+	class ColorRole:
+		Window = "window"
+		WindowText = "window_text"
+		Base = "base"
+		Text = "text"
+		Button = "button"
+		ButtonText = "button_text"
+
+	def __init__(self) -> None:
+		self.colors: list[tuple[object, object]] = []
+
+	def setColor(self, role: object, color: object) -> None:
+		self.colors.append((role, color))
+
+
+class FakeQtApp:
+	def __init__(self) -> None:
+		self.palette: object | None = None
+
+	def setPalette(self, palette: object) -> None:
+		self.palette = palette
+
+
+class FakeFileDialog:
+	open_files: list[str] = []
+	save_files: list[str] = []
+	directories: list[str] = []
+
+	@classmethod
+	def getOpenFileName(cls, *_args: object) -> tuple[str, str]:
+		return (cls.open_files.pop(0) if cls.open_files else "", "")
+
+	@classmethod
+	def getSaveFileName(cls, *_args: object) -> tuple[str, str]:
+		return (cls.save_files.pop(0) if cls.save_files else "", "")
+
+	@classmethod
+	def getExistingDirectory(cls, *_args: object) -> str:
+		return cls.directories.pop(0) if cls.directories else ""
+
+
+class FakeInputDialog:
+	next_text = ""
+	next_ok = False
+
+	@classmethod
+	def getText(cls, *_args: object) -> tuple[str, bool]:
+		return cls.next_text, cls.next_ok
+
+
+class FakeDialogCodes:
+	class DialogCode:
+		Accepted = 1
+
+
+class FakeNewBundleDialog:
+	next_exec = 0
+
+	def __init__(self, _parent: object) -> None:
+		pass
+
+	def exec(self) -> int:
+		return self.next_exec
+
+	def bundle(self) -> dict[str, Any]:
+		return create_default_bundle("Dialog Project", "dialog_project", "dialog")
+
+
+def _make_window(monkeypatch: pytest.MonkeyPatch) -> Any:
+	monkeypatch.setattr(app_module, "QTableWidgetItem", FakeItem, raising=False)
+	monkeypatch.setattr(app_module, "QListWidgetItem", FakeItem, raising=False)
+	monkeypatch.setattr(
+		app_module,
+		"Qt",
+		types.SimpleNamespace(ItemDataRole=types.SimpleNamespace(UserRole="user")),
+		raising=False,
+	)
+	window = app_module.JtbdEditorWindow.__new__(app_module.JtbdEditorWindow)
+	window.document = JtbdDocument(create_default_bundle())
+	window.current_index = 0
+	window._loading = False
+	window.template_library = {
+		"templates": [
+			{
+				"id": "approval_intake",
+				"name": "Approval intake",
+				"description": "Approve one request",
+				"jtbd": window.document.bundle["jtbds"][0],
+			}
+		]
+	}
+	window.theme = app_module._load_theme(None)
+	window._status = FakeStatusBar()
+	window.statusBar = lambda: window._status
+	titles: list[str] = []
+	window.titles = titles
+	window.setWindowTitle = lambda title: window.titles.append(title)
+	window.setStyleSheet = lambda _stylesheet: None
+
+	for name in [
+		"project_name",
+		"project_package",
+		"project_domain",
+		"project_languages",
+		"project_currencies",
+		"project_compliance",
+		"project_sensitivity",
+		"design_primary",
+		"design_accent",
+		"design_font",
+		"design_radius",
+		"shared_roles",
+		"shared_permissions",
+		"job_id",
+		"job_title",
+		"job_version",
+		"actor_role",
+		"actor_department",
+		"sla_warn",
+		"sla_breach",
+		"job_compliance",
+		"job_sensitivity",
+		"project_tags",
+		"job_tags",
+	]:
+		setattr(window, name, FakeText())
+	for name in ["project_notes", "job_notes", "situation", "motivation", "outcome", "json_preview", "validation_box", "ai_prompt", "ai_output"]:
+		setattr(window, name, FakeText())
+	window.project_tenancy = FakeChoice("multi")
+	window.project_renderer = FakeChoice("real")
+	window.design_density = FakeChoice("comfortable")
+	window.job_status = FakeChoice("draft")
+	window.actor_external = FakeCheck(False)
+
+	window.shared_entities = FakeTable(2)
+	window.success_table = FakeTable(1)
+	window.fields_table = FakeTable(6)
+	window.edges_table = FakeTable(4)
+	window.docs_table = FakeTable(5)
+	window.approvals_table = FakeTable(4)
+	window.notifications_table = FakeTable(3)
+	window.metrics_table = FakeTable(1)
+	window.requires_table = FakeTable(1)
+	window.job_list = FakeList()
+	window.template_list = FakeList()
+	window.visual_dependency_source = FakeDataChoice(0)
+	window.visual_dependency_target = FakeDataChoice("intake_case")
+	refreshes: list[str] = []
+	window.refreshes = refreshes
+	window._refresh_visual_map = lambda: window.refreshes.append("visual")
+	window._refresh_all = lambda: window.refreshes.append("all")
+	return window
 
 
 def test_theme_helpers_and_missing_pyqt_launch_message(tmp_path: Path) -> None:
@@ -256,3 +545,441 @@ def test_table_mutation_and_row_serializers(monkeypatch: pytest.MonkeyPatch) -> 
 	assert app_module._entity_rows(rendered_entities) == [
 		{"name": "case", "id_field": "case_id"}
 	]
+
+
+def test_window_refresh_commit_and_validation_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+	window = _make_window(monkeypatch)
+	window.document.bundle["jtbds"].append(
+		{
+			**window.document.bundle["jtbds"][0],
+			"id": "review_case",
+			"title": "Review case",
+		}
+	)
+	window.current_index = 1
+
+	app_module.JtbdEditorWindow._refresh_all(window)
+
+	assert window.job_list.count() == 2
+	assert window.job_id.text() == "review_case"
+	assert "Ready for generation" in window.validation_box.toPlainText()
+	assert window.titles[-1] == "Flowforge JTBD Editor - Untitled"
+
+	window.project_name.setText(" Claims Platform ")
+	window.project_package.setText(" claims_pkg ")
+	window.project_domain.setText(" claims ")
+	window.project_languages.setText(" en, fr ")
+	window.project_currencies.setText(" USD, KES ")
+	window.project_compliance.setText(" gdpr, custom ")
+	window.project_sensitivity.setText(" pii, secret-ish ")
+	window.project_notes.setPlainText(" Project note ")
+	window.project_tags.setText(" ops, beta ")
+	window.design_primary.setText("#111827")
+	window.design_accent.setText("#22c55e")
+	window.design_font.setText("Inter")
+	window.design_radius.setText("soft")
+	window.shared_roles.setText(" requester, reviewer ")
+	window.shared_permissions.setText(" case.submit, case.review ")
+	app_module._set_rows(window.shared_entities, [["case", ""]])
+	window.job_id.setText("intake_case")
+	window.job_title.setText("Duplicate id while typing")
+	window.job_version.setText("")
+	window.actor_role.setText("requester")
+	window.actor_department.setText("Operations")
+	window.actor_external.setChecked(True)
+	window.sla_warn.setText("not-a-number")
+	window.sla_breach.setText("3600")
+	window.job_compliance.setText("SOX")
+	window.job_sensitivity.setText("PHI")
+	window.job_notes.setPlainText(" Job note ")
+	window.job_tags.setText(" reviewed ")
+	window.situation.setPlainText("Situation")
+	window.motivation.setPlainText("Motivation")
+	window.outcome.setPlainText("Outcome")
+	app_module._set_rows(window.success_table, [["done"]])
+	app_module._set_rows(window.fields_table, [["email", "email", "", "true", "", "PII"]])
+	app_module._set_rows(window.edges_table, [["large_loss", "amount > 100", "branch", "review_case"]])
+	app_module._set_rows(window.docs_table, [["identity", "2", "", "", "true"]])
+	app_module._set_rows(window.approvals_table, [["reviewer", "1_of_1", "", ""]])
+	app_module._set_rows(window.notifications_table, [["", "", "ops"]])
+	app_module._set_rows(window.metrics_table, [["cycle_time"]])
+	app_module._set_rows(window.requires_table, [["intake_case"]])
+
+	app_module.JtbdEditorWindow._commit_forms(window)
+
+	project = window.document.bundle["project"]
+	jtbd = window.document.get_jtbd(1)
+	assert project["name"] == "Claims Platform"
+	assert project["languages"] == ["en", "fr"]
+	assert project["compliance"] == ["GDPR", "custom"]
+	assert project["data_sensitivity"] == ["PII", "secret-ish"]
+	assert project["design"]["radius_scale"] == "soft"
+	assert window.document.bundle["shared"]["entities"] == [
+		{"name": "case", "id_field": "case_id"}
+	]
+	assert jtbd["id"] == "intake_case"
+	assert jtbd["actor"]["department"] == "Operations"
+	assert jtbd["sla"] == {"warn_pct": 80, "breach_seconds": 3600}
+	assert jtbd["data_capture"][0]["pii"] is True
+	assert "spec_hash" not in jtbd
+
+	window._loading = True
+	window.document.dirty = False
+	app_module.JtbdEditorWindow._mark_dirty_from_widgets(window)
+	assert window.document.dirty is False
+	window._loading = False
+	app_module.JtbdEditorWindow._mark_dirty_from_widgets(window)
+	assert window.document.dirty is True
+	assert " *" in window.titles[-1]
+
+	window.job_list.items = [FakeItem("old"), "not-an-item"]
+	window.document.bundle["jtbds"][0]["title"] = "Updated title"
+	app_module.JtbdEditorWindow._refresh_job_list_labels(window)
+	assert window.job_list.item(0).text() == "Updated title"
+
+	window._loading = False
+	app_module.JtbdEditorWindow._on_select_job(window, -1)
+	assert window.current_index == 1
+	app_module.JtbdEditorWindow._on_select_job(window, 0)
+	assert window.current_index == 0
+
+
+def test_window_actions_with_faked_dialogs_and_messages(
+	monkeypatch: pytest.MonkeyPatch,
+	tmp_path: Path,
+) -> None:
+	window = _make_window(monkeypatch)
+	message_box = FakeMessageBox()
+	monkeypatch.setattr(app_module, "QMessageBox", message_box, raising=False)
+	monkeypatch.setattr(app_module, "QApplication", FakeApplication, raising=False)
+
+	app_module.JtbdEditorWindow._prepare_copy_polish(window)
+	assert "Save the bundle first" in window.ai_output.toPlainText()
+	window.document.path = tmp_path / "bundle.json"
+	app_module.JtbdEditorWindow._prepare_copy_polish(window)
+	assert "flowforge polish-copy --bundle" in window.ai_output.toPlainText()
+
+	window.ai_prompt.setPlainText("")
+	app_module.JtbdEditorWindow._draft_jtbd_with_ai(window)
+	assert message_box.calls[-1] == ("warning", "AI Assist", "Enter a JTBD prompt first.")
+	window.ai_prompt.setPlainText("Collect customer email for approval")
+	app_module.JtbdEditorWindow._draft_jtbd_with_ai(window)
+	assert window.current_index == 1
+	assert "data_capture" in window.ai_output.toPlainText()
+
+	app_module.JtbdEditorWindow._copy_ai_review_prompt(window)
+	assert FakeApplication.clipboard_obj.text == window.ai_output.toPlainText()
+	assert window._status.messages[-1] == ("AI review prompt copied", 3000)
+
+	window.template_list.current = -1
+	app_module.JtbdEditorWindow._add_from_template(window)
+	assert message_box.calls[-1] == ("warning", "Templates", "Select a template first.")
+	window.template_list.current = 0
+	app_module.JtbdEditorWindow._add_from_template(window)
+	assert window.current_index == 2
+
+	before = len(window.template_library["templates"])
+	app_module.JtbdEditorWindow._capture_template(window)
+	assert len(window.template_library["templates"]) == before + 1
+	assert window._status.messages[-1] == ("Template captured", 3000)
+
+	window.document.get_jtbd(0)["id"] = "intake_case"
+	window.document.get_jtbd(1)["id"] = "draft_case"
+	window.job_id.setText(str(window.document.get_jtbd(window.current_index)["id"]))
+	window.visual_dependency_source = FakeDataChoice("not-index")
+	app_module.JtbdEditorWindow._add_visual_dependency(window)
+	assert window.current_index == 2
+	window.visual_dependency_source = FakeDataChoice(0)
+	window.visual_dependency_target = FakeDataChoice("missing")
+	app_module.JtbdEditorWindow._add_visual_dependency(window)
+	assert message_box.calls[-1][0:2] == ("warning", "Visual Composition")
+	target_id = window.document.get_jtbd(1)["id"]
+	window.visual_dependency_target = FakeDataChoice(target_id)
+	app_module.JtbdEditorWindow._add_visual_dependency(window)
+	assert target_id in window.document.get_jtbd(0)["requires"]
+	app_module.JtbdEditorWindow._remove_visual_dependency(window)
+	assert target_id not in window.document.get_jtbd(0)["requires"]
+
+	window.document.dirty = False
+	assert app_module.JtbdEditorWindow._confirm_discard(window) is True
+	window.document.dirty = True
+	message_box.next_question = message_box.StandardButton.No
+	assert app_module.JtbdEditorWindow._confirm_discard(window) is False
+
+	class FakeEvent:
+		def __init__(self) -> None:
+			self.accepted = False
+			self.ignored = False
+
+		def accept(self) -> None:
+			self.accepted = True
+
+		def ignore(self) -> None:
+			self.ignored = True
+
+	event = FakeEvent()
+	app_module.JtbdEditorWindow.closeEvent(window, event)
+	assert event.ignored is True
+	message_box.next_question = message_box.StandardButton.Yes
+	event = FakeEvent()
+	app_module.JtbdEditorWindow.closeEvent(window, event)
+	assert event.accepted is True
+
+	result = types.SimpleNamespace(
+		errors=["broken"],
+		warnings=["risky"],
+		infos=["note"],
+	)
+	app_module.JtbdEditorWindow._append_validation_result(window, "Heading", result)
+	assert window.validation_box.toPlainText().splitlines() == [
+		"Heading",
+		"ERROR: broken",
+		"WARN: risky",
+		"INFO: note",
+	]
+
+
+def test_window_file_and_generation_actions(
+	monkeypatch: pytest.MonkeyPatch,
+	tmp_path: Path,
+) -> None:
+	window = _make_window(monkeypatch)
+	window.job_id.setText("intake_case")
+	window.job_title.setText("Intake case")
+	message_box = FakeMessageBox()
+	monkeypatch.setattr(app_module, "QMessageBox", message_box, raising=False)
+	monkeypatch.setattr(app_module, "QFileDialog", FakeFileDialog, raising=False)
+	monkeypatch.setattr(app_module, "QInputDialog", FakeInputDialog, raising=False)
+	monkeypatch.setattr(app_module, "QDialog", FakeDialogCodes, raising=False)
+
+	monkeypatch.setattr(app_module, "NewBundleDialog", FakeNewBundleDialog)
+	window.document.dirty = True
+	message_box.next_question = message_box.StandardButton.No
+	app_module.JtbdEditorWindow._new_bundle(window)
+	assert "all" not in window.refreshes
+	message_box.next_question = message_box.StandardButton.Yes
+	FakeNewBundleDialog.next_exec = 0
+	app_module.JtbdEditorWindow._new_bundle(window)
+	assert "all" not in window.refreshes
+	FakeNewBundleDialog.next_exec = FakeDialogCodes.DialogCode.Accepted
+	app_module.JtbdEditorWindow._new_bundle(window)
+	assert window.document.bundle["project"]["name"] == "Dialog Project"
+	assert "all" in window.refreshes
+
+	FakeFileDialog.open_files = [""]
+	app_module.JtbdEditorWindow._open_bundle(window)
+	error_path = tmp_path / "bad.json"
+	error_path.write_text("not-json", encoding="utf-8")
+	FakeFileDialog.open_files = [str(error_path)]
+	app_module.JtbdEditorWindow._open_bundle(window)
+	assert message_box.calls[-1][0:2] == ("critical", "Open failed")
+	ok_path = tmp_path / "bundle.json"
+	ok_path.write_text(json.dumps(create_default_bundle()), encoding="utf-8")
+	FakeFileDialog.open_files = [str(ok_path)]
+	app_module.JtbdEditorWindow._open_bundle(window)
+	assert window.document.path == ok_path
+
+	FakeInputDialog.next_text = ""
+	FakeInputDialog.next_ok = True
+	app_module.JtbdEditorWindow._add_job(window)
+	current = window.current_index
+	FakeInputDialog.next_text = "Review case"
+	FakeInputDialog.next_ok = True
+	app_module.JtbdEditorWindow._add_job(window)
+	assert window.current_index != current
+
+	app_module.JtbdEditorWindow._duplicate_job(window)
+	assert window.current_index == len(window.document.bundle["jtbds"]) - 1
+	message_box.next_question = message_box.StandardButton.No
+	app_module.JtbdEditorWindow._delete_job(window)
+	assert message_box.calls[-1][0:2] == ("question", "Delete Job")
+	message_box.next_question = message_box.StandardButton.Yes
+	app_module.JtbdEditorWindow._delete_job(window)
+	assert window.current_index >= 0
+
+	app_module.JtbdEditorWindow._save(window)
+	assert window.document.path == ok_path
+	original_save = window.document.save
+
+	def fail_save(path: Path | None = None) -> None:
+		assert path is None
+		raise OSError("disk full")
+
+	monkeypatch.setattr(window.document, "save", fail_save)
+	app_module.JtbdEditorWindow._save(window)
+	assert message_box.calls[-1] == ("critical", "Save failed", "disk full")
+	monkeypatch.setattr(window.document, "save", original_save)
+	app_module.JtbdEditorWindow._save(window)
+	assert window._status.messages[-1] == ("Saved", 3000)
+
+	FakeFileDialog.save_files = [""]
+	app_module.JtbdEditorWindow._save_as(window)
+	FakeFileDialog.save_files = [str(tmp_path / "save-as.json")]
+	app_module.JtbdEditorWindow._save_as(window)
+	assert window.document.path == tmp_path / "save-as.json"
+
+	monkeypatch.setattr(window.document, "validate", lambda: ValidationResult(True, [], [], []))
+	app_module.JtbdEditorWindow._validate_now(window)
+	assert message_box.calls[-1] == ("information", "Validation", "Bundle is valid.")
+	monkeypatch.setattr(window.document, "validate", lambda: ValidationResult(False, ["bad"], [], []))
+	app_module.JtbdEditorWindow._validate_now(window)
+	assert message_box.calls[-1][0:2] == ("warning", "Validation")
+
+	monkeypatch.setattr(
+		app_module,
+		"verify_generation",
+		lambda _bundle: types.SimpleNamespace(ok=True, errors=[], warnings=[], infos=["generation emits 1 files"]),
+	)
+	app_module.JtbdEditorWindow._verify_generation(window)
+	assert message_box.calls[-1][0:2] == ("information", "Verify Generation")
+	monkeypatch.setattr(
+		app_module,
+		"verify_generation",
+		lambda _bundle: types.SimpleNamespace(ok=False, errors=["bad"], warnings=[], infos=[]),
+	)
+	app_module.JtbdEditorWindow._verify_generation(window)
+	assert message_box.calls[-1][0:2] == ("warning", "Verify Generation")
+
+	monkeypatch.setattr(window.document, "validate", lambda: ValidationResult(False, ["bad"], [], []))
+	app_module.JtbdEditorWindow._generate_app(window)
+	assert message_box.calls[-1][0:2] == ("warning", "Generate App")
+	monkeypatch.setattr(window.document, "validate", lambda: ValidationResult(True, [], [], []))
+	FakeFileDialog.directories = [""]
+	app_module.JtbdEditorWindow._generate_app(window)
+	out_dir = tmp_path / "generated"
+	out_dir.mkdir()
+	(out_dir / "existing.txt").write_text("existing", encoding="utf-8")
+	FakeFileDialog.directories = [str(out_dir)]
+	message_box.next_question = message_box.StandardButton.No
+	app_module.JtbdEditorWindow._generate_app(window)
+	assert message_box.calls[-1][0:2] == ("question", "Generate App")
+	FakeFileDialog.directories = [str(out_dir)]
+	message_box.next_question = message_box.StandardButton.Yes
+
+	class FakeGeneratedFile:
+		path = "nested/file.txt"
+		content = "generated"
+
+	monkeypatch.setattr(app_module, "generate", lambda _bundle: [FakeGeneratedFile()])
+	app_module.JtbdEditorWindow._generate_app(window)
+	assert (out_dir / "nested" / "file.txt").read_text(encoding="utf-8") == "generated"
+	assert message_box.calls[-1][0:2] == ("information", "Generate App")
+
+	FakeFileDialog.open_files = [""]
+	app_module.JtbdEditorWindow._load_templates(window)
+	template_file = tmp_path / "templates.json"
+	template_file.write_text(json.dumps({"templates": "bad"}), encoding="utf-8")
+	FakeFileDialog.open_files = [str(template_file)]
+	app_module.JtbdEditorWindow._load_templates(window)
+	assert message_box.calls[-1][0:2] == ("critical", "Load templates failed")
+
+	FakeFileDialog.save_files = [""]
+	app_module.JtbdEditorWindow._save_templates(window)
+	FakeFileDialog.save_files = [str(tmp_path / "templates-out.json")]
+	app_module.JtbdEditorWindow._save_templates(window)
+	assert window._status.messages[-1] == ("Templates saved", 3000)
+
+
+def test_window_remaining_action_error_branches(
+	monkeypatch: pytest.MonkeyPatch,
+	tmp_path: Path,
+) -> None:
+	window = _make_window(monkeypatch)
+	message_box = FakeMessageBox()
+	monkeypatch.setattr(app_module, "QMessageBox", message_box, raising=False)
+	monkeypatch.setattr(app_module, "QFileDialog", FakeFileDialog, raising=False)
+
+	window._loading = True
+	window.project_name.setText("Should not commit")
+	app_module.JtbdEditorWindow._commit_forms(window)
+	assert window.document.bundle["project"]["name"] == "New Flowforge Project"
+	window._loading = False
+
+	window.document.bundle["jtbds"] = []
+	app_module.JtbdEditorWindow._load_job_form(window, 0)
+	window.document = JtbdDocument(create_default_bundle())
+
+	window.document.path = None
+	called: list[str] = []
+	window._save_as = lambda: called.append("save_as")
+	app_module.JtbdEditorWindow._save(window)
+	assert called == ["save_as"]
+
+	window._save_as = types.MethodType(app_module.JtbdEditorWindow._save_as, window)
+	def fail_save_as(path: Path | None = None) -> None:
+		assert path is not None
+		raise OSError("cannot write")
+
+	monkeypatch.setattr(window.document, "save", fail_save_as)
+	FakeFileDialog.save_files = [str(tmp_path / "bad-save.json")]
+	app_module.JtbdEditorWindow._save_as(window)
+	assert message_box.calls[-1] == ("critical", "Save failed", "cannot write")
+
+	def fail_prompt(prompt: str) -> int:
+		assert prompt == "Draft this job"
+		raise ValueError("bad prompt")
+
+	monkeypatch.setattr(window.document, "add_jtbd_from_prompt", fail_prompt)
+	window.ai_prompt.setPlainText("Draft this job")
+	app_module.JtbdEditorWindow._draft_jtbd_with_ai(window)
+	assert message_box.calls[-1] == ("warning", "AI Assist", "bad prompt")
+
+	monkeypatch.setattr(window.document, "validate", lambda: ValidationResult(True, [], [], []))
+	FakeFileDialog.directories = [str(tmp_path / "out")]
+	monkeypatch.setattr(
+		app_module,
+		"generate",
+		lambda _bundle: (_ for _ in ()).throw(ValueError("generator failed")),
+	)
+	app_module.JtbdEditorWindow._generate_app(window)
+	assert message_box.calls[-1] == ("critical", "Generate App failed", "generator failed")
+
+	good_templates = tmp_path / "good-templates.json"
+	good_templates.write_text(
+		json.dumps({"templates": window.template_library["templates"]}),
+		encoding="utf-8",
+	)
+	FakeFileDialog.open_files = [str(good_templates)]
+	app_module.JtbdEditorWindow._load_templates(window)
+	assert window.template_list.count() == 1
+
+	monkeypatch.setattr(
+		app_module,
+		"save_template_library",
+		lambda _path, _data: (_ for _ in ()).throw(OSError("template disk full")),
+	)
+	FakeFileDialog.save_files = [str(tmp_path / "bad-templates.json")]
+	app_module.JtbdEditorWindow._save_templates(window)
+	assert message_box.calls[-1] == (
+		"critical",
+		"Save templates failed",
+		"template disk full",
+	)
+
+	window.document = JtbdDocument(create_default_bundle())
+	message_box.next_question = message_box.StandardButton.Yes
+	app_module.JtbdEditorWindow._delete_job(window)
+	assert message_box.calls[-1] == (
+		"warning",
+		"Cannot delete",
+		"a JTBD bundle must contain at least one job",
+	)
+
+	window.visual_dependency_source = FakeDataChoice(0)
+	window.visual_dependency_target = FakeDataChoice(123)
+	app_module.JtbdEditorWindow._remove_visual_dependency(window)
+	assert window.current_index == 0
+
+
+def test_window_apply_theme_with_fake_qapplication(monkeypatch: pytest.MonkeyPatch) -> None:
+	window = _make_window(monkeypatch)
+	fake_app = FakeQtApp()
+	FakeApplication.instance_obj = fake_app
+	monkeypatch.setattr(app_module, "QApplication", FakeApplication, raising=False)
+	monkeypatch.setattr(app_module, "QPalette", FakePalette, raising=False)
+	monkeypatch.setattr(app_module, "QColor", lambda value: value, raising=False)
+
+	app_module.JtbdEditorWindow._apply_theme(window)
+
+	assert isinstance(fake_app.palette, FakePalette)
+	assert len(fake_app.palette.colors) == 6

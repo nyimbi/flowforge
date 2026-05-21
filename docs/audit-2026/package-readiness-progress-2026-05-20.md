@@ -1818,3 +1818,38 @@ Design audit 5 - operations, security, and reliability:
   - Most `JtbdEditorWindow` methods remain uncovered until the package either
     gains a PyQt-capable test lane or the UI logic is split into smaller
     GUI-independent adapters.
+
+## CLI coverage slice - desktop app window actions
+
+- Baseline measurement:
+  - After closing desktop app helper coverage, rounded `flowforge-cli` package
+    coverage was 87%.
+  - `jtbd_desktop/app.py` was 24% covered; the biggest remaining gap was
+    `JtbdEditorWindow` behavior hidden behind PyQt widgets.
+- Action:
+  - Extended GUI-free desktop app tests with small widget, dialog, file-dialog,
+    message-box, application, and status-bar doubles.
+  - Covered commit/refresh/validation/title paths, AI prompt actions,
+    template capture/import/export branches, visual dependency add/remove
+    branches, new/open/save/save-as flows, generate-app success/failure paths,
+    delete/discard/close branches, and theme application without importing
+    PyQt6.
+- Result:
+  - `flowforge_cli.jtbd_desktop.app` coverage increased from 24% to 62%.
+  - Overall `flowforge-cli` rounded package coverage increased to 93%.
+- Verification:
+  - `uv run pytest tests/test_jtbd_desktop_app_helpers.py -q --cov=flowforge_cli.jtbd_desktop.app --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `8 passed`; `app.py` reached 62% coverage.
+  - `uv run ruff check tests/test_jtbd_desktop_app_helpers.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_jtbd_desktop_app_helpers.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `880 passed`, one optional `mmdc` skip, and
+    overall package coverage 93%.
+- Remaining risk:
+  - Widget construction, visual-map drawing, and actual PyQt event-loop behavior
+    remain uncovered in the default environment because PyQt6 is not installed.
+    Reaching true 100% on this module likely needs either a PyQt-capable test
+    lane or an adapter split that moves more UI logic behind GUI-independent
+    collaborators.
