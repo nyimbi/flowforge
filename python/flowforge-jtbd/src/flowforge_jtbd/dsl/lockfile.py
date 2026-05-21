@@ -21,14 +21,14 @@ Layering:
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Annotated, ClassVar, Literal
+from typing import Annotated, ClassVar, Literal, cast
 
 from pydantic import (
-	AfterValidator,
-	BaseModel,
-	ConfigDict,
-	Field,
-	model_validator,
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    model_validator,
 )
 
 from .spec import IdStr, SemverStr, SpecHashStr
@@ -37,156 +37,152 @@ LockfileSource = Literal["local", "jtbd-hub", "git", "filesystem"]
 
 
 def _utcnow() -> datetime:
-	"""Default factory for the lockfile ``generated_at`` field."""
-	return datetime.now(timezone.utc)
+    """Default factory for the lockfile ``generated_at`` field."""
+    return datetime.now(timezone.utc)
 
 
 def _utc_aware(value: datetime) -> datetime:
-	"""Reject naïve datetimes; everything in the lockfile is UTC."""
-	if value.tzinfo is None:
-		raise ValueError("datetime must be timezone-aware (UTC)")
-	return value.astimezone(timezone.utc)
+    """Reject naïve datetimes; everything in the lockfile is UTC."""
+    if value.tzinfo is None:
+        raise ValueError("datetime must be timezone-aware (UTC)")
+    return value.astimezone(timezone.utc)
 
 
 UtcDatetime = Annotated[datetime, AfterValidator(_utc_aware)]
 
 
 class JtbdLockfilePin(BaseModel):
-	"""One pin in a lockfile body.
+    """One pin in a lockfile body.
 
-	Two pins for the same ``jtbd_id`` are forbidden (the lockfile must
-	resolve every JTBD to exactly one version). The
-	:class:`JtbdLockfile` validator enforces uniqueness across pins.
-	"""
+    Two pins for the same ``jtbd_id`` are forbidden (the lockfile must
+    resolve every JTBD to exactly one version). The
+    :class:`JtbdLockfile` validator enforces uniqueness across pins.
+    """
 
-	model_config = ConfigDict(
-		extra="forbid",
-		validate_by_name=True,
-		validate_by_alias=True,
-	)
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
 
-	jtbd_id: IdStr
-	version: SemverStr
-	spec_hash: SpecHashStr
-	source: LockfileSource = "local"
-	source_ref: str | None = None
-	"""Free-form pointer back to the source — package@version for hub
+    jtbd_id: IdStr
+    version: SemverStr
+    spec_hash: SpecHashStr
+    source: LockfileSource = "local"
+    source_ref: str | None = None
+    """Free-form pointer back to the source — package@version for hub
 	pins, file path for local, git ref for git, etc."""
 
 
 class JtbdComposition(BaseModel):
-	"""In-memory view of a ``jtbd_compositions`` row.
+    """In-memory view of a ``jtbd_compositions`` row.
 
-	A composition is a named bundle binding a list of JTBD ids; the
-	:class:`JtbdLockfile` is the resolved snapshot of those ids at
-	specific versions.
-	"""
+    A composition is a named bundle binding a list of JTBD ids; the
+    :class:`JtbdLockfile` is the resolved snapshot of those ids at
+    specific versions.
+    """
 
-	model_config = ConfigDict(
-		extra="forbid",
-		validate_by_name=True,
-		validate_by_alias=True,
-	)
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
 
-	id: str
-	tenant_id: str | None = None
-	name: str
-	project_package: IdStr
-	jtbd_ids: list[IdStr] = Field(default_factory=list, min_length=1)
-	created_at: UtcDatetime = Field(default_factory=_utcnow)
-	updated_at: UtcDatetime = Field(default_factory=_utcnow)
+    id: str
+    tenant_id: str | None = None
+    name: str
+    project_package: IdStr
+    jtbd_ids: list[IdStr] = Field(default_factory=list, min_length=1)
+    created_at: UtcDatetime = Field(default_factory=_utcnow)
+    updated_at: UtcDatetime = Field(default_factory=_utcnow)
 
 
 class JtbdLockfile(BaseModel):
-	"""The on-disk ``jtbd.lock`` artefact.
+    """The on-disk ``jtbd.lock`` artefact.
 
-	* ``schema_version`` is fixed at ``"1"`` for this release; bumping
-	  it is a breaking change and triggers a migration prompt in the
-	  CLI.
-	* ``body_hash`` is computed via the same canonical-JSON path as
-	  ``spec_hash``. It is *not* part of the canonical body — it is
-	  metadata about the body — so :meth:`canonical_body` excludes it
-	  for hashing.
-	* ``generated_at`` defaults to ``now`` at creation time. Re-running
-	  :meth:`with_body_hash` on a freshly-loaded lockfile preserves the
-	  original timestamp; only the hash is recomputed.
-	"""
+    * ``schema_version`` is fixed at ``"1"`` for this release; bumping
+      it is a breaking change and triggers a migration prompt in the
+      CLI.
+    * ``body_hash`` is computed via the same canonical-JSON path as
+      ``spec_hash``. It is *not* part of the canonical body — it is
+      metadata about the body — so :meth:`canonical_body` excludes it
+      for hashing.
+    * ``generated_at`` defaults to ``now`` at creation time. Re-running
+      :meth:`with_body_hash` on a freshly-loaded lockfile preserves the
+      original timestamp; only the hash is recomputed.
+    """
 
-	model_config = ConfigDict(
-		extra="forbid",
-		validate_by_name=True,
-		validate_by_alias=True,
-	)
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
 
-	schema_version: Literal["1"] = "1"
-	composition_id: str
-	project_package: IdStr
-	pins: list[JtbdLockfilePin] = Field(default_factory=list)
-	generated_at: UtcDatetime = Field(default_factory=_utcnow)
-	generated_by: str | None = None
-	body_hash: SpecHashStr | None = None
+    schema_version: Literal["1"] = "1"
+    composition_id: str
+    project_package: IdStr
+    pins: list[JtbdLockfilePin] = Field(default_factory=list)
+    generated_at: UtcDatetime = Field(default_factory=_utcnow)
+    generated_by: str | None = None
+    body_hash: SpecHashStr | None = None
 
-	@model_validator(mode="after")
-	def _unique_jtbd_pins(self) -> "JtbdLockfile":
-		seen: set[str] = set()
-		for pin in self.pins:
-			if pin.jtbd_id in seen:
-				raise ValueError(
-					f"duplicate pin for jtbd_id={pin.jtbd_id!r} in lockfile"
-					f" composition_id={self.composition_id!r}"
-				)
-			seen.add(pin.jtbd_id)
-		return self
+    @model_validator(mode="after")
+    def _unique_jtbd_pins(self) -> "JtbdLockfile":
+        seen: set[str] = set()
+        for pin in self.pins:
+            if pin.jtbd_id in seen:
+                raise ValueError(
+                    f"duplicate pin for jtbd_id={pin.jtbd_id!r} in lockfile"
+                    f" composition_id={self.composition_id!r}"
+                )
+            seen.add(pin.jtbd_id)
+        return self
 
-	# audit-2026 J-08: explicit allow-list of keys that participate in
-	# ``body_hash``. New top-level fields require an entry here — silent
-	# inclusion of metadata in the body would break replay determinism
-	# (two lockfiles with the same logical content would hash differently
-	# the moment any new dump-only metadata appeared). Anything outside
-	# this set (``generated_at``, ``generated_by``, ``body_hash``) is
-	# treated as metadata.
-	_BODY_KEYS: ClassVar[tuple[str, ...]] = (
-		"schema_version",
-		"composition_id",
-		"project_package",
-		"pins",
-	)
+    # audit-2026 J-08: explicit allow-list of keys that participate in
+    # ``body_hash``. New top-level fields require an entry here — silent
+    # inclusion of metadata in the body would break replay determinism
+    # (two lockfiles with the same logical content would hash differently
+    # the moment any new dump-only metadata appeared). Anything outside
+    # this set (``generated_at``, ``generated_by``, ``body_hash``) is
+    # treated as metadata.
+    _BODY_KEYS: ClassVar[tuple[str, ...]] = (
+        "schema_version",
+        "composition_id",
+        "project_package",
+        "pins",
+    )
 
-	def canonical_body(self) -> dict[str, object]:
-		"""Return the dict shape used to compute ``body_hash``.
+    def canonical_body(self) -> dict[str, object]:
+        """Return the dict shape used to compute ``body_hash``.
 
-		Pins are sorted by ``jtbd_id`` so two lockfiles whose pin order
-		differs (but whose set is equal) hash to the same value. Only
-		the keys in ``_BODY_KEYS`` are part of the body — anything else
-		(``generated_at``, ``generated_by``, ``body_hash``) is metadata.
-		"""
+        Pins are sorted by ``jtbd_id`` so two lockfiles whose pin order
+        differs (but whose set is equal) hash to the same value. Only
+        the keys in ``_BODY_KEYS`` are part of the body — anything else
+        (``generated_at``, ``generated_by``, ``body_hash``) is metadata.
+        """
 
-		dumped = self.model_dump(mode="json", exclude_none=False)
-		out: dict[str, object] = {}
-		for key in self._BODY_KEYS:
-			if key in dumped:
-				out[key] = dumped[key]
-		pins = out.get("pins") or []
-		if isinstance(pins, list):
-			pins.sort(key=lambda p: p.get("jtbd_id", ""))
-			out["pins"] = pins
-		return out
+        dumped = self.model_dump(mode="json", exclude_none=False)
+        out: dict[str, object] = {key: dumped[key] for key in self._BODY_KEYS}
+        pins = cast(list[dict[str, object]], out["pins"])
+        pins.sort(key=lambda p: str(p.get("jtbd_id", "")))
+        out["pins"] = pins
+        return out
 
-	def compute_body_hash(self) -> str:
-		"""Return the freshly-computed ``sha256:...`` for this lockfile."""
-		from .canonical import spec_hash as _spec_hash
+    def compute_body_hash(self) -> str:
+        """Return the freshly-computed ``sha256:...`` for this lockfile."""
+        from .canonical import spec_hash as _spec_hash
 
-		return _spec_hash(self.canonical_body())
+        return _spec_hash(self.canonical_body())
 
-	def with_body_hash(self) -> "JtbdLockfile":
-		"""Return a copy with ``body_hash`` populated."""
-		return self.model_copy(update={"body_hash": self.compute_body_hash()})
+    def with_body_hash(self) -> "JtbdLockfile":
+        """Return a copy with ``body_hash`` populated."""
+        return self.model_copy(update={"body_hash": self.compute_body_hash()})
 
 
 __all__ = [
-	"JtbdComposition",
-	"JtbdLockfile",
-	"JtbdLockfilePin",
-	"LockfileSource",
-	"UtcDatetime",
+    "JtbdComposition",
+    "JtbdLockfile",
+    "JtbdLockfilePin",
+    "LockfileSource",
+    "UtcDatetime",
 ]

@@ -2074,6 +2074,40 @@ Design audit 5 - operations, security, and reliability:
     DSL lockfile/spec branches, exporter helpers, lint conflict edges, Claude
     LLM port branches, manifest serialization, and template cache branches.
 
+## Package coverage slice - flowforge-jtbd lockfile canonical body
+
+- Baseline measurement:
+  - `flowforge_jtbd.dsl.lockfile` had two partial branch gaps in
+    `JtbdLockfile.canonical_body` around model-dump keys and dumped pin shape.
+- Action:
+  - Simplified canonical body construction to use the model invariant that all
+    `_BODY_KEYS` are present in `model_dump(mode="json", exclude_none=False)`.
+  - Replaced the defensive pins shape branch with a typed cast and deterministic
+    sort over dumped pin dictionaries.
+  - Applied formatter normalization to the touched lockfile source file.
+- Result:
+  - `flowforge_jtbd.dsl.lockfile` now reaches 100% statement and branch
+    coverage in the focused gate.
+  - Overall `flowforge-jtbd` remains at rounded 96% package coverage, with two
+    fewer partial branches.
+- Verification:
+  - `uv run pytest tests/ci/test_jtbd_lockfile.py tests/unit/test_E_47_acceptance.py -q --cov=flowforge_jtbd.dsl.lockfile --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-jtbd`: `29 passed`, targeted module coverage 100%.
+  - `uv run ruff check src/flowforge_jtbd/dsl/lockfile.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run ruff format --check src/flowforge_jtbd/dsl/lockfile.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run pyright src/flowforge_jtbd/dsl/lockfile.py`
+    from `python/flowforge-jtbd`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_jtbd --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-jtbd`: `585 passed`, one optional skip, one expected
+    in-memory embedding-store performance warning, and package coverage 96%.
+- Remaining risk:
+  - `flowforge-jtbd` is not yet ready for the closed-package coverage ratchet.
+    Remaining gaps are concentrated in AI quality scoring, recommender edges,
+    DSL spec branches, exporter helpers, lint conflict edges, Claude LLM port
+    branches, manifest serialization, and template cache branches.
+
 ## Package coverage slice - flowforge-jtbd audit logger
 
 - Baseline measurement:
