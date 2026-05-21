@@ -4462,3 +4462,38 @@ Design audit 5 - operations, security, and reliability:
     `57 passed`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## Check-all package-readiness coverage audit
+
+- Code review finding:
+  - `scripts/check_all.sh` is the full local/CI quality wrapper, but it stopped
+    after property and i18n readiness gates before UMS parity and integration.
+    It did not run the closed shipping-package 100% coverage gate or the PyPI
+    build smoke, leaving a path where the broad wrapper could pass without
+    proving package publication readiness.
+- Action:
+  - Added closed shipping-package coverage and PyPI build-smoke steps to
+    `scripts/check_all.sh`.
+  - Renumbered the wrapper from 16 to 18 steps.
+  - Added ratchets that keep `check_all.sh` wired to both package-readiness
+    gates.
+- Verification:
+  - `bash -n scripts/check_all.sh`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format tests/audit_2026/test_E_73_external_release_gate.py`:
+    `1 file left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused `check_all.sh` readiness-step ratchet:
+    `1 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`:
+    `pypi-build-smoke: passed for 16 packages and 32 artifacts`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`:
+    already passed in this audit session for all 16 shipping packages with 100%
+    statement and branch coverage.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `57 passed`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
