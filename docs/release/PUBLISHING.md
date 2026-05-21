@@ -107,7 +107,7 @@ passes `--dist-dir dist --allow-repo-dist` to the smoke script and writes a
 JSON checksum manifest at
 `docs/audit-2026/external-release-pypi-artifacts-current.json`.
 Before upload or evidence review, verify that the retained manifest still
-matches the current artifact bytes:
+matches the current artifact bytes, release version, and shipping package set:
 
 ```bash
 make audit-2026-pypi-artifact-manifest
@@ -139,8 +139,12 @@ Every artifact should report `PASSED` (no warnings), and the clean
 wheel smoke must import every shipping package and print CLI help without
 `ModuleNotFoundError`. For releases, retain the checksum manifest with the
 external release evidence so reviewers can match each uploaded artifact by
-filename, size, and SHA-256 digest. `make audit-2026-pypi-artifact-manifest`
-must pass before any `twine upload` command.
+filename, size, and SHA-256 digest. The manifest uses schema version 2 and
+records the shared `release_version` plus the shipping package identity list
+(`directory`, `distribution_name`, and `import_package`) so reviewers can
+confirm the retained `dist/*` files belong to the intended release line and
+package set. Run the manifest verifier before any `twine upload` command:
+`make audit-2026-pypi-artifact-manifest`.
 Common failure modes:
 
 - `long_description missing` → README.md not picked up. Confirm

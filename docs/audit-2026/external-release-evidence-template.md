@@ -59,6 +59,7 @@ approval record.
 - PyPI publication artifacts (`make audit-2026-pypi-build-dist`):
 - PyPI artifact checksum manifest reviewed:
 - PyPI artifact checksum manifest verified against retained `dist/*` artifacts:
+- PyPI artifact checksum manifest schema/version/package identities reviewed:
 - Optional downstream UMS workflow-def parity, if requested:
 - Live Postgres stale snapshot rejection:
 - Live Postgres SKIP LOCKED outbox drain:

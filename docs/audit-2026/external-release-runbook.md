@@ -223,7 +223,8 @@ make audit-2026-release-external
 ```
 
 Before uploading or reviewing retained publication artifacts, verify the
-checksum manifest against the exact `dist/*` files:
+checksum manifest against the exact `dist/*` files, the shared release version,
+and the shipping package identity list:
 
 ```bash
 make audit-2026-pypi-artifact-manifest
@@ -253,5 +254,6 @@ Acceptance criteria:
   uploadable PyPI `dist/*` artifacts, the PyPI artifact checksum manifest, DOM
   baselines, Playwright reports/results when present, the reviewed sidecar, and
   the evidence/runbook documents.
-- `make audit-2026-pypi-artifact-manifest` verifies the manifest against the
-  retained `dist/*` files before upload or release evidence signoff.
+- `make audit-2026-pypi-artifact-manifest` verifies the schema-2 manifest
+  against the retained `dist/*` files, the recorded `release_version`, and the
+  recorded package identities before upload or release evidence signoff.

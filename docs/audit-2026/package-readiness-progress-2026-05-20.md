@@ -4279,3 +4279,33 @@ Design audit 5 - operations, security, and reliability:
     metadata.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI artifact manifest release-docs audit
+
+- Code review finding:
+  - The manifest schema now records the release version and package identity
+    set, but the publishing guide, external release runbook, and evidence
+    template still described the retained manifest mostly as filename, size, and
+    checksum evidence. Release reviewers could therefore miss the schema-2
+    metadata fields during signoff.
+- Action:
+  - Updated the publishing guide to state that the retained manifest records
+    schema version 2, the shared `release_version`, and package identities
+    (`directory`, `distribution_name`, and `import_package`).
+  - Updated the external release runbook and evidence template to require
+    schema/version/package identity review alongside retained `dist/*`
+    verification.
+  - Added release-doc ratchets for the new manifest review language.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format tests/audit_2026/test_E_73_external_release_gate.py`:
+    `1 file left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused release-doc ratchets:
+    `2 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `56 passed`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

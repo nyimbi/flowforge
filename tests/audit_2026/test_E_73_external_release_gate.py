@@ -385,6 +385,9 @@ def test_external_release_evidence_template_tracks_required_proofs() -> None:
     assert "preflight does not prove browser execution" in runbook
     assert "uploadable PyPI `dist/*` artifacts" in runbook
     assert "PyPI artifact checksum manifest" in runbook
+    assert "schema-2 manifest" in runbook
+    assert "recorded `release_version`" in runbook
+    assert "recorded package identities" in runbook
     assert "docs/audit-2026/external-release-pypi-artifacts-current.json" in gitignore
     for required in [
         "Flowforge commit",
@@ -404,6 +407,7 @@ def test_external_release_evidence_template_tracks_required_proofs() -> None:
         "make audit-2026-pypi-artifact-manifest",
         "PyPI artifact checksum manifest reviewed",
         "PyPI artifact checksum manifest verified against retained `dist/*` artifacts",
+        "PyPI artifact checksum manifest schema/version/package identities reviewed",
         "UMS workflow-def parity",
         "Live Postgres tenant/ordinal index plan",
     ]:
@@ -608,6 +612,9 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "--artifact-manifest" in script
     assert "external-release-pypi-artifacts-current.json" in publishing
     assert "SHA-256 digest" in publishing
+    assert "schema version 2" in publishing
+    assert "`release_version`" in publishing
+    assert "`distribution_name`" in publishing
     assert "make audit-2026-pypi-artifact-manifest" in publishing
     assert "before any `twine upload` command" in publishing
     assert "validates the same `dist/*` files that are uploaded" in publishing
