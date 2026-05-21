@@ -399,6 +399,7 @@ def test_external_release_evidence_template_tracks_required_proofs() -> None:
     assert "external-release-evidence-template.md" in runbook
     assert "gh workflow run audit-2026-release-external.yml" in runbook
     assert "uv sync --all-packages --all-extras" in runbook
+    assert "available only when refreshing the sidecar" in runbook
     assert 'uv run python -c "import anthropic"' in runbook
     assert "--require-llm" in runbook
     assert "`polish-copy`" in runbook
@@ -415,9 +416,12 @@ def test_external_release_evidence_template_tracks_required_proofs() -> None:
         "DOM baseline commit",
         "`VISREG_ALLOW_SKIP` unset",
         "`BROWSER_E2E_ALLOW_SKIP` unset",
-        'uv run python -c "import anthropic"',
+        "Reviewed sidecar commit/path",
+        "`make audit-2026-polish-copy-sidecar` result",
+        'uv run python -c "import anthropic"` result, if Anthropic SDK authoring was used',
         "Preflight caveat acknowledged",
         "uv run flowforge polish-copy --require-llm --commit",
+        "if sidecar was refreshed",
         "Workflow run URL",
         "Artifact URL",
         "Uploadable PyPI `dist/*` artifacts present",

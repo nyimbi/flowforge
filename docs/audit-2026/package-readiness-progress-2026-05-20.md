@@ -4588,3 +4588,38 @@ Design audit 5 - operations, security, and reliability:
     PyPI due DNS lookup failure.
   - The required elevated rerun was blocked by the automatic approval reviewer.
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## External evidence template sidecar-authoring audit
+
+- Code review finding:
+  - The external release evidence template still presented Anthropic import and
+    `polish-copy --require-llm --commit` output as unconditional preconditions
+    after the deterministic reviewed-sidecar verifier moved into the local
+    release gate. Operators could treat live LLM authoring as required for
+    every release qualification instead of only for sidecar refreshes.
+- Action:
+  - Updated the external release runbook to require a committed reviewed
+    sidecar for release qualification and reserve live LLM authoring
+    prerequisites for sidecar refreshes.
+  - Updated the evidence template to record the reviewed-sidecar verifier
+    result unconditionally and mark authoring workflow/import/command output
+    fields as conditional on a refreshed sidecar.
+  - Added a ratchet that keeps the conditional authoring wording and reviewed
+    sidecar proof fields in the evidence template.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format tests/audit_2026/test_E_73_external_release_gate.py`:
+    `1 file left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused external evidence template ratchet:
+    `1 passed`.
+  - `git diff --check`:
+    clean.
+- Remaining risk:
+  - A full `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-local`
+    run reached `audit-2026-pypi-build` but failed resolving `hatchling` from
+    PyPI due DNS lookup failure.
+  - The required elevated rerun was blocked by the automatic approval reviewer.
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

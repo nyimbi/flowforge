@@ -24,14 +24,16 @@ release approval record.
   `FLOWFORGE_REQUIRE_UMS_PARITY=1`, for example
   `/Users/nyimbiodero/src/pjs/ums/backend`.
 - `FLOWFORGE_TEST_PG_URL` points at an isolated disposable Postgres database.
-- A real LLM authoring path is available for the `polish-copy` pass: either a
-  valid funded `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY` plus the optional
-  Anthropic client, or `FLOWFORGE_POLISH_PROVIDER=claude-cli` with a configured
-  Claude CLI.
-- For the Anthropic SDK path, use `uv sync --all-packages --all-extras` or
-  another environment where `uv run python -c "import anthropic"` succeeds;
-  otherwise `polish-copy` intentionally degrades to a no-op and will not write a
-  sidecar.
+- A reviewed `polish-copy` sidecar is committed and passes
+  `make audit-2026-polish-copy-sidecar`.
+- A real LLM authoring path is available only when refreshing the sidecar for
+  the release candidate: either a valid funded `ANTHROPIC_API_KEY` /
+  `CLAUDE_API_KEY` plus the optional Anthropic client, or
+  `FLOWFORGE_POLISH_PROVIDER=claude-cli` with a configured Claude CLI.
+- For the Anthropic SDK authoring path, use
+  `uv sync --all-packages --all-extras` or another environment where
+  `uv run python -c "import anthropic"` succeeds; otherwise `polish-copy`
+  intentionally degrades to a no-op and will not write a sidecar.
 - `UV_CACHE_DIR` points at a writable cache path when the default user cache is
   not writable.
 

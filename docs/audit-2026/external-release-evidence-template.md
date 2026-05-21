@@ -21,13 +21,16 @@ approval record.
 - `examples/*/screenshots/**/*.dom.html` reviewed by:
 - `VISREG_ALLOW_SKIP` unset for release commands:
 - `BROWSER_E2E_ALLOW_SKIP` unset for release commands:
-- `uv run python -c "import anthropic"` result:
-- Sidecar authoring workflow run URL:
-- Sidecar candidate artifact URL:
+- Reviewed sidecar commit/path:
+- `make audit-2026-polish-copy-sidecar` result:
+- Sidecar authoring workflow run URL, if sidecar was refreshed:
+- Sidecar candidate artifact URL, if sidecar was refreshed:
 - `examples/insurance_claim/jtbd-bundle.json.overrides.json` reviewed by:
 - LLM provider/model recorded in sidecar:
 - `prompt_sha256` recorded in sidecar:
-- `uv run flowforge polish-copy --require-llm --commit` command output reviewed:
+- `uv run python -c "import anthropic"` result, if Anthropic SDK authoring was used:
+- `uv run flowforge polish-copy --require-llm --commit` command output reviewed,
+  if sidecar was refreshed:
 
 ## Commands / workflow evidence
 
