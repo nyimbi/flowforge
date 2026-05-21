@@ -276,6 +276,7 @@ def test_external_release_evidence_template_tracks_required_proofs() -> None:
     assert "`polish-copy`" in runbook
     assert "intentionally degrades to a no-op" in runbook
     assert "preflight does not prove browser execution" in runbook
+    assert "uploadable PyPI `dist/*` artifacts" in runbook
     for required in [
         "Flowforge commit",
         "DOM baseline commit",
@@ -286,8 +287,10 @@ def test_external_release_evidence_template_tracks_required_proofs() -> None:
         "uv run flowforge polish-copy --require-llm --commit",
         "Workflow run URL",
         "Artifact URL",
+        "Uploadable PyPI `dist/*` artifacts present",
         "Browser full-stack Playwright",
         "Real-key polish-copy sidecar gate",
+        "make audit-2026-pypi-build-dist",
         "UMS workflow-def parity",
         "Live Postgres tenant/ordinal index plan",
     ]:

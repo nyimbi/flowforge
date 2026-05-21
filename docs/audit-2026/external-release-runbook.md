@@ -243,5 +243,5 @@ Acceptance criteria:
 - `audit-2026-live-postgres` passes against the configured disposable
   Postgres database.
 - The workflow uploads the `audit-2026-release-external-evidence` artifact with
-  DOM baselines, Playwright reports/results when present, the reviewed sidecar,
-  and the evidence/runbook documents.
+  uploadable PyPI `dist/*` artifacts, DOM baselines, Playwright reports/results
+  when present, the reviewed sidecar, and the evidence/runbook documents.

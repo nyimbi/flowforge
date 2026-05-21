@@ -39,6 +39,7 @@ approval record.
   - Workflow file: `.github/workflows/audit-2026-release-external.yml`
   - Workflow run URL:
   - Artifact URL:
+  - Uploadable PyPI `dist/*` artifacts present in artifact:
   - `run_ums_parity` input:
   - `backend_repository` input:
   - `backend_ref` input:
@@ -53,6 +54,7 @@ approval record.
 - DOM visual regression:
 - Browser full-stack Playwright:
 - Real-key polish-copy sidecar gate (`make audit-2026-polish-copy-sidecar`):
+- PyPI publication artifacts (`make audit-2026-pypi-build-dist`):
 - Optional downstream UMS workflow-def parity, if requested:
 - Live Postgres stale snapshot rejection:
 - Live Postgres SKIP LOCKED outbox drain:

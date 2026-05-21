@@ -3664,3 +3664,33 @@ Design audit 5 - operations, security, and reliability:
   - `git diff --check`: clean.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## External release evidence artifact manifest audit
+
+- Code review finding:
+  - The external release workflow now uploads the publication-ready `dist/*`
+    artifacts, but the external release runbook and evidence template still
+    described the artifact bundle as DOM/playwright/sidecar/evidence only.
+    Release reviewers could therefore miss whether the uploadable PyPI
+    artifacts were retained in the qualification evidence.
+- Action:
+  - Updated the runbook acceptance criteria to require uploadable PyPI `dist/*`
+    artifacts in the `audit-2026-release-external-evidence` artifact.
+  - Added explicit evidence-template fields for retained `dist/*` artifacts and
+    the `make audit-2026-pypi-build-dist` publication-artifact result.
+  - Added ratchets so the runbook and template keep tracking retained PyPI
+    artifacts.
+- Verification:
+  - `uv run ruff format tests/audit_2026/test_E_73_external_release_gate.py`:
+    `1 file left unchanged`.
+  - `uv run ruff check tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_external_release_evidence_template_tracks_required_proofs -q`:
+    `1 passed`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `38 passed`.
+  - `git diff --check`: clean.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
