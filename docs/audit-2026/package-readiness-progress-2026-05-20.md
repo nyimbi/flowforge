@@ -2244,6 +2244,39 @@ Design audit 5 - operations, security, and reliability:
     Remaining gaps are concentrated in AI quality scoring, recommender edges,
     DSL spec branches, and lint conflict edges.
 
+## Package coverage slice - flowforge-jtbd glossary data-capture terms
+
+- Baseline measurement:
+  - `flowforge_jtbd.glossary` had uncovered forward-compatible
+    `data_capture[].id` extraction branches and the non-list `data_capture`
+    guard.
+- Action:
+  - Added bundle-derived catalog coverage for valid data-capture field ids while
+    ignoring blank ids, non-string ids, and non-dict entries.
+  - Added regression coverage that non-list `data_capture` extras do not create
+    glossary terms.
+- Result:
+  - `flowforge_jtbd.glossary` now reaches 100% statement and branch coverage in
+    the focused gate.
+  - Overall `flowforge-jtbd` rounded package coverage increased from 97% to
+    98%.
+- Verification:
+  - `uv run pytest tests/unit/test_glossary.py -q --cov=flowforge_jtbd.glossary --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-jtbd`: `28 passed`, targeted module 100%.
+  - `uv run ruff check tests/unit/test_glossary.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run ruff format --check tests/unit/test_glossary.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run pyright tests/unit/test_glossary.py`
+    from `python/flowforge-jtbd`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_jtbd --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-jtbd`: `601 passed`, one optional skip, one expected
+    in-memory embedding-store performance warning, and package coverage 98%.
+- Remaining risk:
+  - `flowforge-jtbd` is not yet ready for the closed-package coverage ratchet.
+    Remaining gaps are concentrated in AI quality scoring, recommender edges,
+    DSL spec branches, and lint conflict edges.
+
 ## Package coverage slice - flowforge-jtbd i18n and actor lint
 
 - Baseline measurement:
