@@ -53,7 +53,7 @@ help:
 	@echo "  audit-2026-closed-package-coverage  100% coverage ratchet for closed shipping packages"
 	@echo "  audit-2026-pypi-build  build/check/smoke the 16 PyPI-publishable packages"
 	@echo "  audit-2026-pypi-build-dist  build/check/smoke uploadable dist/ artifacts"
-	@echo "  audit-2026-pypi-artifact-manifest  verify dist/ artifacts against checksum manifest"
+	@echo "  audit-2026-pypi-artifact-manifest  verify dist/ artifacts, checksums, and release metadata"
 	@echo "  audit-2026-signoff        signoff-checklist gate (P0/P1 rows)"
 
 .PHONY: setup

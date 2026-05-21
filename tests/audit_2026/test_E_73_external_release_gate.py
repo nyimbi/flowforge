@@ -167,6 +167,10 @@ def test_external_release_gate_forbids_local_skip_escapes() -> None:
     assert "VISREG_ALLOW_SKIP=1 is forbidden for release qualification" in makefile
     assert "BROWSER_E2E_ALLOW_SKIP=1 is forbidden for release qualification" in makefile
     assert "$(MAKE) audit-2026-release-external-preflight" in makefile
+    assert (
+        "audit-2026-pypi-artifact-manifest  verify dist/ artifacts, checksums, and release metadata"
+        in makefile
+    )
     assert "$(MAKE) audit-2026-visual-regression-dom" in makefile
     assert "$(MAKE) audit-2026-browser-e2e" in makefile
     assert "$(MAKE) audit-2026-ums-parity" in makefile

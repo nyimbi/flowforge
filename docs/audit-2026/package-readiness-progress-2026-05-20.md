@@ -4336,3 +4336,30 @@ Design audit 5 - operations, security, and reliability:
     `56 passed`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI manifest Make help audit
+
+- Code review finding:
+  - The Makefile help text still described `audit-2026-pypi-artifact-manifest`
+    as checksum-only, even though the target now verifies retained artifact
+    payloads, metadata, release version, package identities, and dependency
+    bounds. Operators using `make help` could underestimate the target's release
+    signoff role.
+- Action:
+  - Updated the Makefile help text to say the target verifies `dist/` artifacts,
+    checksums, and release metadata.
+  - Added a release-gate ratchet for the updated operator-facing target
+    description.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format tests/audit_2026/test_E_73_external_release_gate.py`:
+    `1 file left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused Makefile help ratchet:
+    `1 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `56 passed`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
