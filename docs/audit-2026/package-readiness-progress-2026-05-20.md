@@ -4623,6 +4623,38 @@ Design audit 5 - operations, security, and reliability:
     build/runtime dependencies.
   - Push remains blocked locally by missing GitHub HTTPS credentials.
 
+## PyPI build DNS recovery guidance audit
+
+- Code review finding:
+  - Release publishing docs listed common artifact metadata failures but did not
+    tell operators how to interpret a PyPI DNS/index failure while resolving
+    the `hatchling` build backend. After the offline release-local proof, that
+    failure mode needed explicit release-facing guidance so operators do not
+    misclassify an environment/index outage as a package artifact failure.
+- Action:
+  - Added a publishing-doc common failure mode for
+    `https://pypi.org/simple/hatchling/` fetch failures.
+  - Documented the warmed-cache offline rerun command and clarified that the
+    offline rerun still performs the same artifact build, `twine check`, clean
+    wheel install, shipping imports, and CLI smoke.
+  - Added a ratchet that keeps the DNS/index guidance in the PyPI publishing
+    docs.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format tests/audit_2026/test_E_73_external_release_gate.py`:
+    `1 file left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused publishing-doc PyPI build ratchet:
+    `1 passed`.
+  - `git diff --check`:
+    clean.
+- Remaining risk:
+  - Non-offline release-local still depends on DNS/index availability for uncached
+    build/runtime dependencies.
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
+
 ## External evidence template sidecar-authoring audit
 
 - Code review finding:

@@ -156,6 +156,13 @@ Common failure modes:
   directory; the framework-root `LICENSE` is copied per-package.
 - `InvalidDistribution: METADATA-Version 2.4 not supported` → uv /
   hatchling version mismatch; refresh with `uv self update`.
+- `Failed to fetch: https://pypi.org/simple/hatchling/` or another
+  DNS/index error while resolving build dependencies → this is an
+  environment/index-availability failure, not artifact proof by itself. Restore
+  network access, or rerun with a known-warmed cache:
+  `UV_OFFLINE=1 UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`.
+  The offline rerun still performs the same artifact build, `twine check`,
+  clean wheel install, shipping imports, and CLI smoke.
 
 ## Publish
 

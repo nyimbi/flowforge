@@ -643,6 +643,10 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "make audit-2026-pypi-artifact-manifest" in publishing
     assert "before any `twine upload` command" in publishing
     assert "validates the same `dist/*` files that are uploaded" in publishing
+    assert "Failed to fetch: https://pypi.org/simple/hatchling/" in publishing
+    assert "environment/index-availability failure" in publishing
+    assert "UV_OFFLINE=1 UV_CACHE_DIR=/private/tmp/flowforge-uv-cache" in publishing
+    assert "clean wheel install, shipping imports, and CLI smoke" in publishing
     assert "deletes and recreates the repository `dist/` directory" in publishing
     assert "flowforge-cli-wheel-smoke" in publishing
     assert "--force-reinstall dist/*.whl" in publishing
