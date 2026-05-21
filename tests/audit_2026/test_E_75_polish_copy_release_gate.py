@@ -74,7 +74,7 @@ def test_polish_copy_sidecar_authoring_workflow_uploads_review_candidate() -> No
 	assert "make audit-2026-polish-copy-sidecar" in workflow
 	assert "git diff -- examples/insurance_claim/jtbd-bundle.json.overrides.json" in workflow
 	assert "hashFiles('examples/insurance_claim/jtbd-bundle.json.overrides.json') != ''" in workflow
-	assert "actions/upload-artifact@v4" in workflow
+	assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4" in workflow
 	assert "audit-2026-polish-copy-sidecar-candidate" in workflow
 
 

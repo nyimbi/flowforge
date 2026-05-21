@@ -2610,3 +2610,46 @@ Design audit 5 - operations, security, and reliability:
     Remaining gaps are concentrated in AI quality scoring, recommender edges,
     DSL/spec/exporter helpers, lint conflict edges, Claude LLM port branches,
     manifest serialization, and template cache branches.
+
+## Release-local rerun after flowforge-jtbd coverage ratchet
+
+- Baseline measurement:
+  - After `flowforge-jtbd` reached 100% statement and branch coverage and joined
+    `scripts/audit_2026/closed_package_coverage.py`, the local release gate
+    exposed two stale audit ratchets:
+    - `tests/audit_2026/test_E_73_external_release_gate.py` still expected 15
+      closed packages and omitted `("flowforge-jtbd", "flowforge_jtbd")`.
+    - `tests/audit_2026/test_E_75_polish_copy_release_gate.py` still expected
+      `actions/upload-artifact@v4` even though the secret-bearing workflow pins
+      `actions/upload-artifact` to the reviewed SHA and leaves `# v4` as the
+      human-readable version annotation.
+- Action:
+  - Added `flowforge-jtbd` to the closed-package coverage ratchet assertion.
+  - Updated the polish-copy sidecar workflow ratchet to require the reviewed
+    pinned `actions/upload-artifact` SHA plus the `# v4` annotation instead of
+    requiring an unsafe mutable `@v4` action ref.
+- Result:
+  - The focused ratchets pass.
+  - The full fail-closed local release gate passes with all local lanes green.
+  - Closed package coverage now passes for 16 packages, including
+    `flowforge-jtbd`, all at 100% statement and branch coverage.
+  - PyPI build smoke passes for 16 packages and 32 artifacts, including
+    `flowforge-jtbd`, with `twine check` passing and a clean-venv
+    `flowforge --help` console-script smoke.
+- Verification:
+  - `uv run ruff check tests/audit_2026/test_E_73_external_release_gate.py tests/audit_2026/test_E_75_polish_copy_release_gate.py`:
+    clean.
+  - `uv run pyright tests/audit_2026/test_E_73_external_release_gate.py tests/audit_2026/test_E_75_polish_copy_release_gate.py`:
+    `0 errors`, `0 warnings`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_closed_package_coverage_ratchet_tracks_completed_packages tests/audit_2026/test_E_75_polish_copy_release_gate.py::test_polish_copy_sidecar_authoring_workflow_uploads_review_candidate -q`:
+    `2 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-local`:
+    `audit-2026-release-local: fail-closed local release gate passed`;
+    integration summary `365` local tests passed and `0` failed; closed-package
+    coverage passed for 16 packages; PyPI build smoke passed for 16 packages
+    and 32 artifacts.
+- Remaining risk:
+  - The local gate still records the documented external release checks as
+    required: visual DOM baselines, browser Playwright full-stack, reviewed
+    polish-copy sidecar, optional downstream UMS parity, and live Postgres
+    contention/drain verification.
