@@ -49,8 +49,10 @@ uv run pytest tests/conformance/ -v
 #    exactly one wheel and one sdist per package, checks that typed
 #    packages include `py.typed` in their wheels, verifies declared
 #    license files are present in wheel/sdist payloads, verifies built
-#    wheel and sdist metadata keep internal Flowforge dependencies bounded
-#    and limited to shipping distributions, runs `twine check`,
+#    wheel and sdist metadata include the publication-facing PyPI metadata
+#    promised by `pyproject.toml`, verifies built wheel and sdist metadata
+#    keep internal Flowforge dependencies bounded and limited to shipping
+#    distributions, runs `twine check`,
 #    smoke-installs every shipping wheel, imports every shipping package,
 #    and runs the flowforge-cli console entrypoint against uploadable
 #    repository dist/ artifacts.
@@ -65,7 +67,10 @@ because it validates the uploadable repository `dist/*` artifacts. Both targets 
 the workspace metadata, build each package, require exactly one wheel and one
 sdist per package, verify PEP 561 `py.typed` markers are present in typed
 package wheels, verify wheel `METADATA` and sdist `PKG-INFO` `Name` / `Version` fields
-match the shipping package and artifact filename, verify each wheel and sdist
+match the shipping package and artifact filename, verify publication-facing PyPI metadata
+from `pyproject.toml` is present in the built artifacts, including
+Summary, Requires-Python, license, author, maintainer, project URLs,
+classifiers, keywords, and README content type, verify each wheel and sdist
 contains the declared `LICENSE` file, verify the wheel's own
 `.dist-info/METADATA` and top-level sdist `PKG-INFO` `Requires-Dist` metadata
 keep internal Flowforge dependencies on the exact `>=0.1.0,<0.2.0`

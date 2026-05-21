@@ -3732,3 +3732,47 @@ Design audit 5 - operations, security, and reliability:
     a 64-character SHA-256 digest.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI built metadata fidelity audit
+
+- Code review finding:
+  - The release gate verified that shipping-package `pyproject.toml` files
+    declared PyPI publication metadata and that built wheel/sdist metadata
+    preserved artifact `Name` / `Version`, but it did not prove the built
+    artifacts retained the other publication-facing metadata that PyPI users
+    see. A packaging backend or project configuration drift could have dropped
+    summary, Python requirement, license expression, author/maintainer email,
+    classifiers, keywords, project URLs, or README content type while source
+    ratchets still passed.
+- Action:
+  - Added a built-artifact publication-metadata gate to the PyPI smoke. For
+    every shipping package, it now compares wheel `METADATA` and top-level
+    sdist `PKG-INFO` against the package `pyproject.toml` for Summary,
+    Requires-Python, license metadata, declared License-File entries,
+    author/maintainer email addresses, keywords, classifiers, required project
+    URLs, text/markdown README content type, and a non-empty README body.
+  - Added regression tests proving the gate rejects mismatched wheel summary
+    metadata and drifted sdist project URLs.
+  - Updated the publishing guide and docs ratchets so release operators know
+    that the PyPI build gate verifies source-to-artifact metadata fidelity, not
+    only source declarations.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `2 files left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused metadata/docs tests:
+    `4 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `42 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build-dist`:
+    built 16 packages / 32 artifacts into repository `dist/`, verified built
+    wheel and sdist publication metadata against source `pyproject.toml`,
+    passed `twine check` on every artifact, installed all 16 wheels into a
+    clean venv, imported all 16 shipping import packages, completed
+    `flowforge --help`, and wrote the checksum manifest.
+  - `git diff --check`: clean.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

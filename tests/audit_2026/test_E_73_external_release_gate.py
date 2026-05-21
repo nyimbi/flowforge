@@ -57,6 +57,79 @@ def _python_pyprojects() -> tuple[Path, ...]:
     )
 
 
+def _synthetic_publication_pyproject() -> str:
+    return """[project]
+name = "flowforge-cli"
+version = "0.1.0"
+description = "Expected package summary"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Nyimbi Odero, Datacraft", email = "nyimbi@gmail.com" }]
+maintainers = [{ name = "Nyimbi Odero, Datacraft", email = "nyimbi@gmail.com" }]
+keywords = ["workflow", "cli", "typer", "scaffolding"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Typing :: Typed",
+]
+readme = "README.md"
+requires-python = ">=3.11"
+
+[project.urls]
+Homepage = "https://github.com/nyimbi/flowforge"
+Documentation = "https://github.com/nyimbi/flowforge/tree/main/docs"
+Repository = "https://github.com/nyimbi/flowforge"
+Issues = "https://github.com/nyimbi/flowforge/issues"
+Changelog = "https://github.com/nyimbi/flowforge/blob/main/CHANGELOG.md"
+"""
+
+
+def _synthetic_publication_metadata(
+    *,
+    summary: str = "Expected package summary",
+    documentation_url: str = "https://github.com/nyimbi/flowforge/tree/main/docs",
+) -> str:
+    return f"""Metadata-Version: 2.4
+Name: flowforge-cli
+Version: 0.1.0
+Summary: {summary}
+License-Expression: Apache-2.0
+License-File: LICENSE
+Author-email: "Nyimbi Odero, Datacraft" <nyimbi@gmail.com>
+Maintainer-email: "Nyimbi Odero, Datacraft" <nyimbi@gmail.com>
+Keywords: cli,scaffolding,typer,workflow
+Classifier: Development Status :: 4 - Beta
+Classifier: Typing :: Typed
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Project-URL: Homepage, https://github.com/nyimbi/flowforge
+Project-URL: Documentation, {documentation_url}
+Project-URL: Repository, https://github.com/nyimbi/flowforge
+Project-URL: Issues, https://github.com/nyimbi/flowforge/issues
+Project-URL: Changelog, https://github.com/nyimbi/flowforge/blob/main/CHANGELOG.md
+
+# Flowforge CLI
+"""
+
+
+def _write_synthetic_publication_artifacts(
+    tmp_path: Path,
+    *,
+    wheel_metadata: str,
+    sdist_metadata: str,
+) -> tuple[Path, Path]:
+    wheel = tmp_path / "flowforge_cli-0.1.0-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr("flowforge_cli-0.1.0.dist-info/METADATA", wheel_metadata)
+    sdist = tmp_path / "flowforge_cli-0.1.0.tar.gz"
+    package_dir = tmp_path / "flowforge_cli-0.1.0"
+    package_dir.mkdir()
+    pkg_info = package_dir / "PKG-INFO"
+    pkg_info.write_text(sdist_metadata, encoding="utf-8")
+    with tarfile.open(sdist, "w:gz") as archive:
+        archive.add(pkg_info, arcname="flowforge_cli-0.1.0/PKG-INFO")
+    return wheel, sdist
+
+
 def test_audit_workflow_yaml_files_parse() -> None:
     for path in sorted((ROOT / ".github" / "workflows").glob("audit-2026*.yml")):
         parsed = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -399,6 +472,13 @@ def test_shipping_packages_have_pypi_publication_metadata() -> None:
         )
         if missing:
             failures.append(f"{package.directory}: missing {', '.join(missing)}")
+        missing_urls = sorted(
+            pypi_build_smoke.REQUIRED_PROJECT_URL_LABELS - set(project.get("urls", {}))
+        )
+        if missing_urls:
+            failures.append(
+                f"{package.directory}: missing URLs {', '.join(missing_urls)}"
+            )
 
     assert failures == []
 
@@ -451,9 +531,14 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "expected_artifacts = len(packages) * 2" in script
     assert "expected {len(packages)} wheels and {len(packages)} sdists" in script
     assert "_assert_artifact_metadata_identity(" in script
+    assert "_assert_artifact_publication_metadata_complete(" in script
     assert "artifact version" in script
     assert "wheel `METADATA`" in publishing
     assert "sdist `PKG-INFO` `Name` / `Version` fields" in publishing
+    assert "publication-facing PyPI metadata" in publishing
+    assert "Summary, Requires-Python, license, author, maintainer" in publishing
+    assert "project URLs," in publishing
+    assert "classifiers, keywords, and README content type" in publishing
     assert "_assert_wheels_include_py_typed(wheels_by_distribution, packages)" in script
     assert "_assert_artifacts_include_license_files(" in script
     assert "_assert_artifact_internal_dependencies_bounded(" in script
@@ -586,6 +671,62 @@ def test_pypi_build_smoke_rejects_artifact_metadata_version_mismatches(
 
     with pytest.raises(SystemExit, match="artifact version"):
         pypi_build_smoke._assert_artifact_metadata_identity(
+            {"flowforge-cli": wheel},
+            {"flowforge-cli": sdist},
+            (package,),
+        )
+
+
+def test_pypi_build_smoke_rejects_missing_artifact_publication_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    package = package_sets.ShippingPackage(
+        directory="flowforge-cli",
+        distribution_name="flowforge-cli",
+        import_package="flowforge_cli",
+    )
+    pyproject_path = tmp_path / "python" / "flowforge-cli" / "pyproject.toml"
+    pyproject_path.parent.mkdir(parents=True)
+    pyproject_path.write_text(_synthetic_publication_pyproject(), encoding="utf-8")
+    monkeypatch.setattr(pypi_build_smoke, "ROOT", tmp_path)
+    wheel, sdist = _write_synthetic_publication_artifacts(
+        tmp_path,
+        wheel_metadata=_synthetic_publication_metadata(summary="Wrong summary"),
+        sdist_metadata=_synthetic_publication_metadata(),
+    )
+
+    with pytest.raises(SystemExit, match="wheel METADATA Summary"):
+        pypi_build_smoke._assert_artifact_publication_metadata_complete(
+            {"flowforge-cli": wheel},
+            {"flowforge-cli": sdist},
+            (package,),
+        )
+
+
+def test_pypi_build_smoke_rejects_project_url_metadata_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    package = package_sets.ShippingPackage(
+        directory="flowforge-cli",
+        distribution_name="flowforge-cli",
+        import_package="flowforge_cli",
+    )
+    pyproject_path = tmp_path / "python" / "flowforge-cli" / "pyproject.toml"
+    pyproject_path.parent.mkdir(parents=True)
+    pyproject_path.write_text(_synthetic_publication_pyproject(), encoding="utf-8")
+    monkeypatch.setattr(pypi_build_smoke, "ROOT", tmp_path)
+    wheel, sdist = _write_synthetic_publication_artifacts(
+        tmp_path,
+        wheel_metadata=_synthetic_publication_metadata(),
+        sdist_metadata=_synthetic_publication_metadata(
+            documentation_url="https://example.invalid/docs"
+        ),
+    )
+
+    with pytest.raises(SystemExit, match="sdist PKG-INFO Project-URL"):
+        pypi_build_smoke._assert_artifact_publication_metadata_complete(
             {"flowforge-cli": wheel},
             {"flowforge-cli": sdist},
             (package,),

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import email.message
 import email.parser
+import email.utils
 import hashlib
 import json
 import os
@@ -24,6 +25,9 @@ from package_sets import ShippingPackage
 ROOT = Path(__file__).resolve().parents[2]
 INTERNAL_DEPENDENCY_LOWER_BOUND = ">=0.1.0"
 INTERNAL_DEPENDENCY_UPPER_BOUND = "<0.2.0"
+REQUIRED_PROJECT_URL_LABELS = frozenset(
+    {"Homepage", "Documentation", "Repository", "Issues", "Changelog"}
+)
 RELEASE_ARTIFACT_MANIFEST = (
     ROOT / "docs" / "audit-2026" / "external-release-pypi-artifacts-current.json"
 )
@@ -329,6 +333,197 @@ def _sdist_requires_dist(sdist: Path) -> list[str]:
     return list(_sdist_metadata(sdist).get_all("Requires-Dist", []) or [])
 
 
+def _package_project_metadata(package: ShippingPackage) -> dict:
+    pyproject = tomllib.loads(
+        (ROOT / "python" / package.directory / "pyproject.toml").read_text(
+            encoding="utf-8"
+        )
+    )
+    return pyproject.get("project", {})
+
+
+def _metadata_value(metadata: email.message.Message, field: str) -> str:
+    return (metadata.get(field) or "").strip()
+
+
+def _metadata_email_addresses(
+    metadata: email.message.Message,
+    field: str,
+) -> frozenset[str]:
+    return frozenset(
+        address.lower()
+        for _, address in email.utils.getaddresses(metadata.get_all(field, []) or [])
+        if address
+    )
+
+
+def _project_person_emails(project: Mapping[str, object], field: str) -> frozenset[str]:
+    people = project.get(field, [])
+    if not isinstance(people, list):
+        return frozenset()
+    return frozenset(
+        str(person["email"]).lower()
+        for person in people
+        if isinstance(person, dict) and person.get("email")
+    )
+
+
+def _project_string_list(project: Mapping[str, object], field: str) -> frozenset[str]:
+    values = project.get(field, [])
+    if not isinstance(values, list):
+        return frozenset()
+    return frozenset(value for value in values if isinstance(value, str))
+
+
+def _metadata_keywords(metadata: email.message.Message) -> frozenset[str]:
+    return frozenset(
+        item.strip()
+        for value in metadata.get_all("Keywords", []) or []
+        for item in value.split(",")
+        if item.strip()
+    )
+
+
+def _metadata_project_urls(metadata: email.message.Message) -> dict[str, str]:
+    urls: dict[str, str] = {}
+    for value in metadata.get_all("Project-URL", []) or []:
+        label, separator, url = value.partition(",")
+        if separator:
+            urls[label.strip()] = url.strip()
+    return urls
+
+
+def _publication_metadata_issues(
+    package: ShippingPackage,
+    project: Mapping[str, object],
+    metadata: email.message.Message,
+    *,
+    source: str,
+) -> list[str]:
+    issues: list[str] = []
+
+    expected_summary = str(project.get("description") or "")
+    if not expected_summary or _metadata_value(metadata, "Summary") != expected_summary:
+        issues.append(
+            f"{package.directory}: {source} Summary does not match project description"
+        )
+
+    expected_requires_python = str(project.get("requires-python") or "")
+    if (
+        not expected_requires_python
+        or _metadata_value(metadata, "Requires-Python") != expected_requires_python
+    ):
+        issues.append(
+            f"{package.directory}: {source} Requires-Python does not match pyproject"
+        )
+
+    expected_license = project.get("license")
+    license_expression = _metadata_value(metadata, "License-Expression")
+    legacy_license = _metadata_value(metadata, "License")
+    if not isinstance(expected_license, str) or expected_license not in {
+        license_expression,
+        legacy_license,
+    }:
+        issues.append(
+            f"{package.directory}: {source} license metadata does not match pyproject"
+        )
+
+    expected_license_files = _project_string_list(project, "license-files")
+    metadata_license_files = frozenset(metadata.get_all("License-File", []) or [])
+    missing_license_files = sorted(expected_license_files - metadata_license_files)
+    if not expected_license_files or missing_license_files:
+        issues.append(
+            f"{package.directory}: {source} License-File missing "
+            f"{', '.join(missing_license_files) or 'declared files'}"
+        )
+
+    for project_field, metadata_field in [
+        ("authors", "Author-email"),
+        ("maintainers", "Maintainer-email"),
+    ]:
+        expected_emails = _project_person_emails(project, project_field)
+        metadata_emails = _metadata_email_addresses(metadata, metadata_field)
+        missing_emails = sorted(expected_emails - metadata_emails)
+        if not expected_emails or missing_emails:
+            issues.append(
+                f"{package.directory}: {source} {metadata_field} missing "
+                f"{', '.join(missing_emails) or project_field}"
+            )
+
+    expected_keywords = _project_string_list(project, "keywords")
+    metadata_keywords = _metadata_keywords(metadata)
+    if not expected_keywords or metadata_keywords != expected_keywords:
+        issues.append(f"{package.directory}: {source} Keywords do not match pyproject")
+
+    expected_classifiers = _project_string_list(project, "classifiers")
+    metadata_classifiers = frozenset(metadata.get_all("Classifier", []) or [])
+    missing_classifiers = sorted(expected_classifiers - metadata_classifiers)
+    if not expected_classifiers or missing_classifiers:
+        issues.append(
+            f"{package.directory}: {source} Classifier missing "
+            f"{', '.join(missing_classifiers) or 'declared classifiers'}"
+        )
+
+    expected_urls = project.get("urls", {})
+    if not isinstance(expected_urls, dict):
+        expected_urls = {}
+    missing_required_urls = sorted(REQUIRED_PROJECT_URL_LABELS - set(expected_urls))
+    metadata_urls = _metadata_project_urls(metadata)
+    mismatched_urls = sorted(
+        label
+        for label, url in expected_urls.items()
+        if metadata_urls.get(str(label)) != str(url)
+    )
+    if missing_required_urls or mismatched_urls:
+        issues.append(
+            f"{package.directory}: {source} Project-URL missing or mismatched "
+            f"{', '.join(missing_required_urls + mismatched_urls)}"
+        )
+
+    if _metadata_value(metadata, "Description-Content-Type") != "text/markdown":
+        issues.append(
+            f"{package.directory}: {source} Description-Content-Type is not text/markdown"
+        )
+
+    description = metadata.get_payload()
+    if not isinstance(description, str) or not description.strip():
+        issues.append(f"{package.directory}: {source} README description is empty")
+
+    return issues
+
+
+def _assert_artifact_publication_metadata_complete(
+    wheels_by_distribution: Mapping[str, Path],
+    sdists_by_distribution: Mapping[str, Path],
+    packages: tuple[ShippingPackage, ...],
+) -> None:
+    issues: list[str] = []
+    for package in packages:
+        key = _distribution_key(package.distribution_name)
+        project = _package_project_metadata(package)
+        issues.extend(
+            _publication_metadata_issues(
+                package,
+                project,
+                _wheel_metadata(wheels_by_distribution[key]),
+                source="wheel METADATA",
+            )
+        )
+        issues.extend(
+            _publication_metadata_issues(
+                package,
+                project,
+                _sdist_metadata(sdists_by_distribution[key]),
+                source="sdist PKG-INFO",
+            )
+        )
+    if issues:
+        raise SystemExit(
+            "built artifact publication metadata is incomplete:\n  "
+            + "\n  ".join(issues)
+        )
+
+
 def _assert_artifact_metadata_identity(
     wheels_by_distribution: Mapping[str, Path],
     sdists_by_distribution: Mapping[str, Path],
@@ -550,6 +745,11 @@ def main(argv: list[str] | None = None) -> int:
         packages,
     )
     _assert_artifact_metadata_identity(
+        wheels_by_distribution,
+        sdists_by_distribution,
+        packages,
+    )
+    _assert_artifact_publication_metadata_complete(
         wheels_by_distribution,
         sdists_by_distribution,
         packages,
