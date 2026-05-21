@@ -2918,3 +2918,40 @@ Design audit 5 - operations, security, and reliability:
     markers, and completed clean-venv `flowforge --help`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## Shipping package identity audit
+
+- Code review finding:
+  - The shared `scripts/audit_2026/package_sets.py` helper now feeds PyPI
+    build smoke, closed-package coverage, and metadata stamping, but it did
+    not fail closed if two shipping workspace members declared the same
+    `project.name` or wheel import package. Duplicate identities could make a
+    later release gate check the same PyPI/import surface twice while silently
+    omitting another package.
+- Action:
+  - Added a source-of-truth uniqueness guard for shipping distribution names
+    and import packages. Distribution-name uniqueness uses PyPI/wheel
+    normalization so `flowforge-core` and `flowforge_core` cannot pass as
+    distinct release identities.
+  - Added a release ratchet that duplicate shipping identities raise
+    `SystemExit` before downstream build or coverage gates run.
+- Verification:
+  - `uv run ruff check scripts/audit_2026/package_sets.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run ruff format --check scripts/audit_2026/package_sets.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright scripts/audit_2026/package_sets.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors`, `0 warnings`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_package_set_helper_rejects_duplicate_shipping_identities tests/audit_2026/test_E_73_external_release_gate.py::test_package_set_helper_rejects_ambiguous_wheel_packages -q`:
+    `2 passed`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `23 passed`.
+  - `uv run python -c "import sys; sys.path.insert(0, 'scripts/audit_2026'); import package_sets; packages = package_sets.shipping_packages(); print(len(packages)); print(len({package_sets._distribution_key(p.distribution_name) for p in packages})); print(len({p.import_package for p in packages}))"`:
+    `16`, `16`, `16`.
+  - `uv run python scripts/finalize_pypi_metadata.py`:
+    `stamped 0`, `skipped 16`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`:
+    built and checked 16 packages / 32 artifacts and completed clean-venv
+    `flowforge --help`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

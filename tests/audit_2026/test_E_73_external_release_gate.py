@@ -485,6 +485,24 @@ def test_package_set_helper_rejects_ambiguous_wheel_packages() -> None:
         package_sets._import_package(pyproject, directory="flowforge-core")
 
 
+def test_package_set_helper_rejects_duplicate_shipping_identities() -> None:
+    packages = [
+        package_sets.ShippingPackage(
+            directory="flowforge-core",
+            distribution_name="flowforge-core",
+            import_package="flowforge",
+        ),
+        package_sets.ShippingPackage(
+            directory="flowforge-core-alias",
+            distribution_name="flowforge_core",
+            import_package="flowforge_core",
+        ),
+    ]
+
+    with pytest.raises(SystemExit, match="duplicate distribution name"):
+        package_sets._assert_unique_packages(packages)
+
+
 def test_dom_baselines_do_not_embed_ci_checkout_paths() -> None:
     normalizer = _read("tests/visual_regression/lib/dom_normalize.ts")
     assert "data-vite-dev-id" in normalizer

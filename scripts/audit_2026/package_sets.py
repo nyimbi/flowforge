@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -59,6 +60,43 @@ def _import_package(pyproject: dict, *, directory: str) -> str:
     return package_path.removeprefix(prefix).replace("/", ".")
 
 
+def _distribution_key(name: str) -> str:
+    """Normalize a distribution name the way PyPI/wheel filenames do."""
+
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _assert_unique_packages(packages: list[ShippingPackage]) -> None:
+    seen_distribution_names: dict[str, str] = {}
+    seen_import_packages: dict[str, str] = {}
+    failures: list[str] = []
+    for package in packages:
+        distribution_key = _distribution_key(package.distribution_name)
+        previous_distribution = seen_distribution_names.setdefault(
+            distribution_key,
+            package.directory,
+        )
+        if previous_distribution != package.directory:
+            failures.append(
+                f"{package.directory}: duplicate distribution name "
+                f"{package.distribution_name!r} already used by "
+                f"{previous_distribution}"
+            )
+        previous_import = seen_import_packages.setdefault(
+            package.import_package,
+            package.directory,
+        )
+        if previous_import != package.directory:
+            failures.append(
+                f"{package.directory}: duplicate import package "
+                f"{package.import_package!r} already used by {previous_import}"
+            )
+    if failures:
+        raise SystemExit(
+            "shipping package identities must be unique:\n  " + "\n  ".join(failures)
+        )
+
+
 def shipping_packages() -> tuple[ShippingPackage, ...]:
     packages: list[ShippingPackage] = []
     for directory in _workspace_python_members():
@@ -72,4 +110,5 @@ def shipping_packages() -> tuple[ShippingPackage, ...]:
                 import_package=_import_package(pyproject, directory=directory),
             )
         )
+    _assert_unique_packages(packages)
     return tuple(packages)
