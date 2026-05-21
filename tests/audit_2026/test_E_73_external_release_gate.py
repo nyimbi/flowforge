@@ -1788,7 +1788,8 @@ def test_ums_parity_has_fail_closed_release_target() -> None:
     assert "scripts/i18n/check_coverage.py" in check_all
     assert "make audit-2026-closed-package-coverage" in check_all
     assert "make audit-2026-pypi-build" in check_all
-    assert "18/18  Summary" in check_all
+    assert "make audit-2026-polish-copy-sidecar" in check_all
+    assert "19/19  Summary" in check_all
     run_integration = _read("scripts/run_integration.sh")
     assert "bash scripts/run_integration.sh" in run_integration
     assert "path to flowforge repo root" in run_integration

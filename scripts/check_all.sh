@@ -73,14 +73,14 @@ TOTAL_PKGS=$(( ${#PY_PKGS[@]} + ${#JS_PKGS[@]} ))
 
 # ---------- Step 1: uv sync ------------------------------------------
 
-step "1/18  uv sync (framework workspace)"
+step "1/19  uv sync (framework workspace)"
 cd "$FRAMEWORK_ROOT"
 uv sync --quiet
 ok "uv sync complete"
 
 # ---------- Step 2: pnpm install -------------------------------------
 
-step "2/18  pnpm install (framework/js + visual regression runner)"
+step "2/19  pnpm install (framework/js + visual regression runner)"
 cd "$FRAMEWORK_ROOT/js"
 CI="${CI:-true}" pnpm install --frozen-lockfile
 cd "$FRAMEWORK_ROOT/tests/visual_regression"
@@ -90,14 +90,14 @@ cd "$FRAMEWORK_ROOT"
 
 # ---------- Step 3: check_workspace.py -------------------------------
 
-step "3/18  python check_workspace.py"
+step "3/19  python check_workspace.py"
 cd "$FRAMEWORK_ROOT"
 python scripts/check_workspace.py
 ok "workspace structural check passed"
 
 # ---------- Step 4: pyright on each python/*/src ---------------------
 
-step "4/18  pyright on each Python package"
+step "4/19  pyright on each Python package"
 PYRIGHT_TMP=$(mktemp -d)
 TMP_DIRS+=("$PYRIGHT_TMP")
 pids=()
@@ -148,7 +148,7 @@ ok "pyright clean on all ${#PY_PKGS[@]} Python packages"
 
 # ---------- Step 5: pytest on each python/*/tests --------------------
 
-step "5/18  pytest on each Python package"
+step "5/19  pytest on each Python package"
 PY_TEST_COUNT=0
 PYTEST_TMP=$(mktemp -d)
 TMP_DIRS+=("$PYTEST_TMP")
@@ -205,7 +205,7 @@ ok "pytest: $PY_TEST_COUNT tests passed across ${#PY_PKGS[@]} Python packages"
 
 # ---------- Step 6: Python dependency CVE audit ----------------------
 
-step "6/18  pip-audit on Python dependencies"
+step "6/19  pip-audit on Python dependencies"
 AUDIT_TMP="${TMPDIR:-/tmp}/flowforge-pip-audit-cache"
 UV_AUDIT_CACHE="${UV_CACHE_DIR:-${TMPDIR:-/tmp}/flowforge-uv-cache}"
 mkdir -p "$AUDIT_TMP" "$UV_AUDIT_CACHE"
@@ -216,7 +216,7 @@ ok "Python dependency CVE audit clean"
 
 # ---------- Step 7: JS dependency CVE audit --------------------------
 
-step "7/18  pnpm audit (JS production dependencies)"
+step "7/19  pnpm audit (JS production dependencies)"
 cd "$FRAMEWORK_ROOT/js"
 pnpm audit --prod
 ok "JS production dependency audit clean"
@@ -224,7 +224,7 @@ cd "$FRAMEWORK_ROOT"
 
 # ---------- Step 8: JS typecheck (pnpm -r build covers all pkgs) -----
 
-step "8/18  pnpm -r typecheck (JS workspace)"
+step "8/19  pnpm -r typecheck (JS workspace)"
 cd "$FRAMEWORK_ROOT/js"
 # run typecheck where defined; fall back to build (tsc --noEmit) for others
 pnpm -r --if-present typecheck
@@ -234,7 +234,7 @@ cd "$FRAMEWORK_ROOT"
 
 # ---------- Step 9: pnpm -r test (JS workspace) ----------------------
 
-step "9/18  pnpm -r test (JS workspace)"
+step "9/19  pnpm -r test (JS workspace)"
 cd "$FRAMEWORK_ROOT/js"
 JS_TEST_LOG=$(mktemp)
 if ! pnpm -r test 2>&1 | tee "$JS_TEST_LOG"; then
@@ -249,7 +249,7 @@ cd "$FRAMEWORK_ROOT"
 
 # ---------- Step 10: JTBD deterministic regen check ------------------
 
-step "10/18  JTBD deterministic regen check (${#EXAMPLES[@]} examples)"
+step "10/19  JTBD deterministic regen check (${#EXAMPLES[@]} examples)"
 REGEN_TMP=$(mktemp -d)
 TMP_DIRS+=("$REGEN_TMP")
 
@@ -301,37 +301,43 @@ ok "JTBD deterministic regen: all examples match"
 # Pixel SSIM is advisory only; it runs nightly via
 # `make audit-2026-visual-regression-ssim`, never per-PR.
 
-step "11/18  Visual regression DOM-snapshot gate (ADR-001)"
+step "11/19  Visual regression DOM-snapshot gate (ADR-001)"
 bash "$FRAMEWORK_ROOT/scripts/visual_regression/run_dom_snapshots.sh" smoke
 ok "visual-regression-dom: gate run"
 
 # ---------- Step 12: Generator property-coverage gate -----------------
 
-step "12/18  Generator property-coverage gate"
+step "12/19  Generator property-coverage gate"
 uv run pytest tests/audit_2026/test_property_coverage_gate.py tests/audit_2026/test_hypothesis_seed_uniqueness.py -q
 ok "generator property coverage gate clean"
 
 # ---------- Step 13: i18n coverage gate -------------------------------
 
-step "13/18  i18n coverage gate"
+step "13/19  i18n coverage gate"
 uv run python scripts/i18n/check_coverage.py
 ok "i18n coverage gate clean"
 
 # ---------- Step 14: Closed shipping package coverage -----------------
 
-step "14/18  Closed shipping package coverage gate"
+step "14/19  Closed shipping package coverage gate"
 make audit-2026-closed-package-coverage
 ok "closed shipping package coverage gate clean"
 
 # ---------- Step 15: PyPI package build smoke -------------------------
 
-step "15/18  PyPI package build smoke"
+step "15/19  PyPI package build smoke"
 make audit-2026-pypi-build
 ok "PyPI package build smoke clean"
 
-# ---------- Step 16: UMS parity test ---------------------------------
+# ---------- Step 16: Polish-copy sidecar release gate -----------------
 
-step "16/18  UMS workflow-def parity (backend)"
+step "16/19  Polish-copy sidecar release gate"
+make audit-2026-polish-copy-sidecar
+ok "polish-copy sidecar release gate clean"
+
+# ---------- Step 17: UMS parity test ---------------------------------
+
+step "17/19  UMS workflow-def parity (backend)"
 if [[ ! -d "$BACKEND_ROOT" ]]; then
     echo "    SKIP UMS parity: BACKEND_ROOT not found at $BACKEND_ROOT"
     echo "    Set BACKEND_ROOT=/path/to/backend when running from a UMS monorepo checkout."
@@ -351,9 +357,9 @@ ok "parity: ${PARITY_COUNT:-0} parity tests passed (22-def target)"
 cd "$REPO_ROOT"
 fi
 
-# ---------- Step 17: Cross-package integration tests ------------------
+# ---------- Step 18: Cross-package integration tests ------------------
 
-step "17/18  Cross-package integration tests"
+step "18/19  Cross-package integration tests"
 cd "$FRAMEWORK_ROOT"
 INT_OUT=$(mktemp)
 bash "$FRAMEWORK_ROOT/scripts/run_integration.sh" 2>&1 | tee "$INT_OUT"
@@ -363,12 +369,12 @@ TOTAL_TESTS=$(( TOTAL_TESTS + ${INT_PASS:-0} ))
 ok "integration tests: ${INT_PASS:-0} cross-package tests/assertions passed"
 cd "$REPO_ROOT"
 
-# ---------- Step 18: Summary -----------------------------------------
+# ---------- Step 19: Summary -----------------------------------------
 
 END_TS=$(date +%s)
 ELAPSED=$(( END_TS - START_TS ))
 
-step "18/18  Summary"
+step "19/19  Summary"
 echo ""
 echo -e "${BOLD}flowforge gate — all steps green${RESET}"
 echo "  Python packages : ${#PY_PKGS[@]}"

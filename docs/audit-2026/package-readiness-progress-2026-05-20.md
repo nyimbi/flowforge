@@ -4497,3 +4497,34 @@ Design audit 5 - operations, security, and reliability:
     `57 passed`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## Check-all sidecar evidence gate audit
+
+- Code review finding:
+  - `scripts/check_all.sh` had been extended to prove closed-package coverage
+    and PyPI build readiness, but it still omitted the reviewed polish-copy
+    sidecar gate that `audit-2026` and `audit-2026-release-external` run. The
+    broad wrapper could therefore pass without proving the committed real-LLM
+    sidecar release evidence was still reviewable.
+- Action:
+  - Added `make audit-2026-polish-copy-sidecar` as a first-class
+    `check_all.sh` step before UMS parity and integration.
+  - Renumbered the wrapper from 18 to 19 steps.
+  - Added a ratchet that keeps `check_all.sh` wired to the sidecar gate.
+- Verification:
+  - `bash -n scripts/check_all.sh`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-polish-copy-sidecar`:
+    `audit-2026-polish-copy-sidecar: ok`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format tests/audit_2026/test_E_73_external_release_gate.py`:
+    `1 file left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused `check_all.sh` sidecar-step ratchet:
+    `1 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `57 passed`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
