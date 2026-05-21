@@ -4415,3 +4415,20 @@ Design audit 5 - operations, security, and reliability:
     `56 passed`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## Closed shipping package coverage audit
+
+- Code review finding:
+  - The release objective requires 100% coverage for PyPI-ready shipping
+    packages, so the explicit closed-package coverage gate needed a current
+    full run after the latest release-readiness changes.
+- Action:
+  - Ran the closed-package coverage gate across the 16-package shipping set.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`:
+    passed for all 16 shipping packages with 100% statement and branch
+    coverage. The run included `flowforge-core` (`181 passed`),
+    `flowforge-cli` (`891 passed, 1 skipped`), `flowforge-jtbd`
+    (`639 passed, 1 skipped`), and `flowforge-jtbd-hub` (`90 passed`).
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
