@@ -4745,3 +4745,30 @@ Design audit 5 - operations, security, and reliability:
     clean.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## JTBD quality scorer LLM port audit
+
+- Design/code review finding:
+  - `flowforge_jtbd.ai.quality` still defined and exported a narrow local
+    `LlmProvider` protocol after the package had a canonical
+    `flowforge_jtbd.ports.llm.LlmProvider` contract. That duplicate boundary
+    could let integrations type against a weaker quality-scorer-only LLM shape.
+- Action:
+  - Re-exported the canonical LLM provider port from the quality module instead
+    of keeping the local stub.
+  - Updated quality scorer LLM test doubles to satisfy the full canonical
+    protocol and added a ratchet that asserts the quality module export is the
+    canonical provider object.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format python/flowforge-jtbd/src/flowforge_jtbd/ai/quality.py python/flowforge-jtbd/tests/unit/test_quality_scorer.py`:
+    `2 files left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check python/flowforge-jtbd/src/flowforge_jtbd/ai/quality.py python/flowforge-jtbd/tests/unit/test_quality_scorer.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright python/flowforge-jtbd/src/flowforge_jtbd/ai/quality.py python/flowforge-jtbd/tests/unit/test_quality_scorer.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest python/flowforge-jtbd/tests/unit/test_quality_scorer.py -q`:
+    `40 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest python/flowforge-jtbd/tests -q --cov=flowforge_jtbd --cov-branch --cov-report=term-missing --cov-fail-under=100`:
+    `640 passed, 1 skipped`; total coverage `100.00%`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

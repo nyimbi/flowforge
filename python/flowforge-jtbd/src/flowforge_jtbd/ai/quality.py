@@ -58,32 +58,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Protocol, runtime_checkable
+from typing import Any
 
-
-# ---------------------------------------------------------------------------
-# LlmProvider protocol stub (full impl lands in E-14)
-# ---------------------------------------------------------------------------
-
-
-@runtime_checkable
-class LlmProvider(Protocol):
-    """Minimal protocol needed by the quality scorer.
-
-    Full implementation (Claude default + OpenAI + local Ollama) ships in
-    ticket E-14. This stub lets the scorer be developed and tested
-    independently.
-    """
-
-    async def generate(
-        self,
-        prompt: str,
-        *,
-        max_tokens: int = 4000,
-        temperature: float = 0.2,
-    ) -> str:
-        """Return raw text from the LLM."""
-        ...
+from flowforge_jtbd.ports.llm import LlmProvider
 
 
 # ---------------------------------------------------------------------------

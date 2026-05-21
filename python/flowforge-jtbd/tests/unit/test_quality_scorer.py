@@ -13,6 +13,7 @@ Covers:
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Any
 
 from flowforge_jtbd.ai.quality import (
@@ -24,6 +25,7 @@ from flowforge_jtbd.ai.quality import (
 )
 from flowforge_jtbd.lint import Linter, RuleRegistry
 from flowforge_jtbd.lint.quality import LowQualityRule, LowQualityRulePack
+from flowforge_jtbd.ports.llm import LlmProvider as CanonicalLlmProvider
 from flowforge_jtbd.spec import JtbdLintSpec, StageDecl
 
 from .conftest import make_bundle
@@ -280,8 +282,24 @@ async def test_scorer_score_async_falls_back_when_llm_raises() -> None:
             *,
             max_tokens: int = 4000,  # noqa: ARG002
             temperature: float = 0.2,  # noqa: ARG002
+            system: str | None = None,  # noqa: ARG002
         ) -> str:
             raise RuntimeError("llm unavailable")
+
+        async def embed(self, text: str) -> list[float]:  # noqa: ARG002
+            return [0.0]
+
+        def stream_chat(
+            self,
+            messages: list[dict[str, str]],  # noqa: ARG002
+            *,
+            max_tokens: int = 4000,  # noqa: ARG002
+        ) -> AsyncIterator[str]:
+            async def _empty() -> AsyncIterator[str]:
+                if False:
+                    yield ""
+
+            return _empty()
 
     report = await QualityScorer(llm=RaisingLlm()).score_async(_good_spec())
     assert not report.llm_blended
@@ -295,8 +313,24 @@ async def test_scorer_score_async_handles_llm_without_json() -> None:
             *,
             max_tokens: int = 4000,  # noqa: ARG002
             temperature: float = 0.2,  # noqa: ARG002
+            system: str | None = None,  # noqa: ARG002
         ) -> str:
             return "no structured assessment"
+
+        async def embed(self, text: str) -> list[float]:  # noqa: ARG002
+            return [0.0]
+
+        def stream_chat(
+            self,
+            messages: list[dict[str, str]],  # noqa: ARG002
+            *,
+            max_tokens: int = 4000,  # noqa: ARG002
+        ) -> AsyncIterator[str]:
+            async def _empty() -> AsyncIterator[str]:
+                if False:
+                    yield ""
+
+            return _empty()
 
     report = await QualityScorer(llm=NonJsonLlm()).score_async(_good_spec())
     assert report.llm_blended
@@ -426,12 +460,32 @@ class _MockLlm:
         *,
         max_tokens: int = 4000,  # noqa: ARG002
         temperature: float = 0.2,  # noqa: ARG002
+        system: str | None = None,  # noqa: ARG002
     ) -> str:
         return '{"clarity": 90, "actionability": 85, "solution_decoupling": 95, "measurable_outcome": 88}'
+
+    async def embed(self, text: str) -> list[float]:  # noqa: ARG002
+        return [0.0]
+
+    def stream_chat(
+        self,
+        messages: list[dict[str, str]],  # noqa: ARG002
+        *,
+        max_tokens: int = 4000,  # noqa: ARG002
+    ) -> AsyncIterator[str]:
+        async def _empty() -> AsyncIterator[str]:
+            if False:
+                yield ""
+
+        return _empty()
 
 
 def test_mock_llm_satisfies_protocol() -> None:
     assert isinstance(_MockLlm(), LlmProvider)
+
+
+def test_quality_scorer_reexports_canonical_llm_provider() -> None:
+    assert LlmProvider is CanonicalLlmProvider
 
 
 async def test_scorer_with_llm_blends_scores() -> None:
