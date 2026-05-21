@@ -2277,6 +2277,42 @@ Design audit 5 - operations, security, and reliability:
     Remaining gaps are concentrated in AI quality scoring, recommender edges,
     DSL spec branches, and lint conflict edges.
 
+## Package coverage slice - flowforge-jtbd lint conflict solver
+
+- Baseline measurement:
+  - `flowforge_jtbd.lint.conflicts` had uncovered branches for reader
+    classification, duplicate-id self-pair skipping, empty-entity Z3 routing,
+    and composition semantics validation failures.
+  - The module also retained unused private pair-matching helpers from the
+    pre-bucketed solver implementation.
+- Action:
+  - Removed the dead private pair-violation helpers now superseded by
+    signature-bucketed rule iteration.
+  - Added focused tests for `reads()`, duplicate-id self-pair suppression,
+    Z3-backed empty entity partitions, invalid data/consistency values, and
+    non-string entities.
+- Result:
+  - `flowforge_jtbd.lint.conflicts` now reaches 100% statement and branch
+    coverage in the focused gate.
+  - Overall `flowforge-jtbd` remains at rounded 98% package coverage, with all
+    lint modules now closed at 100%.
+- Verification:
+  - `uv run pytest tests/unit/test_lint_conflicts.py -q --cov=flowforge_jtbd.lint.conflicts --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-jtbd`: `28 passed`, targeted module 100%.
+  - `uv run ruff check src/flowforge_jtbd/lint/conflicts.py tests/unit/test_lint_conflicts.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run ruff format --check src/flowforge_jtbd/lint/conflicts.py tests/unit/test_lint_conflicts.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run pyright src/flowforge_jtbd/lint/conflicts.py tests/unit/test_lint_conflicts.py`
+    from `python/flowforge-jtbd`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_jtbd --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-jtbd`: `607 passed`, one optional skip, one expected
+    in-memory embedding-store performance warning, and package coverage 98%.
+- Remaining risk:
+  - `flowforge-jtbd` is not yet ready for the closed-package coverage ratchet.
+    Remaining gaps are concentrated in AI quality scoring, recommender edges,
+    and DSL spec branches.
+
 ## Package coverage slice - flowforge-jtbd i18n and actor lint
 
 - Baseline measurement:
