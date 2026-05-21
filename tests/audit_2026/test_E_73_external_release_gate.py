@@ -439,6 +439,26 @@ def test_external_release_evidence_template_tracks_required_proofs() -> None:
         assert required in template
 
 
+def test_readiness_log_keeps_release_local_dns_failure_superseded() -> None:
+    progress = _read("docs/audit-2026/package-readiness-progress-2026-05-20.md")
+    sidecar_section = progress.split(
+        "## External evidence template sidecar-authoring audit",
+        1,
+    )[1].split("## External evidence template real-key wording audit", 1)[0]
+
+    assert (
+        "Superseded by the later offline local release gate evidence" in sidecar_section
+    )
+    assert (
+        "UV_OFFLINE=1 UV_CACHE_DIR=/private/tmp/flowforge-uv-cache "
+        "make audit-2026-release-local"
+    ) in sidecar_section
+    assert "Non-offline release-local still depends on DNS/index availability" in (
+        sidecar_section
+    )
+    assert "required elevated rerun" not in sidecar_section
+
+
 def test_internal_python_dependencies_are_compatibly_bounded() -> None:
     """PyPI wheels must not publish bare internal FlowForge dependencies."""
 

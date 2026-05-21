@@ -4583,10 +4583,11 @@ Design audit 5 - operations, security, and reliability:
   - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/audit_2026/test_E_75_polish_copy_release_gate.py -q`:
     `10 passed`.
 - Remaining risk:
-  - A full `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-local`
-    run reached `audit-2026-pypi-build` but failed resolving `hatchling` from
-    PyPI due DNS lookup failure.
-  - The required elevated rerun was blocked by the automatic approval reviewer.
+  - Superseded by the later offline local release gate evidence: the warmed-cache
+    `UV_OFFLINE=1 UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-local`
+    run passed end-to-end.
+  - Non-offline release-local still depends on DNS/index availability for uncached
+    build/runtime dependencies.
   - Push remains blocked locally by missing GitHub HTTPS credentials.
 
 ## Offline local release gate evidence
@@ -4684,10 +4685,11 @@ Design audit 5 - operations, security, and reliability:
   - `git diff --check`:
     clean.
 - Remaining risk:
-  - A full `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-local`
-    run reached `audit-2026-pypi-build` but failed resolving `hatchling` from
-    PyPI due DNS lookup failure.
-  - The required elevated rerun was blocked by the automatic approval reviewer.
+  - Superseded by the later offline local release gate evidence: the warmed-cache
+    `UV_OFFLINE=1 UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-local`
+    run passed end-to-end.
+  - Non-offline release-local still depends on DNS/index availability for uncached
+    build/runtime dependencies.
   - Push remains blocked locally by missing GitHub HTTPS credentials.
 
 ## External evidence template real-key wording audit
@@ -4710,6 +4712,35 @@ Design audit 5 - operations, security, and reliability:
     `0 errors, 0 warnings, 0 informations`.
   - Focused external evidence template ratchet:
     `1 passed`.
+  - `git diff --check`:
+    clean.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## Release-local DNS risk supersession audit
+
+- Code review finding:
+  - The current progress log still carried the pre-offline-run PyPI DNS failure
+    as an unsuperseded remaining risk in a later release-evidence section.
+    That made the detailed goal log internally inconsistent after the
+    warmed-cache `UV_OFFLINE=1` local release gate passed end-to-end.
+- Action:
+  - Updated the stale remaining-risk blocks to point at the later offline
+    local-release evidence and keep only the true residual risk: non-offline
+    runs still need DNS/index availability when dependencies are uncached.
+  - Added a ratchet that keeps the sidecar-authoring progress section from
+    reverting to the obsolete elevated-rerun blocker wording.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format tests/audit_2026/test_E_73_external_release_gate.py`:
+    `1 file left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused release-local DNS supersession ratchet:
+    `1 passed`.
+  - Full external release-gate ratchet file:
+    `58 passed`.
   - `git diff --check`:
     clean.
 - Remaining risk:
