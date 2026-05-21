@@ -2757,3 +2757,24 @@ Design audit 5 - operations, security, and reliability:
     workspace-only until named SME signoff, publishable packaging, and release
     review are complete.
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## Current-commit local release rerun after package-set guard
+
+- Trigger:
+  - After committing workspace-derived package-set discovery and the
+    fail-closed ambiguous-wheel guard, reran the local release gate against the
+    current branch head.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-local`:
+    `audit-2026-release-local: fail-closed local release gate passed`.
+  - The run included ratchets, conformance, audit unit tests, property tests,
+    integration/e2e, Python and JS cross-runtime parity, edge cases,
+    observability, core/property/i18n coverage gates, 16-package closed-package
+    coverage at 100% statement/branch, 16-package / 32-artifact PyPI build and
+    `twine check`, clean-venv `flowforge --help`, and signoff validation.
+- Remaining risk:
+  - The local release gate still correctly records external release checks as
+    required: visual DOM baselines, browser Playwright full-stack, reviewed
+    polish-copy sidecar, optional downstream UMS parity, and live Postgres
+    contention/drain verification.
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
