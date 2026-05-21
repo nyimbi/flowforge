@@ -1028,6 +1028,24 @@ def test_pypi_artifact_manifest_verifier_rejects_wrong_distribution_set(
         )
 
 
+def test_pypi_artifact_manifest_verifier_rejects_release_version_drift(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "flowforge-0.0.9-py3-none-any.whl"
+    sdist = tmp_path / "flowforge-0.0.9.tar.gz"
+    wheel.write_bytes(b"wheel bytes")
+    sdist.write_bytes(b"sdist bytes")
+    manifest_path = tmp_path / "manifest.json"
+    pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
+
+    with pytest.raises(SystemExit, match="release version"):
+        verify_pypi_artifact_manifest.verify_manifest(
+            dist_dir=tmp_path,
+            manifest_path=manifest_path,
+            expected_packages=(_flowforge_core_shipping_package(),),
+        )
+
+
 def test_pypi_artifact_manifest_verifier_rejects_empty_release_set(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

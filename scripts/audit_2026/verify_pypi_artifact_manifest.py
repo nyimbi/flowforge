@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import re
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +41,44 @@ def _artifact_distribution_key(path: Path) -> str:
         stem = path.name[: -len(suffix)]
         return _distribution_key(stem.rsplit("-", 1)[0])
     raise SystemExit(f"unsupported PyPI artifact type: {path}")
+
+
+def _artifact_version(path: Path) -> str:
+    if path.name.endswith(".whl"):
+        parts = path.name.split("-", 2)
+        if len(parts) < 2:
+            raise SystemExit(f"unsupported wheel artifact name: {path}")
+        return parts[1]
+    suffix = ".tar.gz"
+    if path.name.endswith(suffix):
+        parts = path.name[: -len(suffix)].rsplit("-", 1)
+        if len(parts) < 2:
+            raise SystemExit(f"unsupported sdist artifact name: {path}")
+        return parts[1]
+    raise SystemExit(f"unsupported PyPI artifact type: {path}")
+
+
+def _package_version(package: ShippingPackage) -> str:
+    pyproject = ROOT / "python" / package.directory / "pyproject.toml"
+    with pyproject.open("rb") as handle:
+        metadata = tomllib.load(handle)
+    version = metadata.get("project", {}).get("version")
+    if not isinstance(version, str) or not version:
+        raise SystemExit(f"{package.directory}: missing project.version")
+    return version
+
+
+def _shipping_release_version(packages: tuple[ShippingPackage, ...]) -> str:
+    versions = {package.directory: _package_version(package) for package in packages}
+    unique_versions = sorted(set(versions.values()))
+    if len(unique_versions) != 1:
+        details = "\n  ".join(
+            f"{directory}: {version}" for directory, version in sorted(versions.items())
+        )
+        raise SystemExit(
+            "shipping package versions must match for one PyPI release:\n  " + details
+        )
+    return unique_versions[0]
 
 
 def _display_path(path: Path) -> str:
@@ -86,6 +125,8 @@ def _manifest_artifacts(manifest: dict[str, Any]) -> list[dict[str, Any]]:
 def _assert_shipping_artifact_identities(
     artifacts: list[Path],
     packages: tuple[ShippingPackage, ...],
+    *,
+    release_version: str,
 ) -> None:
     expected = {
         _distribution_key(package.distribution_name): package.distribution_name
@@ -106,8 +147,22 @@ def _assert_shipping_artifact_identities(
         sdists = grouped.get((distribution, "sdist"), [])
         if len(wheels) != 1:
             issues.append(f"{display_name}: expected 1 wheel, found {len(wheels)}")
+        else:
+            wheel_version = _artifact_version(Path(wheels[0]))
+            if wheel_version != release_version:
+                issues.append(
+                    f"{display_name}: wheel version {wheel_version!r} "
+                    f"does not match release version {release_version!r}"
+                )
         if len(sdists) != 1:
             issues.append(f"{display_name}: expected 1 sdist, found {len(sdists)}")
+        else:
+            sdist_version = _artifact_version(Path(sdists[0]))
+            if sdist_version != release_version:
+                issues.append(
+                    f"{display_name}: sdist version {sdist_version!r} "
+                    f"does not match release version {release_version!r}"
+                )
 
     unexpected = sorted(seen_distributions - set(expected))
     if unexpected:
@@ -129,6 +184,7 @@ def verify_manifest(
 ) -> None:
     if expected_packages is None:
         expected_packages = shipping_packages()
+    release_version = _shipping_release_version(expected_packages)
     if expected_artifact_count is None:
         expected_artifact_count = len(expected_packages) * 2
     manifest = _load_manifest(manifest_path)
@@ -174,7 +230,11 @@ def verify_manifest(
             "artifact manifest artifact_count does not match dist artifacts: "
             f"{expected_count!r} != {len(actual_by_name)}"
         )
-    _assert_shipping_artifact_identities(artifacts, expected_packages)
+    _assert_shipping_artifact_identities(
+        artifacts,
+        expected_packages,
+        release_version=release_version,
+    )
 
     missing = sorted(set(actual_by_name) - set(manifest_by_name))
     stale = sorted(set(manifest_by_name) - set(actual_by_name))
