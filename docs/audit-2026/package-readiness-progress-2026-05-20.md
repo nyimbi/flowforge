@@ -2350,6 +2350,48 @@ Design audit 5 - operations, security, and reliability:
     Remaining gaps are concentrated in AI quality scoring and recommender
     edges.
 
+## Package coverage slice - flowforge-jtbd AI quality and recommender
+
+- Baseline measurement:
+  - `flowforge_jtbd.ai.quality` had uncovered branches for overly long
+    narrative fields, one/two solution-coupled phrase buckets, async
+    heuristic fallback, LLM exception/no-JSON handling, and non-list
+    `success_criteria` extraction.
+  - `flowforge_jtbd.ai.recommender` had uncovered branches for frozen
+    bag-of-words fitting/embedding, empty-token corpus entries, legacy
+    pre-freeze transform paths, zero vectors, invalid `top_k`, and
+    `jtbd_id` fallback indexing.
+  - Both modules also had impossible private defensive branches that could not
+    be reached through their public contracts.
+- Action:
+  - Added public behavior tests for the remaining quality scorer and
+    recommender paths, including frozen vocabulary error handling.
+  - Removed the impossible empty-average branch in the quality scorer and the
+    impossible lazy-embed zero-norm branch in the recommender.
+- Result:
+  - `flowforge_jtbd.ai.quality` and `flowforge_jtbd.ai.recommender` now reach
+    100% statement and branch coverage in the focused gate.
+  - `flowforge-jtbd` now reaches 100% statement and branch coverage for the
+    entire package.
+- Verification:
+  - `uv run pytest tests/unit/test_quality_scorer.py tests/unit/test_recommender.py -q --cov=flowforge_jtbd.ai.quality --cov=flowforge_jtbd.ai.recommender --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-jtbd`: `76 passed`, one expected in-memory
+    embedding-store performance warning, targeted modules 100%.
+  - `uv run ruff check src/flowforge_jtbd/ai/quality.py src/flowforge_jtbd/ai/recommender.py tests/unit/test_quality_scorer.py tests/unit/test_recommender.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run ruff format --check src/flowforge_jtbd/ai/quality.py src/flowforge_jtbd/ai/recommender.py tests/unit/test_quality_scorer.py tests/unit/test_recommender.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run pyright src/flowforge_jtbd/ai/quality.py src/flowforge_jtbd/ai/recommender.py tests/unit/test_quality_scorer.py tests/unit/test_recommender.py`
+    from `python/flowforge-jtbd`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_jtbd --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-jtbd`: `639 passed`, one optional skip, one expected
+    in-memory embedding-store performance warning, and required package
+    coverage 100% reached.
+- Remaining risk:
+  - `flowforge-jtbd` has reached the closed-package coverage ratchet. Broader
+    PyPI readiness still depends on the repository-wide release gates and
+    external environment checks already tracked elsewhere in this log.
+
 ## Package coverage slice - flowforge-jtbd i18n and actor lint
 
 - Baseline measurement:
