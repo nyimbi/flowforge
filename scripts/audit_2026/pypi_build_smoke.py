@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import email.parser
 import os
 import re
 import shutil
 import subprocess
 import tarfile
 import tempfile
+import tomllib
 import zipfile
 from collections.abc import Mapping
 from pathlib import Path
@@ -50,6 +52,18 @@ def _distribution_key(name: str) -> str:
     """Normalize a distribution name the way wheel/sdist filenames do."""
 
     return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _workspace_distribution_keys() -> frozenset[str]:
+    with (ROOT / "pyproject.toml").open("rb") as handle:
+        root = tomllib.load(handle)
+    names: set[str] = set()
+    for member in root["tool"]["uv"]["workspace"]["members"]:
+        if not member.startswith("python/"):
+            continue
+        pyproject = tomllib.loads((ROOT / member / "pyproject.toml").read_text())
+        names.add(_distribution_key(pyproject["project"]["name"]))
+    return frozenset(names)
 
 
 def _wheel_distribution_key(wheel: Path) -> str:
@@ -171,6 +185,46 @@ def _assert_artifacts_include_license_files(
         )
 
 
+def _wheel_requires_dist(wheel: Path) -> list[str]:
+    with zipfile.ZipFile(wheel) as archive:
+        metadata_files = [
+            name for name in archive.namelist() if name.endswith(".dist-info/METADATA")
+        ]
+        if len(metadata_files) != 1:
+            raise SystemExit(
+                f"{wheel.name}: expected exactly one wheel METADATA file, "
+                f"found {len(metadata_files)}"
+            )
+        metadata = archive.read(metadata_files[0]).decode("utf-8")
+    parsed = email.parser.Parser().parsestr(metadata)
+    return list(parsed.get_all("Requires-Dist", []) or [])
+
+
+def _requirement_name(requirement: str) -> str:
+    match = re.match(r"\s*([A-Za-z0-9_.-]+)", requirement)
+    return _distribution_key(match.group(1)) if match else ""
+
+
+def _assert_wheel_internal_dependencies_bounded(
+    wheels_by_distribution: Mapping[str, Path],
+    *,
+    internal_distribution_keys: frozenset[str],
+) -> None:
+    failures: list[str] = []
+    for distribution_key, wheel in wheels_by_distribution.items():
+        for requirement in _wheel_requires_dist(wheel):
+            name = _requirement_name(requirement)
+            if name not in internal_distribution_keys:
+                continue
+            if ">=0.1.0" not in requirement or "<0.2.0" not in requirement:
+                failures.append(f"{distribution_key}: {requirement}")
+    if failures:
+        raise SystemExit(
+            "built wheels publish unbounded internal Flowforge dependencies:\n  "
+            + "\n  ".join(failures)
+        )
+
+
 def _shipping_import_check_code(packages: tuple[ShippingPackage, ...]) -> str:
     modules = sorted(package.import_package for package in packages)
     return (
@@ -259,6 +313,10 @@ def main(argv: list[str] | None = None) -> int:
         wheels_by_distribution,
         sdists_by_distribution,
         packages,
+    )
+    _assert_wheel_internal_dependencies_bounded(
+        wheels_by_distribution,
+        internal_distribution_keys=_workspace_distribution_keys(),
     )
 
     _run(

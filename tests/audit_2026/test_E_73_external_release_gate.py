@@ -426,6 +426,8 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "expected {len(packages)} wheels and {len(packages)} sdists" in script
     assert "_assert_wheels_include_py_typed(wheels_by_distribution, packages)" in script
     assert "_assert_artifacts_include_license_files(" in script
+    assert "_assert_wheel_internal_dependencies_bounded(" in script
+    assert "Requires-Dist" in script
     assert "zipfile.ZipFile" in script
     assert "tarfile.open" in script
     assert "_assert_exact_artifacts_by_package(" in script
@@ -546,6 +548,26 @@ def test_pypi_build_smoke_installs_and_imports_all_shipping_wheels(
     assert "'flowforge'" in import_check[2]
     assert "'flowforge_fastapi'" in import_check[2]
     assert calls[-1][-1] == "--help"
+
+
+def test_pypi_build_smoke_rejects_unbounded_internal_wheel_dependencies(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "flowforge_cli-0.1.0-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr(
+            "flowforge_cli-0.1.0.dist-info/METADATA",
+            "Metadata-Version: 2.4\n"
+            "Name: flowforge-cli\n"
+            "Version: 0.1.0\n"
+            "Requires-Dist: flowforge_jtbd\n",
+        )
+
+    with pytest.raises(SystemExit, match="unbounded internal Flowforge"):
+        pypi_build_smoke._assert_wheel_internal_dependencies_bounded(
+            {"flowforge-cli": wheel},
+            internal_distribution_keys=frozenset({"flowforge-jtbd"}),
+        )
 
 
 def test_closed_package_coverage_ratchet_tracks_completed_packages() -> None:

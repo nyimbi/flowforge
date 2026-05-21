@@ -3053,3 +3053,38 @@ Design audit 5 - operations, security, and reliability:
     packages, and completed `flowforge --help`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI wheel metadata dependency audit
+
+- Code review finding:
+  - The internal dependency-bound ratchet checked source `pyproject.toml`
+    manifests, but the PyPI artifact gate did not inspect built wheel
+    `METADATA`. A packaging-backend or metadata-generation drift could have
+    produced an uploaded wheel with an unbounded internal `Requires-Dist`
+    dependency even while source manifests looked correct.
+- Action:
+  - Hardened `scripts/audit_2026/pypi_build_smoke.py` to read each built
+    wheel's `.dist-info/METADATA` and reject internal Flowforge
+    `Requires-Dist` entries that lack the `>=0.1.0,<0.2.0` compatibility
+    bound.
+  - Added a focused ratchet that builds a minimal wheel with an unbounded
+    internal `Requires-Dist: flowforge_jtbd` entry and verifies the smoke
+    helper rejects it.
+  - Updated the publishing guide to document built-wheel dependency metadata
+    validation.
+- Verification:
+  - `uv run ruff check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run ruff format --check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `2 files already formatted`.
+  - `uv run pyright scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `26 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`:
+    built and checked 16 packages / 32 artifacts, inspected built wheel
+    `Requires-Dist` metadata for bounded internal dependencies, installed all
+    16 freshly built wheel files into a clean venv, imported all 16 shipping
+    import packages, and completed `flowforge --help`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
