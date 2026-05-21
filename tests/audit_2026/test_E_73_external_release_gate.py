@@ -126,6 +126,7 @@ def test_external_release_gate_is_wired_as_manual_release_workflow() -> None:
     assert "FLOWFORGE_REQUIRE_UMS_PARITY:" in workflow
     assert "FLOWFORGE_TEST_PG_URL:" in workflow
     assert "make audit-2026-release-external" in workflow
+    assert "Uploadable PyPI artifacts under \\`dist/*\\`" in workflow
     assert "Write external release evidence summary" in workflow
     assert "external-release-evidence-current.md" in workflow
     assert "GITHUB_RUN_ID" in workflow
@@ -135,6 +136,7 @@ def test_external_release_gate_is_wired_as_manual_release_workflow() -> None:
     )
     assert "audit-2026-release-external-evidence" in workflow
     assert "external-release-evidence*.md" in workflow
+    assert "flowforge/dist/*" in workflow
     assert "examples/**/screenshots/**/*.dom.html" in workflow
     assert "examples/insurance_claim/jtbd-bundle.json.overrides.json" in workflow
     assert "tests/visual_regression/playwright-report/**" in workflow
@@ -406,8 +408,11 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     script = _read("scripts/audit_2026/pypi_build_smoke.py")
 
     assert ".PHONY: audit-2026-pypi-build" in makefile
+    assert ".PHONY: audit-2026-pypi-build-dist" in makefile
     assert "scripts/audit_2026/pypi_build_smoke.py" in makefile
     assert "$(MAKE) audit-2026-pypi-build" in makefile
+    assert "$(MAKE) audit-2026-pypi-build-dist" in makefile
+    assert "pypi_build_smoke.py --dist-dir dist --allow-repo-dist" in makefile
     shipping_packages = _shipping_workspace_dirs()
     assert len(shipping_packages) == 16
     assert "flowforge-core" in shipping_packages
@@ -449,9 +454,12 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "tarfile.open" in script
     assert "_assert_exact_artifacts_by_package(" in script
     assert "make audit-2026-pypi-build" in publishing
+    assert "make audit-2026-pypi-build-dist" in publishing
     assert "--allow-repo-dist" in script
+    assert "--allow-repo-dist" in makefile
     assert "--allow-repo-dist" in publishing
     assert "--dist-dir dist" in publishing
+    assert "validates the same `dist/*` files that are uploaded" in publishing
     assert "deletes and recreates the repository `dist/` directory" in publishing
     assert "flowforge-cli-wheel-smoke" in publishing
     assert "--force-reinstall dist/*.whl" in publishing

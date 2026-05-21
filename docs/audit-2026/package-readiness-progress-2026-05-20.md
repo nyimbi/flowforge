@@ -3598,3 +3598,41 @@ Design audit 5 - operations, security, and reliability:
   - `git diff --check`: clean.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## External release dist artifact qualification audit
+
+- Code review finding:
+  - The PyPI smoke script could now stage validated artifacts in repository
+    `dist/`, but the fail-closed external release target still called the
+    temp-output `audit-2026-pypi-build` target. Release qualification could
+    therefore pass without proving that the exact `dist/*` files used by the
+    publish commands were the freshly built, checked, and smoke-installed
+    artifacts.
+- Action:
+  - Added `make audit-2026-pypi-build-dist`, which runs the PyPI build smoke
+    with `--dist-dir dist --allow-repo-dist`.
+  - Switched `audit-2026-release-external` to the publication-staging target
+    while keeping `audit-2026-release-local` on the non-destructive temp
+    readiness target.
+  - Added the generated `dist/*` artifacts to the external release evidence
+    upload and evidence summary.
+  - Updated the publishing guide and release-gate ratchets so release
+    qualification validates the same uploadable `dist/*` files used by the
+    `twine upload` commands.
+- Verification:
+  - `uv run ruff format tests/audit_2026/test_E_73_external_release_gate.py`:
+    `1 file reformatted`.
+  - `uv run ruff check tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_external_release_gate_is_wired_as_manual_release_workflow tests/audit_2026/test_E_73_external_release_gate.py::test_publishing_docs_require_cli_wheel_smoke -q`:
+    `2 passed`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `38 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build-dist`:
+    built 16 packages / 32 artifacts into repository `dist/`, passed
+    `twine check` on every artifact, installed all 16 wheels into a clean venv,
+    imported all 16 shipping import packages, and completed `flowforge --help`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

@@ -52,6 +52,7 @@ help:
 	@echo "  audit-2026-i18n-coverage  no untranslated strings in compliance: JTBDs (W4b / item 17)"
 	@echo "  audit-2026-closed-package-coverage  100% coverage ratchet for closed shipping packages"
 	@echo "  audit-2026-pypi-build  build/check/smoke the 16 PyPI-publishable packages"
+	@echo "  audit-2026-pypi-build-dist  build/check/smoke uploadable dist/ artifacts"
 	@echo "  audit-2026-signoff        signoff-checklist gate (P0/P1 rows)"
 
 .PHONY: setup
@@ -111,7 +112,7 @@ audit-2026-release-external:
 		exit 1; \
 	fi
 	$(MAKE) audit-2026-release-external-preflight
-	$(MAKE) audit-2026-pypi-build
+	$(MAKE) audit-2026-pypi-build-dist
 	$(MAKE) audit-2026-visual-regression-dom
 	$(MAKE) audit-2026-browser-e2e
 	$(MAKE) audit-2026-polish-copy-sidecar
@@ -135,6 +136,10 @@ audit-2026-polish-copy-sidecar:
 .PHONY: audit-2026-pypi-build
 audit-2026-pypi-build:
 	uv run python scripts/audit_2026/pypi_build_smoke.py
+
+.PHONY: audit-2026-pypi-build-dist
+audit-2026-pypi-build-dist:
+	uv run python scripts/audit_2026/pypi_build_smoke.py --dist-dir dist --allow-repo-dist
 
 .PHONY: audit-2026-closed-package-coverage
 audit-2026-closed-package-coverage:

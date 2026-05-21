@@ -52,8 +52,9 @@ uv run pytest tests/conformance/ -v
 #    wheel and sdist metadata keep internal Flowforge dependencies bounded
 #    and limited to shipping distributions, runs `twine check`,
 #    smoke-installs every shipping wheel, imports every shipping package,
-#    and runs the flowforge-cli console entrypoint.
-make audit-2026-pypi-build
+#    and runs the flowforge-cli console entrypoint against uploadable
+#    repository dist/ artifacts.
+make audit-2026-pypi-build-dist
 ```
 
 ## Build
@@ -83,17 +84,18 @@ make audit-2026-pypi-build
 
 By default, the gate writes artifacts to the temporary readiness directory
 reported at the end of the run. To produce the uploadable publication
-artifact set in the repository `dist/` directory, run the same smoke script
-with an explicit publication-staging flag:
+artifact set in the repository `dist/` directory, run the publication-staging
+target:
 
 ```bash
-uv run python scripts/audit_2026/pypi_build_smoke.py \
-	--dist-dir dist \
-	--allow-repo-dist
+make audit-2026-pypi-build-dist
 ```
 
 This deletes and recreates the repository `dist/` directory, then leaves the
 validated wheel and sdist artifacts there for the `twine` commands below.
+`audit-2026-release-external` uses this target so release qualification
+validates the same `dist/*` files that are uploaded. Under the hood the target
+passes `--dist-dir dist --allow-repo-dist` to the smoke script.
 
 ## Validate
 
