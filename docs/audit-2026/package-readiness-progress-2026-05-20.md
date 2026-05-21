@@ -2853,3 +2853,36 @@ Design audit 5 - operations, security, and reliability:
     `2 passed`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI metadata stamper package-source audit
+
+- Code review finding:
+  - `scripts/finalize_pypi_metadata.py` still maintained its own static
+    `STRATEGIC_PACKAGES` list even though PyPI build smoke, closed-package
+    coverage, and the publishing guide now use workspace-derived shipping
+    package discovery. A future `[tool.uv] package = true` flip could have
+    entered build/coverage gates while the metadata stamper silently skipped
+    the new package.
+- Action:
+  - Routed the metadata stamper through
+    `scripts/audit_2026/package_sets.py::shipping_packages()`.
+  - Made missing per-package keyword metadata fail closed instead of falling
+    back to generic `"workflow"` keywords.
+  - Corrected the helper docstring to describe the actual SPDX
+    `license = "Apache-2.0"` metadata and the canonical
+    `make audit-2026-pypi-build` validation command.
+  - Added a release ratchet that forbids a local `STRATEGIC_PACKAGES` list in
+    the metadata stamper.
+- Verification:
+  - `uv run ruff check scripts/finalize_pypi_metadata.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run ruff format --check scripts/finalize_pypi_metadata.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright scripts/finalize_pypi_metadata.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors`, `0 warnings`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_metadata_stamper_uses_workspace_shipping_packages -q`:
+    `1 passed`.
+  - `uv run python scripts/finalize_pypi_metadata.py`:
+    `stamped 0`, `skipped 16`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

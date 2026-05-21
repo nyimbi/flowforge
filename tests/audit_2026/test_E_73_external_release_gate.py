@@ -363,6 +363,19 @@ def test_shipping_packages_have_pypi_publication_metadata() -> None:
     assert failures == []
 
 
+def test_metadata_stamper_uses_workspace_shipping_packages() -> None:
+    script = _read("scripts/finalize_pypi_metadata.py")
+
+    assert 'AUDIT_SCRIPTS / "package_sets.py"' in script
+    assert "_load_shipping_packages()" in script
+    assert "for package in _shipping_packages():" in script
+    assert "STRATEGIC_PACKAGES" not in script
+    assert "missing PyPI keyword metadata" in script
+    assert 'license = "Apache-2.0"' in script
+    assert 'license = { file = "LICENSE" }' not in script
+    assert "make audit-2026-pypi-build" in script
+
+
 def test_publishing_docs_require_cli_wheel_smoke() -> None:
     publishing = _read("docs/release/PUBLISHING.md")
     makefile = _read("Makefile")
