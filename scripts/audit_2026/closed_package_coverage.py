@@ -5,30 +5,17 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from package_sets import shipping_packages
+
 ROOT = Path(__file__).resolve().parents[2]
-CLOSED_PACKAGE_COVERAGE = (
-    ("flowforge-core", "flowforge"),
-    ("flowforge-cli", "flowforge_cli"),
-    ("flowforge-jtbd", "flowforge_jtbd"),
-    ("flowforge-fastapi", "flowforge_fastapi"),
-    ("flowforge-sqlalchemy", "flowforge_sqlalchemy"),
-    ("flowforge-tenancy", "flowforge_tenancy"),
-    ("flowforge-rbac-static", "flowforge_rbac_static"),
-    ("flowforge-rbac-spicedb", "flowforge_rbac_spicedb"),
-    ("flowforge-money", "flowforge_money"),
-    ("flowforge-otel", "flowforge_otel"),
-    ("flowforge-signing-kms", "flowforge_signing_kms"),
-    ("flowforge-outbox-pg", "flowforge_outbox_pg"),
-    ("flowforge-documents-s3", "flowforge_documents_s3"),
-    ("flowforge-notify-multichannel", "flowforge_notify_multichannel"),
-    ("flowforge-audit-pg", "flowforge_audit_pg"),
-    ("flowforge-jtbd-hub", "flowforge_jtbd_hub"),
-)
 
 
 def main() -> int:
-    for package, module in CLOSED_PACKAGE_COVERAGE:
-        print(f"closed-package-coverage: {package}", flush=True)
+    packages = shipping_packages()
+    for package in packages:
+        package_name = package.directory
+        module = package.import_package
+        print(f"closed-package-coverage: {package_name}", flush=True)
         subprocess.run(
             [
                 "uv",
@@ -41,11 +28,11 @@ def main() -> int:
                 "--cov-report=term-missing",
                 "--cov-fail-under=100",
             ],
-            cwd=ROOT / "python" / package,
+            cwd=ROOT / "python" / package_name,
             check=True,
         )
     print(
-        f"closed-package-coverage: passed for {len(CLOSED_PACKAGE_COVERAGE)} packages",
+        f"closed-package-coverage: passed for {len(packages)} packages",
         flush=True,
     )
     return 0

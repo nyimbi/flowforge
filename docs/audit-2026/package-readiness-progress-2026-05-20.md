@@ -2704,3 +2704,48 @@ Design audit 5 - operations, security, and reliability:
   - `git push` remains blocked locally by missing GitHub HTTPS credentials, so
     current-commit external GitHub Actions evidence cannot be refreshed from
     this session.
+
+## Release package-set ratchet hardening
+
+- Code review finding:
+  - `scripts/audit_2026/pypi_build_smoke.py` and
+    `scripts/audit_2026/closed_package_coverage.py` both hard-coded the current
+    16 shipping package directories. That was correct for the current package
+    set, but it created a fail-open maintenance path: if a domain package later
+    flips `[tool.uv].package = true`, PyPI build smoke and the 100% coverage
+    gate could silently omit it until someone remembered to edit both scripts.
+- Action:
+  - Added `scripts/audit_2026/package_sets.py` as the shared source of truth for
+    shipping Python packages.
+  - Both PyPI build smoke and closed-package coverage now derive package
+    directories from root `[tool.uv.workspace].members` and include only members
+    whose package flag is enabled.
+  - Closed-package coverage derives the import package from each package's
+    Hatch wheel package declaration instead of duplicating module names.
+  - Updated external-release ratchets to require workspace-derived discovery
+    and to forbid the old `STRATEGIC_PACKAGES` /
+    `CLOSED_PACKAGE_COVERAGE` static lists.
+- Result:
+  - The current set still resolves to 16 shipping packages and 30 workspace-only
+    domain packages, but future package flips will automatically enter PyPI
+    artifact and 100% coverage gates.
+- Verification:
+  - `uv run ruff check scripts/audit_2026/package_sets.py scripts/audit_2026/closed_package_coverage.py scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run ruff format --check scripts/audit_2026/package_sets.py scripts/audit_2026/closed_package_coverage.py scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright scripts/audit_2026/package_sets.py scripts/audit_2026/closed_package_coverage.py scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors`, `0 warnings`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_publishing_docs_require_cli_wheel_smoke tests/audit_2026/test_E_73_external_release_gate.py::test_closed_package_coverage_ratchet_tracks_completed_packages -q`:
+    `2 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`:
+    built and checked 16 packages / 32 artifacts and completed clean-venv
+    `flowforge --help` smoke.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`:
+    `closed-package-coverage: passed for 16 packages`, all at 100% statement
+    and branch coverage.
+- Remaining risk:
+  - The five strategic domain-content candidates remain intentionally
+    workspace-only until named SME signoff, publishable packaging, and release
+    review are complete.
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
