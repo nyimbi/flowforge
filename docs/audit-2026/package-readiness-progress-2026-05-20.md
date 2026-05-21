@@ -3463,3 +3463,39 @@ Design audit 5 - operations, security, and reliability:
     import packages, and completed `flowforge --help`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI artifact metadata version audit
+
+- Code review finding:
+  - The artifact metadata identity gate verified `Name` fields but did not
+    verify `Version` fields in wheel `METADATA` or sdist `PKG-INFO`. A built
+    artifact filename could carry one version while embedded metadata reported
+    another, weakening release evidence and downstream installer/index
+    consistency.
+- Action:
+  - Added wheel and sdist filename-version helpers.
+  - Extended the artifact metadata identity gate to compare wheel `METADATA`
+    and top-level sdist `PKG-INFO` `Version` fields against their artifact
+    filename versions.
+  - Added a focused ratchet where both artifact filenames are `0.1.0` but
+    embedded metadata reports `0.1.1`.
+  - Updated the publishing guide and release ratchet expectations to document
+    artifact metadata `Name` / `Version` validation.
+- Verification:
+  - `uv run ruff format scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `2 files left unchanged`.
+  - `uv run ruff check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_pypi_build_smoke_rejects_artifact_metadata_version_mismatches tests/audit_2026/test_E_73_external_release_gate.py::test_pypi_build_smoke_rejects_artifact_metadata_name_mismatches tests/audit_2026/test_E_73_external_release_gate.py::test_publishing_docs_require_cli_wheel_smoke -q`:
+    `3 passed`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `36 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`:
+    built and checked 16 packages / 32 artifacts, verified artifact metadata
+    names and versions in wheel `METADATA` and top-level sdist `PKG-INFO`,
+    installed all 16 freshly built wheel files into a clean venv, imported all
+    16 shipping import packages, and completed `flowforge --help`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

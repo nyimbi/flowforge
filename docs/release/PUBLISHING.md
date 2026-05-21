@@ -62,8 +62,9 @@ make audit-2026-pypi-build
 shipping packages from the workspace metadata, builds each package, requires
 exactly one wheel and one sdist per package, verifies PEP 561 `py.typed`
 markers are present in typed package wheels, verifies wheel `METADATA` /
-sdist `PKG-INFO` `Name` fields match the shipping package, verifies each wheel
-and sdist contains the declared `LICENSE` file, verifies the wheel's own
+sdist `PKG-INFO` `Name` / `Version` fields match the shipping package and
+artifact filename, verifies each wheel and sdist contains the declared
+`LICENSE` file, verifies the wheel's own
 `.dist-info/METADATA` and top-level sdist `PKG-INFO` `Requires-Dist` metadata
 keep internal Flowforge dependencies on the exact `>=0.1.0,<0.2.0`
 compatibility bound, with no extra internal dependency specifiers, and limited

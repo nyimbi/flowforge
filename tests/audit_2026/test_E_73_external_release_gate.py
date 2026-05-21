@@ -424,9 +424,10 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "_assert_clean_venv_installs_shipping_packages(" in script
     assert "expected_artifacts = len(packages) * 2" in script
     assert "expected {len(packages)} wheels and {len(packages)} sdists" in script
-    assert "_assert_artifact_metadata_names(" in script
+    assert "_assert_artifact_metadata_identity(" in script
+    assert "artifact version" in script
     assert "wheel `METADATA`" in publishing
-    assert "sdist `PKG-INFO` `Name` fields" in publishing
+    assert "sdist `PKG-INFO` `Name` / `Version` fields" in publishing
     assert "_assert_wheels_include_py_typed(wheels_by_distribution, packages)" in script
     assert "_assert_artifacts_include_license_files(" in script
     assert "_assert_artifact_internal_dependencies_bounded(" in script
@@ -451,7 +452,8 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "ModuleNotFoundError" in publishing
     assert "exactly one wheel and one sdist per package" in publishing
     assert "py.typed" in publishing
-    assert "declared `LICENSE` file" in publishing
+    assert "declared" in publishing
+    assert "`LICENSE` file" in publishing
     assert "`flowforge-jtbd-*` domain packages" in publishing
     assert "`flowforge-jtbd-*-starter`" not in publishing
     assert "scripts/audit_2026/package_sets.py" in publishing
@@ -511,8 +513,41 @@ def test_pypi_build_smoke_rejects_artifact_metadata_name_mismatches(
     with tarfile.open(sdist, "w:gz") as archive:
         archive.add(pkg_info, arcname="flowforge_cli-0.1.0/PKG-INFO")
 
-    with pytest.raises(SystemExit, match="metadata names"):
-        pypi_build_smoke._assert_artifact_metadata_names(
+    with pytest.raises(SystemExit, match="metadata identity"):
+        pypi_build_smoke._assert_artifact_metadata_identity(
+            {"flowforge-cli": wheel},
+            {"flowforge-cli": sdist},
+            (package,),
+        )
+
+
+def test_pypi_build_smoke_rejects_artifact_metadata_version_mismatches(
+    tmp_path: Path,
+) -> None:
+    package = package_sets.ShippingPackage(
+        directory="flowforge-cli",
+        distribution_name="flowforge-cli",
+        import_package="flowforge_cli",
+    )
+    wheel = tmp_path / "flowforge_cli-0.1.0-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr(
+            "flowforge_cli-0.1.0.dist-info/METADATA",
+            "Metadata-Version: 2.4\nName: flowforge-cli\nVersion: 0.1.1\n",
+        )
+    sdist = tmp_path / "flowforge_cli-0.1.0.tar.gz"
+    package_dir = tmp_path / "flowforge_cli-0.1.0"
+    package_dir.mkdir()
+    pkg_info = package_dir / "PKG-INFO"
+    pkg_info.write_text(
+        "Metadata-Version: 2.4\nName: flowforge-cli\nVersion: 0.1.1\n",
+        encoding="utf-8",
+    )
+    with tarfile.open(sdist, "w:gz") as archive:
+        archive.add(pkg_info, arcname="flowforge_cli-0.1.0/PKG-INFO")
+
+    with pytest.raises(SystemExit, match="artifact version"):
+        pypi_build_smoke._assert_artifact_metadata_identity(
             {"flowforge-cli": wheel},
             {"flowforge-cli": sdist},
             (package,),

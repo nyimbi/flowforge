@@ -81,11 +81,28 @@ def _wheel_distribution_key(wheel: Path) -> str:
     return _distribution_key(wheel.name.split("-", 1)[0])
 
 
+def _wheel_version(wheel: Path) -> str:
+    parts = wheel.name.split("-", 2)
+    if len(parts) < 2:
+        raise SystemExit(f"unsupported wheel artifact name: {wheel}")
+    return parts[1]
+
+
 def _sdist_distribution_key(sdist: Path) -> str:
     suffix = ".tar.gz"
     if not sdist.name.endswith(suffix):
         raise SystemExit(f"unsupported sdist artifact name: {sdist}")
     return _distribution_key(sdist.name[: -len(suffix)].rsplit("-", 1)[0])
+
+
+def _sdist_version(sdist: Path) -> str:
+    suffix = ".tar.gz"
+    if not sdist.name.endswith(suffix):
+        raise SystemExit(f"unsupported sdist artifact name: {sdist}")
+    parts = sdist.name[: -len(suffix)].rsplit("-", 1)
+    if len(parts) < 2:
+        raise SystemExit(f"unsupported sdist artifact name: {sdist}")
+    return parts[1]
 
 
 def _wheel_metadata_path(wheel: Path, wheel_names: set[str]) -> str:
@@ -249,7 +266,7 @@ def _sdist_requires_dist(sdist: Path) -> list[str]:
     return list(_sdist_metadata(sdist).get_all("Requires-Dist", []) or [])
 
 
-def _assert_artifact_metadata_names(
+def _assert_artifact_metadata_identity(
     wheels_by_distribution: Mapping[str, Path],
     sdists_by_distribution: Mapping[str, Path],
     packages: tuple[ShippingPackage, ...],
@@ -257,21 +274,38 @@ def _assert_artifact_metadata_names(
     issues: list[str] = []
     for package in packages:
         key = _distribution_key(package.distribution_name)
-        wheel_name = _wheel_metadata(wheels_by_distribution[key]).get("Name", "")
+        wheel = wheels_by_distribution[key]
+        wheel_metadata = _wheel_metadata(wheel)
+        wheel_name = wheel_metadata.get("Name", "")
         if _distribution_key(wheel_name) != key:
             issues.append(
                 f"{package.directory}: wheel METADATA Name {wheel_name!r} "
                 f"does not match {package.distribution_name!r}"
             )
-        sdist_name = _sdist_metadata(sdists_by_distribution[key]).get("Name", "")
+        wheel_version = wheel_metadata.get("Version", "")
+        if wheel_version != _wheel_version(wheel):
+            issues.append(
+                f"{package.directory}: wheel METADATA Version {wheel_version!r} "
+                f"does not match artifact version {_wheel_version(wheel)!r}"
+            )
+
+        sdist = sdists_by_distribution[key]
+        sdist_metadata = _sdist_metadata(sdist)
+        sdist_name = sdist_metadata.get("Name", "")
         if _distribution_key(sdist_name) != key:
             issues.append(
                 f"{package.directory}: sdist PKG-INFO Name {sdist_name!r} "
                 f"does not match {package.distribution_name!r}"
             )
+        sdist_version = sdist_metadata.get("Version", "")
+        if sdist_version != _sdist_version(sdist):
+            issues.append(
+                f"{package.directory}: sdist PKG-INFO Version {sdist_version!r} "
+                f"does not match artifact version {_sdist_version(sdist)!r}"
+            )
     if issues:
         raise SystemExit(
-            "built artifact metadata names do not match the shipping package set:\n  "
+            "built artifact metadata identity does not match the shipping package set:\n  "
             + "\n  ".join(issues)
         )
 
@@ -432,7 +466,7 @@ def main(argv: list[str] | None = None) -> int:
         sdists,
         packages,
     )
-    _assert_artifact_metadata_names(
+    _assert_artifact_metadata_identity(
         wheels_by_distribution,
         sdists_by_distribution,
         packages,
