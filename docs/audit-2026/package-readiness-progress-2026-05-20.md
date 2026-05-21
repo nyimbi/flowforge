@@ -2210,6 +2210,40 @@ Design audit 5 - operations, security, and reliability:
     Remaining gaps are concentrated in AI quality scoring, recommender edges,
     DSL spec branches, lint conflict edges, and Claude LLM port branches.
 
+## Package coverage slice - flowforge-jtbd Claude LLM port
+
+- Baseline measurement:
+  - `flowforge_jtbd.ports.llm_claude` had uncovered lazy-SDK construction,
+    non-text response block handling, object-form stream events, and non-text
+    stream delta branches.
+- Action:
+  - Added fake Anthropic SDK construction coverage for the `api_key` path.
+  - Added generation coverage that ignores non-text content blocks while
+    preserving text blocks.
+  - Added stream coverage for object-form deltas and non-text/unknown stream
+    events that should be skipped.
+- Result:
+  - `flowforge_jtbd.ports.llm_claude` now reaches 100% statement and branch
+    coverage in the focused gate.
+  - Overall `flowforge-jtbd` remains at rounded 97% package coverage, with five
+    fewer uncovered statements and six fewer partial branches.
+- Verification:
+  - `uv run pytest tests/unit/test_ports_llm_claude.py -q --cov=flowforge_jtbd.ports.llm_claude --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-jtbd`: `13 passed`, targeted module 100%.
+  - `uv run ruff check tests/unit/test_ports_llm_claude.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run ruff format --check tests/unit/test_ports_llm_claude.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run pyright tests/unit/test_ports_llm_claude.py`
+    from `python/flowforge-jtbd`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_jtbd --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-jtbd`: `599 passed`, one optional skip, one expected
+    in-memory embedding-store performance warning, and package coverage 97%.
+- Remaining risk:
+  - `flowforge-jtbd` is not yet ready for the closed-package coverage ratchet.
+    Remaining gaps are concentrated in AI quality scoring, recommender edges,
+    DSL spec branches, and lint conflict edges.
+
 ## Package coverage slice - flowforge-jtbd i18n and actor lint
 
 - Baseline measurement:
