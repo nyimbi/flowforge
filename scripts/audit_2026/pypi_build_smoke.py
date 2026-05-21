@@ -183,7 +183,8 @@ def _assert_artifacts_include_license_files(
         sdist = sdists_by_distribution[key]
         with tarfile.open(sdist) as archive:
             sdist_names = set(archive.getnames())
-        if not any(name.endswith("/LICENSE") for name in sdist_names):
+        sdist_root = sdist.name.removesuffix(".tar.gz")
+        if f"{sdist_root}/LICENSE" not in sdist_names:
             missing.append(f"{package.directory}: sdist LICENSE")
 
     if missing:
