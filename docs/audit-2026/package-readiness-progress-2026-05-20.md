@@ -4557,3 +4557,34 @@ Design audit 5 - operations, security, and reliability:
     `10 passed`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## Local release help sidecar wording audit
+
+- Code review finding:
+  - The `make help` description for `audit-2026-release-local` still said the
+    target excluded documented LLM checks after the deterministic polish-copy
+    sidecar verifier was moved into the local release gate. Operators could
+    misread local release qualification as omitting sidecar evidence.
+- Action:
+  - Removed `LLM` from the local-release help caveat.
+  - Added a ratchet that prevents the stale `visual/browser/LLM/UMS/Postgres`
+    wording from returning.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format tests/audit_2026/test_E_75_polish_copy_release_gate.py`:
+    `1 file left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check tests/audit_2026/test_E_75_polish_copy_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright tests/audit_2026/test_E_75_polish_copy_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused local-release help wording ratchet:
+    `1 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-polish-copy-sidecar`:
+    `audit-2026-polish-copy-sidecar: ok`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/audit_2026/test_E_75_polish_copy_release_gate.py -q`:
+    `10 passed`.
+- Remaining risk:
+  - A full `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-release-local`
+    run reached `audit-2026-pypi-build` but failed resolving `hatchling` from
+    PyPI due DNS lookup failure.
+  - The required elevated rerun was blocked by the automatic approval reviewer.
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

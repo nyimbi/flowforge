@@ -42,6 +42,11 @@ def test_external_release_runs_polish_copy_sidecar_gate() -> None:
     makefile = (_ROOT / "Makefile").read_text(encoding="utf-8")
     assert ".PHONY: audit-2026-polish-copy-sidecar" in makefile
     assert "scripts/audit_2026/check_polish_copy_sidecar.py" in makefile
+    assert (
+        "audit-2026-release-local  fail-closed local release gate; excludes "
+        "documented visual/browser/UMS/Postgres-live checks"
+    ) in makefile
+    assert "visual/browser/LLM/UMS/Postgres-live" not in makefile
     local_release = makefile.split(".PHONY: audit-2026-release-local", 1)[1].split(
         ".PHONY: audit-2026-release-external", 1
     )[0]

@@ -27,7 +27,7 @@ help:
 	@echo ""
 	@echo "audit-2026 targets (see docs/audit-fix-plan.md §5.2):"
 	@echo "  audit-2026                full layered suite (everything below)"
-	@echo "  audit-2026-release-local  fail-closed local release gate; excludes documented visual/browser/LLM/UMS/Postgres-live checks"
+	@echo "  audit-2026-release-local  fail-closed local release gate; excludes documented visual/browser/UMS/Postgres-live checks"
 	@echo "  audit-2026-release-external  fail-closed external FlowForge release checks"
 	@echo "  audit-2026-release-external-preflight  summarize missing external release prerequisites"
 	@echo "  audit-2026-polish-copy-sidecar  reviewed polish-copy sidecar release evidence"
