@@ -30,6 +30,7 @@ SEMVER_CORE_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)
 RELEASE_ARTIFACT_MANIFEST = (
     ROOT / "docs" / "audit-2026" / "external-release-pypi-artifacts-current.json"
 )
+ARTIFACT_MANIFEST_SCHEMA_VERSION = 2
 
 
 def _run(argv: list[str], *, cwd: Path = ROOT) -> None:
@@ -87,10 +88,31 @@ def _artifact_manifest_entry(artifact: Path) -> dict[str, object]:
     }
 
 
-def _write_artifact_manifest(artifacts: list[Path], manifest_path: Path) -> None:
+def _artifact_manifest_package_entries(
+    packages: tuple[ShippingPackage, ...],
+) -> list[dict[str, str]]:
+    return [
+        {
+            "directory": package.directory,
+            "distribution_name": package.distribution_name,
+            "import_package": package.import_package,
+        }
+        for package in sorted(packages, key=lambda item: item.distribution_name)
+    ]
+
+
+def _write_artifact_manifest(
+    artifacts: list[Path],
+    manifest_path: Path,
+    *,
+    packages: tuple[ShippingPackage, ...],
+    release_version: str,
+) -> None:
     resolved = _resolve_artifact_manifest_path(manifest_path)
     manifest = {
-        "schema_version": 1,
+        "schema_version": ARTIFACT_MANIFEST_SCHEMA_VERSION,
+        "release_version": release_version,
+        "packages": _artifact_manifest_package_entries(packages),
         "artifact_count": len(artifacts),
         "artifacts": [
             _artifact_manifest_entry(artifact)
@@ -870,7 +892,12 @@ def main(argv: list[str] | None = None) -> int:
         wheels_by_distribution=wheels_by_distribution,
     )
     if args.artifact_manifest is not None:
-        _write_artifact_manifest(artifacts, args.artifact_manifest)
+        _write_artifact_manifest(
+            artifacts,
+            args.artifact_manifest,
+            packages=packages,
+            release_version=release_version,
+        )
     print(
         f"pypi-build-smoke: passed for {len(packages)} packages "
         f"and {len(artifacts)} artifacts in {dist_dir}",

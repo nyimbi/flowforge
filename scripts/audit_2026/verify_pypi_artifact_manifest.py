@@ -16,9 +16,11 @@ from typing import Any
 
 from package_sets import ShippingPackage
 from package_sets import shipping_packages
+from pypi_build_smoke import ARTIFACT_MANIFEST_SCHEMA_VERSION
 from pypi_build_smoke import _package_project_metadata
 from pypi_build_smoke import _publication_metadata_issues
 from pypi_build_smoke import _assert_artifact_internal_dependencies_bounded
+from pypi_build_smoke import _artifact_manifest_package_entries
 from pypi_build_smoke import _internal_dependency_bounds_for_release
 from pypi_build_smoke import _shipping_distribution_keys
 from pypi_build_smoke import _workspace_distribution_keys
@@ -239,6 +241,22 @@ def _manifest_artifacts(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     return normalized
 
 
+def _assert_manifest_release_metadata(
+    manifest: dict[str, Any],
+    *,
+    expected_packages: tuple[ShippingPackage, ...],
+    release_version: str,
+) -> None:
+    if manifest.get("release_version") != release_version:
+        raise SystemExit(
+            "artifact manifest release_version does not match shipping release: "
+            f"{manifest.get('release_version')!r} != {release_version!r}"
+        )
+    expected_packages_manifest = _artifact_manifest_package_entries(expected_packages)
+    if manifest.get("packages") != expected_packages_manifest:
+        raise SystemExit("artifact manifest packages do not match shipping package set")
+
+
 def _assert_shipping_artifact_identities(
     artifacts: list[Path],
     packages: tuple[ShippingPackage, ...],
@@ -342,8 +360,16 @@ def verify_manifest(
     if expected_artifact_count is None:
         expected_artifact_count = len(expected_packages) * 2
     manifest = _load_manifest(manifest_path)
-    if manifest.get("schema_version") != 1:
-        raise SystemExit("artifact manifest schema_version must be 1")
+    if manifest.get("schema_version") != ARTIFACT_MANIFEST_SCHEMA_VERSION:
+        raise SystemExit(
+            "artifact manifest schema_version must be "
+            f"{ARTIFACT_MANIFEST_SCHEMA_VERSION}"
+        )
+    _assert_manifest_release_metadata(
+        manifest,
+        expected_packages=expected_packages,
+        release_version=release_version,
+    )
 
     artifacts = sorted(
         [*dist_dir.glob("*.whl"), *dist_dir.glob("*.tar.gz")],

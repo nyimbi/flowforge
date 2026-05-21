@@ -906,10 +906,23 @@ def test_pypi_build_smoke_writes_artifact_checksum_manifest(tmp_path: Path) -> N
     sdist.write_bytes(b"sdist bytes")
     manifest_path = tmp_path / "manifest.json"
 
-    pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
+    pypi_build_smoke._write_artifact_manifest(
+        [wheel, sdist],
+        manifest_path,
+        packages=(_flowforge_core_shipping_package(),),
+        release_version="0.1.0",
+    )
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    assert manifest["schema_version"] == 1
+    assert manifest["schema_version"] == 2
+    assert manifest["release_version"] == "0.1.0"
+    assert manifest["packages"] == [
+        {
+            "directory": "flowforge-core",
+            "distribution_name": "flowforge",
+            "import_package": "flowforge",
+        }
+    ]
     assert manifest["artifact_count"] == 2
     assert [entry["filename"] for entry in manifest["artifacts"]] == [
         "flowforge-0.1.0-py3-none-any.whl",
@@ -951,6 +964,15 @@ def _flowforge_core_shipping_package():
         directory="flowforge-core",
         distribution_name="flowforge",
         import_package="flowforge",
+    )
+
+
+def _write_test_artifact_manifest(artifacts: list[Path], manifest_path: Path) -> None:
+    pypi_build_smoke._write_artifact_manifest(
+        artifacts,
+        manifest_path,
+        packages=(_flowforge_core_shipping_package(),),
+        release_version="0.1.0",
     )
 
 
@@ -1068,13 +1090,34 @@ def test_pypi_artifact_manifest_verifier_accepts_matching_dist(
     _write_minimal_wheel(wheel)
     _write_minimal_sdist(sdist)
     manifest_path = tmp_path / "manifest.json"
-    pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
+    _write_test_artifact_manifest([wheel, sdist], manifest_path)
 
     verify_pypi_artifact_manifest.verify_manifest(
         dist_dir=tmp_path,
         manifest_path=manifest_path,
         expected_packages=(_flowforge_core_shipping_package(),),
     )
+
+
+def test_pypi_artifact_manifest_verifier_rejects_manifest_release_metadata_drift(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "flowforge-0.1.0-py3-none-any.whl"
+    sdist = tmp_path / "flowforge-0.1.0.tar.gz"
+    _write_minimal_wheel(wheel)
+    _write_minimal_sdist(sdist)
+    manifest_path = tmp_path / "manifest.json"
+    _write_test_artifact_manifest([wheel, sdist], manifest_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["release_version"] = "0.0.9"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(SystemExit, match="release_version"):
+        verify_pypi_artifact_manifest.verify_manifest(
+            dist_dir=tmp_path,
+            manifest_path=manifest_path,
+            expected_packages=(_flowforge_core_shipping_package(),),
+        )
 
 
 def test_pypi_artifact_manifest_verifier_rejects_digest_drift(
@@ -1085,7 +1128,7 @@ def test_pypi_artifact_manifest_verifier_rejects_digest_drift(
     _write_minimal_wheel(wheel)
     _write_minimal_sdist(sdist)
     manifest_path = tmp_path / "manifest.json"
-    pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
+    _write_test_artifact_manifest([wheel, sdist], manifest_path)
     wheel.write_bytes(b"tampered wheel bytes")
 
     with pytest.raises(SystemExit, match="sha256 mismatch"):
@@ -1106,7 +1149,7 @@ def test_pypi_artifact_manifest_verifier_rejects_missing_manifest_entry(
     _write_minimal_sdist(sdist)
     extra.write_bytes(b"extra wheel bytes")
     manifest_path = tmp_path / "manifest.json"
-    pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
+    _write_test_artifact_manifest([wheel, sdist], manifest_path)
 
     with pytest.raises(SystemExit, match="artifact_count does not match dist"):
         verify_pypi_artifact_manifest.verify_manifest(
@@ -1124,7 +1167,7 @@ def test_pypi_artifact_manifest_verifier_rejects_wrong_distribution_set(
     _write_minimal_wheel(wheel, distribution="not_flowforge")
     _write_minimal_sdist(sdist, distribution="not_flowforge")
     manifest_path = tmp_path / "manifest.json"
-    pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
+    _write_test_artifact_manifest([wheel, sdist], manifest_path)
 
     with pytest.raises(SystemExit, match="dist artifacts do not match"):
         verify_pypi_artifact_manifest.verify_manifest(
@@ -1142,7 +1185,7 @@ def test_pypi_artifact_manifest_verifier_rejects_release_version_drift(
     _write_minimal_wheel(wheel, version="0.0.9")
     _write_minimal_sdist(sdist, version="0.0.9")
     manifest_path = tmp_path / "manifest.json"
-    pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
+    _write_test_artifact_manifest([wheel, sdist], manifest_path)
 
     with pytest.raises(SystemExit, match="release version"):
         verify_pypi_artifact_manifest.verify_manifest(
@@ -1160,7 +1203,7 @@ def test_pypi_artifact_manifest_verifier_rejects_metadata_identity_drift(
     _write_minimal_wheel(wheel, metadata_name="not-flowforge")
     _write_minimal_sdist(sdist, metadata_version="0.0.9")
     manifest_path = tmp_path / "manifest.json"
-    pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
+    _write_test_artifact_manifest([wheel, sdist], manifest_path)
 
     with pytest.raises(SystemExit, match="metadata"):
         verify_pypi_artifact_manifest.verify_manifest(
@@ -1178,7 +1221,7 @@ def test_pypi_artifact_manifest_verifier_rejects_missing_artifact_payloads(
     _write_minimal_wheel(wheel, include_license=False, include_py_typed=False)
     _write_minimal_sdist(sdist, include_license=False)
     manifest_path = tmp_path / "manifest.json"
-    pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
+    _write_test_artifact_manifest([wheel, sdist], manifest_path)
 
     with pytest.raises(SystemExit, match="py.typed"):
         verify_pypi_artifact_manifest.verify_manifest(
@@ -1196,7 +1239,7 @@ def test_pypi_artifact_manifest_verifier_rejects_publication_metadata_drift(
     _write_minimal_wheel(wheel, metadata_summary="wrong summary")
     _write_minimal_sdist(sdist)
     manifest_path = tmp_path / "manifest.json"
-    pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
+    _write_test_artifact_manifest([wheel, sdist], manifest_path)
 
     with pytest.raises(SystemExit, match="Summary"):
         verify_pypi_artifact_manifest.verify_manifest(
@@ -1214,7 +1257,7 @@ def test_pypi_artifact_manifest_verifier_rejects_internal_dependency_drift(
     _write_minimal_wheel(wheel, requires_dist=("flowforge-cli>=0.1.0",))
     _write_minimal_sdist(sdist, requires_dist=("flowforge-cli>=0.1.0",))
     manifest_path = tmp_path / "manifest.json"
-    pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
+    _write_test_artifact_manifest([wheel, sdist], manifest_path)
 
     with pytest.raises(SystemExit, match="publish invalid dependencies"):
         verify_pypi_artifact_manifest.verify_manifest(
@@ -1238,7 +1281,11 @@ def test_pypi_artifact_manifest_verifier_rejects_empty_release_set(
     manifest_path.write_text(
         json.dumps(
             {
-                "schema_version": 1,
+                "schema_version": 2,
+                "release_version": "0.1.0",
+                "packages": pypi_build_smoke._artifact_manifest_package_entries(
+                    (package,)
+                ),
                 "artifact_count": 0,
                 "artifacts": [],
             }
