@@ -29,9 +29,9 @@ def _run(argv: list[str], *, cwd: Path = ROOT) -> None:
 def _prepare_dir(path: Path, *, purpose: str) -> None:
     resolved = path.resolve()
     tmp_root = Path(tempfile.gettempdir()).resolve()
+    if tmp_root not in (resolved, *resolved.parents):
+        raise SystemExit(f"{purpose} must be under {tmp_root}: {resolved}")
     if resolved.exists():
-        if tmp_root not in (resolved, *resolved.parents):
-            raise SystemExit(f"{purpose} must be under {tmp_root}: {resolved}")
         shutil.rmtree(resolved)
     resolved.mkdir(parents=True, exist_ok=True)
 

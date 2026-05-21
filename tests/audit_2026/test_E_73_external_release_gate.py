@@ -476,6 +476,20 @@ def test_pypi_build_smoke_rejects_missing_or_duplicate_package_artifacts(
         pypi_build_smoke._assert_exact_artifacts_by_package(wheels, sdists, packages)
 
 
+def test_pypi_build_smoke_rejects_non_temp_output_dirs_before_creation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    temp_root = tmp_path / "allowed-temp"
+    monkeypatch.setattr(pypi_build_smoke.tempfile, "gettempdir", lambda: str(temp_root))
+    outside = tmp_path / "outside-temp-root" / "dist"
+
+    with pytest.raises(SystemExit, match="dist-dir must be under"):
+        pypi_build_smoke._prepare_dir(outside, purpose="dist-dir")
+
+    assert not outside.exists()
+
+
 def test_pypi_build_smoke_rejects_artifacts_missing_license_files(
     tmp_path: Path,
 ) -> None:

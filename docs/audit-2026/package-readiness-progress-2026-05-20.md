@@ -3188,3 +3188,35 @@ Design audit 5 - operations, security, and reliability:
     `flowforge --help`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI smoke temp-directory safety audit
+
+- Code review finding:
+  - `scripts/audit_2026/pypi_build_smoke.py` rejected custom output or venv
+    paths outside the system temp root only after the path already existed. A
+    non-existent custom `--dist-dir` or `--venv-dir` outside the temp root
+    could still be created before later runs refused to manage it.
+- Action:
+  - Moved the temp-root containment check ahead of the existence check so all
+    custom build and venv paths must resolve under `tempfile.gettempdir()`
+    before the helper creates or removes anything.
+  - Added a focused ratchet that monkeypatches the temp root, passes a
+    non-existent path outside it, and verifies the helper raises before
+    creating that path.
+- Verification:
+  - `uv run ruff check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run ruff format --check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `2 files already formatted`.
+  - `uv run pyright scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_pypi_build_smoke_rejects_non_temp_output_dirs_before_creation tests/audit_2026/test_E_73_external_release_gate.py::test_publishing_docs_require_cli_wheel_smoke -q`:
+    `2 passed`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `28 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`:
+    built and checked 16 packages / 32 artifacts, installed all 16 freshly
+    built wheel files into a clean venv, imported all 16 shipping import
+    packages, and completed `flowforge --help`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
