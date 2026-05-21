@@ -1,10 +1,10 @@
 # Publishing flowforge to PyPI
 
-Strategic packages (16) are PyPI-publishable as of v0.1.0. Domain-jtbd
-starter scaffolds (30) are NOT — they ship as in-repo workspace
-members only.
+Shipping packages (16) are PyPI-publishable as of v0.1.0. Domain JTBD
+workspace packages (30) are NOT — they remain in-repo workspace members
+only until package-level review flips their `[tool.uv] package` flag.
 
-## Strategic packages
+## Shipping packages
 
 | Package | Wheel name | Notes |
 |---|---|---|
@@ -45,17 +45,21 @@ uv run --with pyyaml \
 # 4. Conformance suite.
 uv run pytest tests/conformance/ -v
 
-# 5. PyPI artifact gate — builds all 16 shipping packages, runs
-#    `twine check`, and smoke-installs the flowforge-cli wheel.
+# 5. PyPI artifact gate — builds all 16 shipping packages, verifies
+#    exactly one wheel and one sdist per package, checks that typed
+#    packages include `py.typed` in their wheels, runs `twine check`,
+#    and smoke-installs the flowforge-cli wheel.
 make audit-2026-pypi-build
 ```
 
 ## Build
 
-`make audit-2026-pypi-build` is the canonical release gate. It runs the
-build loop below, checks every wheel/sdist with `twine`, then installs
-`flowforge-cli` from the built artifacts into a clean venv and runs
-`flowforge --help`.
+`make audit-2026-pypi-build` is the canonical release gate. It discovers
+shipping packages from the workspace metadata, builds each package, requires
+exactly one wheel and one sdist per package, verifies PEP 561 `py.typed`
+markers are present in typed package wheels, checks every wheel/sdist with
+`twine`, then installs `flowforge-cli` from the built artifacts into a clean
+venv and runs `flowforge --help`.
 
 `uv build` produces an sdist + wheel per package. The underlying loop is:
 
@@ -142,19 +146,21 @@ The audit-2026 v0.1.0 release is documented end-to-end at
 
 The `scripts/finalize_pypi_metadata.py` script stamps the
 PEP 621 PyPI metadata (license, authors, keywords, classifiers,
-project URLs) onto every strategic package's `pyproject.toml`.
-Idempotent (looks for the `# pypi-metadata-stamped` marker). Re-run
-if you add a new strategic package — update
-`STRATEGIC_PACKAGES` and `_PER_PKG_KEYWORDS` in the script first.
+project URLs) onto the current shipping package set. Idempotent
+(looks for the `# pypi-metadata-stamped` marker). Re-run if a new
+package flips to `[tool.uv] package = true`, then update the script's
+package metadata map if the ratchet reports missing PyPI metadata.
 
 ## What's intentionally NOT shipped
 
-- 30 `flowforge-jtbd-*-starter` domain packages — workspace-only,
-  `package = false` in their `pyproject.toml` per E-46 / F-5
-  two-step rollout. They ship as starter scaffolds for embedding,
-  not as installable libraries.
-- 5 strategic-vertical jtbd content packages (insurance, healthcare,
-  banking, gov, hr) — also workspace-only for now; flip to
-  `package = true` per pkg as their content reviews complete.
+- 30 `flowforge-jtbd-*` domain packages, excluding `flowforge-jtbd-hub`,
+  are workspace-only with `package = false` in their `pyproject.toml` per
+  E-46 / F-5 two-step rollout. Most are starter scaffolds for embedding,
+  not installable libraries.
+- Five of those workspace-only domain packages (insurance, healthcare,
+  banking, gov, hr) are strategic domain-content candidates. They keep
+  their original names rather than `-starter`, but remain not publishable
+  until named SME signoff, publishable packaging, and release review are
+  complete.
 - The repository root `pyproject.toml` itself — it's the
   workspace orchestrator, not a publishable package.

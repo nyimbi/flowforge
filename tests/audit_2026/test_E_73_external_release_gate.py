@@ -334,6 +334,35 @@ def test_shipping_packages_declared_typed_have_pep561_markers() -> None:
     assert failures == []
 
 
+def test_shipping_packages_have_pypi_publication_metadata() -> None:
+    required_project_fields = {
+        "name",
+        "version",
+        "description",
+        "readme",
+        "requires-python",
+        "license",
+        "license-files",
+        "authors",
+        "maintainers",
+        "keywords",
+        "classifiers",
+        "urls",
+    }
+    failures: list[str] = []
+    for package in package_sets.shipping_packages():
+        pyproject_path = ROOT / "python" / package.directory / "pyproject.toml"
+        pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+        project = pyproject.get("project", {})
+        missing = sorted(
+            field for field in required_project_fields if not project.get(field)
+        )
+        if missing:
+            failures.append(f"{package.directory}: missing {', '.join(missing)}")
+
+    assert failures == []
+
+
 def test_publishing_docs_require_cli_wheel_smoke() -> None:
     publishing = _read("docs/release/PUBLISHING.md")
     makefile = _read("Makefile")
@@ -364,6 +393,10 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "--find-links dist flowforge-cli" in publishing
     assert "flowforge --help" in publishing
     assert "ModuleNotFoundError" in publishing
+    assert "exactly one wheel and one sdist per package" in publishing
+    assert "py.typed" in publishing
+    assert "`flowforge-jtbd-*` domain packages" in publishing
+    assert "`flowforge-jtbd-*-starter`" not in publishing
 
 
 def test_closed_package_coverage_ratchet_tracks_completed_packages() -> None:

@@ -2816,3 +2816,36 @@ Design audit 5 - operations, security, and reliability:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
   - Full external release proof still requires browser-capable CI or an
     unsandboxed browser environment.
+
+## Publishing guide metadata alignment audit
+
+- Code/design audit finding:
+  - `docs/release/PUBLISHING.md` still described the 30 workspace-only domain
+    packages as `flowforge-jtbd-*-starter` packages, but the actual package
+    names are `flowforge-jtbd-*`; only some are starter-scaffolded, and the
+    five strategic domain-content candidates are a subset of the same
+    workspace-only 30 packages rather than a separate publishable set.
+  - The same guide did not yet mention the stricter PyPI build smoke checks for
+    exact wheel/sdist counts and wheel-level `py.typed` markers.
+- Action:
+  - Updated the publishing guide to describe the 16 shipping packages and the
+    30 workspace-only domain packages directly from the current release model.
+  - Clarified that insurance, healthcare, banking, gov, and hr are
+    workspace-only strategic domain-content candidates until named SME signoff,
+    publishable packaging, and release review are complete.
+  - Added an audit ratchet that requires every package discovered as shipping
+    to carry complete PyPI publication metadata.
+  - Extended the publishing-doc ratchet to reject the stale
+    `flowforge-jtbd-*-starter` package-name pattern and require documentation
+    of exact wheel/sdist and `py.typed` checks.
+- Verification:
+  - `uv run ruff check tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run ruff format --check tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors`, `0 warnings`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_shipping_packages_have_pypi_publication_metadata tests/audit_2026/test_E_73_external_release_gate.py::test_publishing_docs_require_cli_wheel_smoke -q`:
+    `2 passed`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
