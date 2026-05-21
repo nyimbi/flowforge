@@ -2075,6 +2075,39 @@ Design audit 5 - operations, security, and reliability:
     edges, Claude LLM port branches, manifest serialization, and template cache
     branches.
 
+## Package coverage slice - flowforge-jtbd comment models
+
+- Baseline measurement:
+  - `flowforge_jtbd.db.comments` had one unreachable defensive branch in
+    `extract_mentions` after a regex match that always supplies one capture
+    group.
+- Action:
+  - Removed the impossible `None` guard from mention extraction.
+  - Moved the regex import to module import scope and applied formatter
+    normalization to the touched source file.
+- Result:
+  - `flowforge_jtbd.db.comments` now reaches 100% statement and branch coverage
+    in the focused gate.
+  - Overall `flowforge-jtbd` remains at rounded 96% package coverage, with one
+    fewer uncovered statement and one fewer partial branch.
+- Verification:
+  - `uv run pytest tests/unit/test_comments.py -q --cov=flowforge_jtbd.db.comments --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-jtbd`: `29 passed`, targeted module coverage 100%.
+  - `uv run ruff check src/flowforge_jtbd/db/comments.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run ruff format --check src/flowforge_jtbd/db/comments.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run pyright src/flowforge_jtbd/db/comments.py`
+    from `python/flowforge-jtbd`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_jtbd --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-jtbd`: `583 passed`, one optional skip, one expected
+    in-memory embedding-store performance warning, and package coverage 96%.
+- Remaining risk:
+  - `flowforge-jtbd` is not yet ready for the closed-package coverage ratchet.
+    Remaining gaps are concentrated in AI quality scoring, recommender edges,
+    DSL/spec/exporter helpers, lint conflict edges, Claude LLM port branches,
+    manifest serialization, and template cache branches.
+
 ## Package coverage slice - flowforge-jtbd NL generator
 
 - Baseline measurement:

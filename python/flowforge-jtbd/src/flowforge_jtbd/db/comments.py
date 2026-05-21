@@ -30,6 +30,7 @@ handled by the alembic migration in ``db/alembic_bundle/versions/``
 
 from __future__ import annotations
 
+import re as _re
 from datetime import datetime, timezone
 from typing import Annotated, Literal
 
@@ -40,10 +41,11 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _non_empty(v: str) -> str:
-	if not v or not v.strip():
-		raise ValueError("must be a non-empty string")
-	return v
+    if not v or not v.strip():
+        raise ValueError("must be a non-empty string")
+    return v
 
 
 NonEmptyStr = Annotated[str, AfterValidator(_non_empty)]
@@ -52,148 +54,148 @@ ReviewDecision = Literal["approve", "reject", "request_changes"]
 
 
 def _utcnow() -> datetime:
-	return datetime.now(timezone.utc)
+    return datetime.now(timezone.utc)
 
 
 # ---------------------------------------------------------------------------
 # JtbdComment
 # ---------------------------------------------------------------------------
 
+
 class JtbdComment(BaseModel):
-	"""A single comment in a JTBD spec-version thread.
+    """A single comment in a JTBD spec-version thread.
 
-	Comments are append-only.  Edits are modelled as ``replaced_by`` to
-	preserve the audit chain.  Deletion is soft (``deleted=True``).
-	"""
+    Comments are append-only.  Edits are modelled as ``replaced_by`` to
+    preserve the audit chain.  Deletion is soft (``deleted=True``).
+    """
 
-	model_config = ConfigDict(
-		extra="forbid",
-		validate_by_name=True,
-		validate_by_alias=True,
-	)
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
 
-	id: NonEmptyStr
-	"""Stable comment identifier (UUID7 string)."""
+    id: NonEmptyStr
+    """Stable comment identifier (UUID7 string)."""
 
-	jtbd_id: NonEmptyStr
-	"""The JTBD spec this comment belongs to."""
+    jtbd_id: NonEmptyStr
+    """The JTBD spec this comment belongs to."""
 
-	version: NonEmptyStr
-	"""Semver of the JTBD spec version (e.g., ``"1.4.0"``)."""
+    version: NonEmptyStr
+    """Semver of the JTBD spec version (e.g., ``"1.4.0"``)."""
 
-	author_user_id: NonEmptyStr
-	"""User-id of the comment author."""
+    author_user_id: NonEmptyStr
+    """User-id of the comment author."""
 
-	body: NonEmptyStr
-	"""Markdown-formatted comment body."""
+    body: NonEmptyStr
+    """Markdown-formatted comment body."""
 
-	mentions: list[str] = Field(default_factory=list)
-	"""List of ``@``-mentioned user-ids.  Populated by parsing ``body``
+    mentions: list[str] = Field(default_factory=list)
+    """List of ``@``-mentioned user-ids.  Populated by parsing ``body``
 	for ``@<user_id>`` patterns; notification dispatch happens at the
 	API layer, not here."""
 
-	parent_id: str | None = None
-	"""If set, this comment is a reply to the comment with this id."""
+    parent_id: str | None = None
+    """If set, this comment is a reply to the comment with this id."""
 
-	resolved: bool = False
-	"""Whether the thread started by this comment has been resolved.
+    resolved: bool = False
+    """Whether the thread started by this comment has been resolved.
 	Only the root comment carries the resolved flag; replies inherit."""
 
-	resolved_by_user_id: str | None = None
-	"""Who marked the comment resolved (may differ from author)."""
+    resolved_by_user_id: str | None = None
+    """Who marked the comment resolved (may differ from author)."""
 
-	deleted: bool = False
-	"""Soft-delete flag.  Body is replaced with ``[deleted]`` in the UI."""
+    deleted: bool = False
+    """Soft-delete flag.  Body is replaced with ``[deleted]`` in the UI."""
 
-	created_at: datetime = Field(default_factory=_utcnow)
-	resolved_at: datetime | None = None
+    created_at: datetime = Field(default_factory=_utcnow)
+    resolved_at: datetime | None = None
 
 
 class NewCommentRequest(BaseModel):
-	"""Input model for creating a new comment (POST /jtbd/{id}@{v}/comments)."""
+    """Input model for creating a new comment (POST /jtbd/{id}@{v}/comments)."""
 
-	model_config = ConfigDict(
-		extra="forbid",
-		validate_by_name=True,
-		validate_by_alias=True,
-	)
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
 
-	body: NonEmptyStr
-	parent_id: str | None = None
-	mentions: list[str] = Field(default_factory=list)
+    body: NonEmptyStr
+    parent_id: str | None = None
+    mentions: list[str] = Field(default_factory=list)
 
 
 class ResolveCommentRequest(BaseModel):
-	"""Input model for resolving a comment thread."""
+    """Input model for resolving a comment thread."""
 
-	model_config = ConfigDict(
-		extra="forbid",
-		validate_by_name=True,
-		validate_by_alias=True,
-	)
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
 
-	comment_id: NonEmptyStr
+    comment_id: NonEmptyStr
 
 
 # ---------------------------------------------------------------------------
 # JtbdReview
 # ---------------------------------------------------------------------------
 
+
 class JtbdReview(BaseModel):
-	"""A formal review decision on a JTBD spec version.
+    """A formal review decision on a JTBD spec version.
 
-	Decision semantics (mirrors the lifecycle state machine §1.5):
+    Decision semantics (mirrors the lifecycle state machine §1.5):
 
-	- ``approve``          — ``in_review → published``
-	- ``reject``           — ``in_review → draft``  (hard rejection)
-	- ``request_changes``  — ``in_review → draft``  (reviewer wants tweaks)
+    - ``approve``          — ``in_review → published``
+    - ``reject``           — ``in_review → draft``  (hard rejection)
+    - ``request_changes``  — ``in_review → draft``  (reviewer wants tweaks)
 
-	RBAC: the ``jtbd.review`` permission is required.  4-eyes check
-	(reviewer ≠ version creator) is enforced at the API layer.
-	"""
+    RBAC: the ``jtbd.review`` permission is required.  4-eyes check
+    (reviewer ≠ version creator) is enforced at the API layer.
+    """
 
-	model_config = ConfigDict(
-		extra="forbid",
-		validate_by_name=True,
-		validate_by_alias=True,
-	)
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
 
-	id: NonEmptyStr
-	"""Stable review identifier (UUID7 string)."""
+    id: NonEmptyStr
+    """Stable review identifier (UUID7 string)."""
 
-	jtbd_id: NonEmptyStr
-	version: NonEmptyStr
+    jtbd_id: NonEmptyStr
+    version: NonEmptyStr
 
-	reviewer_user_id: NonEmptyStr
-	"""User-id of the reviewer (must hold ``jtbd.review`` permission)."""
+    reviewer_user_id: NonEmptyStr
+    """User-id of the reviewer (must hold ``jtbd.review`` permission)."""
 
-	decision: ReviewDecision
-	"""Outcome of the review."""
+    decision: ReviewDecision
+    """Outcome of the review."""
 
-	body: str | None = None
-	"""Optional prose explanation of the decision."""
+    body: str | None = None
+    """Optional prose explanation of the decision."""
 
-	created_at: datetime = Field(default_factory=_utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 class NewReviewRequest(BaseModel):
-	"""Input model for submitting a review (POST /jtbd/{id}@{v}/reviews)."""
+    """Input model for submitting a review (POST /jtbd/{id}@{v}/reviews)."""
 
-	model_config = ConfigDict(
-		extra="forbid",
-		validate_by_name=True,
-		validate_by_alias=True,
-	)
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
 
-	decision: ReviewDecision
-	body: str | None = None
+    decision: ReviewDecision
+    body: str | None = None
 
 
 # ---------------------------------------------------------------------------
 # @mention extraction helper
 # ---------------------------------------------------------------------------
-
-import re as _re
 
 # E-59 / J-12: mention regex restricted to the host's actual user-id format.
 # UMS user_ids are either a UUID7 (digits + hyphens, 36 chars) or a username
@@ -203,31 +205,29 @@ import re as _re
 #   * use only alphanumeric, underscore, dot, or hyphen in between.
 # Single-char usernames are accepted (the second alternation).
 _MENTION_RE = _re.compile(
-	r"@(?:([A-Za-z0-9_][\w.-]{0,62}[A-Za-z0-9_])|([A-Za-z0-9_]))(?!\w)"
+    r"@(?:([A-Za-z0-9_][\w.-]{0,62}[A-Za-z0-9_])|([A-Za-z0-9_]))(?!\w)"
 )
 
 
 def extract_mentions(body: str) -> list[str]:
-	"""Return all ``@<user_id>`` tokens from *body* (deduped, ordered)."""
-	seen: set[str] = set()
-	out: list[str] = []
-	for m in _MENTION_RE.finditer(body):
-		# Group 1 = multi-char id; group 2 = single-char id; one is always set.
-		uid = m.group(1) or m.group(2)
-		if uid is None:
-			continue
-		if uid not in seen:
-			seen.add(uid)
-			out.append(uid)
-	return out
+    """Return all ``@<user_id>`` tokens from *body* (deduped, ordered)."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for m in _MENTION_RE.finditer(body):
+        # Group 1 = multi-char id; group 2 = single-char id; one is always set.
+        uid = m.group(1) or m.group(2)
+        if uid not in seen:
+            seen.add(uid)
+            out.append(uid)
+    return out
 
 
 __all__ = [
-	"JtbdComment",
-	"JtbdReview",
-	"NewCommentRequest",
-	"NewReviewRequest",
-	"ResolveCommentRequest",
-	"ReviewDecision",
-	"extract_mentions",
+    "JtbdComment",
+    "JtbdReview",
+    "NewCommentRequest",
+    "NewReviewRequest",
+    "ResolveCommentRequest",
+    "ReviewDecision",
+    "extract_mentions",
 ]
