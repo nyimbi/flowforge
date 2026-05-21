@@ -2177,6 +2177,43 @@ Design audit 5 - operations, security, and reliability:
     DSL spec branches, lint conflict edges, Claude LLM port branches, and
     template cache branches.
 
+## Package coverage slice - flowforge-jtbd i18n and actor lint
+
+- Baseline measurement:
+  - `flowforge_jtbd.i18n.catalog` had uncovered public accessors for catalog
+    length, keys, and registry language presence.
+  - `flowforge_jtbd.lint.actors` had an uncovered no-conflict path for
+    different capacities and a dead duplicate-pair guard inside the conflict
+    subset helper.
+- Action:
+  - Added catalog tests for `len`, `keys`, and `LocaleRegistry.has`.
+  - Added actor lint coverage for two different non-conflicting capacities in
+    the same role/context.
+  - Removed the unreachable duplicate-pair guard from `_conflicting_subsets`;
+    pairs are generated from a unique sorted capacity set.
+- Result:
+  - `flowforge_jtbd.i18n.catalog` and `flowforge_jtbd.lint.actors` now reach
+    100% statement and branch coverage in focused gates.
+  - Overall `flowforge-jtbd` remains at rounded 97% package coverage, with four
+    fewer uncovered statements and two fewer partial branches.
+- Verification:
+  - `uv run pytest tests/unit/test_i18n.py tests/unit/test_lint_actors.py -q --cov=flowforge_jtbd.i18n.catalog --cov=flowforge_jtbd.lint.actors --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-jtbd`: `56 passed`, targeted modules 100%.
+  - `uv run ruff check src/flowforge_jtbd/lint/actors.py tests/unit/test_lint_actors.py tests/unit/test_i18n.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run ruff format --check src/flowforge_jtbd/lint/actors.py tests/unit/test_lint_actors.py tests/unit/test_i18n.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run pyright src/flowforge_jtbd/lint/actors.py tests/unit/test_lint_actors.py tests/unit/test_i18n.py`
+    from `python/flowforge-jtbd`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_jtbd --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-jtbd`: `591 passed`, one optional skip, one expected
+    in-memory embedding-store performance warning, and package coverage 97%.
+- Remaining risk:
+  - `flowforge-jtbd` is not yet ready for the closed-package coverage ratchet.
+    Remaining gaps are concentrated in AI quality scoring, recommender edges,
+    DSL spec branches, lint conflict/dependency/lifecycle/linter edges, Claude
+    LLM port branches, and template cache branches.
+
 ## Package coverage slice - flowforge-jtbd audit logger
 
 - Baseline measurement:

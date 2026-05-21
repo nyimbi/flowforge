@@ -87,6 +87,12 @@ def test_catalog_construction() -> None:
     assert cat.get("missing", default="—") == "—"
 
 
+def test_catalog_len_and_keys_reflect_entries() -> None:
+    cat = LocaleCatalog(lang="en", entries={"b": "B", "a": "A"})
+    assert len(cat) == 2
+    assert list(cat.keys()) == ["b", "a"]
+
+
 def test_catalog_construction_strips_lang() -> None:
     cat = LocaleCatalog(lang="  fr  ")
     assert cat.lang == "fr"
@@ -205,6 +211,13 @@ def test_registry_languages_returns_sorted_set() -> None:
     reg.register_catalog("en", {})
     reg.register_catalog("de", {})
     assert reg.languages() == ("de", "en", "fr")
+
+
+def test_registry_has_reports_registered_languages() -> None:
+    reg = LocaleRegistry()
+    reg.register_catalog("en", {})
+    assert reg.has("en") is True
+    assert reg.has("fr") is False
 
 
 def test_registry_register_catalog_object() -> None:
