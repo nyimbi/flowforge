@@ -81,7 +81,19 @@ flag through `scripts/audit_2026/package_sets.py`.
 make audit-2026-pypi-build
 ```
 
-Outputs land in `dist/`.
+By default, the gate writes artifacts to the temporary readiness directory
+reported at the end of the run. To produce the uploadable publication
+artifact set in the repository `dist/` directory, run the same smoke script
+with an explicit publication-staging flag:
+
+```bash
+uv run python scripts/audit_2026/pypi_build_smoke.py \
+	--dist-dir dist \
+	--allow-repo-dist
+```
+
+This deletes and recreates the repository `dist/` directory, then leaves the
+validated wheel and sdist artifacts there for the `twine` commands below.
 
 ## Validate
 

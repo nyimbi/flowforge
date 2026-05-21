@@ -29,11 +29,22 @@ def _run(argv: list[str], *, cwd: Path = ROOT) -> None:
     subprocess.run(argv, cwd=cwd, check=True)
 
 
-def _prepare_dir(path: Path, *, purpose: str) -> None:
+def _prepare_dir(
+    path: Path,
+    *,
+    purpose: str,
+    allow_repo_dist: bool = False,
+) -> None:
     resolved = path.resolve()
     tmp_root = Path(tempfile.gettempdir()).resolve()
-    if tmp_root not in (resolved, *resolved.parents):
-        raise SystemExit(f"{purpose} must be under {tmp_root}: {resolved}")
+    repo_dist = (ROOT / "dist").resolve()
+    is_temp_path = tmp_root in (resolved, *resolved.parents)
+    is_allowed_repo_dist = allow_repo_dist and resolved == repo_dist
+    if not is_temp_path and not is_allowed_repo_dist:
+        allowed = f"{tmp_root}"
+        if allow_repo_dist:
+            allowed = f"{allowed} or exactly {repo_dist} with --allow-repo-dist"
+        raise SystemExit(f"{purpose} must be under {allowed}: {resolved}")
     if resolved.exists():
         shutil.rmtree(resolved)
     resolved.mkdir(parents=True, exist_ok=True)
@@ -433,11 +444,23 @@ def main(argv: list[str] | None = None) -> int:
         default=Path(tempfile.gettempdir()) / "flowforge-cli-wheel-smoke",
         help="Temporary virtualenv used for the flowforge-cli wheel smoke.",
     )
+    parser.add_argument(
+        "--allow-repo-dist",
+        action="store_true",
+        help=(
+            "Allow --dist-dir dist for publication artifact staging; deletes "
+            "and recreates the repository dist directory."
+        ),
+    )
     args = parser.parse_args(argv)
 
     dist_dir = args.dist_dir.resolve()
     venv_dir = args.venv_dir.resolve()
-    _prepare_dir(dist_dir, purpose="dist-dir")
+    _prepare_dir(
+        dist_dir,
+        purpose="dist-dir",
+        allow_repo_dist=args.allow_repo_dist,
+    )
     _prepare_dir(venv_dir, purpose="venv-dir")
 
     packages = shipping_packages()

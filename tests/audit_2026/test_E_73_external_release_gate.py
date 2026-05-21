@@ -449,6 +449,10 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "tarfile.open" in script
     assert "_assert_exact_artifacts_by_package(" in script
     assert "make audit-2026-pypi-build" in publishing
+    assert "--allow-repo-dist" in script
+    assert "--allow-repo-dist" in publishing
+    assert "--dist-dir dist" in publishing
+    assert "deletes and recreates the repository `dist/` directory" in publishing
     assert "flowforge-cli-wheel-smoke" in publishing
     assert "--force-reinstall dist/*.whl" in publishing
     assert "flowforge --help" in publishing
@@ -569,6 +573,47 @@ def test_pypi_build_smoke_rejects_non_temp_output_dirs_before_creation(
         pypi_build_smoke._prepare_dir(outside, purpose="dist-dir")
 
     assert not outside.exists()
+
+
+def test_pypi_build_smoke_allows_exact_repo_dist_with_explicit_flag(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo_dist = repo / "dist"
+    stale = repo_dist / "stale.txt"
+    repo_dist.mkdir(parents=True)
+    stale.write_text("old artifact\n", encoding="utf-8")
+    monkeypatch.setattr(pypi_build_smoke, "ROOT", repo)
+
+    pypi_build_smoke._prepare_dir(
+        repo_dist,
+        purpose="dist-dir",
+        allow_repo_dist=True,
+    )
+
+    assert repo_dist.exists()
+    assert not stale.exists()
+
+
+def test_pypi_build_smoke_rejects_nested_repo_dist_with_explicit_flag(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    temp_root = tmp_path / "allowed-temp"
+    repo = tmp_path / "repo"
+    nested_dist = repo / "build" / "dist"
+    monkeypatch.setattr(pypi_build_smoke.tempfile, "gettempdir", lambda: str(temp_root))
+    monkeypatch.setattr(pypi_build_smoke, "ROOT", repo)
+
+    with pytest.raises(SystemExit, match="or exactly"):
+        pypi_build_smoke._prepare_dir(
+            nested_dist,
+            purpose="dist-dir",
+            allow_repo_dist=True,
+        )
+
+    assert not nested_dist.exists()
 
 
 def test_pypi_build_smoke_rejects_artifacts_missing_license_files(

@@ -3556,3 +3556,45 @@ Design audit 5 - operations, security, and reliability:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
   - Completion still requires fresh external-release evidence in a
     browser/Postgres-capable release environment before final PyPI publication.
+
+## PyPI publishable dist artifact staging audit
+
+- Code review finding:
+  - The publishing guide used `dist/*` for `twine check`, install smoke, and
+    upload commands, but the canonical PyPI build smoke wrote to a temporary
+    readiness directory by default and rejected non-temp output directories.
+    That protected local files but left no guarded way to generate the exact
+    validated `dist/` artifact set described by the publish instructions.
+- Action:
+  - Added an explicit `--allow-repo-dist` flag to the PyPI build smoke. The
+    default remains temp-only, while `--dist-dir dist --allow-repo-dist` allows
+    exactly the repository `dist/` directory and deletes/recreates it before
+    building artifacts.
+  - Kept the clean virtualenv smoke directory temp-only.
+  - Added ratchets for the default non-temp rejection, the exact repo `dist/`
+    publication path, and rejection of nested repo paths even with the explicit
+    flag.
+  - Updated the publishing guide to distinguish the default temp readiness
+    output from the explicit uploadable `dist/` staging command.
+- Verification:
+  - `uv run ruff format scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `2 files left unchanged`.
+  - `uv run ruff check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_publishing_docs_require_cli_wheel_smoke tests/audit_2026/test_E_73_external_release_gate.py::test_pypi_build_smoke_rejects_non_temp_output_dirs_before_creation tests/audit_2026/test_E_73_external_release_gate.py::test_pypi_build_smoke_allows_exact_repo_dist_with_explicit_flag tests/audit_2026/test_E_73_external_release_gate.py::test_pypi_build_smoke_rejects_nested_repo_dist_with_explicit_flag -q`:
+    `4 passed`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `38 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`:
+    built and checked 16 packages / 32 artifacts in the temp readiness
+    directory, installed all 16 freshly built wheel files into a clean venv,
+    imported all 16 shipping import packages, and completed `flowforge --help`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run python scripts/audit_2026/pypi_build_smoke.py --dist-dir dist --allow-repo-dist`:
+    built the same 16 packages / 32 artifacts into repository `dist/`, passed
+    `twine check` on every artifact, installed all 16 wheels into a clean venv,
+    imported all 16 shipping import packages, and completed `flowforge --help`.
+  - `git diff --check`: clean.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
