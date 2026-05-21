@@ -65,7 +65,7 @@ markers are present in typed package wheels, verifies each wheel and sdist
 contains the declared `LICENSE` file, verifies the wheel's own
 `.dist-info/METADATA` and top-level sdist `PKG-INFO` `Requires-Dist` metadata
 keep internal Flowforge dependencies on the exact `>=0.1.0,<0.2.0`
-compatibility bound and limited to shipping
+compatibility bound, with no extra internal dependency specifiers, and limited to shipping
 distributions, checks every wheel/sdist with `twine`, then installs every
 shipping wheel from the built artifacts into a clean venv, imports every
 shipping package, and runs `flowforge --help`.

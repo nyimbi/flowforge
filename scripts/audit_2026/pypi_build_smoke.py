@@ -267,9 +267,8 @@ def _requirement_specifiers(requirement: str) -> frozenset[str]:
 
 def _has_required_internal_dependency_bounds(requirement: str) -> bool:
     specifiers = _requirement_specifiers(requirement)
-    return (
-        INTERNAL_DEPENDENCY_LOWER_BOUND in specifiers
-        and INTERNAL_DEPENDENCY_UPPER_BOUND in specifiers
+    return specifiers == frozenset(
+        {INTERNAL_DEPENDENCY_LOWER_BOUND, INTERNAL_DEPENDENCY_UPPER_BOUND}
     )
 
 

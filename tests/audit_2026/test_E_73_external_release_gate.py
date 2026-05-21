@@ -703,6 +703,41 @@ def test_pypi_build_smoke_rejects_imprecise_internal_artifact_bounds(
         )
 
 
+def test_pypi_build_smoke_rejects_extra_internal_artifact_specifiers(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "flowforge_cli-0.1.0-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr(
+            "flowforge_cli-0.1.0.dist-info/METADATA",
+            "Metadata-Version: 2.4\n"
+            "Name: flowforge-cli\n"
+            "Version: 0.1.0\n"
+            "Requires-Dist: flowforge_jtbd>=0.1.0,<0.2.0,!=0.1.3\n",
+        )
+    sdist = tmp_path / "flowforge_cli-0.1.0.tar.gz"
+    package_dir = tmp_path / "flowforge_cli-0.1.0"
+    package_dir.mkdir()
+    pkg_info = package_dir / "PKG-INFO"
+    pkg_info.write_text(
+        "Metadata-Version: 2.4\n"
+        "Name: flowforge-cli\n"
+        "Version: 0.1.0\n"
+        "Requires-Dist: flowforge_jtbd>=0.1.0,<0.2.0,!=0.1.3\n",
+        encoding="utf-8",
+    )
+    with tarfile.open(sdist, "w:gz") as archive:
+        archive.add(pkg_info, arcname="flowforge_cli-0.1.0/PKG-INFO")
+
+    with pytest.raises(SystemExit, match="unbounded internal Flowforge"):
+        pypi_build_smoke._assert_artifact_internal_dependencies_bounded(
+            {"flowforge-cli": wheel},
+            {"flowforge-cli": sdist},
+            internal_distribution_keys=frozenset({"flowforge-jtbd"}),
+            shipping_distribution_keys=frozenset({"flowforge-jtbd"}),
+        )
+
+
 def test_pypi_build_smoke_rejects_unpublished_internal_artifact_dependencies(
     tmp_path: Path,
 ) -> None:
