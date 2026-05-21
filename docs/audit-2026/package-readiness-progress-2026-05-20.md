@@ -2653,3 +2653,54 @@ Design audit 5 - operations, security, and reliability:
     required: visual DOM baselines, browser Playwright full-stack, reviewed
     polish-copy sidecar, optional downstream UMS parity, and live Postgres
     contention/drain verification.
+
+## External release gate diagnostic hardening
+
+- Baseline measurement:
+  - Current-commit external release preflight passes when pointed at local
+    Postgres:
+    `FLOWFORGE_TEST_PG_URL=postgresql://127.0.0.1:5432/postgres make audit-2026-release-external-preflight`
+    reported `ok`.
+  - The reviewed polish-copy sidecar gate passes:
+    `make audit-2026-polish-copy-sidecar` reported `ok`.
+  - Live Postgres release checks pass locally with the same URL:
+    `make audit-2026-live-postgres` reported `4 passed`.
+  - The full external release target passed preflight and PyPI build/check/smoke
+    for 16 packages and 32 artifacts, then stopped at the DOM browser lane
+    because Chromium cannot launch inside this macOS sandbox:
+    `MachPortRendezvousServer permission denied`.
+  - Before installing a browser cache under `/private/tmp/flowforge-ms-playwright`,
+    the DOM and browser-full-stack wrappers also exposed a second local
+    bootstrap failure mode: Playwright was installed but the Chromium executable
+    was missing.
+- Action:
+  - Added explicit missing-Chromium detection to the DOM visual wrapper.
+  - Added Playwright output capture and explicit missing-Chromium /
+    macOS-sandbox launch diagnostics to the browser full-stack wrapper.
+  - Added audit ratchets so both wrappers continue to document actionable
+    Chromium install and browser-capable-CI guidance.
+- Result:
+  - Local skip-mode runs now explain the precise browser prerequisite or macOS
+    sandbox blocker instead of returning only a generic Playwright failure.
+  - Release mode remains fail-closed; these diagnostics do not permit skip flags
+    in release qualification.
+- Verification:
+  - `uv run pytest tests/audit_2026/test_E_72_browser_full_stack_e2e.py -q`:
+    `4 passed`.
+  - `uv run ruff check tests/audit_2026/test_E_72_browser_full_stack_e2e.py`:
+    clean.
+  - `uv run pyright tests/audit_2026/test_E_72_browser_full_stack_e2e.py`:
+    `0 errors`, `0 warnings`.
+  - `bash -n scripts/run_browser_full_stack.sh scripts/visual_regression/run_dom_snapshots.sh`:
+    clean.
+  - `PLAYWRIGHT_BROWSERS_PATH=/private/tmp/flowforge-ms-playwright VISREG_ALLOW_SKIP=1 make audit-2026-visual-regression-dom`:
+    clean local skip with `Playwright Chromium cannot launch in this macOS sandbox`.
+  - `PLAYWRIGHT_BROWSERS_PATH=/private/tmp/flowforge-ms-playwright BROWSER_E2E_ALLOW_SKIP=1 make audit-2026-browser-e2e`:
+    clean local skip with the same macOS sandbox diagnostic.
+- Remaining risk:
+  - Browser DOM and browser full-stack release qualification still require an
+    unsandboxed terminal or browser-capable CI runner; the local macOS sandbox
+    cannot provide that proof even with Chromium installed under `/private/tmp`.
+  - `git push` remains blocked locally by missing GitHub HTTPS credentials, so
+    current-commit external GitHub Actions evidence cannot be refreshed from
+    this session.

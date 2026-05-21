@@ -25,6 +25,20 @@ def test_browser_full_stack_gate_is_wired_to_makefile_and_runner() -> None:
 	assert "NEXT_PUBLIC_FLOWFORGE_API_BASE_URL" in wrapper
 
 
+def test_browser_gate_wrappers_explain_local_chromium_failures() -> None:
+	wrapper = _read("scripts/run_browser_full_stack.sh")
+	dom_wrapper = _read("scripts/visual_regression/run_dom_snapshots.sh")
+
+	for script in (wrapper, dom_wrapper):
+		assert "PLAYWRIGHT_LOG" in script
+		assert "Executable doesn't exist" in script
+		assert "Looks like Playwright was just installed" in script
+		assert "npx playwright install" in script
+		assert "pnpm exec playwright install chromium" in script
+		assert "MachPortRendezvousServer.*Permission denied" in script
+		assert "browser-capable CI runner" in script
+
+
 def test_browser_full_stack_playwright_project_targets_generated_flow() -> None:
 	config = _read("tests/visual_regression/playwright.config.ts")
 	spec = _read("tests/visual_regression/tests/e2e_full_stack.spec.ts")

@@ -134,6 +134,9 @@ cd "$VISREG_DIR"
 PLAYWRIGHT_LOG="$(mktemp)"
 if ! VISREG_CADENCE="$CADENCE" \
 	"$VISREG_DIR/node_modules/.bin/playwright" test --project=dom 2>&1 | tee "$PLAYWRIGHT_LOG"; then
+	if grep -Eq "Executable doesn't exist|Looks like Playwright was just installed|npx playwright install" "$PLAYWRIGHT_LOG"; then
+		unavailable "Playwright Chromium browser is not installed. Run `pnpm exec playwright install chromium` in tests/visual_regression, then rerun this gate."
+	fi
 	if grep -q "MachPortRendezvousServer.*Permission denied" "$PLAYWRIGHT_LOG"; then
 		unavailable "Playwright Chromium cannot launch in this macOS sandbox (MachPortRendezvousServer permission denied). Run the gate from an unsandboxed terminal or a browser-capable CI runner."
 	fi

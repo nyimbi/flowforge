@@ -54,6 +54,7 @@ BACKEND_URL_FILE=""
 HARNESS_PID=""
 HARNESS_LOG=""
 HARNESS_URL_FILE=""
+PLAYWRIGHT_LOG=""
 
 cleanup() {
 	if [[ -n "$HARNESS_PID" ]] && kill -0 "$HARNESS_PID" >/dev/null 2>&1; then
@@ -68,6 +69,7 @@ cleanup() {
 	[[ -n "$BACKEND_URL_FILE" ]] && rm -f "$BACKEND_URL_FILE"
 	[[ -n "$HARNESS_LOG" ]] && rm -f "$HARNESS_LOG"
 	[[ -n "$HARNESS_URL_FILE" ]] && rm -f "$HARNESS_URL_FILE"
+	[[ -n "$PLAYWRIGHT_LOG" ]] && rm -f "$PLAYWRIGHT_LOG"
 }
 trap cleanup EXIT
 
@@ -130,12 +132,14 @@ fi
 
 echo "==> browser-full-stack Playwright e2e"
 cd "$VISREG_DIR"
+PLAYWRIGHT_LOG="$(mktemp)"
 if ! FLOWFORGE_BROWSER_E2E_REQUIRE=1 \
-	"$VISREG_DIR/node_modules/.bin/playwright" test --project=browser-full-stack; then
-	if [[ "${BROWSER_E2E_ALLOW_SKIP:-}" == "1" ]]; then
-		echo "[SKIP] browser-full-stack: Playwright browser execution failed in local bootstrap mode."
-		echo "  rerun without BROWSER_E2E_ALLOW_SKIP in browser-capable release CI."
-		exit 0
+	"$VISREG_DIR/node_modules/.bin/playwright" test --project=browser-full-stack 2>&1 | tee "$PLAYWRIGHT_LOG"; then
+	if grep -Eq "Executable doesn't exist|Looks like Playwright was just installed|npx playwright install" "$PLAYWRIGHT_LOG"; then
+		unavailable "Playwright Chromium browser is not installed. Run `pnpm exec playwright install chromium` in tests/visual_regression, then rerun this gate."
 	fi
-	exit 1
+	if grep -q "MachPortRendezvousServer.*Permission denied" "$PLAYWRIGHT_LOG"; then
+		unavailable "Playwright Chromium cannot launch in this macOS sandbox (MachPortRendezvousServer permission denied). Run the gate from an unsandboxed terminal or a browser-capable CI runner."
+	fi
+	unavailable "Playwright browser execution failed — verify Chromium/browser support or inspect the browser-full-stack output above."
 fi
