@@ -397,6 +397,8 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "py.typed" in publishing
     assert "`flowforge-jtbd-*` domain packages" in publishing
     assert "`flowforge-jtbd-*-starter`" not in publishing
+    assert "scripts/audit_2026/package_sets.py" in publishing
+    assert "for pkg in flowforge-core" not in publishing
 
 
 def test_closed_package_coverage_ratchet_tracks_completed_packages() -> None:

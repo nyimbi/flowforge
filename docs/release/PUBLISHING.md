@@ -61,17 +61,13 @@ markers are present in typed package wheels, checks every wheel/sdist with
 `twine`, then installs `flowforge-cli` from the built artifacts into a clean
 venv and runs `flowforge --help`.
 
-`uv build` produces an sdist + wheel per package. The underlying loop is:
+`uv build` produces an sdist + wheel per package. Do not maintain a separate
+manual package list for release builds; the gate discovers shipping packages
+from `[tool.uv.workspace].members` and each package's `[tool.uv] package`
+flag through `scripts/audit_2026/package_sets.py`.
 
 ```bash
-for pkg in flowforge-core flowforge-fastapi flowforge-sqlalchemy \
-		flowforge-tenancy flowforge-audit-pg flowforge-outbox-pg \
-		flowforge-rbac-static flowforge-rbac-spicedb flowforge-documents-s3 \
-		flowforge-money flowforge-signing-kms flowforge-notify-multichannel \
-		flowforge-otel \
-		flowforge-cli flowforge-jtbd flowforge-jtbd-hub; do
-	(cd python/$pkg && uv build --out-dir ../../dist)
-done
+make audit-2026-pypi-build
 ```
 
 Outputs land in `dist/`.

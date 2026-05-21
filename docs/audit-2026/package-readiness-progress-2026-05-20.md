@@ -2838,6 +2838,10 @@ Design audit 5 - operations, security, and reliability:
   - Extended the publishing-doc ratchet to reject the stale
     `flowforge-jtbd-*-starter` package-name pattern and require documentation
     of exact wheel/sdist and `py.typed` checks.
+  - Removed the manually maintained shell build loop from the publishing guide;
+    the guide now points release builders at the workspace-derived
+    `make audit-2026-pypi-build` gate and its `package_sets.py` source of
+    truth.
 - Verification:
   - `uv run ruff check tests/audit_2026/test_E_73_external_release_gate.py`:
     clean.
