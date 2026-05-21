@@ -3319,3 +3319,41 @@ Design audit 5 - operations, security, and reliability:
     `flowforge --help`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI wheel METADATA ownership audit
+
+- Code review finding:
+  - The wheel dependency metadata reader accepted any single
+    `.dist-info/METADATA` entry in a wheel. A mismatched dist-info metadata
+    directory could have driven the dependency and license checks without
+    proving the metadata belonged to the wheel distribution named by the
+    artifact.
+- Action:
+  - Added a shared wheel metadata resolver that requires exactly one
+    `.dist-info/METADATA` file and verifies its dist-info distribution name
+    matches the wheel filename distribution.
+  - Reused that validated metadata path for the wheel license path derivation.
+  - Added a focused ratchet where `flowforge_cli-0.1.0-py3-none-any.whl`
+    contains only `other-0.1.0.dist-info/METADATA`, proving the dependency
+    gate rejects mismatched wheel metadata ownership.
+  - Updated the publishing guide and release ratchet expectations to document
+    that the gate verifies the wheel's own `.dist-info/METADATA`.
+- Verification:
+  - `uv run ruff format --check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `2 files already formatted`.
+  - `uv run ruff check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_pypi_build_smoke_requires_wheel_metadata_for_wheel_distribution tests/audit_2026/test_E_73_external_release_gate.py::test_pypi_build_smoke_requires_license_in_wheel_metadata_dist_info tests/audit_2026/test_E_73_external_release_gate.py::test_publishing_docs_require_cli_wheel_smoke -q`:
+    `3 passed`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `32 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`:
+    built and checked 16 packages / 32 artifacts, verified wheel metadata
+    ownership before dependency and license checks, inspected top-level sdist
+    `PKG-INFO`, installed all 16 freshly built wheel files into a clean venv,
+    imported all 16 shipping import packages, and completed
+    `flowforge --help`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

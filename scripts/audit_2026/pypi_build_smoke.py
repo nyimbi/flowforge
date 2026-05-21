@@ -85,6 +85,27 @@ def _sdist_distribution_key(sdist: Path) -> str:
     return _distribution_key(sdist.name[: -len(suffix)].rsplit("-", 1)[0])
 
 
+def _wheel_metadata_path(wheel: Path, wheel_names: set[str]) -> str:
+    metadata_files = [
+        name for name in wheel_names if name.endswith(".dist-info/METADATA")
+    ]
+    if len(metadata_files) != 1:
+        raise SystemExit(
+            f"{wheel.name}: expected exactly one wheel METADATA file, "
+            f"found {len(metadata_files)}"
+        )
+    metadata_path = metadata_files[0]
+    metadata_dir = metadata_path.rsplit("/", 1)[0]
+    metadata_distribution = metadata_dir.removesuffix(".dist-info").rsplit("-", 1)[0]
+    wheel_distribution = _wheel_distribution_key(wheel)
+    if _distribution_key(metadata_distribution) != wheel_distribution:
+        raise SystemExit(
+            f"{wheel.name}: wheel METADATA distribution {metadata_distribution!r} "
+            f"does not match wheel filename distribution {wheel_distribution!r}"
+        )
+    return metadata_path
+
+
 def _group_by_distribution(
     artifacts: list[Path],
     *,
@@ -175,14 +196,8 @@ def _assert_artifacts_include_license_files(
         wheel = wheels_by_distribution[key]
         with zipfile.ZipFile(wheel) as archive:
             wheel_names = set(archive.namelist())
-        metadata_files = [
-            name for name in wheel_names if name.endswith(".dist-info/METADATA")
-        ]
-        wheel_license_path = (
-            f"{metadata_files[0].rsplit('/', 1)[0]}/licenses/LICENSE"
-            if len(metadata_files) == 1
-            else ""
-        )
+        metadata_path = _wheel_metadata_path(wheel, wheel_names)
+        wheel_license_path = f"{metadata_path.rsplit('/', 1)[0]}/licenses/LICENSE"
         if wheel_license_path not in wheel_names:
             missing.append(f"{package.directory}: wheel LICENSE")
 
@@ -202,15 +217,9 @@ def _assert_artifacts_include_license_files(
 
 def _wheel_requires_dist(wheel: Path) -> list[str]:
     with zipfile.ZipFile(wheel) as archive:
-        metadata_files = [
-            name for name in archive.namelist() if name.endswith(".dist-info/METADATA")
-        ]
-        if len(metadata_files) != 1:
-            raise SystemExit(
-                f"{wheel.name}: expected exactly one wheel METADATA file, "
-                f"found {len(metadata_files)}"
-            )
-        metadata = archive.read(metadata_files[0]).decode("utf-8")
+        wheel_names = set(archive.namelist())
+        metadata_path = _wheel_metadata_path(wheel, wheel_names)
+        metadata = archive.read(metadata_path).decode("utf-8")
     parsed = email.parser.Parser().parsestr(metadata)
     return list(parsed.get_all("Requires-Dist", []) or [])
 

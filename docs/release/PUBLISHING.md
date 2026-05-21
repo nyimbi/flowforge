@@ -62,12 +62,12 @@ make audit-2026-pypi-build
 shipping packages from the workspace metadata, builds each package, requires
 exactly one wheel and one sdist per package, verifies PEP 561 `py.typed`
 markers are present in typed package wheels, verifies each wheel and sdist
-contains the declared `LICENSE` file, verifies built wheel `METADATA` and
-top-level sdist `PKG-INFO` `Requires-Dist` metadata keep internal Flowforge
-dependencies bounded and limited to shipping distributions, checks every
-wheel/sdist with `twine`, then installs every shipping wheel from the built
-artifacts into a clean venv, imports every shipping package, and runs
-`flowforge --help`.
+contains the declared `LICENSE` file, verifies the wheel's own
+`.dist-info/METADATA` and top-level sdist `PKG-INFO` `Requires-Dist` metadata
+keep internal Flowforge dependencies bounded and limited to shipping
+distributions, checks every wheel/sdist with `twine`, then installs every
+shipping wheel from the built artifacts into a clean venv, imports every
+shipping package, and runs `flowforge --help`.
 
 `uv build` produces an sdist + wheel per package. Do not maintain a separate
 manual package list for release builds; the gate discovers shipping packages

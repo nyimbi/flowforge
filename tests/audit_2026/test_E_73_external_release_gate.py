@@ -429,6 +429,9 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "_assert_artifact_internal_dependencies_bounded(" in script
     assert "Requires-Dist" in script
     assert "PKG-INFO" in script
+    assert "wheel filename distribution" in script
+    assert "wheel's own" in publishing
+    assert "`.dist-info/METADATA`" in publishing
     assert "top-level sdist PKG-INFO" in script
     assert "top-level sdist `PKG-INFO`" in publishing
     assert "_shipping_distribution_keys(packages)" in script
@@ -502,6 +505,7 @@ def test_pypi_build_smoke_rejects_artifacts_missing_license_files(
     )
     wheel = tmp_path / "flowforge-0.1.0-py3-none-any.whl"
     with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr("flowforge-0.1.0.dist-info/METADATA", "")
         archive.writestr("flowforge/__init__.py", "")
     sdist = tmp_path / "flowforge-0.1.0.tar.gz"
     with tarfile.open(sdist, "w:gz") as archive:
@@ -530,6 +534,7 @@ def test_pypi_build_smoke_requires_top_level_sdist_license(
     )
     wheel = tmp_path / "flowforge-0.1.0-py3-none-any.whl"
     with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr("flowforge-0.1.0.dist-info/METADATA", "")
         archive.writestr("flowforge-0.1.0.dist-info/licenses/LICENSE", "")
     sdist = tmp_path / "flowforge-0.1.0.tar.gz"
     with tarfile.open(sdist, "w:gz") as archive:
@@ -692,6 +697,35 @@ def test_pypi_build_smoke_rejects_unpublished_internal_artifact_dependencies(
             {"flowforge-cli": wheel},
             {"flowforge-cli": sdist},
             internal_distribution_keys=frozenset({"flowforge-jtbd-insurance"}),
+            shipping_distribution_keys=frozenset({"flowforge-jtbd"}),
+        )
+
+
+def test_pypi_build_smoke_requires_wheel_metadata_for_wheel_distribution(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "flowforge_cli-0.1.0-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr(
+            "other-0.1.0.dist-info/METADATA",
+            "Metadata-Version: 2.4\nName: other\nVersion: 0.1.0\n",
+        )
+    sdist = tmp_path / "flowforge_cli-0.1.0.tar.gz"
+    package_dir = tmp_path / "flowforge_cli-0.1.0"
+    package_dir.mkdir()
+    pkg_info = package_dir / "PKG-INFO"
+    pkg_info.write_text(
+        "Metadata-Version: 2.4\nName: flowforge-cli\nVersion: 0.1.0\n",
+        encoding="utf-8",
+    )
+    with tarfile.open(sdist, "w:gz") as archive:
+        archive.add(pkg_info, arcname="flowforge_cli-0.1.0/PKG-INFO")
+
+    with pytest.raises(SystemExit, match="wheel filename distribution"):
+        pypi_build_smoke._assert_artifact_internal_dependencies_bounded(
+            {"flowforge-cli": wheel},
+            {"flowforge-cli": sdist},
+            internal_distribution_keys=frozenset({"flowforge-jtbd"}),
             shipping_distribution_keys=frozenset({"flowforge-jtbd"}),
         )
 
