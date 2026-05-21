@@ -61,7 +61,7 @@ def simulate_cmd(
 			# We have no per-guard breakdown post-fire, so emit the matched line.
 			matched = next((t for t in wd.transitions if t.id == fr.matched_transition_id), None)
 			if matched is not None:
-				typer.echo(f"    guard expr#0 → true")
+				typer.echo("    guard expr#0 → true")
 				typer.echo(f"    matched: {matched.id} (priority {matched.priority})")
 			else:
 				typer.echo(f"    matched: {fr.matched_transition_id}")

@@ -16,10 +16,10 @@ import typer
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 from jsonschema import Draft202012Validator
 
-log = logging.getLogger(__name__)
-
 from .._io import load_structured, write_json
 from ..llmtxt import write_llmtxt
+
+log = logging.getLogger(__name__)
 
 
 def register(app: typer.Typer) -> None:

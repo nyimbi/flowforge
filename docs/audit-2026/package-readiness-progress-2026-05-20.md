@@ -1853,3 +1853,47 @@ Design audit 5 - operations, security, and reliability:
     Reaching true 100% on this module likely needs either a PyQt-capable test
     lane or an adapter split that moves more UI logic behind GUI-independent
     collaborators.
+
+## CLI coverage slice - desktop app full GUI-free coverage
+
+- Baseline measurement:
+  - After closing desktop app window-action coverage, rounded `flowforge-cli`
+    package coverage was 93%.
+  - `jtbd_desktop/app.py` was 62% covered; the remaining default-lane gap was
+    widget construction, visual-map drawing, launcher success behavior, and
+    dialog initialization.
+- Action:
+  - Extended the GUI-free desktop app helper tests with fake Qt signals,
+    layouts, widgets, menus, toolbars, graphics scene items, launcher app/window
+    objects, and transient fake `PyQt6` modules for `NewBundleDialog`
+    construction.
+  - Covered visual-map rendering, dependency selector refresh, widget factory
+    helpers, table-panel mutation callbacks, launcher success paths, full
+    `JtbdEditorWindow` construction, and `NewBundleDialog.__init__` without
+    adding PyQt6 as a package dependency.
+  - Closed the remaining partial branches for theme application, discard-cancel
+    open flow, table stretching, and row serializer blank/default paths.
+  - Fixed two pre-existing package-level ruff blockers: import placement in
+    `commands/new.py` and an unnecessary f-string in `commands/simulate.py`.
+- Result:
+  - `flowforge_cli.jtbd_desktop.app` coverage increased from 62% to 100%.
+  - Overall `flowforge-cli` rounded package coverage increased to 100%.
+- Verification:
+  - `uv run pytest tests/test_jtbd_desktop_app_helpers.py -q --cov=flowforge_cli.jtbd_desktop.app --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `14 passed`; `app.py` reached 100% line and
+    branch coverage.
+  - `uv run ruff check tests/test_jtbd_desktop_app_helpers.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_jtbd_desktop_app_helpers.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run ruff check .`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `886 passed`, one optional `mmdc` skip, and
+    overall package coverage 100%.
+- Remaining risk:
+  - The desktop editor is still verified through GUI-free fakes in the default
+    lane. A real PyQt smoke test remains useful before final desktop readiness
+    signoff, but the default package coverage gate is now fully closed.
