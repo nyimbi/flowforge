@@ -171,6 +171,10 @@ def test_external_release_gate_forbids_local_skip_escapes() -> None:
         "audit-2026-pypi-artifact-manifest  verify dist/ artifacts, checksums, and release metadata"
         in makefile
     )
+    assert (
+        "audit-2026-release-external: PyPI artifact build/manifest, browser, visual, polish-copy, and live Postgres FlowForge release checks passed."
+        in makefile
+    )
     assert "$(MAKE) audit-2026-visual-regression-dom" in makefile
     assert "$(MAKE) audit-2026-browser-e2e" in makefile
     assert "$(MAKE) audit-2026-ums-parity" in makefile

@@ -125,7 +125,7 @@ audit-2026-release-external:
 	fi
 	$(MAKE) audit-2026-live-postgres
 	@echo ""
-	@echo "audit-2026-release-external: browser, visual, polish-copy, and live Postgres FlowForge release checks passed."
+	@echo "audit-2026-release-external: PyPI artifact build/manifest, browser, visual, polish-copy, and live Postgres FlowForge release checks passed."
 
 .PHONY: audit-2026-release-external-preflight
 audit-2026-release-external-preflight:

@@ -4363,3 +4363,29 @@ Design audit 5 - operations, security, and reliability:
     `56 passed`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## External release success-summary audit
+
+- Code review finding:
+  - `audit-2026-release-external` now runs `audit-2026-pypi-build-dist` and
+    `audit-2026-pypi-artifact-manifest`, but its final success line still
+    reported only browser, visual, polish-copy, and live Postgres checks.
+    Operators could read a passing target summary and miss that PyPI artifact
+    build and retained-manifest verification are part of the release gate.
+- Action:
+  - Updated the external release success line to include the PyPI artifact
+    build/manifest checks.
+  - Added a release-gate ratchet for the expanded success summary.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format tests/audit_2026/test_E_73_external_release_gate.py`:
+    `1 file left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused external-release success-summary ratchet:
+    `1 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `56 passed`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
