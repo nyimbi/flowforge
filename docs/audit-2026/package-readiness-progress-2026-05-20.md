@@ -2415,6 +2415,26 @@ Design audit 5 - operations, security, and reliability:
   - Push remains blocked locally by GitHub HTTPS credentials; external release
     gates still require their browser/Postgres-capable environments.
 
+## PyPI readiness rerun after JTBD coverage ratchet
+
+- Baseline measurement:
+  - After adding `flowforge-jtbd` to the closed-package coverage gate, the
+    publishable package set needed a fresh artifact build/check/smoke proof.
+- Action:
+  - Reran the canonical PyPI build target with the writable uv cache used by
+    local audit runs.
+- Result:
+  - All 16 strategic packages built as wheels and sdists.
+  - `twine check` passed for all 32 artifacts.
+  - A clean virtualenv installed `flowforge-cli` from the built wheel set, which
+    pulled in `flowforge-jtbd`, and `flowforge --help` ran successfully.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`
+    from repo root: `pypi-build-smoke: passed for 16 packages and 32 artifacts`.
+- Remaining risk:
+  - This is local artifact readiness proof. Actual publication still requires
+    release credentials and external release-gate evidence.
+
 ## Package coverage slice - flowforge-jtbd i18n and actor lint
 
 - Baseline measurement:
