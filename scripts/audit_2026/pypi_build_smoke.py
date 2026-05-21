@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import tempfile
 import zipfile
+from collections.abc import Mapping
 from pathlib import Path
 
 from package_sets import shipping_packages
@@ -43,19 +45,91 @@ def _python_path(venv_dir: Path) -> Path:
     return venv_dir / "bin" / "python"
 
 
-def _assert_wheels_include_py_typed(
+def _distribution_key(name: str) -> str:
+    """Normalize a distribution name the way wheel/sdist filenames do."""
+
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _wheel_distribution_key(wheel: Path) -> str:
+    return _distribution_key(wheel.name.split("-", 1)[0])
+
+
+def _sdist_distribution_key(sdist: Path) -> str:
+    suffix = ".tar.gz"
+    if not sdist.name.endswith(suffix):
+        raise SystemExit(f"unsupported sdist artifact name: {sdist}")
+    return _distribution_key(sdist.name[: -len(suffix)].rsplit("-", 1)[0])
+
+
+def _group_by_distribution(
+    artifacts: list[Path],
+    *,
+    kind: str,
+) -> dict[str, list[Path]]:
+    key_fn = _wheel_distribution_key if kind == "wheel" else _sdist_distribution_key
+    grouped: dict[str, list[Path]] = {}
+    for artifact in artifacts:
+        grouped.setdefault(key_fn(artifact), []).append(artifact)
+    return grouped
+
+
+def _assert_exact_artifacts_by_package(
     wheels: list[Path],
+    sdists: list[Path],
+    packages: tuple[ShippingPackage, ...],
+) -> dict[str, Path]:
+    expected = {
+        _distribution_key(package.distribution_name): package for package in packages
+    }
+    wheel_groups = _group_by_distribution(wheels, kind="wheel")
+    sdist_groups = _group_by_distribution(sdists, kind="sdist")
+    issues: list[str] = []
+    for key, package in expected.items():
+        package_wheels = wheel_groups.get(key, [])
+        package_sdists = sdist_groups.get(key, [])
+        if len(package_wheels) != 1:
+            issues.append(
+                f"{package.distribution_name}: expected 1 wheel, "
+                f"found {len(package_wheels)}"
+            )
+        if len(package_sdists) != 1:
+            issues.append(
+                f"{package.distribution_name}: expected 1 sdist, "
+                f"found {len(package_sdists)}"
+            )
+    unexpected_wheels = sorted(set(wheel_groups) - set(expected))
+    unexpected_sdists = sorted(set(sdist_groups) - set(expected))
+    if unexpected_wheels:
+        issues.append(
+            f"unexpected wheel distribution(s): {', '.join(unexpected_wheels)}"
+        )
+    if unexpected_sdists:
+        issues.append(
+            f"unexpected sdist distribution(s): {', '.join(unexpected_sdists)}"
+        )
+    if issues:
+        raise SystemExit(
+            "built artifacts do not match the shipping package set:\n  "
+            + "\n  ".join(issues)
+        )
+    return {key: wheel_groups[key][0] for key in expected}
+
+
+def _assert_wheels_include_py_typed(
+    wheels_by_distribution: Mapping[str, Path],
     packages: tuple[ShippingPackage, ...],
 ) -> None:
     wheel_contents: dict[Path, set[str]] = {}
-    for wheel in wheels:
+    for wheel in wheels_by_distribution.values():
         with zipfile.ZipFile(wheel) as archive:
             wheel_contents[wheel] = set(archive.namelist())
 
     missing: list[str] = []
     for package in packages:
+        wheel = wheels_by_distribution[_distribution_key(package.distribution_name)]
         marker_path = f"{package.import_package.replace('.', '/')}/py.typed"
-        if not any(marker_path in names for names in wheel_contents.values()):
+        if marker_path not in wheel_contents[wheel]:
             missing.append(f"{package.directory}: {marker_path}")
     if missing:
         raise SystemExit(
@@ -106,7 +180,12 @@ def main(argv: list[str] | None = None) -> int:
             f"expected {len(packages)} wheels and {len(packages)} sdists, "
             f"found {len(wheels)} wheels and {len(sdists)} sdists in {dist_dir}"
         )
-    _assert_wheels_include_py_typed(wheels, packages)
+    wheels_by_distribution = _assert_exact_artifacts_by_package(
+        wheels,
+        sdists,
+        packages,
+    )
+    _assert_wheels_include_py_typed(wheels_by_distribution, packages)
 
     _run(
         [

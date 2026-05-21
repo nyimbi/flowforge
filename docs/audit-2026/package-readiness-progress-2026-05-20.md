@@ -2886,3 +2886,35 @@ Design audit 5 - operations, security, and reliability:
     `stamped 0`, `skipped 16`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI artifact identity audit
+
+- Code review finding:
+  - `scripts/audit_2026/pypi_build_smoke.py` verified aggregate wheel/sdist
+    counts for the shipping package set, but it did not prove that the artifact
+    directory contained exactly one wheel and one sdist for each expected
+    distribution name. A duplicate build artifact could have masked a missing
+    non-CLI distribution until publish-time review.
+- Action:
+  - Added the PyPI distribution name to the shared shipping-package discovery
+    model.
+  - Added a build-smoke assertion that groups wheels and sdists by normalized
+    distribution name, rejects missing, duplicate, or unexpected distributions,
+    and then checks each package's `py.typed` marker inside that package's own
+    wheel.
+  - Added a release ratchet for duplicate/missing artifact detection.
+- Verification:
+  - `uv run ruff check scripts/audit_2026/package_sets.py scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run ruff format --check scripts/audit_2026/package_sets.py scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright scripts/audit_2026/package_sets.py scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors`, `0 warnings`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_pypi_build_smoke_rejects_missing_or_duplicate_package_artifacts tests/audit_2026/test_E_73_external_release_gate.py::test_publishing_docs_require_cli_wheel_smoke -q`:
+    `2 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`:
+    built and checked 16 packages / 32 artifacts, verified exact
+    wheel/sdist identity by shipping distribution, verified wheel `py.typed`
+    markers, and completed clean-venv `flowforge --help`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

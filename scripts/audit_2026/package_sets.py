@@ -15,6 +15,7 @@ class ShippingPackage:
     """A Python workspace package that is enabled for distribution."""
 
     directory: str
+    distribution_name: str
     import_package: str
 
 
@@ -67,6 +68,7 @@ def shipping_packages() -> tuple[ShippingPackage, ...]:
         packages.append(
             ShippingPackage(
                 directory=directory,
+                distribution_name=pyproject["project"]["name"],
                 import_package=_import_package(pyproject, directory=directory),
             )
         )

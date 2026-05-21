@@ -14,6 +14,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts" / "audit_2026"))
 package_sets = importlib.import_module("package_sets")
+pypi_build_smoke = importlib.import_module("pypi_build_smoke")
 PINNED_SECRET_WORKFLOW_ACTIONS = {
     "actions/checkout": "34e114876b0b11c390a56381ad16ebd13914f8d5",
     "actions/setup-node": "49933ea5288caeca8642d1e84afbd3f7d6820020",
@@ -399,8 +400,9 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert '"--help"' in script
     assert "expected_artifacts = len(packages) * 2" in script
     assert "expected {len(packages)} wheels and {len(packages)} sdists" in script
-    assert "_assert_wheels_include_py_typed(wheels, packages)" in script
+    assert "_assert_wheels_include_py_typed(wheels_by_distribution, packages)" in script
     assert "zipfile.ZipFile" in script
+    assert "_assert_exact_artifacts_by_package(" in script
     assert "make audit-2026-pypi-build" in publishing
     assert "flowforge-cli-wheel-smoke" in publishing
     assert "--find-links dist flowforge-cli" in publishing
@@ -412,6 +414,34 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "`flowforge-jtbd-*-starter`" not in publishing
     assert "scripts/audit_2026/package_sets.py" in publishing
     assert "for pkg in flowforge-core" not in publishing
+
+
+def test_pypi_build_smoke_rejects_missing_or_duplicate_package_artifacts(
+    tmp_path: Path,
+) -> None:
+    packages = (
+        package_sets.ShippingPackage(
+            directory="flowforge-core",
+            distribution_name="flowforge-core",
+            import_package="flowforge",
+        ),
+        package_sets.ShippingPackage(
+            directory="flowforge-cli",
+            distribution_name="flowforge-cli",
+            import_package="flowforge_cli",
+        ),
+    )
+    wheels = [
+        tmp_path / "flowforge_core-0.1.0-py3-none-any.whl",
+        tmp_path / "flowforge_core-0.1.1-py3-none-any.whl",
+    ]
+    sdists = [
+        tmp_path / "flowforge-core-0.1.0.tar.gz",
+        tmp_path / "flowforge-core-0.1.1.tar.gz",
+    ]
+
+    with pytest.raises(SystemExit, match="flowforge-cli"):
+        pypi_build_smoke._assert_exact_artifacts_by_package(wheels, sdists, packages)
 
 
 def test_closed_package_coverage_ratchet_tracks_completed_packages() -> None:
