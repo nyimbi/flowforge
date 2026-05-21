@@ -7,48 +7,49 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CLOSED_PACKAGE_COVERAGE = (
-	("flowforge-core", "flowforge"),
-	("flowforge-cli", "flowforge_cli"),
-	("flowforge-fastapi", "flowforge_fastapi"),
-	("flowforge-sqlalchemy", "flowforge_sqlalchemy"),
-	("flowforge-tenancy", "flowforge_tenancy"),
-	("flowforge-rbac-static", "flowforge_rbac_static"),
-	("flowforge-rbac-spicedb", "flowforge_rbac_spicedb"),
-	("flowforge-money", "flowforge_money"),
-	("flowforge-otel", "flowforge_otel"),
-	("flowforge-signing-kms", "flowforge_signing_kms"),
-	("flowforge-outbox-pg", "flowforge_outbox_pg"),
-	("flowforge-documents-s3", "flowforge_documents_s3"),
-	("flowforge-notify-multichannel", "flowforge_notify_multichannel"),
-	("flowforge-audit-pg", "flowforge_audit_pg"),
-	("flowforge-jtbd-hub", "flowforge_jtbd_hub"),
+    ("flowforge-core", "flowforge"),
+    ("flowforge-cli", "flowforge_cli"),
+    ("flowforge-jtbd", "flowforge_jtbd"),
+    ("flowforge-fastapi", "flowforge_fastapi"),
+    ("flowforge-sqlalchemy", "flowforge_sqlalchemy"),
+    ("flowforge-tenancy", "flowforge_tenancy"),
+    ("flowforge-rbac-static", "flowforge_rbac_static"),
+    ("flowforge-rbac-spicedb", "flowforge_rbac_spicedb"),
+    ("flowforge-money", "flowforge_money"),
+    ("flowforge-otel", "flowforge_otel"),
+    ("flowforge-signing-kms", "flowforge_signing_kms"),
+    ("flowforge-outbox-pg", "flowforge_outbox_pg"),
+    ("flowforge-documents-s3", "flowforge_documents_s3"),
+    ("flowforge-notify-multichannel", "flowforge_notify_multichannel"),
+    ("flowforge-audit-pg", "flowforge_audit_pg"),
+    ("flowforge-jtbd-hub", "flowforge_jtbd_hub"),
 )
 
 
 def main() -> int:
-	for package, module in CLOSED_PACKAGE_COVERAGE:
-		print(f"closed-package-coverage: {package}", flush=True)
-		subprocess.run(
-			[
-				"uv",
-				"run",
-				"pytest",
-				"tests",
-				"-q",
-				f"--cov={module}",
-				"--cov-branch",
-				"--cov-report=term-missing",
-				"--cov-fail-under=100",
-			],
-			cwd=ROOT / "python" / package,
-			check=True,
-		)
-	print(
-		f"closed-package-coverage: passed for {len(CLOSED_PACKAGE_COVERAGE)} packages",
-		flush=True,
-	)
-	return 0
+    for package, module in CLOSED_PACKAGE_COVERAGE:
+        print(f"closed-package-coverage: {package}", flush=True)
+        subprocess.run(
+            [
+                "uv",
+                "run",
+                "pytest",
+                "tests",
+                "-q",
+                f"--cov={module}",
+                "--cov-branch",
+                "--cov-report=term-missing",
+                "--cov-fail-under=100",
+            ],
+            cwd=ROOT / "python" / package,
+            check=True,
+        )
+    print(
+        f"closed-package-coverage: passed for {len(CLOSED_PACKAGE_COVERAGE)} packages",
+        flush=True,
+    )
+    return 0
 
 
 if __name__ == "__main__":
-	raise SystemExit(main())
+    raise SystemExit(main())

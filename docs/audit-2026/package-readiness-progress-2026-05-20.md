@@ -2392,6 +2392,29 @@ Design audit 5 - operations, security, and reliability:
     PyPI readiness still depends on the repository-wide release gates and
     external environment checks already tracked elsewhere in this log.
 
+## Gate hardening slice - include flowforge-jtbd in closed-package coverage
+
+- Baseline measurement:
+  - `flowforge-jtbd` is listed as a PyPI-publishable strategic package, but the
+    `audit-2026-closed-package-coverage` ratchet did not include it.
+- Action:
+  - Added `flowforge-jtbd` / `flowforge_jtbd` to
+    `scripts/audit_2026/closed_package_coverage.py`.
+- Result:
+  - The closed-package 100% statement/branch coverage gate now covers 16
+    packages, including `flowforge-jtbd`.
+- Verification:
+  - Initial `make audit-2026-closed-package-coverage` hit the local sandbox's
+    unwritable default uv cache under `~/.cache`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`
+    from repo root: passed for 16 packages. Notable package counts included
+    `flowforge-core` `181 passed`, `flowforge-cli` `886 passed, 1 skipped`,
+    `flowforge-jtbd` `639 passed, 1 skipped`, and final
+    `closed-package-coverage: passed for 16 packages`.
+- Remaining risk:
+  - Push remains blocked locally by GitHub HTTPS credentials; external release
+    gates still require their browser/Postgres-capable environments.
+
 ## Package coverage slice - flowforge-jtbd i18n and actor lint
 
 - Baseline measurement:
