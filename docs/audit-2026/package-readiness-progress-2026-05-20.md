@@ -4801,3 +4801,34 @@ Design audit 5 - operations, security, and reliability:
     `646 passed, 1 skipped`; total coverage `100.00%`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## JTBD manifest signing optimized-runtime validation audit
+
+- Security/code review finding:
+  - `flowforge_jtbd.registry.signing` used `assert` for public signer protocol
+    checks and missing manifest signature/key validation. Those checks disappear
+    under optimized Python, degrading the package from clear fail-closed errors
+    to incidental runtime failures around the signing boundary.
+- Action:
+  - Replaced signing and verification asserts with explicit `TypeError` and
+    `ValueError` checks.
+  - Made malformed base64 signatures fail closed by returning `False` instead
+    of surfacing decoder exceptions through verification callers.
+  - Added behavior tests for missing signer methods, unsigned manifests,
+    missing key ids, missing verifier methods, malformed signatures, and a
+    source ratchet that keeps `assert` out of the signing helper module.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format python/flowforge-jtbd/src/flowforge_jtbd/registry/signing.py python/flowforge-jtbd/tests/test_registry.py`:
+    `2 files reformatted`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check python/flowforge-jtbd/src/flowforge_jtbd/registry/signing.py python/flowforge-jtbd/tests/test_registry.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright python/flowforge-jtbd/src/flowforge_jtbd/registry/signing.py python/flowforge-jtbd/tests/test_registry.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest python/flowforge-jtbd/tests/test_registry.py -q`:
+    `25 passed`.
+  - Initial package coverage run exposed one uncovered new branch in
+    `sign_manifest`; added the missing `current_key_id` branch test.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest python/flowforge-jtbd/tests -q --cov=flowforge_jtbd --cov-branch --cov-report=term-missing --cov-fail-under=100`:
+    `652 passed, 1 skipped`; total coverage `100.00%`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

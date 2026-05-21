@@ -5,9 +5,13 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
+import inspect
 import json
 from typing import Any
 
+import pytest
+
+from flowforge_jtbd.registry import signing as signing_module
 from flowforge_jtbd.registry.manifest import (
     JtbdManifest,
     bundle_hash,
@@ -174,6 +178,11 @@ def test_manifest_from_bundle_optional_fields() -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_registry_signing_public_validation_does_not_use_asserts() -> None:
+    source = inspect.getsource(signing_module)
+    assert "assert " not in source
+
+
 def test_sign_manifest_adds_signature() -> None:
     m = JtbdManifest(name="my-pkg", version="1.0.0")
     signer = _FakeSigner()
@@ -188,6 +197,20 @@ def test_sign_manifest_signature_is_base64() -> None:
     # Should decode without error
     raw = base64.b64decode(signed.signature)
     assert len(raw) == 32  # SHA-256 HMAC = 32 bytes
+
+
+def test_sign_manifest_rejects_missing_signer_methods() -> None:
+    m = JtbdManifest(name="my-pkg", version="1.0.0")
+
+    with pytest.raises(TypeError, match="sign_payload"):
+        _run(sign_manifest(m, object()))
+
+    class _NoKeyId:
+        async def sign_payload(self, payload: bytes) -> bytes:
+            return payload
+
+    with pytest.raises(TypeError, match="current_key_id"):
+        _run(sign_manifest(m, _NoKeyId()))
 
 
 def test_verify_manifest_valid_signature() -> None:
@@ -210,6 +233,37 @@ def test_verify_manifest_wrong_signature_fails() -> None:
     m = JtbdManifest(name="my-pkg", version="1.0.0", signature="AAAA", key_id="k")
     signer = _FakeSigner()
     assert _run(verify_manifest(m, signer)) is False
+
+
+def test_verify_manifest_malformed_signature_fails_closed() -> None:
+    m = JtbdManifest(
+        name="my-pkg", version="1.0.0", signature="not-base64!", key_id="k"
+    )
+    signer = _FakeSigner()
+    assert _run(verify_manifest(m, signer)) is False
+
+
+def test_verify_manifest_rejects_unsigned_manifest() -> None:
+    m = JtbdManifest(name="my-pkg", version="1.0.0")
+    signer = _FakeSigner()
+
+    with pytest.raises(ValueError, match="no signature"):
+        _run(verify_manifest(m, signer))
+
+
+def test_verify_manifest_rejects_missing_key_id() -> None:
+    m = JtbdManifest(name="my-pkg", version="1.0.0", signature="AAAA")
+    signer = _FakeSigner()
+
+    with pytest.raises(ValueError, match="no key_id"):
+        _run(verify_manifest(m, signer))
+
+
+def test_verify_manifest_rejects_missing_verify_method() -> None:
+    m = JtbdManifest(name="my-pkg", version="1.0.0", signature="AAAA", key_id="k")
+
+    with pytest.raises(TypeError, match="verify"):
+        _run(verify_manifest(m, object()))
 
 
 def test_sign_round_trip_with_bundle_metadata() -> None:
