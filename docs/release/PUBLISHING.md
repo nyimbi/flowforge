@@ -47,8 +47,9 @@ uv run pytest tests/conformance/ -v
 
 # 5. PyPI artifact gate — builds all 16 shipping packages, verifies
 #    exactly one wheel and one sdist per package, checks that typed
-#    packages include `py.typed` in their wheels, runs `twine check`,
-#    and smoke-installs the flowforge-cli wheel.
+#    packages include `py.typed` in their wheels, verifies declared
+#    license files are present in wheel/sdist payloads, runs
+#    `twine check`, and smoke-installs the flowforge-cli wheel.
 make audit-2026-pypi-build
 ```
 
@@ -57,9 +58,10 @@ make audit-2026-pypi-build
 `make audit-2026-pypi-build` is the canonical release gate. It discovers
 shipping packages from the workspace metadata, builds each package, requires
 exactly one wheel and one sdist per package, verifies PEP 561 `py.typed`
-markers are present in typed package wheels, checks every wheel/sdist with
-`twine`, then installs `flowforge-cli` from the built artifacts into a clean
-venv and runs `flowforge --help`.
+markers are present in typed package wheels, verifies each wheel and sdist
+contains the declared `LICENSE` file, checks every wheel/sdist with `twine`,
+then installs `flowforge-cli` from the built artifacts into a clean venv and
+runs `flowforge --help`.
 
 `uv build` produces an sdist + wheel per package. Do not maintain a separate
 manual package list for release builds; the gate discovers shipping packages

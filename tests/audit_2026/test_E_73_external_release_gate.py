@@ -5,7 +5,9 @@ from __future__ import annotations
 import importlib
 import re
 import sys
+import tarfile
 import tomllib
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -419,7 +421,9 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "expected_artifacts = len(packages) * 2" in script
     assert "expected {len(packages)} wheels and {len(packages)} sdists" in script
     assert "_assert_wheels_include_py_typed(wheels_by_distribution, packages)" in script
+    assert "_assert_artifacts_include_license_files(" in script
     assert "zipfile.ZipFile" in script
+    assert "tarfile.open" in script
     assert "_assert_exact_artifacts_by_package(" in script
     assert "make audit-2026-pypi-build" in publishing
     assert "flowforge-cli-wheel-smoke" in publishing
@@ -428,6 +432,7 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "ModuleNotFoundError" in publishing
     assert "exactly one wheel and one sdist per package" in publishing
     assert "py.typed" in publishing
+    assert "declared `LICENSE` file" in publishing
     assert "`flowforge-jtbd-*` domain packages" in publishing
     assert "`flowforge-jtbd-*-starter`" not in publishing
     assert "scripts/audit_2026/package_sets.py" in publishing
@@ -460,6 +465,34 @@ def test_pypi_build_smoke_rejects_missing_or_duplicate_package_artifacts(
 
     with pytest.raises(SystemExit, match="flowforge-cli"):
         pypi_build_smoke._assert_exact_artifacts_by_package(wheels, sdists, packages)
+
+
+def test_pypi_build_smoke_rejects_artifacts_missing_license_files(
+    tmp_path: Path,
+) -> None:
+    package = package_sets.ShippingPackage(
+        directory="flowforge-core",
+        distribution_name="flowforge",
+        import_package="flowforge",
+    )
+    wheel = tmp_path / "flowforge-0.1.0-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr("flowforge/__init__.py", "")
+    sdist = tmp_path / "flowforge-0.1.0.tar.gz"
+    with tarfile.open(sdist, "w:gz") as archive:
+        package_dir = tmp_path / "flowforge-0.1.0"
+        package_dir.mkdir()
+        pyproject = package_dir / "pyproject.toml"
+        pyproject.write_text('[project]\nname = "flowforge"\n', encoding="utf-8")
+        archive.add(pyproject, arcname="flowforge-0.1.0/pyproject.toml")
+
+    key = pypi_build_smoke._distribution_key(package.distribution_name)
+    with pytest.raises(SystemExit, match="missing declared license files"):
+        pypi_build_smoke._assert_artifacts_include_license_files(
+            {key: wheel},
+            {key: sdist},
+            (package,),
+        )
 
 
 def test_closed_package_coverage_ratchet_tracks_completed_packages() -> None:

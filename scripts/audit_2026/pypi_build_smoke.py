@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import subprocess
+import tarfile
 import tempfile
 import zipfile
 from collections.abc import Mapping
@@ -78,7 +79,7 @@ def _assert_exact_artifacts_by_package(
     wheels: list[Path],
     sdists: list[Path],
     packages: tuple[ShippingPackage, ...],
-) -> dict[str, Path]:
+) -> tuple[dict[str, Path], dict[str, Path]]:
     expected = {
         _distribution_key(package.distribution_name): package for package in packages
     }
@@ -113,7 +114,10 @@ def _assert_exact_artifacts_by_package(
             "built artifacts do not match the shipping package set:\n  "
             + "\n  ".join(issues)
         )
-    return {key: wheel_groups[key][0] for key in expected}
+    return (
+        {key: wheel_groups[key][0] for key in expected},
+        {key: sdist_groups[key][0] for key in expected},
+    )
 
 
 def _assert_wheels_include_py_typed(
@@ -134,6 +138,35 @@ def _assert_wheels_include_py_typed(
     if missing:
         raise SystemExit(
             "built wheels are missing PEP 561 typing markers:\n  "
+            + "\n  ".join(missing)
+        )
+
+
+def _assert_artifacts_include_license_files(
+    wheels_by_distribution: Mapping[str, Path],
+    sdists_by_distribution: Mapping[str, Path],
+    packages: tuple[ShippingPackage, ...],
+) -> None:
+    missing: list[str] = []
+    for package in packages:
+        key = _distribution_key(package.distribution_name)
+        wheel = wheels_by_distribution[key]
+        with zipfile.ZipFile(wheel) as archive:
+            wheel_names = set(archive.namelist())
+        if not any(
+            name.endswith(".dist-info/licenses/LICENSE") for name in wheel_names
+        ):
+            missing.append(f"{package.directory}: wheel LICENSE")
+
+        sdist = sdists_by_distribution[key]
+        with tarfile.open(sdist) as archive:
+            sdist_names = set(archive.getnames())
+        if not any(name.endswith("/LICENSE") for name in sdist_names):
+            missing.append(f"{package.directory}: sdist LICENSE")
+
+    if missing:
+        raise SystemExit(
+            "built artifacts are missing declared license files:\n  "
             + "\n  ".join(missing)
         )
 
@@ -180,12 +213,17 @@ def main(argv: list[str] | None = None) -> int:
             f"expected {len(packages)} wheels and {len(packages)} sdists, "
             f"found {len(wheels)} wheels and {len(sdists)} sdists in {dist_dir}"
         )
-    wheels_by_distribution = _assert_exact_artifacts_by_package(
+    wheels_by_distribution, sdists_by_distribution = _assert_exact_artifacts_by_package(
         wheels,
         sdists,
         packages,
     )
     _assert_wheels_include_py_typed(wheels_by_distribution, packages)
+    _assert_artifacts_include_license_files(
+        wheels_by_distribution,
+        sdists_by_distribution,
+        packages,
+    )
 
     _run(
         [

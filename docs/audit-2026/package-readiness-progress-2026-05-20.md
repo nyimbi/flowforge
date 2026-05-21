@@ -2985,3 +2985,36 @@ Design audit 5 - operations, security, and reliability:
     `23 passed`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI license file artifact audit
+
+- Code review finding:
+  - Shipping packages declare `license-files = ["LICENSE"]`, but the PyPI
+    build smoke only relied on `twine check` and metadata-level ratchets. It
+    did not inspect the built wheel and sdist payloads to prove that every
+    published artifact actually contains the declared license file.
+- Action:
+  - Hardened `scripts/audit_2026/pypi_build_smoke.py` to inspect each matched
+    wheel and sdist and fail closed when a wheel lacks
+    `.dist-info/licenses/LICENSE` or an sdist lacks a top-level `LICENSE`.
+  - Updated the publishing guide to document license-file payload validation
+    as part of `make audit-2026-pypi-build`.
+  - Added a focused ratchet that builds minimal license-less wheel/sdist
+    artifacts and verifies the smoke helper rejects them.
+- Verification:
+  - `uv run ruff check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run ruff format --check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors`, `0 warnings`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_pypi_build_smoke_rejects_artifacts_missing_license_files tests/audit_2026/test_E_73_external_release_gate.py::test_publishing_docs_require_cli_wheel_smoke -q`:
+    `2 passed`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `24 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`:
+    built and checked 16 packages / 32 artifacts, verified declared license
+    files in wheel/sdist payloads, and completed clean-venv
+    `flowforge --help`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
