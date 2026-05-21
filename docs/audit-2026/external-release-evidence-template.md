@@ -58,7 +58,7 @@ approval record.
 
 - DOM visual regression:
 - Browser full-stack Playwright:
-- Real-key polish-copy sidecar gate (`make audit-2026-polish-copy-sidecar`):
+- Reviewed polish-copy sidecar gate (`make audit-2026-polish-copy-sidecar`):
 - PyPI publication artifacts (`make audit-2026-pypi-build-dist`):
 - PyPI artifact checksum manifest reviewed:
 - PyPI artifact checksum manifest verified against retained `dist/*` artifacts:

@@ -427,7 +427,7 @@ def test_external_release_evidence_template_tracks_required_proofs() -> None:
         "Uploadable PyPI `dist/*` artifacts present",
         "PyPI artifact checksum manifest URL/path",
         "Browser full-stack Playwright",
-        "Real-key polish-copy sidecar gate",
+        "Reviewed polish-copy sidecar gate",
         "make audit-2026-pypi-build-dist",
         "make audit-2026-pypi-artifact-manifest",
         "PyPI artifact checksum manifest reviewed",

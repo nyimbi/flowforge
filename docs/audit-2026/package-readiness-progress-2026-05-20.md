@@ -4689,3 +4689,28 @@ Design audit 5 - operations, security, and reliability:
     PyPI due DNS lookup failure.
   - The required elevated rerun was blocked by the automatic approval reviewer.
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## External evidence template real-key wording audit
+
+- Code review finding:
+  - The evidence template's required passing evidence still called
+    `make audit-2026-polish-copy-sidecar` a "Real-key" sidecar gate after the
+    local release gate began verifying the committed reviewed sidecar without
+    live LLM credentials. That wording could make reviewers require fresh LLM
+    authoring for every release instead of only when refreshing the sidecar.
+- Action:
+  - Renamed the required evidence field to "Reviewed polish-copy sidecar gate".
+  - Updated the release evidence ratchet to lock the reviewed-sidecar wording.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format tests/audit_2026/test_E_73_external_release_gate.py`:
+    `1 file left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused external evidence template ratchet:
+    `1 passed`.
+  - `git diff --check`:
+    clean.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
