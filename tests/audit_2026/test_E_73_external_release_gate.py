@@ -336,6 +336,7 @@ def test_closed_package_coverage_ratchet_tracks_completed_packages() -> None:
 	closed_packages = ast.literal_eval(assignment.value)
 	assert closed_packages == (
 		("flowforge-core", "flowforge"),
+		("flowforge-cli", "flowforge_cli"),
 		("flowforge-fastapi", "flowforge_fastapi"),
 		("flowforge-sqlalchemy", "flowforge_sqlalchemy"),
 		("flowforge-tenancy", "flowforge_tenancy"),

@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 CLOSED_PACKAGE_COVERAGE = (
 	("flowforge-core", "flowforge"),
+	("flowforge-cli", "flowforge_cli"),
 	("flowforge-fastapi", "flowforge_fastapi"),
 	("flowforge-sqlalchemy", "flowforge_sqlalchemy"),
 	("flowforge-tenancy", "flowforge_tenancy"),

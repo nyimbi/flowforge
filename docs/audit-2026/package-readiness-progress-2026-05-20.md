@@ -1897,3 +1897,30 @@ Design audit 5 - operations, security, and reliability:
   - The desktop editor is still verified through GUI-free fakes in the default
     lane. A real PyQt smoke test remains useful before final desktop readiness
     signoff, but the default package coverage gate is now fully closed.
+
+## Closed-package coverage ratchet - flowforge-cli
+
+- Baseline measurement:
+  - `flowforge-cli` now reaches 100% statement and branch coverage in its
+    package suite, but it was not yet part of the closed-package 100% coverage
+    ratchet.
+- Action:
+  - Added `("flowforge-cli", "flowforge_cli")` to
+    `scripts/audit_2026/closed_package_coverage.py`.
+  - Updated the external release-gate ratchet test so future edits must keep
+    `flowforge-cli` in the closed-package coverage list.
+- Result:
+  - `make audit-2026-closed-package-coverage` now includes `flowforge-cli`
+    alongside the other completed shipping packages.
+- Verification:
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q --tb=short`
+    from the repo root: `17 passed`.
+  - `uv run ruff check scripts/audit_2026/closed_package_coverage.py tests/audit_2026/test_E_73_external_release_gate.py`
+    from the repo root: clean.
+  - `uv run pyright scripts/audit_2026/closed_package_coverage.py tests/audit_2026/test_E_73_external_release_gate.py`
+    from the repo root: `0 errors`, `0 warnings`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`
+    from the repo root: passed for 14 packages, including `flowforge-cli`.
+  - Plain `make audit-2026-closed-package-coverage` still hit a local uv cache
+    sandbox error under `~/.cache/uv`; rerunning with the audit-local
+    `/private/tmp` uv cache resolved the environment issue.
