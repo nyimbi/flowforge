@@ -1657,3 +1657,36 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: passed with one optional `mmdc` skip and
     overall package coverage 80%.
+
+## CLI coverage slice - polish-copy command
+
+- Baseline measurement:
+  - After closing JTBD lint command-wrapper coverage, rounded
+    `flowforge-cli` package coverage was 80%.
+  - `commands/polish_copy.py` was 70% covered; remaining gaps were the real
+    Anthropic provider closure, Claude CLI transport/payload errors, malformed
+    polish output rejection, dry-run diff output, semantic no-change commit
+    skipping, and commit writes that update sidecar metadata without changing
+    strings.
+- Action:
+  - Added focused polish-copy tests for missing Claude CLI binaries, missing
+    `flowforge-cli[llm]` extras, Anthropic JSON parsing and fallback behavior,
+    Claude CLI empty-input, transport, timeout, malformed payload, error-status,
+    filtering, and defaulting paths.
+  - Added CLI tests for rejected unknown bundle keys, proposed dry-run diffs,
+    semantically unchanged sidecar skips, and metadata-only sidecar rewrites.
+- Result:
+  - `flowforge_cli.commands.polish_copy` now reaches 100% statement and branch
+    coverage.
+  - Overall `flowforge-cli` rounded package coverage increased to 81%.
+- Verification:
+  - `uv run pytest tests/test_polish_copy.py -q --cov=flowforge_cli.commands.polish_copy --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `53 passed`, 100% statement and branch
+    coverage for `polish_copy.py`.
+  - `uv run ruff check tests/test_polish_copy.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_polish_copy.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `847 passed`, one optional `mmdc` skip, and
+    overall package coverage 81%.

@@ -18,8 +18,11 @@ Covers:
 
 from __future__ import annotations
 
+import importlib.machinery
 import json
 import subprocess
+import sys
+import types
 from pathlib import Path
 from typing import Any
 
@@ -431,6 +434,275 @@ def _write_bundle(tmp_path: Path, bundle: dict[str, Any] | None = None) -> Path:
 	path = tmp_path / "jtbd-bundle.json"
 	path.write_text(json.dumps(bundle if bundle is not None else _bundle()), encoding="utf-8")
 	return path
+
+
+def _install_fake_anthropic(
+	monkeypatch: pytest.MonkeyPatch,
+	*,
+	body: str,
+) -> None:
+	"""Install a minimal fake anthropic module for the opt-in provider path."""
+
+	class FakeMessages:
+		def create(
+			self,
+			*,
+			model: str,
+			max_tokens: int,
+			messages: list[dict[str, str]],
+		) -> types.SimpleNamespace:
+			assert model == polish_copy_module._ANTHROPIC_MODEL
+			assert max_tokens == 4096
+			assert messages[0]["role"] == "user"
+			return types.SimpleNamespace(
+				content=[types.SimpleNamespace(text=body)]
+			)
+
+	class FakeAnthropic:
+		def __init__(self, *, api_key: str) -> None:
+			assert api_key == "test-key"
+			self.messages = FakeMessages()
+
+	fake = types.ModuleType("anthropic")
+	fake.Anthropic = FakeAnthropic  # type: ignore[attr-defined]
+	monkeypatch.setitem(sys.modules, "anthropic", fake)
+	monkeypatch.setattr(
+		polish_copy_module.importlib.util,
+		"find_spec",
+		lambda name: (
+			importlib.machinery.ModuleSpec(name, loader=None)
+			if name == "anthropic"
+			else None
+		),
+	)
+
+
+def test_detect_polish_fn_claude_cli_missing_binary_returns_noop(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	monkeypatch.setenv("FLOWFORGE_POLISH_PROVIDER", "claude-cli")
+	monkeypatch.setattr(polish_copy_module.shutil, "which", lambda _name: None)
+
+	fn, reason, provider, model = polish_copy_module._detect_polish_fn()
+
+	assert provider is None
+	assert model is None
+	assert "claude CLI was not found" in reason
+	assert fn({"claim_intake.field.claimant_name.label": "Claimant"}, "formal-professional") == {
+		"claim_intake.field.claimant_name.label": "Claimant"
+	}
+
+
+def test_detect_polish_fn_missing_anthropic_extra_returns_noop(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+	monkeypatch.setattr(
+		polish_copy_module.importlib.util,
+		"find_spec",
+		lambda _name: None,
+	)
+
+	fn, reason, provider, model = polish_copy_module._detect_polish_fn()
+
+	assert provider is None
+	assert model is None
+	assert "flowforge-cli[llm]" in reason
+	assert fn({"claim_intake.field.claimant_name.label": "Claimant"}, "formal-professional") == {
+		"claim_intake.field.claimant_name.label": "Claimant"
+	}
+
+
+def test_detect_polish_fn_anthropic_polish_filters_and_defaults(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+	_install_fake_anthropic(
+		monkeypatch,
+		body=json.dumps(
+			{
+				"claim_intake.field.claimant_name.label": "Policyholder legal name",
+				"claim_intake.field.loss_amount.label": 42,
+			}
+		),
+	)
+
+	fn, reason, provider, model = polish_copy_module._detect_polish_fn()
+
+	assert reason == "anthropic API key detected — running LLM polish"
+	assert provider == "anthropic"
+	assert model == polish_copy_module._ANTHROPIC_MODEL
+	assert fn({}, "formal-professional") == {}
+	assert fn(
+		{
+			"claim_intake.field.claimant_name.label": "Claimant",
+			"claim_intake.field.loss_amount.label": "Loss",
+		},
+		"formal-professional",
+	) == {
+		"claim_intake.field.claimant_name.label": "Policyholder legal name",
+		"claim_intake.field.loss_amount.label": "Loss",
+	}
+
+
+@pytest.mark.parametrize(
+	("body", "message"),
+	[
+		("not json", "anthropic response was not valid JSON"),
+		(json.dumps(["not", "an", "object"]), "anthropic response must be a JSON object"),
+	],
+)
+def test_detect_polish_fn_anthropic_rejects_bad_response(
+	monkeypatch: pytest.MonkeyPatch,
+	body: str,
+	message: str,
+) -> None:
+	monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+	_install_fake_anthropic(monkeypatch, body=body)
+	fn, _reason, _provider, _model = polish_copy_module._detect_polish_fn()
+
+	with pytest.raises(polish_copy_module.PolishProviderError, match=message):
+		fn({"claim_intake.field.claimant_name.label": "Claimant"}, "formal-professional")
+
+
+def test_run_claude_cli_polish_empty_strings_skips_subprocess(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	def fail_run(*_args: Any, **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+		raise AssertionError("subprocess should not run for empty input")
+
+	monkeypatch.setattr(polish_copy_module.subprocess, "run", fail_run)
+
+	assert polish_copy_module._run_claude_cli_polish(
+		{},
+		"formal-professional",
+		"sonnet-test",
+	) == {}
+
+
+@pytest.mark.parametrize(
+	("exc", "message"),
+	[
+		(OSError("missing binary"), "claude CLI execution failed: missing binary"),
+		(subprocess.TimeoutExpired(["claude"], 120), "claude CLI timed out"),
+	],
+)
+def test_run_claude_cli_polish_reports_transport_errors(
+	monkeypatch: pytest.MonkeyPatch,
+	exc: Exception,
+	message: str,
+) -> None:
+	def fake_run(*_args: Any, **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+		raise exc
+
+	monkeypatch.setattr(polish_copy_module.subprocess, "run", fake_run)
+
+	with pytest.raises(polish_copy_module.PolishProviderError, match=message):
+		polish_copy_module._run_claude_cli_polish(
+			{"claim_intake.field.claimant_name.label": "Claimant"},
+			"formal-professional",
+			"sonnet-test",
+		)
+
+
+@pytest.mark.parametrize(
+	("stdout", "message"),
+	[
+		("not json", "claude CLI response was not valid JSON"),
+		(json.dumps(["not", "an", "object"]), "claude CLI response must be a JSON object"),
+		(
+			json.dumps({"is_error": True, "api_error_status": "401"}),
+			"claude CLI returned error status 401",
+		),
+		(
+			json.dumps({"is_error": True}),
+			"claude CLI returned error status unknown",
+		),
+		(
+			json.dumps({"structured_output": []}),
+			"claude CLI response missing structured_output object",
+		),
+	],
+)
+def test_run_claude_cli_polish_rejects_unusable_payloads(
+	monkeypatch: pytest.MonkeyPatch,
+	stdout: str,
+	message: str,
+) -> None:
+	def fake_run(
+		cmd: list[str],
+		*,
+		check: bool,
+		capture_output: bool,
+		text: bool,
+		timeout: int,
+	) -> subprocess.CompletedProcess[str]:
+		return subprocess.CompletedProcess(cmd, 0, stdout=stdout, stderr="")
+
+	monkeypatch.setattr(polish_copy_module.subprocess, "run", fake_run)
+
+	with pytest.raises(polish_copy_module.PolishProviderError, match=message):
+		polish_copy_module._run_claude_cli_polish(
+			{"claim_intake.field.claimant_name.label": "Claimant"},
+			"formal-professional",
+			"sonnet-test",
+		)
+
+
+def test_run_claude_cli_polish_filters_and_defaults(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	def fake_run(
+		cmd: list[str],
+		*,
+		check: bool,
+		capture_output: bool,
+		text: bool,
+		timeout: int,
+	) -> subprocess.CompletedProcess[str]:
+		assert "--max-budget-usd" in cmd
+		assert check is False
+		assert capture_output is True
+		assert text is True
+		assert timeout == 120
+		return subprocess.CompletedProcess(
+			cmd,
+			0,
+			stdout=json.dumps(
+				{
+					"structured_output": {
+						"claim_intake.field.claimant_name.label": "Policyholder legal name",
+						"claim_intake.field.loss_amount.label": 42,
+					}
+				}
+			),
+			stderr="",
+		)
+
+	monkeypatch.setattr(polish_copy_module.subprocess, "run", fake_run)
+
+	assert polish_copy_module._run_claude_cli_polish(
+		{
+			"claim_intake.field.claimant_name.label": "Claimant",
+			"claim_intake.field.loss_amount.label": "Loss",
+		},
+		"formal-professional",
+		"sonnet-test",
+	) == {
+		"claim_intake.field.claimant_name.label": "Policyholder legal name",
+		"claim_intake.field.loss_amount.label": "Loss",
+	}
+
+
+def test_diff_lines_reports_add_change_and_delete() -> None:
+	assert polish_copy_module._diff_lines(
+		{"unchanged": "same", "removed": "old", "changed": "old"},
+		{"unchanged": "same", "added": "new", "changed": "new"},
+	) == [
+		"  + added: 'new'",
+		"  ~ changed: 'old' → 'new'",
+		"  - removed: 'old'",
+	]
 
 
 def test_cli_dry_run_no_api_key_reports_empty_diff(tmp_path: Path) -> None:
@@ -847,6 +1119,185 @@ def test_cli_commit_llm_polish_records_model_and_prompt_checksum(
 		build_canonical_strings(_bundle()),
 		"formal-professional",
 	)
+
+
+def test_cli_rejects_polish_output_for_unknown_bundle_key(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	def fake_polish(strings: dict[str, str], _tone: str) -> dict[str, str]:
+		out = dict(strings)
+		out["claim_intake.field.unknown_field.label"] = "Unknown"
+		return out
+
+	monkeypatch.setattr(
+		polish_copy_module,
+		"_detect_polish_fn",
+		lambda: (
+			fake_polish,
+			"test LLM polish",
+			"anthropic",
+			"claude-test-model-20260518",
+		),
+	)
+
+	path = _write_bundle(tmp_path)
+	result = runner.invoke(
+		app,
+		[
+			"polish-copy",
+			"--bundle",
+			str(path),
+			"--tone",
+			"formal-professional",
+			"--dry-run",
+		],
+	)
+	assert result.exit_code != 0
+	assert "polish output rejected" in result.output
+
+
+def test_cli_dry_run_reports_llm_proposed_changes(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	def fake_polish(strings: dict[str, str], _tone: str) -> dict[str, str]:
+		out = dict(strings)
+		out["claim_intake.field.claimant_name.label"] = "Policyholder legal name"
+		return out
+
+	monkeypatch.setattr(
+		polish_copy_module,
+		"_detect_polish_fn",
+		lambda: (
+			fake_polish,
+			"test LLM polish",
+			"anthropic",
+			"claude-test-model-20260518",
+		),
+	)
+
+	path = _write_bundle(tmp_path)
+	result = runner.invoke(
+		app,
+		[
+			"polish-copy",
+			"--bundle",
+			str(path),
+			"--tone",
+			"formal-professional",
+			"--dry-run",
+		],
+	)
+	assert result.exit_code == 0, result.output
+	assert "proposed changes" in result.output
+	assert "~ claim_intake.field.claimant_name.label" in result.output
+	assert not sidecar_path_for(path).exists()
+
+
+def test_cli_commit_skips_semantically_unchanged_sidecar(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	polished = {
+		"claim_intake.field.claimant_name.label": "Policyholder legal name",
+		"claim_intake.field.loss_amount.label": "Loss",
+	}
+
+	def fake_polish(_strings: dict[str, str], _tone: str) -> dict[str, str]:
+		return dict(polished)
+
+	monkeypatch.setattr(
+		polish_copy_module,
+		"_detect_polish_fn",
+		lambda: (
+			fake_polish,
+			"test LLM polish",
+			"anthropic",
+			"claude-test-model-20260518",
+		),
+	)
+
+	path = _write_bundle(tmp_path)
+	sidecar = sidecar_path_for(path)
+	original = dump_sidecar(
+		JtbdCopyOverrides(
+			tone_profile="formal-professional",
+			strings=polished,
+			llm_provider="anthropic",
+			llm_model="older-model",
+			prompt_sha256="c" * 64,
+		)
+	)
+	sidecar.write_text(original, encoding="utf-8")
+
+	result = runner.invoke(
+		app,
+		[
+			"polish-copy",
+			"--bundle",
+			str(path),
+			"--tone",
+			"formal-professional",
+			"--commit",
+		],
+	)
+	assert result.exit_code == 0, result.output
+	assert "no semantic change" in result.output
+	assert sidecar.read_text(encoding="utf-8") == original
+
+
+def test_cli_commit_can_rewrite_metadata_without_applied_change_lines(
+	tmp_path: Path,
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	polished = {
+		"claim_intake.field.claimant_name.label": "Policyholder legal name",
+		"claim_intake.field.loss_amount.label": "Loss",
+	}
+
+	def fake_polish(_strings: dict[str, str], _tone: str) -> dict[str, str]:
+		return dict(polished)
+
+	monkeypatch.setattr(
+		polish_copy_module,
+		"_detect_polish_fn",
+		lambda: (
+			fake_polish,
+			"test LLM polish",
+			"anthropic",
+			"claude-test-model-20260518",
+		),
+	)
+
+	path = _write_bundle(tmp_path)
+	sidecar_path_for(path).write_text(
+		dump_sidecar(
+			JtbdCopyOverrides(
+				tone_profile="friendly-direct",
+				strings=polished,
+			)
+		),
+		encoding="utf-8",
+	)
+
+	result = runner.invoke(
+		app,
+		[
+			"polish-copy",
+			"--bundle",
+			str(path),
+			"--tone",
+			"formal-professional",
+			"--commit",
+		],
+	)
+	assert result.exit_code == 0, result.output
+	assert "wrote" in result.output
+	assert "applied changes" not in result.output
+	sidecar = load_sidecar(path)
+	assert sidecar is not None
+	assert sidecar.tone_profile == "formal-professional"
 
 
 def test_cli_rejects_invalid_tone(tmp_path: Path) -> None:
