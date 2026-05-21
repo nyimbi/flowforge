@@ -2004,3 +2004,39 @@ Design audit 5 - operations, security, and reliability:
     Remaining gaps are concentrated in AI/vector-store behavior, quality scoring,
     recommender edges, DSL/spec/exporter helpers, lint conflict edges, Claude LLM
     port branches, manifest serialization, and template cache branches.
+
+## Package coverage slice - flowforge-jtbd pgvector store
+
+- Baseline measurement:
+  - `flowforge-jtbd`: 95% package coverage before this slice.
+  - `flowforge_jtbd.ai.pgvector_store` was at 86% with uncovered optional
+    dependency validation, async context-manager session handling, row coercion,
+    and empty-golden recall branches.
+- Action:
+  - Added pgvector store tests for `from_extras` success, missing SQLAlchemy,
+    missing asyncpg, and tolerated missing `pgvector-python` soft hints.
+  - Added coverage for async context-manager session factories, dict and
+    SQLAlchemy-style mapping rows, and recall measurement when a golden query has
+    no expected ids.
+- Result:
+  - `flowforge_jtbd.ai.pgvector_store` now reaches 100% statement and branch
+    coverage in the focused gate.
+  - Overall `flowforge-jtbd` rounded package coverage increased from 95% to
+    96%.
+- Verification:
+  - `uv run pytest tests/unit/test_ai_pgvector_store.py -q --cov=flowforge_jtbd.ai.pgvector_store --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-jtbd`: `31 passed`, targeted module coverage 100%.
+  - `uv run ruff check tests/unit/test_ai_pgvector_store.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run ruff format --check tests/unit/test_ai_pgvector_store.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run pyright tests/unit/test_ai_pgvector_store.py`
+    from `python/flowforge-jtbd`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_jtbd --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-jtbd`: `582 passed`, one optional skip, one expected
+    in-memory embedding-store performance warning, and package coverage 96%.
+- Remaining risk:
+  - `flowforge-jtbd` is not yet ready for the closed-package coverage ratchet.
+    Remaining gaps are concentrated in AI quality scoring, recommender edges,
+    DSL/spec/exporter helpers, lint conflict edges, Claude LLM port branches,
+    manifest serialization, and template cache branches.
