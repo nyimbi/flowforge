@@ -53,10 +53,14 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import typer
 from typer.testing import CliRunner
 
+from flowforge_cli.commands import bundle_diff as bundle_diff_module
 from flowforge_cli.commands.bundle_diff import (
 	Change,
+	ChangeKind,
+	DiffReport,
 	compute_diff,
 	render_html,
 	render_json,
@@ -156,12 +160,25 @@ def test_no_changes_yields_empty_report() -> None:
 	bundle = _base_bundle()
 	rep = compute_diff(bundle, copy.deepcopy(bundle))
 	assert rep.changes == []
+	assert rep.by_kind(ChangeKind.ADDITIVE) == []
 	assert not rep.has_blocking()
 	assert rep.counts() == {
 		"additive": 0,
 		"requires-coordination": 0,
 		"breaking": 0,
 	}
+	assert "no differences detected" in render_text(rep)
+
+
+def test_malformed_jtbd_entries_are_ignored() -> None:
+	old = _base_bundle()
+	new = copy.deepcopy(old)
+	old["jtbds"].extend(["not-a-dict", {"id": ""}, {"id": 123}])
+	new["jtbds"].extend(["not-a-dict", {"id": ""}, {"id": 123}])
+
+	rep = compute_diff(old, new)
+
+	assert rep.changes == []
 
 
 def test_new_jtbd_is_additive() -> None:
@@ -319,6 +336,21 @@ def test_field_pii_promoted_is_coordination() -> None:
 	assert ("requires-coordination", "field_pii_promoted") in cats
 
 
+def test_field_pii_demoted_and_label_changed_are_categorised() -> None:
+	old = _base_bundle()
+	new = copy.deepcopy(old)
+	for f in new["jtbds"][0]["data_capture"]:
+		if f["id"] == "claimant_name":
+			f["pii"] = False
+			f["label"] = "Policyholder legal name"
+
+	rep = compute_diff(old, new)
+	cats = _categories(rep.changes)
+
+	assert ("additive", "field_pii_demoted") in cats
+	assert ("requires-coordination", "field_label_changed") in cats
+
+
 def test_enum_value_removed_is_breaking() -> None:
 	old = _base_bundle()
 	new = copy.deepcopy(old)
@@ -339,6 +371,31 @@ def test_enum_value_added_is_additive() -> None:
 	rep = compute_diff(old, new)
 	cats = _categories(rep.changes)
 	assert ("additive", "enum_value_added") in cats
+
+
+def test_numeric_validation_tightened_and_relaxed_are_categorised() -> None:
+	old = _base_bundle()
+	tightened = copy.deepcopy(old)
+	relaxed = copy.deepcopy(old)
+	for f in old["jtbds"][0]["data_capture"]:
+		if f["id"] == "claimant_name":
+			f["validation"] = {"max_length": 100, "max": 500, "min": 0}
+	for f in tightened["jtbds"][0]["data_capture"]:
+		if f["id"] == "claimant_name":
+			f["validation"] = {"max_length": 50, "max": 400, "min": 5}
+	for f in relaxed["jtbds"][0]["data_capture"]:
+		if f["id"] == "claimant_name":
+			f["validation"] = {"max_length": 150, "max": 600, "min": -5}
+
+	tight_cats = _categories(compute_diff(old, tightened).changes)
+	relaxed_cats = _categories(compute_diff(old, relaxed).changes)
+
+	assert ("breaking", "field_validation_max_length_tightened") in tight_cats
+	assert ("breaking", "field_validation_max_tightened") in tight_cats
+	assert ("breaking", "field_validation_min_tightened") in tight_cats
+	assert ("additive", "field_validation_max_length_relaxed") in relaxed_cats
+	assert ("additive", "field_validation_max_relaxed") in relaxed_cats
+	assert ("additive", "field_validation_min_relaxed") in relaxed_cats
 
 
 def test_shared_permission_added_is_coordination() -> None:
@@ -377,6 +434,26 @@ def test_shared_role_removed_is_breaking() -> None:
 	assert ("breaking", "shared_role_removed") in cats
 
 
+def test_actor_role_and_external_changes_are_categorised() -> None:
+	old = _base_bundle()
+	new = copy.deepcopy(old)
+	new["jtbds"][0]["actor"] = {"role": "adjuster", "external": False}
+
+	rep = compute_diff(old, new)
+	cats = _categories(rep.changes)
+
+	assert ("requires-coordination", "actor_role_changed") in cats
+	assert ("additive", "actor_external_changed") in cats
+
+	old_internal = _base_bundle()
+	new_external = copy.deepcopy(old_internal)
+	old_internal["jtbds"][0]["actor"]["external"] = False
+	new_external["jtbds"][0]["actor"]["external"] = True
+
+	cats = _categories(compute_diff(old_internal, new_external).changes)
+	assert ("requires-coordination", "actor_external_changed") in cats
+
+
 def test_edge_case_added_is_additive() -> None:
 	old = _base_bundle()
 	new = copy.deepcopy(old)
@@ -409,6 +486,49 @@ def test_edge_case_handle_changed_is_breaking() -> None:
 	rep = compute_diff(old, new)
 	cats = _categories(rep.changes)
 	assert ("breaking", "edge_case_handle_changed") in cats
+
+
+def test_edge_case_removed_and_condition_changed_are_categorised() -> None:
+	old = _base_bundle()
+	removed = copy.deepcopy(old)
+	removed["jtbds"][0]["edge_cases"] = []
+	changed = copy.deepcopy(old)
+	changed["jtbds"][0]["edge_cases"][0]["condition"] = "loss_amount >= 100000"
+
+	removed_cats = _categories(compute_diff(old, removed).changes)
+	changed_cats = _categories(compute_diff(old, changed).changes)
+
+	assert ("breaking", "edge_case_removed") in removed_cats
+	assert ("requires-coordination", "edge_case_condition_changed") in changed_cats
+
+
+def test_approval_changes_are_coordination() -> None:
+	old = _base_bundle()
+	new = copy.deepcopy(old)
+	new["jtbds"][0]["approvals"] = [{"role": "supervisor", "policy": "any"}]
+
+	added_cats = _categories(compute_diff(old, new).changes)
+	removed_cats = _categories(compute_diff(new, old).changes)
+
+	assert ("requires-coordination", "approval_added") in added_cats
+	assert ("requires-coordination", "approval_removed") in removed_cats
+
+
+def test_documents_required_changes_are_categorised() -> None:
+	old = _base_bundle()
+	new = copy.deepcopy(old)
+	old["jtbds"][0]["documents_required"] = [{"kind": "legacy_photo", "min": 1}]
+	new["jtbds"][0]["documents_required"] = [
+		{"kind": "identity", "min": 1},
+		{"kind": "optional_receipt", "min": 0},
+	]
+
+	rep = compute_diff(old, new)
+	cats = _categories(rep.changes)
+
+	assert ("requires-coordination", "required_document_added") in cats
+	assert ("additive", "optional_document_added") in cats
+	assert ("additive", "document_removed") in cats
 
 
 def test_sla_tightened_is_coordination() -> None:
@@ -454,6 +574,18 @@ def test_form_renderer_skeleton_to_real_is_additive() -> None:
 	assert ("additive", "form_renderer_upgraded") in cats
 
 
+def test_form_renderer_regression_requires_coordination() -> None:
+	old = _base_bundle()
+	new = copy.deepcopy(old)
+	old["project"]["frontend"]["form_renderer"] = "real"
+	new["project"]["frontend"]["form_renderer"] = "skeleton"
+
+	rep = compute_diff(old, new)
+	cats = _categories(rep.changes)
+
+	assert ("requires-coordination", "form_renderer_changed") in cats
+
+
 def test_package_rename_is_breaking() -> None:
 	old = _base_bundle()
 	new = copy.deepcopy(old)
@@ -490,6 +622,30 @@ def test_json_output_is_deterministic() -> None:
 	severity_rank = {"breaking": 0, "requires-coordination": 1, "additive": 2}
 	ranked = [severity_rank[k] for k in first_kinds]
 	assert ranked == sorted(ranked)
+
+
+def test_json_output_coerces_non_json_values() -> None:
+	class OddValue:
+		def __str__(self) -> str:
+			return "odd-value"
+
+	report = DiffReport(
+		changes=[
+			Change(
+				ChangeKind.ADDITIVE,
+				"custom",
+				"path",
+				"message",
+				old=("tuple", {"b": 2, "a": 1}),
+				new=OddValue(),
+			)
+		]
+	)
+
+	payload = json.loads(render_json(report))
+
+	assert payload["changes"][0]["old"] == ["tuple", {"a": 1, "b": 2}]
+	assert payload["changes"][0]["new"] == "odd-value"
 
 
 def test_html_output_is_self_contained() -> None:
@@ -598,6 +754,16 @@ def test_cli_rejects_invalid_json(tmp_path: Path) -> None:
 	r = runner.invoke(app, ["bundle-diff", str(a), str(b)])
 	# Typer surfaces BadParameter as exit code 2.
 	assert r.exit_code == 2, r.output
+
+
+def test_load_bundle_reports_read_and_shape_errors(tmp_path: Path) -> None:
+	with pytest.raises(typer.BadParameter, match="cannot read"):
+		bundle_diff_module._load_bundle(tmp_path)
+
+	not_object = tmp_path / "array.json"
+	not_object.write_text("[]", encoding="utf-8")
+	with pytest.raises(typer.BadParameter, match="top-level must be a JSON object"):
+		bundle_diff_module._load_bundle(not_object)
 
 
 # ---------------------------------------------------------------------------

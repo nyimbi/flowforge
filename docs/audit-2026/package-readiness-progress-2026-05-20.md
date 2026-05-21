@@ -1690,3 +1690,35 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `847 passed`, one optional `mmdc` skip, and
     overall package coverage 81%.
+
+## CLI coverage slice - bundle-diff command
+
+- Baseline measurement:
+  - After closing polish-copy command coverage, rounded `flowforge-cli`
+    package coverage was 81%.
+  - `commands/bundle_diff.py` was 86% covered; remaining gaps were report
+    filtering helpers, malformed JTBD indexing, form-renderer regressions,
+    actor changes, PII demotion, label changes, numeric validation
+    tightening/relaxation, edge removal/condition changes, approvals,
+    required-document changes, JSON coercion, empty text rendering, and bundle
+    load error branches.
+- Action:
+  - Added focused bundle-diff tests that lock existing deploy-safety
+    categorization rules for those previously uncovered branches.
+  - Added renderer/load helper tests for empty reports, non-JSON-safe values,
+    unreadable bundle paths, and non-object JSON bundles.
+- Result:
+  - `flowforge_cli.commands.bundle_diff` now reaches 100% statement and branch
+    coverage.
+  - Overall `flowforge-cli` rounded package coverage increased to 82%.
+- Verification:
+  - `uv run pytest tests/test_bundle_diff.py -q --cov=flowforge_cli.commands.bundle_diff --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `48 passed`, 100% statement and branch
+    coverage for `bundle_diff.py`.
+  - `uv run ruff check tests/test_bundle_diff.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_bundle_diff.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `857 passed`, one optional `mmdc` skip, and
+    overall package coverage 82%.
