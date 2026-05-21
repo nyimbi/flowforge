@@ -2778,3 +2778,41 @@ Design audit 5 - operations, security, and reliability:
     polish-copy sidecar, optional downstream UMS parity, and live Postgres
     contention/drain verification.
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI typing marker audit
+
+- Code/design audit finding:
+  - The 16 shipping packages declared the `Typing :: Typed` classifier in
+    their PyPI metadata, but none shipped a PEP 561 `py.typed` marker. That
+    made the published-wheel contract misleading for downstream type checkers.
+- Action:
+  - Added `py.typed` markers to every shipping import package:
+    `flowforge`, `flowforge_fastapi`, `flowforge_sqlalchemy`,
+    `flowforge_tenancy`, `flowforge_audit_pg`, `flowforge_outbox_pg`,
+    `flowforge_rbac_static`, `flowforge_rbac_spicedb`,
+    `flowforge_documents_s3`, `flowforge_money`, `flowforge_signing_kms`,
+    `flowforge_notify_multichannel`, `flowforge_otel`, `flowforge_cli`,
+    `flowforge_jtbd`, and `flowforge_jtbd_hub`.
+  - Added an audit ratchet that requires any shipping package with
+    `Typing :: Typed` to have a source `py.typed` marker.
+  - Hardened `scripts/audit_2026/pypi_build_smoke.py` to inspect built wheels
+    and fail if any shipping import package is missing `py.typed` in the wheel
+    payload.
+  - Tightened the PyPI build smoke to require exactly one wheel and one sdist
+    per shipping package, not only the aggregate artifact count.
+- Verification:
+  - `uv run ruff check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run ruff format --check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors`, `0 warnings`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_shipping_packages_declared_typed_have_pep561_markers tests/audit_2026/test_E_73_external_release_gate.py::test_publishing_docs_require_cli_wheel_smoke -q`:
+    `2 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`:
+    built and checked 16 packages / 32 artifacts, verified wheel `py.typed`
+    markers, and completed clean-venv `flowforge --help`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
+  - Full external release proof still requires browser-capable CI or an
+    unsandboxed browser environment.

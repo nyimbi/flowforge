@@ -7,9 +7,11 @@ import os
 import shutil
 import subprocess
 import tempfile
+import zipfile
 from pathlib import Path
 
 from package_sets import shipping_packages
+from package_sets import ShippingPackage
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -41,6 +43,27 @@ def _python_path(venv_dir: Path) -> Path:
     return venv_dir / "bin" / "python"
 
 
+def _assert_wheels_include_py_typed(
+    wheels: list[Path],
+    packages: tuple[ShippingPackage, ...],
+) -> None:
+    wheel_contents: dict[Path, set[str]] = {}
+    for wheel in wheels:
+        with zipfile.ZipFile(wheel) as archive:
+            wheel_contents[wheel] = set(archive.namelist())
+
+    missing: list[str] = []
+    for package in packages:
+        marker_path = f"{package.import_package.replace('.', '/')}/py.typed"
+        if not any(marker_path in names for names in wheel_contents.values()):
+            missing.append(f"{package.directory}: {marker_path}")
+    if missing:
+        raise SystemExit(
+            "built wheels are missing PEP 561 typing markers:\n  "
+            + "\n  ".join(missing)
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -70,12 +93,20 @@ def main(argv: list[str] | None = None) -> int:
             cwd=ROOT / "python" / package.directory,
         )
 
-    artifacts = sorted(dist_dir.glob("*.whl")) + sorted(dist_dir.glob("*.tar.gz"))
+    wheels = sorted(dist_dir.glob("*.whl"))
+    sdists = sorted(dist_dir.glob("*.tar.gz"))
+    artifacts = wheels + sdists
     if len(artifacts) != expected_artifacts:
         raise SystemExit(
             f"expected {expected_artifacts} artifacts for {len(packages)} "
             f"packages, found {len(artifacts)} in {dist_dir}"
         )
+    if len(wheels) != len(packages) or len(sdists) != len(packages):
+        raise SystemExit(
+            f"expected {len(packages)} wheels and {len(packages)} sdists, "
+            f"found {len(wheels)} wheels and {len(sdists)} sdists in {dist_dir}"
+        )
+    _assert_wheels_include_py_typed(wheels, packages)
 
     _run(
         [

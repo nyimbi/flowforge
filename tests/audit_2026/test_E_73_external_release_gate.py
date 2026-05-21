@@ -315,6 +315,25 @@ def test_flowforge_cli_wheel_includes_runtime_package() -> None:
     )
 
 
+def test_shipping_packages_declared_typed_have_pep561_markers() -> None:
+    failures: list[str] = []
+    for package in package_sets.shipping_packages():
+        package_root = ROOT / "python" / package.directory
+        pyproject = tomllib.loads(
+            (package_root / "pyproject.toml").read_text(encoding="utf-8")
+        )
+        classifiers = pyproject.get("project", {}).get("classifiers", [])
+        if "Typing :: Typed" not in classifiers:
+            continue
+        marker_path = (
+            package_root / "src" / package.import_package.replace(".", "/") / "py.typed"
+        )
+        if not marker_path.is_file():
+            failures.append(f"{package.directory}: missing {marker_path}")
+
+    assert failures == []
+
+
 def test_publishing_docs_require_cli_wheel_smoke() -> None:
     publishing = _read("docs/release/PUBLISHING.md")
     makefile = _read("Makefile")
@@ -337,6 +356,9 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert '"flowforge-cli"' in script
     assert '"--help"' in script
     assert "expected_artifacts = len(packages) * 2" in script
+    assert "expected {len(packages)} wheels and {len(packages)} sdists" in script
+    assert "_assert_wheels_include_py_typed(wheels, packages)" in script
+    assert "zipfile.ZipFile" in script
     assert "make audit-2026-pypi-build" in publishing
     assert "flowforge-cli-wheel-smoke" in publishing
     assert "--find-links dist flowforge-cli" in publishing
