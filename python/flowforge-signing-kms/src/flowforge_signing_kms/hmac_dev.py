@@ -45,160 +45,166 @@ _INSECURE_DEFAULT_USED_TOTAL: int = 0
 
 
 def _hmac_sign(secret: str, key_id: str, payload: bytes) -> bytes:
-	"""Return raw HMAC-SHA256 digest over ``key_id + "." + payload``."""
-	msg = key_id.encode() + _SEP + payload
-	return hmac.new(secret.encode(), msg, hashlib.sha256).digest()
+    """Return raw HMAC-SHA256 digest over ``key_id + "." + payload``."""
+    msg = key_id.encode() + _SEP + payload
+    return hmac.new(secret.encode(), msg, hashlib.sha256).digest()
 
 
 def _resolve_keys(
-	secret: str | None,
-	key_id: str | None,
-	keys: dict[str, str] | None,
-	current_key_id: str | None,
+    secret: str | None,
+    key_id: str | None,
+    keys: dict[str, str] | None,
+    current_key_id: str | None,
 ) -> tuple[dict[str, str], str]:
-	"""Reconcile the three constructor forms into ``(keys_map, current_key_id)``.
+    """Reconcile the three constructor forms into ``(keys_map, current_key_id)``.
 
-	Forms accepted:
+    Forms accepted:
 
-	* ``HmacDevSigning(secret="s", key_id="k1")`` — legacy single-key form.
-	  Wrapped as ``{"k1": "s"}`` with current ``"k1"``.  ``key_id`` defaults
-	  to ``$FLOWFORGE_SIGNING_KEY_ID`` then ``"dev-key-1"``.
-	* ``HmacDevSigning(keys={...}, current_key_id="k2")`` — explicit map.
-	* ``HmacDevSigning()`` (env-only) — read ``$FLOWFORGE_SIGNING_SECRET``
-	  and ``$FLOWFORGE_SIGNING_KEY_ID``.  Raises ``RuntimeError`` if no
-	  secret material is available unless ``$FLOWFORGE_ALLOW_INSECURE_DEFAULT=1``
-	  is set.
-	"""
-	# Forbid mixing the two forms — easier to misconfigure than helpful.
-	if keys is not None and (secret is not None or key_id is not None):
-		raise ValueError(
-			"HmacDevSigning: pass either (secret=, key_id=) OR (keys=, current_key_id=), not both"
-		)
+    * ``HmacDevSigning(secret="s", key_id="k1")`` — legacy single-key form.
+      Wrapped as ``{"k1": "s"}`` with current ``"k1"``.  ``key_id`` defaults
+      to ``$FLOWFORGE_SIGNING_KEY_ID`` then ``"dev-key-1"``.
+    * ``HmacDevSigning(keys={...}, current_key_id="k2")`` — explicit map.
+    * ``HmacDevSigning()`` (env-only) — read ``$FLOWFORGE_SIGNING_SECRET``
+      and ``$FLOWFORGE_SIGNING_KEY_ID``.  Raises ``RuntimeError`` if no
+      secret material is available unless ``$FLOWFORGE_ALLOW_INSECURE_DEFAULT=1``
+      is set.
+    """
+    # Forbid mixing the two forms — easier to misconfigure than helpful.
+    if keys is not None and (secret is not None or key_id is not None):
+        raise ValueError(
+            "HmacDevSigning: pass either (secret=, key_id=) OR (keys=, current_key_id=), not both"
+        )
 
-	if keys is not None:
-		assert isinstance(keys, dict), "keys must be dict[str,str]"
-		assert all(isinstance(k, str) and isinstance(v, str) for k, v in keys.items()), (
-			"keys map entries must be (str, str)"
-		)
-		if not keys:
-			raise ValueError("HmacDevSigning(keys=...) cannot be empty")
-		if current_key_id is None:
-			raise ValueError(
-				"HmacDevSigning(keys=...): current_key_id= must name an entry"
-			)
-		if current_key_id not in keys:
-			raise ValueError(
-				f"HmacDevSigning(keys=...): current_key_id={current_key_id!r} not in keys"
-			)
-		return dict(keys), current_key_id
+    if keys is not None:
+        if not isinstance(keys, dict):
+            raise TypeError("keys must be dict[str,str]")
+        if not all(isinstance(k, str) and isinstance(v, str) for k, v in keys.items()):
+            raise TypeError("keys map entries must be (str, str)")
+        if not keys:
+            raise ValueError("HmacDevSigning(keys=...) cannot be empty")
+        if current_key_id is None:
+            raise ValueError(
+                "HmacDevSigning(keys=...): current_key_id= must name an entry"
+            )
+        if current_key_id not in keys:
+            raise ValueError(
+                f"HmacDevSigning(keys=...): current_key_id={current_key_id!r} not in keys"
+            )
+        return dict(keys), current_key_id
 
-	# Legacy single-key form.
-	env_secret = os.environ.get("FLOWFORGE_SIGNING_SECRET")
-	env_key_id = os.environ.get("FLOWFORGE_SIGNING_KEY_ID")
+    # Legacy single-key form.
+    env_secret = os.environ.get("FLOWFORGE_SIGNING_SECRET")
+    env_key_id = os.environ.get("FLOWFORGE_SIGNING_KEY_ID")
 
-	resolved_secret = secret if secret is not None else env_secret
-	resolved_key_id = key_id if key_id is not None else env_key_id
+    resolved_secret = secret if secret is not None else env_secret
+    resolved_key_id = key_id if key_id is not None else env_key_id
 
-	if resolved_secret is None:
-		# SK-01: no env var, no arg — refuse to start unless explicit opt-in.
-		if os.environ.get("FLOWFORGE_ALLOW_INSECURE_DEFAULT") == "1":
-			global _INSECURE_DEFAULT_USED_TOTAL
-			_INSECURE_DEFAULT_USED_TOTAL += 1
-			_logger.warning(
-				"!!! INSECURE DEFAULT IN USE !!! "
-				"HmacDevSigning fell back to the hard-coded legacy secret because "
-				"FLOWFORGE_ALLOW_INSECURE_DEFAULT=1 is set.  "
-				"This path will be removed in the next minor release.  "
-				"Set FLOWFORGE_SIGNING_SECRET to a real secret to silence this warning."
-			)
-			resolved_secret = _LEGACY_DEFAULT_SECRET
-			if resolved_key_id is None:
-				resolved_key_id = _LEGACY_DEFAULT_KEY_ID
-		else:
-			raise RuntimeError(
-				"HmacDevSigning: explicit secret required; "
-				"set FLOWFORGE_SIGNING_SECRET or pass secret= "
-				"(or set FLOWFORGE_ALLOW_INSECURE_DEFAULT=1 for the deprecation window)."
-			)
+    if resolved_secret is None:
+        # SK-01: no env var, no arg — refuse to start unless explicit opt-in.
+        if os.environ.get("FLOWFORGE_ALLOW_INSECURE_DEFAULT") == "1":
+            global _INSECURE_DEFAULT_USED_TOTAL
+            _INSECURE_DEFAULT_USED_TOTAL += 1
+            _logger.warning(
+                "!!! INSECURE DEFAULT IN USE !!! "
+                "HmacDevSigning fell back to the hard-coded legacy secret because "
+                "FLOWFORGE_ALLOW_INSECURE_DEFAULT=1 is set.  "
+                "This path will be removed in the next minor release.  "
+                "Set FLOWFORGE_SIGNING_SECRET to a real secret to silence this warning."
+            )
+            resolved_secret = _LEGACY_DEFAULT_SECRET
+            if resolved_key_id is None:
+                resolved_key_id = _LEGACY_DEFAULT_KEY_ID
+        else:
+            raise RuntimeError(
+                "HmacDevSigning: explicit secret required; "
+                "set FLOWFORGE_SIGNING_SECRET or pass secret= "
+                "(or set FLOWFORGE_ALLOW_INSECURE_DEFAULT=1 for the deprecation window)."
+            )
 
-	if resolved_key_id is None:
-		resolved_key_id = _LEGACY_DEFAULT_KEY_ID
+    if resolved_key_id is None:
+        resolved_key_id = _LEGACY_DEFAULT_KEY_ID
 
-	assert isinstance(resolved_secret, str) and resolved_secret, "resolved secret invariant"
-	assert isinstance(resolved_key_id, str) and resolved_key_id, "resolved key_id invariant"
+    if not isinstance(resolved_secret, str) or not resolved_secret:
+        raise ValueError("resolved secret must be a non-empty string")
+    if not isinstance(resolved_key_id, str) or not resolved_key_id:
+        raise ValueError("resolved key_id must be a non-empty string")
 
-	return {resolved_key_id: resolved_secret}, resolved_key_id
+    return {resolved_key_id: resolved_secret}, resolved_key_id
 
 
 class HmacDevSigning:
-	"""HMAC-SHA256 signing adapter for local development.
+    """HMAC-SHA256 signing adapter for local development.
 
-	Two construction forms:
+    Two construction forms:
 
-	1. **Single-key** — ``HmacDevSigning(secret="s", key_id="k")``.
-	   Reads ``$FLOWFORGE_SIGNING_SECRET`` / ``$FLOWFORGE_SIGNING_KEY_ID`` if
-	   omitted.  Raises ``RuntimeError`` if no secret can be resolved (SK-01).
+    1. **Single-key** — ``HmacDevSigning(secret="s", key_id="k")``.
+       Reads ``$FLOWFORGE_SIGNING_SECRET`` / ``$FLOWFORGE_SIGNING_KEY_ID`` if
+       omitted.  Raises ``RuntimeError`` if no secret can be resolved (SK-01).
 
-	2. **Key map** — ``HmacDevSigning(keys={"k1": "s1", "k2": "s2"},
-	   current_key_id="k2")``.  Lets the caller carry pre-rotation keys for
-	   verifying old signatures while signing with the new one (SK-02).
-	"""
+    2. **Key map** — ``HmacDevSigning(keys={"k1": "s1", "k2": "s2"},
+       current_key_id="k2")``.  Lets the caller carry pre-rotation keys for
+       verifying old signatures while signing with the new one (SK-02).
+    """
 
-	def __init__(
-		self,
-		secret: str | None = None,
-		key_id: str | None = None,
-		*,
-		keys: dict[str, str] | None = None,
-		current_key_id: str | None = None,
-	) -> None:
-		self._keys, self._current_key_id = _resolve_keys(
-			secret=secret,
-			key_id=key_id,
-			keys=keys,
-			current_key_id=current_key_id,
-		)
+    def __init__(
+        self,
+        secret: str | None = None,
+        key_id: str | None = None,
+        *,
+        keys: dict[str, str] | None = None,
+        current_key_id: str | None = None,
+    ) -> None:
+        self._keys, self._current_key_id = _resolve_keys(
+            secret=secret,
+            key_id=key_id,
+            keys=keys,
+            current_key_id=current_key_id,
+        )
 
-	# ------------------------------------------------------------------
-	# SigningPort protocol
-	# ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # SigningPort protocol
+    # ------------------------------------------------------------------
 
-	async def sign_payload(self, payload: bytes) -> bytes:
-		"""Return a detached HMAC-SHA256 signature for *payload*.
+    async def sign_payload(self, payload: bytes) -> bytes:
+        """Return a detached HMAC-SHA256 signature for *payload*.
 
-		Always signs with the configured ``current_key_id``.
-		"""
-		assert isinstance(payload, (bytes, bytearray)), "payload must be bytes"
-		secret = self._keys[self._current_key_id]
-		return _hmac_sign(secret, self._current_key_id, payload)
+        Always signs with the configured ``current_key_id``.
+        """
+        if not isinstance(payload, (bytes, bytearray)):
+            raise TypeError("payload must be bytes")
+        secret = self._keys[self._current_key_id]
+        return _hmac_sign(secret, self._current_key_id, bytes(payload))
 
-	async def verify(self, payload: bytes, signature: bytes, key_id: str) -> bool:
-		"""Verify *signature* against *payload* under *key_id*.
+    async def verify(self, payload: bytes, signature: bytes, key_id: str) -> bool:
+        """Verify *signature* against *payload* under *key_id*.
 
-		Looks up the secret keyed by *key_id*.  Raises ``UnknownKeyId`` if the
-		signer has no record of that key (SK-02).  Otherwise returns
-		``True`` / ``False`` for valid / invalid signatures.
-		"""
-		assert isinstance(payload, (bytes, bytearray)), "payload must be bytes"
-		assert isinstance(signature, (bytes, bytearray)), "signature must be bytes"
-		assert isinstance(key_id, str) and key_id, "key_id must be a non-empty str"
+        Looks up the secret keyed by *key_id*.  Raises ``UnknownKeyId`` if the
+        signer has no record of that key (SK-02).  Otherwise returns
+        ``True`` / ``False`` for valid / invalid signatures.
+        """
+        if not isinstance(payload, (bytes, bytearray)):
+            raise TypeError("payload must be bytes")
+        if not isinstance(signature, (bytes, bytearray)):
+            raise TypeError("signature must be bytes")
+        if not isinstance(key_id, str) or not key_id:
+            raise ValueError("key_id must be a non-empty str")
 
-		try:
-			secret = self._keys[key_id]
-		except KeyError:
-			# Distinct from "wrong signature" so callers can audit precisely.
-			raise UnknownKeyId(
-				f"HmacDevSigning.verify: unknown key_id={key_id!r}; "
-				f"known={sorted(self._keys.keys())!r}"
-			) from None
+        try:
+            secret = self._keys[key_id]
+        except KeyError:
+            # Distinct from "wrong signature" so callers can audit precisely.
+            raise UnknownKeyId(
+                f"HmacDevSigning.verify: unknown key_id={key_id!r}; "
+                f"known={sorted(self._keys.keys())!r}"
+            ) from None
 
-		expected = _hmac_sign(secret, key_id, payload)
-		return hmac.compare_digest(expected, signature)
+        expected = _hmac_sign(secret, key_id, bytes(payload))
+        return hmac.compare_digest(expected, bytes(signature))
 
-	def current_key_id(self) -> str:
-		"""Return the active signing key id."""
-		return self._current_key_id
+    def current_key_id(self) -> str:
+        """Return the active signing key id."""
+        return self._current_key_id
 
-	def known_key_ids(self) -> list[str]:
-		"""Return the list of key ids this signer can verify against (SK-02)."""
-		return sorted(self._keys.keys())
+    def known_key_ids(self) -> list[str]:
+        """Return the list of key ids this signer can verify against (SK-02)."""
+        return sorted(self._keys.keys())

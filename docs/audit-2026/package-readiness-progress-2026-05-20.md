@@ -4832,3 +4832,33 @@ Design audit 5 - operations, security, and reliability:
     `652 passed, 1 skipped`; total coverage `100.00%`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## HMAC signing optimized-runtime validation audit
+
+- Security/code review finding:
+  - `flowforge_signing_kms.hmac_dev.HmacDevSigning` still used `assert` for
+    key-map shape checks, resolved secret/key-id validation, and public
+    payload/signature/key-id validation. Under optimized Python those checks
+    disappear at a signing trust boundary and invalid caller input can reach
+    HMAC computation or verification with incidental errors.
+- Action:
+  - Replaced public/runtime validation asserts with explicit `TypeError` and
+    `ValueError` checks.
+  - Preserved defensive bytearray support by converting payload/signature values
+    at the boundary after validation.
+  - Added behavior tests for non-byte payloads, invalid verify argument shapes,
+    bytearray compatibility, empty single-key material, invalid key-map shapes,
+    and a source ratchet that keeps `assert` out of the HMAC dev signer module.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format python/flowforge-signing-kms/src/flowforge_signing_kms/hmac_dev.py python/flowforge-signing-kms/tests/test_hmac.py`:
+    `2 files reformatted`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check python/flowforge-signing-kms/src/flowforge_signing_kms/hmac_dev.py python/flowforge-signing-kms/tests/test_hmac.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright python/flowforge-signing-kms/src/flowforge_signing_kms/hmac_dev.py python/flowforge-signing-kms/tests/test_hmac.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest python/flowforge-signing-kms/tests/test_hmac.py -q`:
+    `25 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest python/flowforge-signing-kms/tests -q --cov=flowforge_signing_kms --cov-branch --cov-report=term-missing --cov-fail-under=100`:
+    `54 passed`; total coverage `100.00%`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
