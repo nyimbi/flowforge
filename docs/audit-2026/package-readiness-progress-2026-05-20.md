@@ -2041,6 +2041,39 @@ Design audit 5 - operations, security, and reliability:
     DSL/spec/exporter helpers, lint conflict edges, Claude LLM port branches,
     manifest serialization, and template cache branches.
 
+## Package coverage slice - flowforge-jtbd canonical JSON
+
+- Baseline measurement:
+  - `flowforge_jtbd.dsl.canonical` had one uncovered explicit rejection path
+    for unsupported non-JSON types in the full package coverage run.
+- Action:
+  - Added canonical JSON coverage for Pydantic model dumping and unsupported
+    object rejection so the module is fully covered by its own focused test
+    file.
+  - Applied formatter normalization to the touched canonical JSON test file.
+- Result:
+  - `flowforge_jtbd.dsl.canonical` now reaches 100% statement and branch
+    coverage in the focused gate.
+  - Overall `flowforge-jtbd` remains at rounded 96% package coverage, with one
+    fewer uncovered statement and one fewer partial branch.
+- Verification:
+  - `uv run pytest tests/ci/test_canonical_json.py -q --cov=flowforge_jtbd.dsl.canonical --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-jtbd`: `17 passed`, targeted module coverage 100%.
+  - `uv run ruff check tests/ci/test_canonical_json.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run ruff format --check tests/ci/test_canonical_json.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run pyright tests/ci/test_canonical_json.py`
+    from `python/flowforge-jtbd`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_jtbd --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-jtbd`: `585 passed`, one optional skip, one expected
+    in-memory embedding-store performance warning, and package coverage 96%.
+- Remaining risk:
+  - `flowforge-jtbd` is not yet ready for the closed-package coverage ratchet.
+    Remaining gaps are concentrated in AI quality scoring, recommender edges,
+    DSL lockfile/spec branches, exporter helpers, lint conflict edges, Claude
+    LLM port branches, manifest serialization, and template cache branches.
+
 ## Package coverage slice - flowforge-jtbd audit logger
 
 - Baseline measurement:
