@@ -231,6 +231,7 @@ def test_external_release_gate_is_wired_as_manual_release_workflow() -> None:
     assert "FLOWFORGE_REQUIRE_UMS_PARITY:" in workflow
     assert "FLOWFORGE_TEST_PG_URL:" in workflow
     assert "make audit-2026-release-external" in workflow
+    assert "PyPI artifact build and retained-manifest verification: passed" in workflow
     assert "Uploadable PyPI artifacts under \\`dist/*\\`" in workflow
     assert (
         "PyPI artifact checksum manifest \\`docs/audit-2026/external-release-pypi-artifacts-current.json\\`"

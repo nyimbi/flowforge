@@ -182,6 +182,7 @@ jobs:
           ## Passing evidence
 
           - \`make audit-2026-release-external\`: passed.
+          - PyPI artifact build and retained-manifest verification: passed.
           - DOM visual regression: passed in Playwright Chromium.
           - Browser full-stack Playwright: passed in Playwright Chromium.
           - Real-key polish-copy sidecar gate: passed against committed reviewed sidecar.
