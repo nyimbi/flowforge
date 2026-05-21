@@ -34,6 +34,14 @@ def _read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
+def _make_target_block(makefile: str, target: str) -> str:
+    start = makefile.index(f"{target}:")
+    next_phony = makefile.find("\n.PHONY:", start + 1)
+    if next_phony == -1:
+        return makefile[start:]
+    return makefile[start:next_phony]
+
+
 def _shipping_workspace_dirs() -> tuple[str, ...]:
     with (ROOT / "pyproject.toml").open("rb") as handle:
         root = tomllib.load(handle)
@@ -1684,6 +1692,30 @@ def test_closed_package_coverage_ratchet_tracks_completed_packages() -> None:
     assert 'root["tool"]["uv"]["workspace"]["members"]' in package_sets
     assert 'package", True' in package_sets
     assert "src/" in package_sets
+
+
+def test_audit_2026_macro_includes_package_readiness_gates() -> None:
+    makefile = _read("Makefile")
+    audit_2026 = _make_target_block(makefile, "audit-2026")
+    core_coverage = _make_target_block(makefile, "audit-2026-core-coverage")
+
+    assert (
+        "audit-2026-core-coverage  flowforge-core 100% statement/branch coverage"
+        in makefile
+    )
+    for target in [
+        "audit-2026-core-coverage",
+        "audit-2026-property-coverage",
+        "audit-2026-i18n-coverage",
+        "audit-2026-closed-package-coverage",
+        "audit-2026-pypi-build",
+        "audit-2026-polish-copy-sidecar",
+    ]:
+        assert f"{target} \\" in audit_2026 or f"{target}\n" in audit_2026
+    assert "--cov-branch" in core_coverage
+    assert "--cov-report=term-missing" in core_coverage
+    assert "--cov-fail-under=100" in core_coverage
+    assert "--cov-fail-under=78" not in core_coverage
 
 
 def test_package_set_helper_rejects_ambiguous_wheel_packages() -> None:

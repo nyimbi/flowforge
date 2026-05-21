@@ -4432,3 +4432,33 @@ Design audit 5 - operations, security, and reliability:
     (`639 passed, 1 skipped`), and `flowforge-jtbd-hub` (`90 passed`).
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## Audit macro package-readiness coverage audit
+
+- Code review finding:
+  - The top-level `audit-2026` target advertised the full layered suite but did
+    not include the newer package-readiness gates already required by
+    `audit-2026-release-local`: core/property/i18n coverage, closed-package
+    100% coverage, PyPI build smoke, and the reviewed polish-copy sidecar gate.
+    Its core coverage subtarget also still used the old 78% fail-under value
+    without branch coverage, despite current core coverage proving 100%.
+- Action:
+  - Wired the omitted package-readiness gates into `audit-2026`.
+  - Raised `audit-2026-core-coverage` to 100% with branch coverage and
+    `term-missing` output.
+  - Added Makefile ratchets for the macro target and core coverage threshold.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format tests/audit_2026/test_E_73_external_release_gate.py`:
+    `1 file left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused audit macro package-readiness ratchet:
+    `1 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-core-coverage`:
+    `181 passed`, 100% statement and branch coverage.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `57 passed`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

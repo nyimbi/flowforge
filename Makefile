@@ -47,7 +47,7 @@ help:
 	@echo "  audit-2026-ratchets       grep ratchet gates (no_default_secret etc.)"
 	@echo "  audit-2026-visual-regression-dom   DOM-snapshot byte-equality (CI-gating, ADR-001)"
 	@echo "  audit-2026-visual-regression-ssim  pixel SSIM (advisory; nightly only, ADR-001)"
-	@echo "  audit-2026-core-coverage  flowforge-core coverage ratchet toward 100%"
+	@echo "  audit-2026-core-coverage  flowforge-core 100% statement/branch coverage"
 	@echo "  audit-2026-property-coverage  every generator has a property test + seed uniqueness (W4a / ADR-003)"
 	@echo "  audit-2026-i18n-coverage  no untranslated strings in compliance: JTBDs (W4b / item 17)"
 	@echo "  audit-2026-closed-package-coverage  100% coverage ratchet for closed shipping packages"
@@ -76,6 +76,12 @@ audit-2026: \
 		audit-2026-chaos \
 		audit-2026-observability \
 		audit-2026-visual-regression-dom \
+		audit-2026-core-coverage \
+		audit-2026-property-coverage \
+		audit-2026-i18n-coverage \
+		audit-2026-closed-package-coverage \
+		audit-2026-pypi-build \
+		audit-2026-polish-copy-sidecar \
 		audit-2026-signoff
 	@echo ""
 	@echo "audit-2026: all audit-2026 layered suites passed."
@@ -384,15 +390,14 @@ audit-2026-reachability:
 		echo "  install with: pip install 'flowforge-cli[reachability]'" ; \
 	fi
 
-# Coverage ratchet toward the explicit 100% goal.
+# Coverage ratchet at the explicit 100% goal for the core package.
 #
-# The current core package baseline is 78% with branch coverage enabled.
-# Keep this target fail-closed and
-# raise ``--cov-fail-under`` as focused tests retire uncovered branches.
+# The broader closed-package gate also covers flowforge-core; this target stays
+# as the fast package-scoped entrypoint for core-only coverage checks.
 .PHONY: audit-2026-core-coverage
 audit-2026-core-coverage:
 	UV_CACHE_DIR="$${UV_CACHE_DIR:-$${TMPDIR:-/tmp}/flowforge-uv-cache}" \
-		uv run pytest python/flowforge-core/tests -q --cov=flowforge --cov-report=term --cov-fail-under=78
+		uv run pytest python/flowforge-core/tests -q --cov=flowforge --cov-branch --cov-report=term-missing --cov-fail-under=100
 
 # v0.3.0 W4a (item 3 / ADR-003): property-coverage gate.
 #
