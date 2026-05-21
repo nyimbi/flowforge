@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import email.message
+import email.parser
 import hashlib
 import json
 import re
+import tarfile
 import tomllib
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -81,6 +85,63 @@ def _shipping_release_version(packages: tuple[ShippingPackage, ...]) -> str:
     return unique_versions[0]
 
 
+def _wheel_metadata_path(wheel: Path, wheel_names: set[str]) -> str:
+    metadata_files = [
+        name for name in wheel_names if name.endswith(".dist-info/METADATA")
+    ]
+    if len(metadata_files) != 1:
+        raise SystemExit(
+            f"{wheel.name}: expected exactly one wheel METADATA file, "
+            f"found {len(metadata_files)}"
+        )
+    return metadata_files[0]
+
+
+def _wheel_metadata(wheel: Path) -> email.message.Message:
+    with zipfile.ZipFile(wheel) as archive:
+        wheel_names = set(archive.namelist())
+        metadata_path = _wheel_metadata_path(wheel, wheel_names)
+        metadata = archive.read(metadata_path).decode("utf-8")
+    return email.parser.Parser().parsestr(metadata)
+
+
+def _sdist_metadata(sdist: Path) -> email.message.Message:
+    with tarfile.open(sdist) as archive:
+        sdist_root = sdist.name.removesuffix(".tar.gz")
+        metadata_path = f"{sdist_root}/PKG-INFO"
+        if metadata_path not in archive.getnames():
+            raise SystemExit(
+                f"{sdist.name}: expected top-level sdist PKG-INFO at {metadata_path}"
+            )
+        member = archive.extractfile(metadata_path)
+        if member is None:
+            raise SystemExit(f"{sdist.name}: could not read sdist PKG-INFO")
+        metadata = member.read().decode("utf-8")
+    return email.parser.Parser().parsestr(metadata)
+
+
+def _assert_metadata_identity(
+    *,
+    artifact: Path,
+    metadata: email.message.Message,
+    display_name: str,
+    release_version: str,
+    issues: list[str],
+) -> None:
+    metadata_name = metadata.get("Name", "")
+    if _distribution_key(metadata_name) != _artifact_distribution_key(artifact):
+        issues.append(
+            f"{display_name}: {artifact.name} metadata Name {metadata_name!r} "
+            f"does not match artifact distribution {_artifact_distribution_key(artifact)!r}"
+        )
+    metadata_version = metadata.get("Version", "")
+    if metadata_version != release_version:
+        issues.append(
+            f"{display_name}: {artifact.name} metadata Version {metadata_version!r} "
+            f"does not match release version {release_version!r}"
+        )
+
+
 def _display_path(path: Path) -> str:
     try:
         return str(path.resolve().relative_to(ROOT))
@@ -132,13 +193,13 @@ def _assert_shipping_artifact_identities(
         _distribution_key(package.distribution_name): package.distribution_name
         for package in packages
     }
-    grouped: dict[tuple[str, str], list[str]] = {}
+    grouped: dict[tuple[str, str], list[Path]] = {}
     seen_distributions: set[str] = set()
     for artifact in artifacts:
         distribution = _artifact_distribution_key(artifact)
         seen_distributions.add(distribution)
         grouped.setdefault((distribution, _artifact_kind(artifact)), []).append(
-            artifact.name
+            artifact
         )
 
     issues: list[str] = []
@@ -148,21 +209,37 @@ def _assert_shipping_artifact_identities(
         if len(wheels) != 1:
             issues.append(f"{display_name}: expected 1 wheel, found {len(wheels)}")
         else:
-            wheel_version = _artifact_version(Path(wheels[0]))
+            wheel = wheels[0]
+            wheel_version = _artifact_version(wheel)
             if wheel_version != release_version:
                 issues.append(
                     f"{display_name}: wheel version {wheel_version!r} "
                     f"does not match release version {release_version!r}"
                 )
+            _assert_metadata_identity(
+                artifact=wheel,
+                metadata=_wheel_metadata(wheel),
+                display_name=display_name,
+                release_version=release_version,
+                issues=issues,
+            )
         if len(sdists) != 1:
             issues.append(f"{display_name}: expected 1 sdist, found {len(sdists)}")
         else:
-            sdist_version = _artifact_version(Path(sdists[0]))
+            sdist = sdists[0]
+            sdist_version = _artifact_version(sdist)
             if sdist_version != release_version:
                 issues.append(
                     f"{display_name}: sdist version {sdist_version!r} "
                     f"does not match release version {release_version!r}"
                 )
+            _assert_metadata_identity(
+                artifact=sdist,
+                metadata=_sdist_metadata(sdist),
+                display_name=display_name,
+                release_version=release_version,
+                issues=issues,
+            )
 
     unexpected = sorted(seen_distributions - set(expected))
     if unexpected:
@@ -230,12 +307,6 @@ def verify_manifest(
             "artifact manifest artifact_count does not match dist artifacts: "
             f"{expected_count!r} != {len(actual_by_name)}"
         )
-    _assert_shipping_artifact_identities(
-        artifacts,
-        expected_packages,
-        release_version=release_version,
-    )
-
     missing = sorted(set(actual_by_name) - set(manifest_by_name))
     stale = sorted(set(manifest_by_name) - set(actual_by_name))
     issues: list[str] = []
@@ -260,6 +331,11 @@ def verify_manifest(
         raise SystemExit(
             "artifact manifest does not match dist artifacts:\n  " + "\n  ".join(issues)
         )
+    _assert_shipping_artifact_identities(
+        artifacts,
+        expected_packages,
+        release_version=release_version,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
