@@ -11,11 +11,13 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from flowforge_cli.jtbd_desktop import document as document_module
 from flowforge_cli.jtbd_desktop.document import (
 	JtbdDocument,
 	build_ai_authoring_prompt,
 	build_template_from_jtbd,
 	create_default_bundle,
+	create_default_jtbd,
 	create_jtbd_from_prompt,
 	create_jtbd_from_template,
 	create_template_library,
@@ -96,6 +98,18 @@ def test_add_duplicate_and_remove_jobs_keeps_unique_ids() -> None:
 	assert doc.dirty
 
 
+def test_add_and_duplicate_probe_collision_suffixes() -> None:
+	doc = JtbdDocument(create_default_bundle())
+	doc.add_jtbd("Review Case")
+	second_review = doc.add_jtbd("Review Case")
+	first_copy = doc.duplicate_jtbd(second_review)
+	second_copy = doc.duplicate_jtbd(second_review)
+
+	assert doc.get_jtbd(second_review)["id"] == "review_case_2"
+	assert doc.get_jtbd(first_copy)["id"] == "review_case_2_copy"
+	assert doc.get_jtbd(second_copy)["id"] == "review_case_2_copy_2"
+
+
 def test_visual_composition_dependencies_are_managed_safely() -> None:
 	doc = JtbdDocument(create_default_bundle())
 	review = doc.add_jtbd("Review case")
@@ -114,6 +128,24 @@ def test_visual_composition_dependencies_are_managed_safely() -> None:
 	assert doc.get_jtbd(review)["requires"] == []
 
 
+def test_visual_composition_noop_paths_keep_document_state() -> None:
+	doc = JtbdDocument(create_default_bundle())
+	review = doc.add_jtbd("Review case")
+	doc.dirty = False
+
+	doc.remove_dependency(review, "missing_dependency")
+
+	assert not doc.dirty
+	doc.rename_jtbd(review, "review_case")
+	assert not doc.dirty
+
+	doc.bundle["jtbds"] = [
+		create_default_jtbd("a", "A"),
+		{**create_default_jtbd("b", "B"), "requires": ["a", "a"]},
+	]
+	assert not doc._depends_on("b", "missing")
+
+
 def test_renaming_and_removing_jobs_updates_visual_dependencies() -> None:
 	doc = JtbdDocument(create_default_bundle())
 	review = doc.add_jtbd("Review case")
@@ -129,6 +161,16 @@ def test_renaming_and_removing_jobs_updates_visual_dependencies() -> None:
 	doc.remove_jtbd(review)
 
 	assert doc.get_jtbd(close - 1)["requires"] == []
+
+
+def test_removing_job_without_id_marks_dirty_without_dependency_rewrite() -> None:
+	doc = JtbdDocument(create_default_bundle())
+	doc.bundle["jtbds"].append({**create_default_jtbd("", "Untitled"), "id": ""})
+
+	doc.remove_jtbd(1)
+
+	assert doc.jtbd_ids() == ["intake_case"]
+	assert doc.dirty
 
 
 def test_renaming_jobs_rejects_empty_or_duplicate_ids() -> None:
@@ -190,6 +232,23 @@ def test_add_from_template_and_prompt_manage_unique_jtbd_list() -> None:
 	assert any(f["kind"] == "email" for f in direct_draft["data_capture"])
 
 
+def test_prompt_drafts_validate_blank_short_and_keyword_fields() -> None:
+	with pytest.raises(ValueError, match="prompt is required"):
+		create_jtbd_from_prompt("  \n\t  ", set())
+
+	draft = create_jtbd_from_prompt(
+		"Call customer by phone before payment date and collect document.",
+		set(),
+	)
+	field_kinds = {field["kind"] for field in draft["data_capture"]}
+
+	assert draft["title"] == "Call customer by phone before payment date"
+	assert {"phone", "money", "date", "file"}.issubset(field_kinds)
+
+	short = create_jtbd_from_prompt("approve invoice.", set())
+	assert short["title"] == "Approve invoice"
+
+
 def test_template_library_roundtrip(tmp_path: Path) -> None:
 	library = create_template_library()
 	path = tmp_path / "templates.json"
@@ -199,6 +258,35 @@ def test_template_library_roundtrip(tmp_path: Path) -> None:
 
 	assert loaded == json.loads(path.read_text(encoding="utf-8"))
 	assert loaded["templates"][0]["id"] == "approval_intake"
+
+
+@pytest.mark.parametrize(
+	("payload", "message"),
+	[
+		({"templates": "not-a-list"}, "templates list"),
+		({"templates": ["not-an-object"]}, "entries must be objects"),
+		({"templates": [{"name": "No id", "jtbd": {}}]}, "must have an id"),
+		(
+			{
+				"templates": [
+					{"id": "dup", "jtbd": create_default_jtbd("a", "A")},
+					{"id": "dup", "jtbd": create_default_jtbd("b", "B")},
+				]
+			},
+			"duplicate template id",
+		),
+		({"templates": [{"id": "bad", "jtbd": "not-an-object"}]}, "must contain a jtbd object"),
+	],
+)
+def test_template_library_rejects_malformed_entries(
+	tmp_path: Path,
+	payload: dict[str, object],
+	message: str,
+) -> None:
+	path = tmp_path / "templates.json"
+
+	with pytest.raises(ValueError, match=message):
+		save_template_library(path, payload)
 
 
 def test_template_export_and_ai_prompt() -> None:
@@ -213,6 +301,11 @@ def test_template_export_and_ai_prompt() -> None:
 	assert jtbd["id"] == "intake_case_2"
 	assert jtbd["requires"] == []
 	assert "Selected JTBD JSON" in prompt
+
+
+def test_template_materialization_requires_jtbd_object() -> None:
+	with pytest.raises(ValueError, match="template must contain a jtbd object"):
+		create_jtbd_from_template({"id": "empty"}, set())
 
 
 def test_template_import_drops_dependencies_missing_from_target_bundle() -> None:
@@ -261,6 +354,24 @@ def test_verify_generation_reports_emitted_files() -> None:
 	assert any("generation emits" in info for info in result.infos)
 
 
+def test_verify_generation_reports_parse_and_generation_errors(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	invalid = verify_generation({"project": {"name": "invalid"}, "jtbds": []})
+
+	assert not invalid.ok
+	assert invalid.errors
+
+	def fail_generate(_bundle: dict[str, object]) -> list[object]:
+		raise ValueError("generation failed")
+
+	monkeypatch.setattr(document_module, "generate", fail_generate)
+	result = verify_generation(create_default_bundle())
+
+	assert not result.ok
+	assert result.errors == ["generation failed"]
+
+
 def test_remove_last_job_is_rejected() -> None:
 	doc = JtbdDocument(create_default_bundle())
 
@@ -298,6 +409,22 @@ def test_validation_treats_lint_errors_as_blocking() -> None:
 	assert any("requires_unknown_jtbd" in error for error in result.errors)
 
 
+def test_validation_reports_linter_unavailable(
+	monkeypatch: pytest.MonkeyPatch,
+) -> None:
+	class BrokenLinter:
+		def lint(self, _bundle: dict[str, object]) -> object:
+			raise RuntimeError("lint backend offline")
+
+	monkeypatch.setattr(document_module, "Linter", BrokenLinter)
+	doc = JtbdDocument(create_default_bundle())
+
+	result = doc.validate()
+
+	assert result.ok
+	assert result.warnings == ["linter unavailable: lint backend offline"]
+
+
 def test_save_and_load_roundtrip(tmp_path: Path) -> None:
 	doc = JtbdDocument(create_default_bundle())
 	doc.bundle["project"]["name"] = "Roundtrip"
@@ -309,6 +436,13 @@ def test_save_and_load_roundtrip(tmp_path: Path) -> None:
 	assert not doc.dirty
 	assert loaded.bundle == json.loads(path.read_text(encoding="utf-8"))
 	assert loaded.bundle["project"]["name"] == "Roundtrip"
+
+
+def test_first_save_requires_path() -> None:
+	doc = JtbdDocument(create_default_bundle())
+
+	with pytest.raises(ValueError, match="path is required"):
+		doc.save()
 
 
 def test_document_input_is_copied() -> None:
@@ -323,6 +457,33 @@ def test_normalise_id_produces_ascii_snake_case() -> None:
 	assert normalise_id("  Review Case!  ") == "review_case"
 	assert normalise_id("123") == "job"
 	assert normalise_id("", fallback="fallback") == "fallback"
+
+
+def test_document_setters_mark_dirty_and_clear_hashes() -> None:
+	doc = JtbdDocument(create_default_bundle())
+	doc.bundle["jtbds"][0]["spec_hash"] = "sha256:" + "a" * 64
+
+	doc.set_project_value("name", "Renamed")
+	doc.set_design_value("primary", "#111827")
+	doc.set_frontend_renderer("skeleton")
+	doc.set_jtbd_value(0, "title", "Updated intake")
+
+	assert doc.bundle["project"]["name"] == "Renamed"
+	assert doc.bundle["project"]["design"]["primary"] == "#111827"
+	assert doc.bundle["project"]["frontend"]["form_renderer"] == "skeleton"
+	assert doc.bundle["jtbds"][0]["title"] == "Updated intake"
+	assert "spec_hash" not in doc.bundle["jtbds"][0]
+	assert doc.dirty
+
+
+def test_document_setter_for_non_hash_field_preserves_hash() -> None:
+	doc = JtbdDocument(create_default_bundle())
+	doc.bundle["jtbds"][0]["spec_hash"] = "sha256:" + "a" * 64
+
+	doc.set_jtbd_value(0, "annotations", {"notes": "kept outside spec hash"})
+
+	assert doc.bundle["jtbds"][0]["spec_hash"] == "sha256:" + "a" * 64
+	assert doc.dirty
 
 
 def test_sensitive_field_helper_matches_authoring_expectations() -> None:

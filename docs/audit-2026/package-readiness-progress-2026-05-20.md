@@ -1722,3 +1722,36 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `857 passed`, one optional `mmdc` skip, and
     overall package coverage 82%.
+
+## CLI coverage slice - desktop document model
+
+- Baseline measurement:
+  - After closing bundle-diff command coverage, rounded `flowforge-cli`
+    package coverage was 82%.
+  - `jtbd_desktop/document.py` was 86% covered; remaining gaps were template
+    import errors, prompt validation and keyword-derived fields, generation
+    failure reporting, first-save path validation, lint backend failure
+    warnings, duplicate-id suffix loops, dependency no-op paths, no-id removal,
+    setter dirty/hash behavior, short prompt title derivation, and malformed
+    template-library validation branches.
+- Action:
+  - Added focused desktop document-model tests for those branch paths while
+    keeping PyQt GUI runtime out of the test surface.
+  - Exercised parser/generator verification errors, local prompt drafting,
+    template materialization, dependency graph behavior, deterministic save/load
+    helpers, and template sidecar validation without live UI dependencies.
+- Result:
+  - `flowforge_cli.jtbd_desktop.document` now reaches 100% statement and branch
+    coverage.
+  - Overall `flowforge-cli` rounded package coverage increased to 83%.
+- Verification:
+  - `uv run pytest tests/test_jtbd_desktop_document.py -q --cov=flowforge_cli.jtbd_desktop.document --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `45 passed`, 100% statement and branch
+    coverage for `document.py`.
+  - `uv run ruff check tests/test_jtbd_desktop_document.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_jtbd_desktop_document.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `872 passed`, one optional `mmdc` skip, and
+    overall package coverage 83%.
