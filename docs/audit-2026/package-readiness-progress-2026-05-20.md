@@ -3499,3 +3499,34 @@ Design audit 5 - operations, security, and reliability:
     16 shipping import packages, and completed `flowforge --help`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## Polish-copy sidecar prompt-hash audit
+
+- Code review finding:
+  - The external release sidecar gate required `prompt_sha256` metadata to look
+    like a lowercase SHA-256 digest, but it did not recompute the digest from
+    the current bundle canonical strings and tone profile. A reviewed sidecar
+    could therefore remain green after the bundle copy changed, weakening the
+    evidence that the sidecar was generated from the current release prompt.
+- Action:
+  - Reused the `polish-copy` prompt hash routine and canonical-string builder
+    in the sidecar gate.
+  - Added an expected-prompt helper that compares the sidecar `prompt_sha256`
+    against the current bundle/tone prompt.
+  - Added a focused stale-hash ratchet and release-gate assertions so the
+    prompt-hash match cannot be removed silently.
+- Verification:
+  - `uv run ruff format scripts/audit_2026/check_polish_copy_sidecar.py tests/audit_2026/test_E_75_polish_copy_release_gate.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `3 files left unchanged`.
+  - `uv run ruff check scripts/audit_2026/check_polish_copy_sidecar.py tests/audit_2026/test_E_75_polish_copy_release_gate.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright scripts/audit_2026/check_polish_copy_sidecar.py tests/audit_2026/test_E_75_polish_copy_release_gate.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - `uv run pytest tests/audit_2026/test_E_75_polish_copy_release_gate.py::test_polish_copy_sidecar_gate_rejects_stale_prompt_hash tests/audit_2026/test_E_75_polish_copy_release_gate.py::test_polish_copy_sidecar_gate_accepts_reviewable_sidecar tests/audit_2026/test_E_73_external_release_gate.py::test_external_release_preflight_reports_all_hard_prerequisites -q`:
+    `3 passed`.
+  - `uv run pytest tests/audit_2026/test_E_75_polish_copy_release_gate.py tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `45 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-polish-copy-sidecar`:
+    passed against `examples/insurance_claim/jtbd-bundle.json.overrides.json`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
