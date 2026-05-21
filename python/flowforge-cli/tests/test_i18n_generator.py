@@ -425,7 +425,8 @@ def test_useT_imports_default_language_catalog() -> None:
 	norm = normalize(_bundle(languages=["en", "fr-CA"]))
 	files = {f.path: f.content for f in gen.generate(norm)}
 	tsx = files["frontend/src/claims_demo/i18n/useT.ts"]
-	assert 'import fallbackCatalog from "./en.json";' in tsx
+	assert 'import defaultCatalog from "./en.json";' in tsx
+	assert "const fallbackCatalog = defaultCatalog;" in tsx
 
 
 def test_useT_exposes_string_literal_key_union() -> None:
@@ -468,7 +469,25 @@ def test_useT_exports_default_language_constant() -> None:
 	# First entry is the default; here that's fr-CA.
 	assert 'export const DEFAULT_LANGUAGE = "fr-CA";' in tsx
 	assert 'export const FALLBACK_LANGUAGE = "en";' in tsx
+	assert 'import defaultCatalog from "./fr-CA.json";' in tsx
 	assert 'import fallbackCatalog from "./en.json";' in tsx
+
+
+def test_useT_default_context_uses_default_language_catalog() -> None:
+	norm = normalize(_bundle(languages=["fr-CA", "en"]))
+	files = {
+		f.path: f.content
+		for f in gen.generate(
+			norm,
+			translations={"fr-CA": {"jtbd.claim_intake.title": "Déposer une réclamation"}},
+		)
+	}
+
+	tsx = files["frontend/src/claims_demo/i18n/useT.ts"]
+
+	assert "\tlang: DEFAULT_LANGUAGE," in tsx
+	assert "\tcatalog: defaultCatalog as TranslationCatalog," in tsx
+	assert "const fallback = (fallbackCatalog as TranslationCatalog)[key];" in tsx
 
 
 # ---------------------------------------------------------------------------

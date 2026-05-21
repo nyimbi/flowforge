@@ -232,7 +232,12 @@ def _render_useT(bundle: NormalizedBundle, english: dict[str, str]) -> str:
 	lines.append("")
 	lines.append('import * as React from "react";')
 	lines.append("")
-	lines.append(f'import fallbackCatalog from "./{fallback_lang}.json";')
+	lines.append(f'import defaultCatalog from "./{default_lang}.json";')
+	if fallback_lang == default_lang:
+		lines.append("")
+		lines.append("const fallbackCatalog = defaultCatalog;")
+	else:
+		lines.append(f'import fallbackCatalog from "./{fallback_lang}.json";')
 	lines.append("")
 	lines.append("export type TranslationKey =")
 	lines.append(f"{key_union};")
@@ -252,8 +257,8 @@ def _render_useT(bundle: NormalizedBundle, english: dict[str, str]) -> str:
 	lines.append("}")
 	lines.append("")
 	lines.append("const defaultContext: I18nContextValue = {")
-	lines.append(f"{tab}lang: FALLBACK_LANGUAGE,")
-	lines.append(f"{tab}catalog: fallbackCatalog as TranslationCatalog,")
+	lines.append(f"{tab}lang: DEFAULT_LANGUAGE,")
+	lines.append(f"{tab}catalog: defaultCatalog as TranslationCatalog,")
 	lines.append("};")
 	lines.append("")
 	lines.append(
@@ -262,7 +267,7 @@ def _render_useT(bundle: NormalizedBundle, english: dict[str, str]) -> str:
 	)
 	lines.append("")
 	lines.append("/**")
-	lines.append(" * Translation hook. Falls back to the English catalog when a key is")
+	lines.append(" * Translation hook. Falls back to the generated source catalog when a key is")
 	lines.append(" * missing from the active locale — keeps a partially-translated app")
 	lines.append(" * usable while the host fills the gaps. The return type is `string`")
 	lines.append(" * so call-sites can render directly inside JSX without narrowing.")
