@@ -2313,6 +2313,43 @@ Design audit 5 - operations, security, and reliability:
     Remaining gaps are concentrated in AI quality scoring, recommender edges,
     and DSL spec branches.
 
+## Package coverage slice - flowforge-jtbd DSL spec validators
+
+- Baseline measurement:
+  - `flowforge_jtbd.dsl.spec` had uncovered canonical-validator branches for
+    empty semver values, empty semver suffixes, invalid packaging-version
+    shapes, invalid `spec_hash` prefixes/digests, non-ASCII identifiers, and
+    design hex-colour validation.
+  - The design colour validator also had a redundant non-string guard despite
+    receiving typed string values from Pydantic.
+- Action:
+  - Added focused canonical spec tests for explicit valid/invalid versions,
+    valid/invalid spec hashes, non-ASCII ids, and design colour success/failure
+    paths.
+  - Removed the redundant non-string guard from `_hex_color`.
+- Result:
+  - `flowforge_jtbd.dsl.spec` now reaches 100% statement and branch coverage in
+    the focused gate.
+  - Overall `flowforge-jtbd` rounded package coverage increased from 98% to
+    99%; remaining uncovered code is now isolated to AI quality scoring and
+    recommendations.
+- Verification:
+  - `uv run pytest tests/ci/test_jtbd_spec.py -q --cov=flowforge_jtbd.dsl.spec --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-jtbd`: `28 passed`, targeted module 100%.
+  - `uv run ruff check src/flowforge_jtbd/dsl/spec.py tests/ci/test_jtbd_spec.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run ruff format --check src/flowforge_jtbd/dsl/spec.py tests/ci/test_jtbd_spec.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run pyright src/flowforge_jtbd/dsl/spec.py tests/ci/test_jtbd_spec.py`
+    from `python/flowforge-jtbd`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_jtbd --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-jtbd`: `619 passed`, one optional skip, one expected
+    in-memory embedding-store performance warning, and package coverage 99%.
+- Remaining risk:
+  - `flowforge-jtbd` is not yet ready for the closed-package coverage ratchet.
+    Remaining gaps are concentrated in AI quality scoring and recommender
+    edges.
+
 ## Package coverage slice - flowforge-jtbd i18n and actor lint
 
 - Baseline measurement:
