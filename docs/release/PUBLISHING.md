@@ -96,7 +96,9 @@ This deletes and recreates the repository `dist/` directory, then leaves the
 validated wheel and sdist artifacts there for the `twine` commands below.
 `audit-2026-release-external` uses this target so release qualification
 validates the same `dist/*` files that are uploaded. Under the hood the target
-passes `--dist-dir dist --allow-repo-dist` to the smoke script.
+passes `--dist-dir dist --allow-repo-dist` to the smoke script and writes a
+JSON checksum manifest at
+`docs/audit-2026/external-release-pypi-artifacts-current.json`.
 
 ## Validate
 
@@ -120,7 +122,9 @@ python -m venv /tmp/flowforge-cli-wheel-smoke
 
 Every artifact should report `PASSED` (no warnings), and the clean
 wheel smoke must import every shipping package and print CLI help without
-`ModuleNotFoundError`.
+`ModuleNotFoundError`. For releases, retain the checksum manifest with the
+external release evidence so reviewers can match each uploaded artifact by
+filename, size, and SHA-256 digest.
 Common failure modes:
 
 - `long_description missing` → README.md not picked up. Confirm

@@ -3694,3 +3694,41 @@ Design audit 5 - operations, security, and reliability:
   - `git diff --check`: clean.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI artifact checksum manifest audit
+
+- Code review finding:
+  - External release evidence retained the uploadable `dist/*` package files,
+    but there was no compact checksum manifest recording each artifact's
+    filename, size, and SHA-256 digest. Reviewers could confirm files were
+    present but lacked a machine-readable byte-level record to compare against
+    the artifacts uploaded to TestPyPI/PyPI.
+- Action:
+  - Added optional checksum-manifest output to the PyPI build smoke. The
+    manifest records schema version, artifact count, artifact kind, relative
+    path, byte size, and SHA-256 digest for every wheel and sdist after the
+    build, `twine check`, clean-venv install, import, and CLI smoke pass.
+  - Guarded non-temp manifest writes so the release path may write only
+    `docs/audit-2026/external-release-pypi-artifacts-current.json`.
+  - Wired `make audit-2026-pypi-build-dist` to emit that manifest and updated
+    the external release workflow, runbook, evidence template, publishing guide,
+    and ratchets to retain and review it.
+- Verification:
+  - `uv run ruff format scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `1 file reformatted, 1 file left unchanged`.
+  - `uv run ruff check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `40 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build-dist`:
+    built 16 packages / 32 artifacts into repository `dist/`, passed
+    `twine check` on every artifact, installed all 16 wheels into a clean venv,
+    imported all 16 shipping import packages, completed `flowforge --help`, and
+    wrote `docs/audit-2026/external-release-pypi-artifacts-current.json`.
+  - Manifest inspection:
+    `artifact_count == 32`, `len(artifacts) == 32`, and every artifact entry has
+    a 64-character SHA-256 digest.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

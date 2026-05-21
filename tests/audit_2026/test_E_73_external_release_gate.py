@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 import re
 import sys
 import tarfile
@@ -127,6 +128,10 @@ def test_external_release_gate_is_wired_as_manual_release_workflow() -> None:
     assert "FLOWFORGE_TEST_PG_URL:" in workflow
     assert "make audit-2026-release-external" in workflow
     assert "Uploadable PyPI artifacts under \\`dist/*\\`" in workflow
+    assert (
+        "PyPI artifact checksum manifest \\`docs/audit-2026/external-release-pypi-artifacts-current.json\\`"
+        in workflow
+    )
     assert "Write external release evidence summary" in workflow
     assert "external-release-evidence-current.md" in workflow
     assert "GITHUB_RUN_ID" in workflow
@@ -136,6 +141,7 @@ def test_external_release_gate_is_wired_as_manual_release_workflow() -> None:
     )
     assert "audit-2026-release-external-evidence" in workflow
     assert "external-release-evidence*.md" in workflow
+    assert "external-release-pypi-artifacts-current.json" in workflow
     assert "flowforge/dist/*" in workflow
     assert "examples/**/screenshots/**/*.dom.html" in workflow
     assert "examples/insurance_claim/jtbd-bundle.json.overrides.json" in workflow
@@ -267,6 +273,7 @@ def test_external_release_preflight_reports_all_hard_prerequisites() -> None:
 def test_external_release_evidence_template_tracks_required_proofs() -> None:
     template = _read("docs/audit-2026/external-release-evidence-template.md")
     runbook = _read("docs/audit-2026/external-release-runbook.md")
+    gitignore = _read(".gitignore")
 
     assert "external-release-evidence-template.md" in runbook
     assert "gh workflow run audit-2026-release-external.yml" in runbook
@@ -277,6 +284,8 @@ def test_external_release_evidence_template_tracks_required_proofs() -> None:
     assert "intentionally degrades to a no-op" in runbook
     assert "preflight does not prove browser execution" in runbook
     assert "uploadable PyPI `dist/*` artifacts" in runbook
+    assert "PyPI artifact checksum manifest" in runbook
+    assert "docs/audit-2026/external-release-pypi-artifacts-current.json" in gitignore
     for required in [
         "Flowforge commit",
         "DOM baseline commit",
@@ -288,9 +297,11 @@ def test_external_release_evidence_template_tracks_required_proofs() -> None:
         "Workflow run URL",
         "Artifact URL",
         "Uploadable PyPI `dist/*` artifacts present",
+        "PyPI artifact checksum manifest URL/path",
         "Browser full-stack Playwright",
         "Real-key polish-copy sidecar gate",
         "make audit-2026-pypi-build-dist",
+        "PyPI artifact checksum manifest reviewed",
         "UMS workflow-def parity",
         "Live Postgres tenant/ordinal index plan",
     ]:
@@ -416,6 +427,10 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "$(MAKE) audit-2026-pypi-build" in makefile
     assert "$(MAKE) audit-2026-pypi-build-dist" in makefile
     assert "pypi_build_smoke.py --dist-dir dist --allow-repo-dist" in makefile
+    assert (
+        "--artifact-manifest docs/audit-2026/external-release-pypi-artifacts-current.json"
+        in makefile
+    )
     shipping_packages = _shipping_workspace_dirs()
     assert len(shipping_packages) == 16
     assert "flowforge-core" in shipping_packages
@@ -464,6 +479,9 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "--allow-repo-dist" in makefile
     assert "--allow-repo-dist" in publishing
     assert "--dist-dir dist" in publishing
+    assert "--artifact-manifest" in script
+    assert "external-release-pypi-artifacts-current.json" in publishing
+    assert "SHA-256 digest" in publishing
     assert "validates the same `dist/*` files that are uploaded" in publishing
     assert "deletes and recreates the repository `dist/` directory" in publishing
     assert "flowforge-cli-wheel-smoke" in publishing
@@ -627,6 +645,53 @@ def test_pypi_build_smoke_rejects_nested_repo_dist_with_explicit_flag(
         )
 
     assert not nested_dist.exists()
+
+
+def test_pypi_build_smoke_writes_artifact_checksum_manifest(tmp_path: Path) -> None:
+    wheel = tmp_path / "flowforge-0.1.0-py3-none-any.whl"
+    sdist = tmp_path / "flowforge-0.1.0.tar.gz"
+    wheel.write_bytes(b"wheel bytes")
+    sdist.write_bytes(b"sdist bytes")
+    manifest_path = tmp_path / "manifest.json"
+
+    pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["schema_version"] == 1
+    assert manifest["artifact_count"] == 2
+    assert [entry["filename"] for entry in manifest["artifacts"]] == [
+        "flowforge-0.1.0-py3-none-any.whl",
+        "flowforge-0.1.0.tar.gz",
+    ]
+    by_name = {entry["filename"]: entry for entry in manifest["artifacts"]}
+    assert by_name["flowforge-0.1.0-py3-none-any.whl"]["kind"] == "wheel"
+    assert by_name["flowforge-0.1.0.tar.gz"]["kind"] == "sdist"
+    assert by_name["flowforge-0.1.0-py3-none-any.whl"]["size_bytes"] == len(
+        b"wheel bytes"
+    )
+    assert (
+        by_name["flowforge-0.1.0-py3-none-any.whl"]["sha256"]
+        == "67c0d8f7de19e30c2d5891030a0b37cbfcdd240852b53055c0b28290ad52290b"
+    )
+
+
+def test_pypi_build_smoke_rejects_non_temp_artifact_manifest(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    temp_root = tmp_path / "allowed-temp"
+    outside = tmp_path / "outside" / "manifest.json"
+    monkeypatch.setattr(pypi_build_smoke.tempfile, "gettempdir", lambda: str(temp_root))
+    monkeypatch.setattr(
+        pypi_build_smoke,
+        "RELEASE_ARTIFACT_MANIFEST",
+        tmp_path / "repo" / "docs" / "audit-2026" / "external.json",
+    )
+
+    with pytest.raises(SystemExit, match="artifact manifest must be under"):
+        pypi_build_smoke._resolve_artifact_manifest_path(outside)
+
+    assert not outside.exists()
 
 
 def test_pypi_build_smoke_rejects_artifacts_missing_license_files(

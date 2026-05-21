@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import email.message
 import email.parser
+import hashlib
+import json
 import os
 import re
 import shutil
@@ -22,6 +24,9 @@ from package_sets import ShippingPackage
 ROOT = Path(__file__).resolve().parents[2]
 INTERNAL_DEPENDENCY_LOWER_BOUND = ">=0.1.0"
 INTERNAL_DEPENDENCY_UPPER_BOUND = "<0.2.0"
+RELEASE_ARTIFACT_MANIFEST = (
+    ROOT / "docs" / "audit-2026" / "external-release-pypi-artifacts-current.json"
+)
 
 
 def _run(argv: list[str], *, cwd: Path = ROOT) -> None:
@@ -48,6 +53,53 @@ def _prepare_dir(
     if resolved.exists():
         shutil.rmtree(resolved)
     resolved.mkdir(parents=True, exist_ok=True)
+
+
+def _resolve_artifact_manifest_path(path: Path) -> Path:
+    resolved = path.resolve()
+    tmp_root = Path(tempfile.gettempdir()).resolve()
+    release_manifest = RELEASE_ARTIFACT_MANIFEST.resolve()
+    if tmp_root in (resolved, *resolved.parents) or resolved == release_manifest:
+        return resolved
+    raise SystemExit(
+        "artifact manifest must be under "
+        f"{tmp_root} or exactly {release_manifest}: {resolved}"
+    )
+
+
+def _artifact_manifest_entry(artifact: Path) -> dict[str, object]:
+    suffix = ".tar.gz"
+    kind = "sdist" if artifact.name.endswith(suffix) else "wheel"
+    digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    try:
+        display_path = artifact.resolve().relative_to(ROOT)
+    except ValueError:
+        display_path = artifact.resolve()
+    return {
+        "filename": artifact.name,
+        "kind": kind,
+        "path": str(display_path),
+        "sha256": digest,
+        "size_bytes": artifact.stat().st_size,
+    }
+
+
+def _write_artifact_manifest(artifacts: list[Path], manifest_path: Path) -> None:
+    resolved = _resolve_artifact_manifest_path(manifest_path)
+    manifest = {
+        "schema_version": 1,
+        "artifact_count": len(artifacts),
+        "artifacts": [
+            _artifact_manifest_entry(artifact)
+            for artifact in sorted(artifacts, key=lambda item: item.name)
+        ],
+    }
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+    resolved.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    print(f"pypi-build-smoke: wrote artifact manifest to {resolved}", flush=True)
 
 
 def _console_script_path(venv_dir: Path) -> Path:
@@ -452,6 +504,14 @@ def main(argv: list[str] | None = None) -> int:
             "and recreates the repository dist directory."
         ),
     )
+    parser.add_argument(
+        "--artifact-manifest",
+        type=Path,
+        help=(
+            "Optional JSON checksum manifest for built artifacts. Non-temp "
+            "paths are limited to the external release evidence manifest."
+        ),
+    )
     args = parser.parse_args(argv)
 
     dist_dir = args.dist_dir.resolve()
@@ -525,6 +585,8 @@ def main(argv: list[str] | None = None) -> int:
         venv_dir=venv_dir,
         wheels_by_distribution=wheels_by_distribution,
     )
+    if args.artifact_manifest is not None:
+        _write_artifact_manifest(artifacts, args.artifact_manifest)
     print(
         f"pypi-build-smoke: passed for {len(packages)} packages "
         f"and {len(artifacts)} artifacts in {dist_dir}",

@@ -193,6 +193,7 @@ jobs:
           - Reviewed DOM baselines under \`examples/**/screenshots/**/*.dom.html\`.
           - Reviewed sidecar \`examples/insurance_claim/jtbd-bundle.json.overrides.json\`.
           - Uploadable PyPI artifacts under \`dist/*\` from \`audit-2026-pypi-build-dist\`.
+          - PyPI artifact checksum manifest \`docs/audit-2026/external-release-pypi-artifacts-current.json\`.
           - External release runbook and evidence template.
           EOF
 
@@ -205,6 +206,7 @@ jobs:
           retention-days: 30
           path: |
             flowforge/docs/audit-2026/external-release-evidence*.md
+            flowforge/docs/audit-2026/external-release-pypi-artifacts-current.json
             flowforge/docs/audit-2026/external-release-runbook.md
             flowforge/dist/*
             flowforge/examples/**/screenshots/**/*.dom.html

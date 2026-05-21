@@ -40,6 +40,7 @@ approval record.
   - Workflow run URL:
   - Artifact URL:
   - Uploadable PyPI `dist/*` artifacts present in artifact:
+  - PyPI artifact checksum manifest URL/path:
   - `run_ums_parity` input:
   - `backend_repository` input:
   - `backend_ref` input:
@@ -55,6 +56,7 @@ approval record.
 - Browser full-stack Playwright:
 - Real-key polish-copy sidecar gate (`make audit-2026-polish-copy-sidecar`):
 - PyPI publication artifacts (`make audit-2026-pypi-build-dist`):
+- PyPI artifact checksum manifest reviewed:
 - Optional downstream UMS workflow-def parity, if requested:
 - Live Postgres stale snapshot rejection:
 - Live Postgres SKIP LOCKED outbox drain:

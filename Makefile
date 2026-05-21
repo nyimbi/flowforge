@@ -139,7 +139,7 @@ audit-2026-pypi-build:
 
 .PHONY: audit-2026-pypi-build-dist
 audit-2026-pypi-build-dist:
-	uv run python scripts/audit_2026/pypi_build_smoke.py --dist-dir dist --allow-repo-dist
+	uv run python scripts/audit_2026/pypi_build_smoke.py --dist-dir dist --allow-repo-dist --artifact-manifest docs/audit-2026/external-release-pypi-artifacts-current.json
 
 .PHONY: audit-2026-closed-package-coverage
 audit-2026-closed-package-coverage:
