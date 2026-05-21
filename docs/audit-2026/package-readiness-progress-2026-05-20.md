@@ -1785,3 +1785,36 @@ Design audit 5 - operations, security, and reliability:
     the stale thread-limit condition.
   - The large `jtbd_desktop/app.py` GUI surface is still effectively uncovered
     in package coverage and needs a separate UI-adapter testing strategy.
+
+## CLI coverage slice - desktop app helpers
+
+- Baseline measurement:
+  - After closing desktop document-model coverage, rounded `flowforge-cli`
+    package coverage was 83%.
+  - `jtbd_desktop/app.py` was effectively uncovered because PyQt6 is not
+    installed in the verification environment and the previous tests only
+    exercised the CLI command shim.
+- Action:
+  - Added GUI-free tests for theme file parsing, theme merging, stylesheet
+    rendering, missing-PyQt launch failure messaging, scalar helper parsing,
+    combo restoration, table mutation, and table row serializer/deserializer
+    helpers.
+  - Used small fake table/combo/item test doubles instead of importing or
+    installing PyQt6.
+- Result:
+  - `flowforge_cli.jtbd_desktop.app` coverage increased from 0% to 24%.
+  - Overall `flowforge-cli` rounded package coverage increased to 87%.
+- Verification:
+  - `uv run pytest tests/test_jtbd_desktop_app_helpers.py -q --cov=flowforge_cli.jtbd_desktop.app --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `3 passed`; `app.py` reached 24% coverage.
+  - `uv run ruff check tests/test_jtbd_desktop_app_helpers.py`
+    from `python/flowforge-cli`: clean.
+  - `uv run pyright tests/test_jtbd_desktop_app_helpers.py`
+    from `python/flowforge-cli`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-cli`: `875 passed`, one optional `mmdc` skip, and
+    overall package coverage 87%.
+- Remaining risk:
+  - Most `JtbdEditorWindow` methods remain uncovered until the package either
+    gains a PyQt-capable test lane or the UI logic is split into smaller
+    GUI-independent adapters.
