@@ -2919,6 +2919,37 @@ Design audit 5 - operations, security, and reliability:
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
 
+## CLI Step translation-key closure audit
+
+- Code review finding:
+  - The generated real Step component asserted representative translation calls,
+    but did not prove every literal `t("...")` key used by the component exists
+    in the generated catalog and `TranslationKey` union. A future template edit
+    could therefore introduce a dead translation key while string-presence tests
+    still passed.
+- Action:
+  - Added a regression that extracts literal `t("...")` calls from generated
+    real-path `Step.tsx`, verifies every key exists in `en.json`, and verifies
+    each key is emitted in `useT.ts`.
+  - Added coverage for the dynamic PII field label path by checking the
+    generated template literal and concrete PII field label key in both the
+    catalog and type union.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check tests/test_i18n_generator.py`
+    from `python/flowforge-cli`: clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright tests/test_i18n_generator.py`
+    from `python/flowforge-cli`: `0 errors, 0 warnings, 0 informations`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/test_i18n_generator.py -q`
+    from `python/flowforge-cli`: `55 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/test_i18n_generator.py -q --cov=flowforge_cli.jtbd.generators.i18n --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `55 passed`, targeted i18n generator coverage
+    stayed at 100% statement and branch coverage.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-cli`: `891 passed, 1 skipped`, package coverage
+    stayed at 100% statement and branch coverage.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
+
 ## PyPI release version coherence audit
 
 - Code review finding:

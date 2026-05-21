@@ -21,6 +21,7 @@ Covers:
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -589,6 +590,24 @@ def test_real_path_uses_t_for_title_and_buttons() -> None:
 	assert 't("jtbd.claim_intake.title")' in tsx
 	assert 't("jtbd.claim_intake.button.submit")' in tsx
 	assert 't("jtbd.claim_intake.button.approve")' in tsx
+
+
+def test_real_path_translation_calls_are_closed_against_catalog() -> None:
+	files = {f.path: f.content for f in generate(_bundle(form_renderer="real"))}
+	step = files["frontend/src/components/claim-intake/ClaimIntakeStep.tsx"]
+	catalog = json.loads(files["frontend/src/claims_demo/i18n/en.json"])
+	use_t = files["frontend/src/claims_demo/i18n/useT.ts"]
+
+	literal_keys = set(re.findall(r't\("([^"]+)"\)', step))
+	assert literal_keys
+	assert literal_keys <= set(catalog)
+	for key in literal_keys:
+		assert f'| "{key}"' in use_t
+
+	pii_label_key = "jtbd.claim_intake.field.claimant_name.label"
+	assert 'const labelKey = `jtbd.claim_intake.field.${id}.label` as const;' in step
+	assert pii_label_key in catalog
+	assert f'| "{pii_label_key}"' in use_t
 
 
 def test_skeleton_path_stays_i18n_free() -> None:
