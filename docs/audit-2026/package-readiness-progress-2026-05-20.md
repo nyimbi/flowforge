@@ -2108,6 +2108,39 @@ Design audit 5 - operations, security, and reliability:
     DSL spec branches, exporter helpers, lint conflict edges, Claude LLM port
     branches, manifest serialization, and template cache branches.
 
+## Package coverage slice - flowforge-jtbd registry manifest
+
+- Baseline measurement:
+  - `flowforge_jtbd.registry.manifest` had an uncovered malformed-bundle branch
+    in `manifest_from_bundle`, where bundle hashing still succeeds but canonical
+    spec hashing is unavailable.
+- Action:
+  - Added a registry manifest test for non-JSON bundle bytes, asserting
+    `bundle_hash` is still populated and `spec_hash` is omitted.
+  - Applied formatter normalization to the touched registry test file.
+- Result:
+  - `flowforge_jtbd.registry.manifest` now reaches 100% statement and branch
+    coverage in the focused gate.
+  - Overall `flowforge-jtbd` remains at rounded 96% package coverage, with two
+    fewer uncovered statements.
+- Verification:
+  - `uv run pytest tests/test_registry.py -q --cov=flowforge_jtbd.registry.manifest --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-jtbd`: `19 passed`, targeted module coverage 100%.
+  - `uv run ruff check tests/test_registry.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run ruff format --check tests/test_registry.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run pyright tests/test_registry.py`
+    from `python/flowforge-jtbd`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_jtbd --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-jtbd`: `586 passed`, one optional skip, one expected
+    in-memory embedding-store performance warning, and package coverage 96%.
+- Remaining risk:
+  - `flowforge-jtbd` is not yet ready for the closed-package coverage ratchet.
+    Remaining gaps are concentrated in AI quality scoring, recommender edges,
+    DSL spec branches, exporter helpers, lint conflict edges, Claude LLM port
+    branches, and template cache branches.
+
 ## Package coverage slice - flowforge-jtbd audit logger
 
 - Baseline measurement:
