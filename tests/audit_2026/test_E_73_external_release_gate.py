@@ -429,6 +429,8 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "_assert_artifact_internal_dependencies_bounded(" in script
     assert "Requires-Dist" in script
     assert "PKG-INFO" in script
+    assert "_has_required_internal_dependency_bounds(" in script
+    assert "exact `>=0.1.0,<0.2.0`" in publishing
     assert "wheel filename distribution" in script
     assert "wheel's own" in publishing
     assert "`.dist-info/METADATA`" in publishing
@@ -652,6 +654,41 @@ def test_pypi_build_smoke_rejects_unbounded_internal_artifact_dependencies(
         "Name: flowforge-cli\n"
         "Version: 0.1.0\n"
         "Requires-Dist: flowforge_jtbd\n",
+        encoding="utf-8",
+    )
+    with tarfile.open(sdist, "w:gz") as archive:
+        archive.add(pkg_info, arcname="flowforge_cli-0.1.0/PKG-INFO")
+
+    with pytest.raises(SystemExit, match="unbounded internal Flowforge"):
+        pypi_build_smoke._assert_artifact_internal_dependencies_bounded(
+            {"flowforge-cli": wheel},
+            {"flowforge-cli": sdist},
+            internal_distribution_keys=frozenset({"flowforge-jtbd"}),
+            shipping_distribution_keys=frozenset({"flowforge-jtbd"}),
+        )
+
+
+def test_pypi_build_smoke_rejects_imprecise_internal_artifact_bounds(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "flowforge_cli-0.1.0-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr(
+            "flowforge_cli-0.1.0.dist-info/METADATA",
+            "Metadata-Version: 2.4\n"
+            "Name: flowforge-cli\n"
+            "Version: 0.1.0\n"
+            "Requires-Dist: flowforge_jtbd>=0.1.0,<0.2.0.post1\n",
+        )
+    sdist = tmp_path / "flowforge_cli-0.1.0.tar.gz"
+    package_dir = tmp_path / "flowforge_cli-0.1.0"
+    package_dir.mkdir()
+    pkg_info = package_dir / "PKG-INFO"
+    pkg_info.write_text(
+        "Metadata-Version: 2.4\n"
+        "Name: flowforge-cli\n"
+        "Version: 0.1.0\n"
+        "Requires-Dist: flowforge_jtbd>=0.1.0,<0.2.0.post1\n",
         encoding="utf-8",
     )
     with tarfile.open(sdist, "w:gz") as archive:

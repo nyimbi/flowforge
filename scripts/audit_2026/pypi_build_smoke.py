@@ -19,6 +19,8 @@ from package_sets import shipping_packages
 from package_sets import ShippingPackage
 
 ROOT = Path(__file__).resolve().parents[2]
+INTERNAL_DEPENDENCY_LOWER_BOUND = ">=0.1.0"
+INTERNAL_DEPENDENCY_UPPER_BOUND = "<0.2.0"
 
 
 def _run(argv: list[str], *, cwd: Path = ROOT) -> None:
@@ -245,6 +247,32 @@ def _requirement_name(requirement: str) -> str:
     return _distribution_key(match.group(1)) if match else ""
 
 
+def _requirement_specifiers(requirement: str) -> frozenset[str]:
+    requirement_without_marker = requirement.split(";", 1)[0].strip()
+    name_match = re.match(r"\s*[A-Za-z0-9_.-]+", requirement_without_marker)
+    if not name_match:
+        return frozenset()
+    specifiers = requirement_without_marker[name_match.end() :].strip()
+    if specifiers.startswith("["):
+        extras_end = specifiers.find("]")
+        if extras_end == -1:
+            return frozenset()
+        specifiers = specifiers[extras_end + 1 :].strip()
+    return frozenset(
+        normalized
+        for specifier in specifiers.split(",")
+        if (normalized := re.sub(r"\s+", "", specifier.strip()))
+    )
+
+
+def _has_required_internal_dependency_bounds(requirement: str) -> bool:
+    specifiers = _requirement_specifiers(requirement)
+    return (
+        INTERNAL_DEPENDENCY_LOWER_BOUND in specifiers
+        and INTERNAL_DEPENDENCY_UPPER_BOUND in specifiers
+    )
+
+
 def _assert_artifact_internal_dependencies_bounded(
     wheels_by_distribution: Mapping[str, Path],
     sdists_by_distribution: Mapping[str, Path],
@@ -261,7 +289,7 @@ def _assert_artifact_internal_dependencies_bounded(
                 continue
             if name not in shipping_distribution_keys:
                 unpublished.append(f"{distribution_key} wheel: {requirement}")
-            if ">=0.1.0" not in requirement or "<0.2.0" not in requirement:
+            if not _has_required_internal_dependency_bounds(requirement):
                 unbounded.append(f"{distribution_key} wheel: {requirement}")
     for distribution_key, sdist in sdists_by_distribution.items():
         for requirement in _sdist_requires_dist(sdist):
@@ -270,7 +298,7 @@ def _assert_artifact_internal_dependencies_bounded(
                 continue
             if name not in shipping_distribution_keys:
                 unpublished.append(f"{distribution_key} sdist: {requirement}")
-            if ">=0.1.0" not in requirement or "<0.2.0" not in requirement:
+            if not _has_required_internal_dependency_bounds(requirement):
                 unbounded.append(f"{distribution_key} sdist: {requirement}")
     issues: list[str] = []
     if unpublished:

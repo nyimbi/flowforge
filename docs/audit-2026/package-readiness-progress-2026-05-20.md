@@ -3357,3 +3357,39 @@ Design audit 5 - operations, security, and reliability:
     `flowforge --help`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI internal dependency exact-bound audit
+
+- Code review finding:
+  - The artifact dependency-bound check used substring matching for
+    `>=0.1.0` and `<0.2.0`. A requirement such as
+    `flowforge_jtbd>=0.1.0,<0.2.0.post1` could satisfy the release gate even
+    though it did not carry the intended exact `<0.2.0` compatibility ceiling.
+- Action:
+  - Added a small internal requirement-specifier parser that removes markers,
+    skips extras, normalizes whitespace, and checks the exact
+    `>=0.1.0` and `<0.2.0` specifiers.
+  - Replaced substring checks in both wheel `METADATA` and top-level sdist
+    `PKG-INFO` validation.
+  - Added a focused ratchet with imprecise `<0.2.0.post1` bounds in both
+    artifact metadata files and verified the gate rejects them as unbounded.
+  - Updated the publishing guide and release ratchet expectations to document
+    the exact internal compatibility bound.
+- Verification:
+  - `uv run ruff format scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `2 files left unchanged`.
+  - `uv run ruff check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_pypi_build_smoke_rejects_imprecise_internal_artifact_bounds tests/audit_2026/test_E_73_external_release_gate.py::test_pypi_build_smoke_rejects_unbounded_internal_artifact_dependencies tests/audit_2026/test_E_73_external_release_gate.py::test_publishing_docs_require_cli_wheel_smoke -q`:
+    `3 passed`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `33 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`:
+    built and checked 16 packages / 32 artifacts, verified exact internal
+    dependency bounds in wheel `METADATA` and top-level sdist `PKG-INFO`,
+    installed all 16 freshly built wheel files into a clean venv, imported all
+    16 shipping import packages, and completed `flowforge --help`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
