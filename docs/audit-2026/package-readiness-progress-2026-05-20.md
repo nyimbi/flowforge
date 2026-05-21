@@ -3146,3 +3146,45 @@ Design audit 5 - operations, security, and reliability:
     import packages, and completed `flowforge --help`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI internal dependency publication audit
+
+- Code/design audit finding:
+  - The artifact metadata gate proved internal Flowforge dependencies were
+    version-bounded, but it did not separately prove that those internal
+    dependencies point only at the 16 distributions actually being published.
+    A future generated `Requires-Dist` on a workspace-only domain package could
+    have been bounded yet still unusable for PyPI consumers because that
+    package is intentionally not shipping.
+- Baseline measurement:
+  - Current source manifests have `0` shipping-package dependencies on
+    workspace-only internal distributions.
+- Action:
+  - Hardened the artifact dependency metadata gate to reject internal
+    dependencies that are not part of the shipping package set.
+  - Kept the bound check separate from the shipping-distribution check so
+    failures distinguish "unbounded" from "unpublished internal" metadata.
+  - Added a focused ratchet that builds minimal wheel and sdist metadata with a
+    bounded dependency on `flowforge_jtbd_insurance` and verifies the PyPI
+    smoke rejects it when that distribution is not in the shipping set.
+  - Updated the publishing guide to document that internal dependency metadata
+    must be both bounded and limited to shipping distributions.
+- Verification:
+  - `uv run ruff check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run ruff format --check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `2 files already formatted`.
+  - `uv run pyright scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_pypi_build_smoke_rejects_unbounded_internal_artifact_dependencies tests/audit_2026/test_E_73_external_release_gate.py::test_pypi_build_smoke_rejects_unpublished_internal_artifact_dependencies tests/audit_2026/test_E_73_external_release_gate.py::test_publishing_docs_require_cli_wheel_smoke -q`:
+    `3 passed`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `27 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`:
+    built and checked 16 packages / 32 artifacts, inspected wheel `METADATA`
+    and sdist `PKG-INFO` for bounded internal dependencies limited to shipping
+    distributions, installed all 16 freshly built wheel files into a clean
+    venv, imported all 16 shipping import packages, and completed
+    `flowforge --help`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

@@ -66,6 +66,14 @@ def _workspace_distribution_keys() -> frozenset[str]:
     return frozenset(names)
 
 
+def _shipping_distribution_keys(
+    packages: tuple[ShippingPackage, ...],
+) -> frozenset[str]:
+    return frozenset(
+        _distribution_key(package.distribution_name) for package in packages
+    )
+
+
 def _wheel_distribution_key(wheel: Path) -> str:
     return _distribution_key(wheel.name.split("-", 1)[0])
 
@@ -228,26 +236,41 @@ def _assert_artifact_internal_dependencies_bounded(
     sdists_by_distribution: Mapping[str, Path],
     *,
     internal_distribution_keys: frozenset[str],
+    shipping_distribution_keys: frozenset[str],
 ) -> None:
-    failures: list[str] = []
+    unbounded: list[str] = []
+    unpublished: list[str] = []
     for distribution_key, wheel in wheels_by_distribution.items():
         for requirement in _wheel_requires_dist(wheel):
             name = _requirement_name(requirement)
             if name not in internal_distribution_keys:
                 continue
+            if name not in shipping_distribution_keys:
+                unpublished.append(f"{distribution_key} wheel: {requirement}")
             if ">=0.1.0" not in requirement or "<0.2.0" not in requirement:
-                failures.append(f"{distribution_key} wheel: {requirement}")
+                unbounded.append(f"{distribution_key} wheel: {requirement}")
     for distribution_key, sdist in sdists_by_distribution.items():
         for requirement in _sdist_requires_dist(sdist):
             name = _requirement_name(requirement)
             if name not in internal_distribution_keys:
                 continue
+            if name not in shipping_distribution_keys:
+                unpublished.append(f"{distribution_key} sdist: {requirement}")
             if ">=0.1.0" not in requirement or "<0.2.0" not in requirement:
-                failures.append(f"{distribution_key} sdist: {requirement}")
-    if failures:
+                unbounded.append(f"{distribution_key} sdist: {requirement}")
+    issues: list[str] = []
+    if unpublished:
+        issues.append(
+            "unpublished internal Flowforge dependencies:\n  "
+            + "\n  ".join(unpublished)
+        )
+    if unbounded:
+        issues.append(
+            "unbounded internal Flowforge dependencies:\n  " + "\n  ".join(unbounded)
+        )
+    if issues:
         raise SystemExit(
-            "built artifacts publish unbounded internal Flowforge dependencies:\n  "
-            + "\n  ".join(failures)
+            "built artifacts publish invalid dependencies:\n" + "\n".join(issues)
         )
 
 
@@ -344,6 +367,7 @@ def main(argv: list[str] | None = None) -> int:
         wheels_by_distribution,
         sdists_by_distribution,
         internal_distribution_keys=_workspace_distribution_keys(),
+        shipping_distribution_keys=_shipping_distribution_keys(packages),
     )
 
     _run(
