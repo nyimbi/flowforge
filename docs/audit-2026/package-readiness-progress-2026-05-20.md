@@ -3513,8 +3513,11 @@ Design audit 5 - operations, security, and reliability:
     in the sidecar gate.
   - Added an expected-prompt helper that compares the sidecar `prompt_sha256`
     against the current bundle/tone prompt.
+  - Required the sidecar to include every current canonical field-label string
+    key, while preserving the more specific dead-key diagnostics for invalid
+    override keys.
   - Added a focused stale-hash ratchet and release-gate assertions so the
-    prompt-hash match cannot be removed silently.
+    prompt-hash and completeness checks cannot be removed silently.
 - Verification:
   - `uv run ruff format scripts/audit_2026/check_polish_copy_sidecar.py tests/audit_2026/test_E_75_polish_copy_release_gate.py tests/audit_2026/test_E_73_external_release_gate.py`:
     `3 files left unchanged`.
@@ -3522,10 +3525,10 @@ Design audit 5 - operations, security, and reliability:
     clean.
   - `uv run pyright scripts/audit_2026/check_polish_copy_sidecar.py tests/audit_2026/test_E_75_polish_copy_release_gate.py tests/audit_2026/test_E_73_external_release_gate.py`:
     `0 errors, 0 warnings, 0 informations`.
-  - `uv run pytest tests/audit_2026/test_E_75_polish_copy_release_gate.py::test_polish_copy_sidecar_gate_rejects_stale_prompt_hash tests/audit_2026/test_E_75_polish_copy_release_gate.py::test_polish_copy_sidecar_gate_accepts_reviewable_sidecar tests/audit_2026/test_E_73_external_release_gate.py::test_external_release_preflight_reports_all_hard_prerequisites -q`:
-    `3 passed`.
+  - `uv run pytest tests/audit_2026/test_E_75_polish_copy_release_gate.py::test_polish_copy_sidecar_gate_rejects_missing_current_bundle_strings tests/audit_2026/test_E_75_polish_copy_release_gate.py::test_polish_copy_sidecar_gate_rejects_stale_prompt_hash tests/audit_2026/test_E_75_polish_copy_release_gate.py::test_polish_copy_sidecar_gate_accepts_reviewable_sidecar tests/audit_2026/test_E_73_external_release_gate.py::test_external_release_preflight_reports_all_hard_prerequisites -q`:
+    `4 passed`.
   - `uv run pytest tests/audit_2026/test_E_75_polish_copy_release_gate.py tests/audit_2026/test_E_73_external_release_gate.py -q`:
-    `45 passed`.
+    `46 passed`.
   - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-polish-copy-sidecar`:
     passed against `examples/insurance_claim/jtbd-bundle.json.overrides.json`.
 - Remaining risk:

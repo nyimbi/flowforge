@@ -44,10 +44,10 @@ def _load_bundle(path: Path) -> dict[str, object]:
 
 
 def _expected_prompt_sha256(
-    bundle: dict[str, object],
+    canonical_strings: dict[str, str],
     tone_profile: ToneProfile,
 ) -> str:
-    return _prompt_sha256(build_canonical_strings(bundle), tone_profile)
+    return _prompt_sha256(canonical_strings, tone_profile)
 
 
 def _validate_sidecar(
@@ -64,7 +64,11 @@ def _validate_sidecar(
         return "sidecar missing LLM audit metadata: " + ", ".join(missing)
     if sidecar.prompt_sha256 is None or not _SHA256_RE.match(sidecar.prompt_sha256):
         return "sidecar prompt_sha256 must be a lowercase 64-character hex digest"
-    expected_prompt_sha256 = _expected_prompt_sha256(bundle, sidecar.tone_profile)
+    canonical_strings = build_canonical_strings(bundle)
+    expected_prompt_sha256 = _expected_prompt_sha256(
+        canonical_strings,
+        sidecar.tone_profile,
+    )
     if sidecar.prompt_sha256 != expected_prompt_sha256:
         return (
             "sidecar prompt_sha256 does not match the current bundle and "
@@ -74,6 +78,11 @@ def _validate_sidecar(
         err = validate_key_against_bundle(key, bundle)
         if err is not None:
             return err
+    missing_keys = sorted(set(canonical_strings) - set(sidecar.strings))
+    if missing_keys:
+        rendered = ", ".join(missing_keys[:5])
+        suffix = "" if len(missing_keys) <= 5 else f" (+{len(missing_keys) - 5} more)"
+        return "sidecar missing current bundle strings: " + rendered + suffix
     return None
 
 

@@ -28,13 +28,11 @@ _BUNDLE = _GATE._load_bundle(
 )
 _VALID_SIDE_CAR = {
     "tone_profile": "formal-professional",
-    "strings": {
-        "claim_intake.field.claimant_name.label": "Full legal name",
-    },
+    "strings": _GATE.build_canonical_strings(_BUNDLE),
     "llm_provider": "anthropic",
     "llm_model": "claude-test",
     "prompt_sha256": _GATE._expected_prompt_sha256(
-        _BUNDLE,
+        _GATE.build_canonical_strings(_BUNDLE),
         "formal-professional",
     ),
 }
@@ -58,6 +56,7 @@ def test_polish_copy_sidecar_gate_requires_llm_audit_metadata() -> None:
     assert "prompt_sha256" in script
     assert "build_canonical_strings" in script
     assert "does not match the current bundle" in script
+    assert "missing current bundle strings" in script
     assert "validate_key_against_bundle" in script
     assert "FLOWFORGE_POLISH_PROVIDER=claude-cli" in script
 
@@ -133,6 +132,18 @@ def test_polish_copy_sidecar_gate_rejects_stale_prompt_hash() -> None:
     err = _GATE._validate_sidecar(sidecar, _BUNDLE)
     assert err is not None
     assert "sidecar prompt_sha256 does not match the current bundle" in err
+
+
+def test_polish_copy_sidecar_gate_rejects_missing_current_bundle_strings() -> None:
+    strings = dict(_VALID_SIDE_CAR["strings"])
+    strings.pop("claim_intake.field.loss_description.label")
+    payload = dict(_VALID_SIDE_CAR, strings=strings)
+    sidecar = JtbdCopyOverrides.model_validate(payload)
+
+    err = _GATE._validate_sidecar(sidecar, _BUNDLE)
+    assert err is not None
+    assert "sidecar missing current bundle strings" in err
+    assert "claim_intake.field.loss_description.label" in err
 
 
 def test_polish_copy_sidecar_gate_rejects_dead_override_key() -> None:

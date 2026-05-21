@@ -254,6 +254,7 @@ def test_external_release_preflight_reports_all_hard_prerequisites() -> None:
     assert "FLOWFORGE_POLISH_PROVIDER=claude-cli" in sidecar
     assert "build_canonical_strings" in sidecar
     assert "does not match the current bundle" in sidecar
+    assert "missing current bundle strings" in sidecar
     assert "BACKEND_ROOT not found" in script
     assert "FLOWFORGE_REQUIRE_UMS_PARITY" in script
     assert "unset FLOWFORGE_REQUIRE_UMS_PARITY" in script
