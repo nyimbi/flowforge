@@ -415,8 +415,9 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert '"uv", "build"' in script
     assert '"twine"' in script
     assert '"check"' in script
-    assert '"--find-links"' in script
-    assert "package.distribution_name for package in packages" in script
+    assert (
+        "wheels_by_distribution[_distribution_key(package.distribution_name)]" in script
+    )
     assert "flowforge-cli" in publishing
     assert '"--help"' in script
     assert "importlib.import_module(module)" in script
@@ -430,7 +431,7 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "_assert_exact_artifacts_by_package(" in script
     assert "make audit-2026-pypi-build" in publishing
     assert "flowforge-cli-wheel-smoke" in publishing
-    assert "--find-links dist flowforge-cli" in publishing
+    assert "--force-reinstall dist/*.whl" in publishing
     assert "flowforge --help" in publishing
     assert "ModuleNotFoundError" in publishing
     assert "exactly one wheel and one sdist per package" in publishing
@@ -520,16 +521,26 @@ def test_pypi_build_smoke_installs_and_imports_all_shipping_wheels(
         calls.append(argv)
 
     monkeypatch.setattr(pypi_build_smoke, "_run", fake_run)
+    wheel_paths = {
+        pypi_build_smoke._distribution_key("flowforge"): tmp_path
+        / "dist"
+        / "flowforge-0.1.0-py3-none-any.whl",
+        pypi_build_smoke._distribution_key("flowforge-fastapi"): tmp_path
+        / "dist"
+        / "flowforge_fastapi-0.1.0-py3-none-any.whl",
+    }
 
     pypi_build_smoke._assert_clean_venv_installs_shipping_packages(
         packages,
-        dist_dir=tmp_path / "dist",
         venv_dir=tmp_path / "venv",
+        wheels_by_distribution=wheel_paths,
     )
 
     pip_install = next(call for call in calls if call[:3] == ["uv", "pip", "install"])
-    assert "flowforge" in pip_install
-    assert "flowforge-fastapi" in pip_install
+    assert str(wheel_paths["flowforge"]) in pip_install
+    assert str(wheel_paths["flowforge-fastapi"]) in pip_install
+    assert "flowforge" not in pip_install
+    assert "flowforge-fastapi" not in pip_install
     import_check = next(call for call in calls if call[1] == "-c")
     assert "importlib.import_module(module)" in import_check[2]
     assert "'flowforge'" in import_check[2]

@@ -185,9 +185,13 @@ def _shipping_import_check_code(packages: tuple[ShippingPackage, ...]) -> str:
 def _assert_clean_venv_installs_shipping_packages(
     packages: tuple[ShippingPackage, ...],
     *,
-    dist_dir: Path,
     venv_dir: Path,
+    wheels_by_distribution: Mapping[str, Path],
 ) -> None:
+    wheel_paths = [
+        str(wheels_by_distribution[_distribution_key(package.distribution_name)])
+        for package in packages
+    ]
     _run(["uv", "venv", str(venv_dir)])
     _run(
         [
@@ -196,9 +200,7 @@ def _assert_clean_venv_installs_shipping_packages(
             "install",
             "--python",
             str(_python_path(venv_dir)),
-            "--find-links",
-            str(dist_dir),
-            *[package.distribution_name for package in packages],
+            *wheel_paths,
         ]
     )
     _run([str(_python_path(venv_dir)), "-c", _shipping_import_check_code(packages)])
@@ -274,8 +276,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     _assert_clean_venv_installs_shipping_packages(
         packages,
-        dist_dir=dist_dir,
         venv_dir=venv_dir,
+        wheels_by_distribution=wheels_by_distribution,
     )
     print(
         f"pypi-build-smoke: passed for {len(packages)} packages "

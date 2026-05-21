@@ -3029,6 +3029,9 @@ Design audit 5 - operations, security, and reliability:
 - Action:
   - Changed the PyPI build smoke to install every shipping distribution from
     the built artifact directory into one clean venv.
+  - Tightened the smoke to install the exact freshly built wheel file paths
+    instead of resolving same-named distributions through `--find-links`, so a
+    higher-version package from an index cannot satisfy the release proof.
   - Added an import smoke for every shipping import package before the existing
     `flowforge --help` console-script check.
   - Updated the publishing guide and release ratchets to document and preserve
@@ -3045,8 +3048,8 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
     `25 passed`.
   - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`:
-    built and checked 16 packages / 32 artifacts, installed all 16 shipping
-    wheels into a clean venv, imported all 16 shipping import packages, and
-    completed `flowforge --help`.
+    built and checked 16 packages / 32 artifacts, installed all 16 freshly
+    built wheel files into a clean venv, imported all 16 shipping import
+    packages, and completed `flowforge --help`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.

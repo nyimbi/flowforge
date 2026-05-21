@@ -83,12 +83,21 @@ uv run --with twine \
 
 python -m venv /tmp/flowforge-cli-wheel-smoke
 /tmp/flowforge-cli-wheel-smoke/bin/python -m pip install \
-	--find-links dist flowforge-cli
+	--force-reinstall dist/*.whl
+/tmp/flowforge-cli-wheel-smoke/bin/python -c \
+	"import importlib; [importlib.import_module(m) for m in (
+	'flowforge', 'flowforge_fastapi', 'flowforge_sqlalchemy',
+	'flowforge_tenancy', 'flowforge_audit_pg', 'flowforge_outbox_pg',
+	'flowforge_rbac_static', 'flowforge_rbac_spicedb',
+	'flowforge_documents_s3', 'flowforge_money', 'flowforge_signing_kms',
+	'flowforge_notify_multichannel', 'flowforge_otel', 'flowforge_cli',
+	'flowforge_jtbd', 'flowforge_jtbd_hub')]"
 /tmp/flowforge-cli-wheel-smoke/bin/flowforge --help >/dev/null
 ```
 
 Every artifact should report `PASSED` (no warnings), and the clean
-`flowforge-cli` wheel smoke must print help without `ModuleNotFoundError`.
+wheel smoke must import every shipping package and print CLI help without
+`ModuleNotFoundError`.
 Common failure modes:
 
 - `long_description missing` → README.md not picked up. Confirm
