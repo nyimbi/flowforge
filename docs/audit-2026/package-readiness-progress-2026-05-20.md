@@ -2722,6 +2722,9 @@ Design audit 5 - operations, security, and reliability:
     whose package flag is enabled.
   - Closed-package coverage derives the import package from each package's
     Hatch wheel package declaration instead of duplicating module names.
+  - The shared package-set helper fails closed if a shipping wheel declares
+    zero, multiple, or non-`src/` wheel package paths; coverage must not
+    silently check only the first import package.
   - Updated external-release ratchets to require workspace-derived discovery
     and to forbid the old `STRATEGIC_PACKAGES` /
     `CLOSED_PACKAGE_COVERAGE` static lists.
@@ -2738,12 +2741,17 @@ Design audit 5 - operations, security, and reliability:
     `0 errors`, `0 warnings`.
   - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_publishing_docs_require_cli_wheel_smoke tests/audit_2026/test_E_73_external_release_gate.py::test_closed_package_coverage_ratchet_tracks_completed_packages -q`:
     `2 passed`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_package_set_helper_rejects_ambiguous_wheel_packages -q`:
+    `1 passed`.
   - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`:
     built and checked 16 packages / 32 artifacts and completed clean-venv
     `flowforge --help` smoke.
   - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`:
     `closed-package-coverage: passed for 16 packages`, all at 100% statement
     and branch coverage.
+  - `uv run python scripts/audit_2026/closed_package_coverage.py` after the
+    fail-closed wheel-package guard change: `closed-package-coverage: passed
+    for 16 packages`.
 - Remaining risk:
   - The five strategic domain-content candidates remain intentionally
     workspace-only until named SME signoff, publishable packaging, and release

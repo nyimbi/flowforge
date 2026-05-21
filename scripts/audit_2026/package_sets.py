@@ -38,13 +38,18 @@ def _is_package_enabled(pyproject: dict) -> bool:
 
 def _import_package(pyproject: dict, *, directory: str) -> str:
     try:
-        package_path = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"][
+        package_paths = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"][
             "packages"
-        ][0]
+        ]
     except (KeyError, IndexError, TypeError) as exc:
         raise SystemExit(
             f"{directory}: shipping package must declare a wheel package"
         ) from exc
+    if not isinstance(package_paths, list) or len(package_paths) != 1:
+        raise SystemExit(
+            f"{directory}: shipping package must declare exactly one wheel package"
+        )
+    package_path = package_paths[0]
     prefix = "src/"
     if not isinstance(package_path, str) or not package_path.startswith(prefix):
         raise SystemExit(

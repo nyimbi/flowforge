@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import importlib
 import re
+import sys
 import tomllib
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts" / "audit_2026"))
+package_sets = importlib.import_module("package_sets")
 PINNED_SECRET_WORKFLOW_ACTIONS = {
     "actions/checkout": "34e114876b0b11c390a56381ad16ebd13914f8d5",
     "actions/setup-node": "49933ea5288caeca8642d1e84afbd3f7d6820020",
@@ -356,6 +361,28 @@ def test_closed_package_coverage_ratchet_tracks_completed_packages() -> None:
     assert 'root["tool"]["uv"]["workspace"]["members"]' in package_sets
     assert 'package", True' in package_sets
     assert "src/" in package_sets
+
+
+def test_package_set_helper_rejects_ambiguous_wheel_packages() -> None:
+    pyproject = {
+        "tool": {
+            "hatch": {
+                "build": {
+                    "targets": {
+                        "wheel": {
+                            "packages": [
+                                "src/flowforge",
+                                "src/flowforge_extra",
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    with pytest.raises(SystemExit, match="exactly one wheel package"):
+        package_sets._import_package(pyproject, directory="flowforge-core")
 
 
 def test_dom_baselines_do_not_embed_ci_checkout_paths() -> None:
