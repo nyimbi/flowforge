@@ -2955,3 +2955,33 @@ Design audit 5 - operations, security, and reliability:
     `flowforge --help`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## Internal dependency bound ratchet audit
+
+- Code review finding:
+  - The PyPI dependency-bound ratchet only checked a hard-coded subset of
+    internal Flowforge package names. The current workspace has 46 Python
+    packages, so a newly added internal dependency on any omitted package could
+    have appeared without the `>=0.1.0,<0.2.0` compatibility bound required for
+    publishable wheels.
+- Action:
+  - Changed the ratchet to derive the internal package-name set from the root
+    Python workspace members instead of a local literal.
+  - Normalized dependency and project names with the same PyPI/wheel
+    distribution-key rules used by package discovery.
+  - Added count and representative-package assertions so the test proves it is
+    covering the full 46-package internal namespace, including shipping and
+    workspace-only domain packages.
+- Verification:
+  - `uv run ruff check tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run ruff format --check tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors`, `0 warnings`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_internal_python_dependencies_are_compatibly_bounded -q`:
+    `1 passed`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `23 passed`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

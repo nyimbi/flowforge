@@ -44,6 +44,16 @@ def _shipping_workspace_dirs() -> tuple[str, ...]:
     return tuple(shipping)
 
 
+def _python_pyprojects() -> tuple[Path, ...]:
+    with (ROOT / "pyproject.toml").open("rb") as handle:
+        root = tomllib.load(handle)
+    return tuple(
+        ROOT / member / "pyproject.toml"
+        for member in root["tool"]["uv"]["workspace"]["members"]
+        if member.startswith("python/")
+    )
+
+
 def test_audit_workflow_yaml_files_parse() -> None:
     for path in sorted((ROOT / ".github" / "workflows").glob("audit-2026*.yml")):
         parsed = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -280,21 +290,29 @@ def test_external_release_evidence_template_tracks_required_proofs() -> None:
 def test_internal_python_dependencies_are_compatibly_bounded() -> None:
     """PyPI wheels must not publish bare internal FlowForge dependencies."""
 
+    pyprojects = _python_pyprojects()
     internal_names = {
-        "flowforge",
-        "flowforge-audit-pg",
-        "flowforge-jtbd",
-        "flowforge-signing-kms",
-        "flowforge-sqlalchemy",
+        package_sets._distribution_key(
+            tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["name"]
+        )
+        for pyproject in pyprojects
     }
+    assert len(internal_names) == 46
+    assert (
+        package_sets._distribution_key("flowforge-notify-multichannel")
+        in internal_names
+    )
+    assert package_sets._distribution_key("flowforge-jtbd-insurance") in internal_names
     failures: list[str] = []
-    for pyproject in sorted((ROOT / "python").glob("flowforge*/pyproject.toml")):
+    for pyproject in sorted(pyprojects):
         data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
         for dep in data.get("project", {}).get("dependencies", []):
             name = (
                 dep.split("[", 1)[0].split("<", 1)[0].split(">", 1)[0].split("=", 1)[0]
             )
-            if name in internal_names and not (">=0.1.0" in dep and "<0.2.0" in dep):
+            if package_sets._distribution_key(name) in internal_names and not (
+                ">=0.1.0" in dep and "<0.2.0" in dep
+            ):
                 failures.append(f"{pyproject.relative_to(ROOT)}: {dep}")
     assert failures == []
 
