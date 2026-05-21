@@ -961,6 +961,8 @@ def _write_minimal_wheel(
     version: str = "0.1.0",
     metadata_name: str | None = None,
     metadata_version: str | None = None,
+    include_license: bool = True,
+    include_py_typed: bool = True,
 ) -> None:
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr(
@@ -974,6 +976,10 @@ def _write_minimal_wheel(
                 ]
             ),
         )
+        if include_license:
+            archive.writestr(f"{distribution}-{version}.dist-info/licenses/LICENSE", "")
+        if include_py_typed:
+            archive.writestr(f"{distribution.replace('-', '_')}/py.typed", "")
 
 
 def _write_minimal_sdist(
@@ -983,9 +989,11 @@ def _write_minimal_sdist(
     version: str = "0.1.0",
     metadata_name: str | None = None,
     metadata_version: str | None = None,
+    include_license: bool = True,
 ) -> None:
     root = f"{distribution}-{version}"
     metadata = path.parent / f"{path.name}.PKG-INFO"
+    license_file = path.parent / f"{path.name}.LICENSE"
     metadata.write_text(
         "\n".join(
             [
@@ -997,11 +1005,16 @@ def _write_minimal_sdist(
         ),
         encoding="utf-8",
     )
+    if include_license:
+        license_file.write_text("license\n", encoding="utf-8")
     try:
         with tarfile.open(path, "w:gz") as archive:
             archive.add(metadata, arcname=f"{root}/PKG-INFO")
+            if include_license:
+                archive.add(license_file, arcname=f"{root}/LICENSE")
     finally:
         metadata.unlink(missing_ok=True)
+        license_file.unlink(missing_ok=True)
 
 
 def test_pypi_artifact_manifest_verifier_accepts_matching_dist(
@@ -1107,6 +1120,24 @@ def test_pypi_artifact_manifest_verifier_rejects_metadata_identity_drift(
     pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
 
     with pytest.raises(SystemExit, match="metadata"):
+        verify_pypi_artifact_manifest.verify_manifest(
+            dist_dir=tmp_path,
+            manifest_path=manifest_path,
+            expected_packages=(_flowforge_core_shipping_package(),),
+        )
+
+
+def test_pypi_artifact_manifest_verifier_rejects_missing_artifact_payloads(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "flowforge-0.1.0-py3-none-any.whl"
+    sdist = tmp_path / "flowforge-0.1.0.tar.gz"
+    _write_minimal_wheel(wheel, include_license=False, include_py_typed=False)
+    _write_minimal_sdist(sdist, include_license=False)
+    manifest_path = tmp_path / "manifest.json"
+    pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
+
+    with pytest.raises(SystemExit, match="py.typed"):
         verify_pypi_artifact_manifest.verify_manifest(
             dist_dir=tmp_path,
             manifest_path=manifest_path,

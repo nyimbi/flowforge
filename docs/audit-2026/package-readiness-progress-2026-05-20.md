@@ -4140,3 +4140,37 @@ Design audit 5 - operations, security, and reliability:
     metadata identity checks enforced.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI artifact manifest payload audit
+
+- Code review finding:
+  - The standalone manifest verifier checked checksum, count, distribution,
+    release-version, and embedded metadata identity, but did not verify retained
+    artifact payload files that PyPI users depend on. A retained wheel could
+    lose its PEP 561 `py.typed` marker or wheel license file, and a retained
+    sdist could lose its top-level `LICENSE`, while still matching the checksum
+    manifest.
+- Action:
+  - Extended `verify_pypi_artifact_manifest.py` to verify each retained wheel
+    includes the expected import-package `py.typed` marker and the license file
+    under that wheel's own `.dist-info/licenses/LICENSE` directory.
+  - Added retained sdist validation for a top-level `<sdist-root>/LICENSE`.
+  - Updated manifest-verifier fixtures to create minimal valid artifact payloads
+    and added a regression for missing retained payload files.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format scripts/audit_2026/verify_pypi_artifact_manifest.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `1 file reformatted, 1 file left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check scripts/audit_2026/verify_pypi_artifact_manifest.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright scripts/audit_2026/verify_pypi_artifact_manifest.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused manifest payload tests:
+    `3 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `53 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-artifact-manifest`:
+    verified the retained checksum manifest against repository `dist/` with
+    package count, distribution identity, release-version, embedded metadata
+    identity, `py.typed`, wheel license, and sdist license checks enforced.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

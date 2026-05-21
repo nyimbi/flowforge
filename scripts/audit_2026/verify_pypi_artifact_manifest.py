@@ -142,6 +142,39 @@ def _assert_metadata_identity(
         )
 
 
+def _assert_wheel_payloads(
+    *,
+    wheel: Path,
+    package: ShippingPackage,
+    issues: list[str],
+) -> None:
+    with zipfile.ZipFile(wheel) as archive:
+        wheel_names = set(archive.namelist())
+    metadata_path = _wheel_metadata_path(wheel, wheel_names)
+    metadata_dir = metadata_path.rsplit("/", 1)[0]
+    license_path = f"{metadata_dir}/licenses/LICENSE"
+    if license_path not in wheel_names:
+        issues.append(f"{package.distribution_name}: missing wheel {license_path}")
+
+    typed_marker = f"{package.import_package.replace('.', '/')}/py.typed"
+    if typed_marker not in wheel_names:
+        issues.append(f"{package.distribution_name}: missing wheel {typed_marker}")
+
+
+def _assert_sdist_payloads(
+    *,
+    sdist: Path,
+    package: ShippingPackage,
+    issues: list[str],
+) -> None:
+    with tarfile.open(sdist) as archive:
+        sdist_names = set(archive.getnames())
+    sdist_root = sdist.name.removesuffix(".tar.gz")
+    license_path = f"{sdist_root}/LICENSE"
+    if license_path not in sdist_names:
+        issues.append(f"{package.distribution_name}: missing sdist {license_path}")
+
+
 def _display_path(path: Path) -> str:
     try:
         return str(path.resolve().relative_to(ROOT))
@@ -190,8 +223,7 @@ def _assert_shipping_artifact_identities(
     release_version: str,
 ) -> None:
     expected = {
-        _distribution_key(package.distribution_name): package.distribution_name
-        for package in packages
+        _distribution_key(package.distribution_name): package for package in packages
     }
     grouped: dict[tuple[str, str], list[Path]] = {}
     seen_distributions: set[str] = set()
@@ -203,7 +235,8 @@ def _assert_shipping_artifact_identities(
         )
 
     issues: list[str] = []
-    for distribution, display_name in sorted(expected.items()):
+    for distribution, package in sorted(expected.items()):
+        display_name = package.distribution_name
         wheels = grouped.get((distribution, "wheel"), [])
         sdists = grouped.get((distribution, "sdist"), [])
         if len(wheels) != 1:
@@ -223,6 +256,7 @@ def _assert_shipping_artifact_identities(
                 release_version=release_version,
                 issues=issues,
             )
+            _assert_wheel_payloads(wheel=wheel, package=package, issues=issues)
         if len(sdists) != 1:
             issues.append(f"{display_name}: expected 1 sdist, found {len(sdists)}")
         else:
@@ -240,6 +274,7 @@ def _assert_shipping_artifact_identities(
                 release_version=release_version,
                 issues=issues,
             )
+            _assert_sdist_payloads(sdist=sdist, package=package, issues=issues)
 
     unexpected = sorted(seen_distributions - set(expected))
     if unexpected:
