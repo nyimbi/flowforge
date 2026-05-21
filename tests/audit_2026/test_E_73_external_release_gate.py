@@ -546,6 +546,35 @@ def test_pypi_build_smoke_requires_top_level_sdist_license(
         )
 
 
+def test_pypi_build_smoke_requires_license_in_wheel_metadata_dist_info(
+    tmp_path: Path,
+) -> None:
+    package = package_sets.ShippingPackage(
+        directory="flowforge-core",
+        distribution_name="flowforge",
+        import_package="flowforge",
+    )
+    wheel = tmp_path / "flowforge-0.1.0-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr("flowforge-0.1.0.dist-info/METADATA", "")
+        archive.writestr("other-0.1.0.dist-info/licenses/LICENSE", "")
+    sdist = tmp_path / "flowforge-0.1.0.tar.gz"
+    with tarfile.open(sdist, "w:gz") as archive:
+        package_dir = tmp_path / "flowforge-0.1.0"
+        license_file = package_dir / "LICENSE"
+        license_file.parent.mkdir()
+        license_file.write_text("root license\n", encoding="utf-8")
+        archive.add(license_file, arcname="flowforge-0.1.0/LICENSE")
+
+    key = pypi_build_smoke._distribution_key(package.distribution_name)
+    with pytest.raises(SystemExit, match="wheel LICENSE"):
+        pypi_build_smoke._assert_artifacts_include_license_files(
+            {key: wheel},
+            {key: sdist},
+            (package,),
+        )
+
+
 def test_pypi_build_smoke_installs_and_imports_all_shipping_wheels(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

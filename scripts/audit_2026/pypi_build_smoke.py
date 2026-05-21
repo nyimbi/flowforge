@@ -175,9 +175,15 @@ def _assert_artifacts_include_license_files(
         wheel = wheels_by_distribution[key]
         with zipfile.ZipFile(wheel) as archive:
             wheel_names = set(archive.namelist())
-        if not any(
-            name.endswith(".dist-info/licenses/LICENSE") for name in wheel_names
-        ):
+        metadata_files = [
+            name for name in wheel_names if name.endswith(".dist-info/METADATA")
+        ]
+        wheel_license_path = (
+            f"{metadata_files[0].rsplit('/', 1)[0]}/licenses/LICENSE"
+            if len(metadata_files) == 1
+            else ""
+        )
+        if wheel_license_path not in wheel_names:
             missing.append(f"{package.directory}: wheel LICENSE")
 
         sdist = sdists_by_distribution[key]
