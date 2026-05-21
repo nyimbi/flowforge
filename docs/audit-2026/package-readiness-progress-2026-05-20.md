@@ -2177,6 +2177,39 @@ Design audit 5 - operations, security, and reliability:
     DSL spec branches, lint conflict edges, Claude LLM port branches, and
     template cache branches.
 
+## Package coverage slice - flowforge-jtbd template cache
+
+- Baseline measurement:
+  - `flowforge_jtbd.templates.cache` had uncovered edge branches for a missing
+    starter-template library, optional parameters without defaults, and
+    pass-through extra parameters.
+- Action:
+  - Added tests for `TemplateCache.default()` when the adjacent `library/`
+    directory is absent.
+  - Added template instantiation coverage for optional parameters without
+    defaults and forward-compatible extra params used by placeholders.
+- Result:
+  - `flowforge_jtbd.templates.cache` now reaches 100% statement and branch
+    coverage in the focused gate.
+  - Overall `flowforge-jtbd` remains at rounded 97% package coverage, with one
+    fewer uncovered statement and three fewer partial branches.
+- Verification:
+  - `uv run pytest tests/unit/test_template_cache.py -q --cov=flowforge_jtbd.templates.cache --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-jtbd`: `35 passed`, targeted module 100%.
+  - `uv run ruff check tests/unit/test_template_cache.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run ruff format --check tests/unit/test_template_cache.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run pyright tests/unit/test_template_cache.py`
+    from `python/flowforge-jtbd`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_jtbd --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-jtbd`: `596 passed`, one optional skip, one expected
+    in-memory embedding-store performance warning, and package coverage 97%.
+- Remaining risk:
+  - `flowforge-jtbd` is not yet ready for the closed-package coverage ratchet.
+    Remaining gaps are concentrated in AI quality scoring, recommender edges,
+    DSL spec branches, lint conflict edges, and Claude LLM port branches.
+
 ## Package coverage slice - flowforge-jtbd i18n and actor lint
 
 - Baseline measurement:
