@@ -4528,3 +4528,32 @@ Design audit 5 - operations, security, and reliability:
     `57 passed`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## Local release sidecar evidence gate audit
+
+- Code review finding:
+  - `audit-2026-release-local` still printed reviewed polish-copy sidecar
+    verification as an external-only check even though the sidecar verifier is
+    deterministic and now runs in both `audit-2026` and `check_all.sh`.
+    Operators could therefore treat stale sidecar evidence as outside the
+    local fail-closed release gate.
+- Action:
+  - Added `audit-2026-polish-copy-sidecar` to `audit-2026-release-local`.
+  - Removed reviewed polish-copy sidecar verification from the local gate's
+    remaining external-checks caveat.
+  - Added a release-gate ratchet for local sidecar wiring and caveat wording.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format tests/audit_2026/test_E_75_polish_copy_release_gate.py`:
+    `1 file left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check tests/audit_2026/test_E_75_polish_copy_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright tests/audit_2026/test_E_75_polish_copy_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused local/external sidecar release-gate ratchet:
+    `1 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-polish-copy-sidecar`:
+    `audit-2026-polish-copy-sidecar: ok`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/audit_2026/test_E_75_polish_copy_release_gate.py -q`:
+    `10 passed`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

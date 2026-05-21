@@ -103,10 +103,11 @@ audit-2026-release-local: \
 		audit-2026-i18n-coverage \
 		audit-2026-closed-package-coverage \
 		audit-2026-pypi-build \
+		audit-2026-polish-copy-sidecar \
 		audit-2026-signoff
 	@echo ""
 	@echo "audit-2026-release-local: fail-closed local release gate passed."
-	@echo "Documented external release checks still required: visual DOM baselines, browser Playwright full-stack, reviewed polish-copy sidecar, optional downstream UMS parity, and live Postgres contention/drain verification."
+	@echo "Documented external release checks still required: visual DOM baselines, browser Playwright full-stack, optional downstream UMS parity, and live Postgres contention/drain verification."
 
 .PHONY: audit-2026-release-external
 audit-2026-release-external:

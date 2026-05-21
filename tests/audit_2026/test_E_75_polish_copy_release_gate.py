@@ -42,6 +42,11 @@ def test_external_release_runs_polish_copy_sidecar_gate() -> None:
     makefile = (_ROOT / "Makefile").read_text(encoding="utf-8")
     assert ".PHONY: audit-2026-polish-copy-sidecar" in makefile
     assert "scripts/audit_2026/check_polish_copy_sidecar.py" in makefile
+    local_release = makefile.split(".PHONY: audit-2026-release-local", 1)[1].split(
+        ".PHONY: audit-2026-release-external", 1
+    )[0]
+    assert "audit-2026-polish-copy-sidecar \\" in local_release
+    assert "reviewed polish-copy sidecar" not in local_release
     release = makefile.split(".PHONY: audit-2026-release-external", 1)[1]
     assert "$(MAKE) audit-2026-polish-copy-sidecar" in release
 
