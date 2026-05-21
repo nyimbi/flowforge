@@ -3018,3 +3018,35 @@ Design audit 5 - operations, security, and reliability:
     `flowforge --help`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI clean-venv import smoke audit
+
+- Code review finding:
+  - `make audit-2026-pypi-build` installed only `flowforge-cli` from the built
+    artifacts before running `flowforge --help`. That proved the CLI wheel and
+    its dependency closure, but not that every shipping wheel could be installed
+    and imported by a downstream consumer from a clean environment.
+- Action:
+  - Changed the PyPI build smoke to install every shipping distribution from
+    the built artifact directory into one clean venv.
+  - Added an import smoke for every shipping import package before the existing
+    `flowforge --help` console-script check.
+  - Updated the publishing guide and release ratchets to document and preserve
+    the all-shipping-wheel install/import smoke.
+- Verification:
+  - `uv run ruff check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run ruff format --check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `uv run pyright scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors`, `0 warnings`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py::test_pypi_build_smoke_installs_and_imports_all_shipping_wheels tests/audit_2026/test_E_73_external_release_gate.py::test_publishing_docs_require_cli_wheel_smoke -q`:
+    `2 passed`.
+  - `uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `25 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`:
+    built and checked 16 packages / 32 artifacts, installed all 16 shipping
+    wheels into a clean venv, imported all 16 shipping import packages, and
+    completed `flowforge --help`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

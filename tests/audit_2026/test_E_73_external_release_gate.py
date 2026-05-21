@@ -416,8 +416,11 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert '"twine"' in script
     assert '"check"' in script
     assert '"--find-links"' in script
-    assert '"flowforge-cli"' in script
+    assert "package.distribution_name for package in packages" in script
+    assert "flowforge-cli" in publishing
     assert '"--help"' in script
+    assert "importlib.import_module(module)" in script
+    assert "_assert_clean_venv_installs_shipping_packages(" in script
     assert "expected_artifacts = len(packages) * 2" in script
     assert "expected {len(packages)} wheels and {len(packages)} sdists" in script
     assert "_assert_wheels_include_py_typed(wheels_by_distribution, packages)" in script
@@ -493,6 +496,45 @@ def test_pypi_build_smoke_rejects_artifacts_missing_license_files(
             {key: sdist},
             (package,),
         )
+
+
+def test_pypi_build_smoke_installs_and_imports_all_shipping_wheels(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packages = (
+        package_sets.ShippingPackage(
+            directory="flowforge-core",
+            distribution_name="flowforge",
+            import_package="flowforge",
+        ),
+        package_sets.ShippingPackage(
+            directory="flowforge-fastapi",
+            distribution_name="flowforge-fastapi",
+            import_package="flowforge_fastapi",
+        ),
+    )
+    calls: list[list[str]] = []
+
+    def fake_run(argv: list[str], *, cwd: Path = pypi_build_smoke.ROOT) -> None:
+        calls.append(argv)
+
+    monkeypatch.setattr(pypi_build_smoke, "_run", fake_run)
+
+    pypi_build_smoke._assert_clean_venv_installs_shipping_packages(
+        packages,
+        dist_dir=tmp_path / "dist",
+        venv_dir=tmp_path / "venv",
+    )
+
+    pip_install = next(call for call in calls if call[:3] == ["uv", "pip", "install"])
+    assert "flowforge" in pip_install
+    assert "flowforge-fastapi" in pip_install
+    import_check = next(call for call in calls if call[1] == "-c")
+    assert "importlib.import_module(module)" in import_check[2]
+    assert "'flowforge'" in import_check[2]
+    assert "'flowforge_fastapi'" in import_check[2]
+    assert calls[-1][-1] == "--help"
 
 
 def test_closed_package_coverage_ratchet_tracks_completed_packages() -> None:

@@ -171,6 +171,40 @@ def _assert_artifacts_include_license_files(
         )
 
 
+def _shipping_import_check_code(packages: tuple[ShippingPackage, ...]) -> str:
+    modules = sorted(package.import_package for package in packages)
+    return (
+        "import importlib\n"
+        f"modules = {modules!r}\n"
+        "for module in modules:\n"
+        "    importlib.import_module(module)\n"
+        "print(f'imported {len(modules)} shipping packages')\n"
+    )
+
+
+def _assert_clean_venv_installs_shipping_packages(
+    packages: tuple[ShippingPackage, ...],
+    *,
+    dist_dir: Path,
+    venv_dir: Path,
+) -> None:
+    _run(["uv", "venv", str(venv_dir)])
+    _run(
+        [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            str(_python_path(venv_dir)),
+            "--find-links",
+            str(dist_dir),
+            *[package.distribution_name for package in packages],
+        ]
+    )
+    _run([str(_python_path(venv_dir)), "-c", _shipping_import_check_code(packages)])
+    _run([str(_console_script_path(venv_dir)), "--help"])
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -238,20 +272,11 @@ def main(argv: list[str] | None = None) -> int:
             *map(str, artifacts),
         ]
     )
-    _run(["uv", "venv", str(venv_dir)])
-    _run(
-        [
-            "uv",
-            "pip",
-            "install",
-            "--python",
-            str(_python_path(venv_dir)),
-            "--find-links",
-            str(dist_dir),
-            "flowforge-cli",
-        ]
+    _assert_clean_venv_installs_shipping_packages(
+        packages,
+        dist_dir=dist_dir,
+        venv_dir=venv_dir,
     )
-    _run([str(_console_script_path(venv_dir)), "--help"])
     print(
         f"pypi-build-smoke: passed for {len(packages)} packages "
         f"and {len(artifacts)} artifacts in {dist_dir}",
