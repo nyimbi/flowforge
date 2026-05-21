@@ -1962,3 +1962,45 @@ Design audit 5 - operations, security, and reliability:
     from the repo root: `17 passed`.
   - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-closed-package-coverage`
     from the repo root: passed for 15 packages, including `flowforge-jtbd-hub`.
+
+## Package coverage slice - flowforge-jtbd support modules
+
+- Baseline measurement:
+  - `flowforge-jtbd`: `564 passed`, one optional skip, and 93% package coverage
+    before this slice.
+  - Large uncovered support gaps included the bundled Alembic env module,
+    compliance catalog override/fallback parsing, and i18n key/loader/validator
+    edge paths.
+- Action:
+  - Added hermetic Alembic env tests that fake the narrow `alembic.context` and
+    `sqlalchemy.engine_from_config` surfaces, covering both offline and online
+    migration paths without a live database.
+  - Extended i18n tests for model-dump specs, malformed nested entries,
+    object-id ownership, invalid filenames, invalid JSON, non-string catalog
+    keys, and directory scans with non-file siblings.
+  - Extended compliance catalog tests for environment override parsing,
+    non-dict catalog entries, missing override paths, and packaged resource
+    fallback behavior.
+- Result:
+  - `flowforge_jtbd.db.alembic_bundle.env`,
+    `flowforge_jtbd.compliance.catalog`, `flowforge_jtbd.i18n.keys`,
+    `flowforge_jtbd.i18n.loader`, and `flowforge_jtbd.i18n.validator` now reach
+    100% statement and branch coverage in the focused gate.
+  - Overall `flowforge-jtbd` rounded package coverage increased from 93% to
+    95%.
+- Verification:
+  - `uv run pytest tests/ci/test_jtbd_alembic_env.py tests/unit/test_i18n.py tests/test_compliance_linter.py -q --cov=flowforge_jtbd.db.alembic_bundle.env --cov=flowforge_jtbd.i18n.keys --cov=flowforge_jtbd.i18n.loader --cov=flowforge_jtbd.i18n.validator --cov=flowforge_jtbd.compliance.catalog --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-jtbd`: `70 passed`; all five targeted modules reached
+    100% statement and branch coverage.
+  - `uv run ruff check tests/ci/test_jtbd_alembic_env.py tests/unit/test_i18n.py tests/test_compliance_linter.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run pyright tests/ci/test_jtbd_alembic_env.py tests/unit/test_i18n.py tests/test_compliance_linter.py`
+    from `python/flowforge-jtbd`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_jtbd --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-jtbd`: `575 passed`, one optional skip, one expected
+    in-memory embedding-store performance warning, and package coverage 95%.
+- Remaining risk:
+  - `flowforge-jtbd` is not yet ready for the closed-package coverage ratchet.
+    Remaining gaps are concentrated in AI/vector-store behavior, quality scoring,
+    recommender edges, DSL/spec/exporter helpers, lint conflict edges, Claude LLM
+    port branches, manifest serialization, and template cache branches.
