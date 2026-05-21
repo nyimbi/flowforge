@@ -4038,3 +4038,36 @@ Design audit 5 - operations, security, and reliability:
     shipping package count enforced.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI artifact manifest identity audit
+
+- Code review finding:
+  - After enforcing the expected artifact count, the standalone manifest
+    verifier still did not prove the retained files represented the expected
+    shipping distributions. A matching manifest and `dist/` directory with the
+    right number of artifacts but the wrong package names could pass the
+    verifier if it was run outside the build smoke that checks package
+    identities.
+- Action:
+  - Added distribution identity checks to
+    `verify_pypi_artifact_manifest.py`. The verifier now requires exactly one
+    wheel and one sdist for every distribution returned by `shipping_packages()`
+    and rejects unexpected distributions.
+  - Added direct test coverage for matching fixture artifacts, digest drift,
+    missing manifest entries, wrong distribution sets, and empty release sets.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format scripts/audit_2026/verify_pypi_artifact_manifest.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `2 files left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check scripts/audit_2026/verify_pypi_artifact_manifest.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright scripts/audit_2026/verify_pypi_artifact_manifest.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused manifest verifier tests:
+    `5 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `50 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-artifact-manifest`:
+    verified the retained checksum manifest against repository `dist/` with
+    package count and distribution identity checks enforced.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

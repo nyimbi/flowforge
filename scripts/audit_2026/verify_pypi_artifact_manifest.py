@@ -5,9 +5,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any
 
+from package_sets import ShippingPackage
 from package_sets import shipping_packages
 
 
@@ -23,6 +25,20 @@ def _artifact_kind(path: Path) -> str:
         return "sdist"
     if path.name.endswith(".whl"):
         return "wheel"
+    raise SystemExit(f"unsupported PyPI artifact type: {path}")
+
+
+def _distribution_key(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _artifact_distribution_key(path: Path) -> str:
+    if path.name.endswith(".whl"):
+        return _distribution_key(path.name.split("-", 1)[0])
+    suffix = ".tar.gz"
+    if path.name.endswith(suffix):
+        stem = path.name[: -len(suffix)]
+        return _distribution_key(stem.rsplit("-", 1)[0])
     raise SystemExit(f"unsupported PyPI artifact type: {path}")
 
 
@@ -67,8 +83,41 @@ def _manifest_artifacts(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     return normalized
 
 
-def _expected_release_artifact_count() -> int:
-    return len(shipping_packages()) * 2
+def _assert_shipping_artifact_identities(
+    artifacts: list[Path],
+    packages: tuple[ShippingPackage, ...],
+) -> None:
+    expected = {
+        _distribution_key(package.distribution_name): package.distribution_name
+        for package in packages
+    }
+    grouped: dict[tuple[str, str], list[str]] = {}
+    seen_distributions: set[str] = set()
+    for artifact in artifacts:
+        distribution = _artifact_distribution_key(artifact)
+        seen_distributions.add(distribution)
+        grouped.setdefault((distribution, _artifact_kind(artifact)), []).append(
+            artifact.name
+        )
+
+    issues: list[str] = []
+    for distribution, display_name in sorted(expected.items()):
+        wheels = grouped.get((distribution, "wheel"), [])
+        sdists = grouped.get((distribution, "sdist"), [])
+        if len(wheels) != 1:
+            issues.append(f"{display_name}: expected 1 wheel, found {len(wheels)}")
+        if len(sdists) != 1:
+            issues.append(f"{display_name}: expected 1 sdist, found {len(sdists)}")
+
+    unexpected = sorted(seen_distributions - set(expected))
+    if unexpected:
+        issues.append("unexpected artifact distribution(s): " + ", ".join(unexpected))
+
+    if issues:
+        raise SystemExit(
+            "dist artifacts do not match shipping package set:\n  "
+            + "\n  ".join(issues)
+        )
 
 
 def verify_manifest(
@@ -76,9 +125,12 @@ def verify_manifest(
     dist_dir: Path,
     manifest_path: Path,
     expected_artifact_count: int | None = None,
+    expected_packages: tuple[ShippingPackage, ...] | None = None,
 ) -> None:
+    if expected_packages is None:
+        expected_packages = shipping_packages()
     if expected_artifact_count is None:
-        expected_artifact_count = _expected_release_artifact_count()
+        expected_artifact_count = len(expected_packages) * 2
     manifest = _load_manifest(manifest_path)
     if manifest.get("schema_version") != 1:
         raise SystemExit("artifact manifest schema_version must be 1")
@@ -122,6 +174,7 @@ def verify_manifest(
             "artifact manifest artifact_count does not match dist artifacts: "
             f"{expected_count!r} != {len(actual_by_name)}"
         )
+    _assert_shipping_artifact_identities(artifacts, expected_packages)
 
     missing = sorted(set(actual_by_name) - set(manifest_by_name))
     stale = sorted(set(manifest_by_name) - set(actual_by_name))

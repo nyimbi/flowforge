@@ -946,6 +946,14 @@ def test_pypi_build_smoke_rejects_non_temp_artifact_manifest(
     assert not outside.exists()
 
 
+def _flowforge_core_shipping_package():
+    return package_sets.ShippingPackage(
+        directory="flowforge-core",
+        distribution_name="flowforge",
+        import_package="flowforge",
+    )
+
+
 def test_pypi_artifact_manifest_verifier_accepts_matching_dist(
     tmp_path: Path,
 ) -> None:
@@ -959,7 +967,7 @@ def test_pypi_artifact_manifest_verifier_accepts_matching_dist(
     verify_pypi_artifact_manifest.verify_manifest(
         dist_dir=tmp_path,
         manifest_path=manifest_path,
-        expected_artifact_count=2,
+        expected_packages=(_flowforge_core_shipping_package(),),
     )
 
 
@@ -978,7 +986,7 @@ def test_pypi_artifact_manifest_verifier_rejects_digest_drift(
         verify_pypi_artifact_manifest.verify_manifest(
             dist_dir=tmp_path,
             manifest_path=manifest_path,
-            expected_artifact_count=2,
+            expected_packages=(_flowforge_core_shipping_package(),),
         )
 
 
@@ -998,7 +1006,25 @@ def test_pypi_artifact_manifest_verifier_rejects_missing_manifest_entry(
         verify_pypi_artifact_manifest.verify_manifest(
             dist_dir=tmp_path,
             manifest_path=manifest_path,
-            expected_artifact_count=2,
+            expected_packages=(_flowforge_core_shipping_package(),),
+        )
+
+
+def test_pypi_artifact_manifest_verifier_rejects_wrong_distribution_set(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "not_flowforge-0.1.0-py3-none-any.whl"
+    sdist = tmp_path / "not_flowforge-0.1.0.tar.gz"
+    wheel.write_bytes(b"wheel bytes")
+    sdist.write_bytes(b"sdist bytes")
+    manifest_path = tmp_path / "manifest.json"
+    pypi_build_smoke._write_artifact_manifest([wheel, sdist], manifest_path)
+
+    with pytest.raises(SystemExit, match="dist artifacts do not match"):
+        verify_pypi_artifact_manifest.verify_manifest(
+            dist_dir=tmp_path,
+            manifest_path=manifest_path,
+            expected_packages=(_flowforge_core_shipping_package(),),
         )
 
 
@@ -1006,11 +1032,7 @@ def test_pypi_artifact_manifest_verifier_rejects_empty_release_set(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    package = package_sets.ShippingPackage(
-        directory="flowforge-core",
-        distribution_name="flowforge",
-        import_package="flowforge",
-    )
+    package = _flowforge_core_shipping_package()
     monkeypatch.setattr(
         verify_pypi_artifact_manifest,
         "shipping_packages",
