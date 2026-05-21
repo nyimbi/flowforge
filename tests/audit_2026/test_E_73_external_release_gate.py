@@ -27,6 +27,7 @@ PINNED_SECRET_WORKFLOW_ACTIONS = {
     "astral-sh/setup-uv": "e4db8464a088ece1b920f60402e813ea4de65b8f",
     "pnpm/action-setup": "f40ffcd9367d9f12939873eb1018b921a783ffaa",
 }
+EXPECTED_0_1_INTERNAL_BOUNDS = frozenset({">=0.1.0", "<0.2.0"})
 
 
 def _read(path: str) -> str:
@@ -55,6 +56,27 @@ def _python_pyprojects() -> tuple[Path, ...]:
         ROOT / member / "pyproject.toml"
         for member in root["tool"]["uv"]["workspace"]["members"]
         if member.startswith("python/")
+    )
+
+
+def _write_minimal_package_pyproject(
+    root: Path,
+    *,
+    directory: str,
+    name: str,
+    version: str,
+) -> None:
+    pyproject = root / "python" / directory / "pyproject.toml"
+    pyproject.parent.mkdir(parents=True, exist_ok=True)
+    pyproject.write_text(
+        f"""[project]
+name = "{name}"
+version = "{version}"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/{name.replace("-", "_")}"]
+""",
+        encoding="utf-8",
     )
 
 
@@ -404,15 +426,19 @@ def test_internal_python_dependencies_are_compatibly_bounded() -> None:
         in internal_names
     )
     assert package_sets._distribution_key("flowforge-jtbd-insurance") in internal_names
+    shipping_packages = package_sets.shipping_packages()
+    release_version = pypi_build_smoke._shipping_release_version(shipping_packages)
+    expected_bounds = pypi_build_smoke._internal_dependency_bounds_for_release(
+        release_version
+    )
     failures: list[str] = []
     for pyproject in sorted(pyprojects):
         data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
         for dep in data.get("project", {}).get("dependencies", []):
-            name = (
-                dep.split("[", 1)[0].split("<", 1)[0].split(">", 1)[0].split("=", 1)[0]
-            )
-            if package_sets._distribution_key(name) in internal_names and not (
-                ">=0.1.0" in dep and "<0.2.0" in dep
+            name = pypi_build_smoke._requirement_name(dep)
+            if (
+                name in internal_names
+                and pypi_build_smoke._requirement_specifiers(dep) != expected_bounds
             ):
                 failures.append(f"{pyproject.relative_to(ROOT)}: {dep}")
     assert failures == []
@@ -541,6 +567,9 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "expected_artifacts = len(packages) * 2" in script
     assert "expected {len(packages)} wheels and {len(packages)} sdists" in script
     assert "_assert_artifact_metadata_identity(" in script
+    assert "_shipping_release_version(packages)" in script
+    assert "_internal_dependency_bounds_for_release(" in script
+    assert "_assert_artifact_versions_match_release(" in script
     assert "_assert_artifact_publication_metadata_complete(" in script
     assert "artifact version" in script
     assert "wheel `METADATA`" in publishing
@@ -556,6 +585,8 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "PKG-INFO" in script
     assert "_has_required_internal_dependency_bounds(" in script
     assert "exact `>=0.1.0,<0.2.0`" in publishing
+    assert "same `project.version`" in publishing
+    assert "derives the internal Flowforge dependency window" in publishing
     assert "wheel filename distribution" in script
     assert "wheel's own" in publishing
     assert "`.dist-info/METADATA`" in publishing
@@ -686,6 +717,74 @@ def test_pypi_build_smoke_rejects_artifact_metadata_version_mismatches(
             {"flowforge-cli": wheel},
             {"flowforge-cli": sdist},
             (package,),
+        )
+
+
+def test_pypi_build_smoke_rejects_mixed_shipping_release_versions(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packages = (
+        package_sets.ShippingPackage(
+            directory="flowforge-core",
+            distribution_name="flowforge",
+            import_package="flowforge",
+        ),
+        package_sets.ShippingPackage(
+            directory="flowforge-cli",
+            distribution_name="flowforge-cli",
+            import_package="flowforge_cli",
+        ),
+    )
+    _write_minimal_package_pyproject(
+        tmp_path,
+        directory="flowforge-core",
+        name="flowforge",
+        version="0.1.0",
+    )
+    _write_minimal_package_pyproject(
+        tmp_path,
+        directory="flowforge-cli",
+        name="flowforge-cli",
+        version="0.1.1",
+    )
+    monkeypatch.setattr(pypi_build_smoke, "ROOT", tmp_path)
+
+    with pytest.raises(SystemExit, match="shipping package versions must match"):
+        pypi_build_smoke._shipping_release_version(packages)
+
+
+def test_pypi_build_smoke_derives_internal_bounds_from_release_line() -> None:
+    expected_bounds = pypi_build_smoke._internal_dependency_bounds_for_release("0.2.3")
+
+    assert expected_bounds == frozenset({">=0.2.0", "<0.3.0"})
+    assert pypi_build_smoke._has_required_internal_dependency_bounds(
+        "flowforge>=0.2.0,<0.3.0",
+        expected_bounds=expected_bounds,
+    )
+    assert not pypi_build_smoke._has_required_internal_dependency_bounds(
+        "flowforge>=0.1.0,<0.2.0",
+        expected_bounds=expected_bounds,
+    )
+
+
+def test_pypi_build_smoke_rejects_artifact_versions_outside_release_version(
+    tmp_path: Path,
+) -> None:
+    package = package_sets.ShippingPackage(
+        directory="flowforge-cli",
+        distribution_name="flowforge-cli",
+        import_package="flowforge_cli",
+    )
+    wheel = tmp_path / "flowforge_cli-0.1.1-py3-none-any.whl"
+    sdist = tmp_path / "flowforge_cli-0.1.1.tar.gz"
+
+    with pytest.raises(SystemExit, match="release version"):
+        pypi_build_smoke._assert_artifact_versions_match_release(
+            {"flowforge-cli": wheel},
+            {"flowforge-cli": sdist},
+            (package,),
+            release_version="0.1.0",
         )
 
 
@@ -1068,6 +1167,7 @@ def test_pypi_build_smoke_rejects_unbounded_internal_artifact_dependencies(
             {"flowforge-cli": sdist},
             internal_distribution_keys=frozenset({"flowforge-jtbd"}),
             shipping_distribution_keys=frozenset({"flowforge-jtbd"}),
+            expected_internal_dependency_bounds=EXPECTED_0_1_INTERNAL_BOUNDS,
         )
 
 
@@ -1103,6 +1203,7 @@ def test_pypi_build_smoke_rejects_imprecise_internal_artifact_bounds(
             {"flowforge-cli": sdist},
             internal_distribution_keys=frozenset({"flowforge-jtbd"}),
             shipping_distribution_keys=frozenset({"flowforge-jtbd"}),
+            expected_internal_dependency_bounds=EXPECTED_0_1_INTERNAL_BOUNDS,
         )
 
 
@@ -1138,6 +1239,7 @@ def test_pypi_build_smoke_rejects_extra_internal_artifact_specifiers(
             {"flowforge-cli": sdist},
             internal_distribution_keys=frozenset({"flowforge-jtbd"}),
             shipping_distribution_keys=frozenset({"flowforge-jtbd"}),
+            expected_internal_dependency_bounds=EXPECTED_0_1_INTERNAL_BOUNDS,
         )
 
 
@@ -1173,6 +1275,7 @@ def test_pypi_build_smoke_rejects_unpublished_internal_artifact_dependencies(
             {"flowforge-cli": sdist},
             internal_distribution_keys=frozenset({"flowforge-jtbd-insurance"}),
             shipping_distribution_keys=frozenset({"flowforge-jtbd"}),
+            expected_internal_dependency_bounds=EXPECTED_0_1_INTERNAL_BOUNDS,
         )
 
 
@@ -1202,6 +1305,7 @@ def test_pypi_build_smoke_requires_wheel_metadata_for_wheel_distribution(
             {"flowforge-cli": sdist},
             internal_distribution_keys=frozenset({"flowforge-jtbd"}),
             shipping_distribution_keys=frozenset({"flowforge-jtbd"}),
+            expected_internal_dependency_bounds=EXPECTED_0_1_INTERNAL_BOUNDS,
         )
 
 
@@ -1238,6 +1342,7 @@ def test_pypi_build_smoke_requires_top_level_sdist_pkg_info_for_dependencies(
             {"flowforge-cli": sdist},
             internal_distribution_keys=frozenset({"flowforge-jtbd"}),
             shipping_distribution_keys=frozenset({"flowforge-jtbd"}),
+            expected_internal_dependency_bounds=EXPECTED_0_1_INTERNAL_BOUNDS,
         )
 
 

@@ -23,11 +23,10 @@ from package_sets import shipping_packages
 from package_sets import ShippingPackage
 
 ROOT = Path(__file__).resolve().parents[2]
-INTERNAL_DEPENDENCY_LOWER_BOUND = ">=0.1.0"
-INTERNAL_DEPENDENCY_UPPER_BOUND = "<0.2.0"
 REQUIRED_PROJECT_URL_LABELS = frozenset(
     {"Homepage", "Documentation", "Repository", "Issues", "Changelog"}
 )
+SEMVER_CORE_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 RELEASE_ARTIFACT_MANIFEST = (
     ROOT / "docs" / "audit-2026" / "external-release-pypi-artifacts-current.json"
 )
@@ -142,6 +141,42 @@ def _shipping_distribution_keys(
     return frozenset(
         _distribution_key(package.distribution_name) for package in packages
     )
+
+
+def _shipping_release_version(packages: tuple[ShippingPackage, ...]) -> str:
+    versions: dict[str, str] = {}
+    for package in packages:
+        project = _package_project_metadata(package)
+        version = project.get("version")
+        if not isinstance(version, str) or not version:
+            raise SystemExit(f"{package.directory}: missing project.version")
+        versions[package.directory] = version
+
+    unique_versions = sorted(set(versions.values()))
+    if len(unique_versions) != 1:
+        details = "\n  ".join(
+            f"{directory}: {version}" for directory, version in sorted(versions.items())
+        )
+        raise SystemExit(
+            "shipping package versions must match for one PyPI release:\n  " + details
+        )
+    release_version = unique_versions[0]
+    if SEMVER_CORE_RE.match(release_version) is None:
+        raise SystemExit(
+            f"shipping package version must start with MAJOR.MINOR.PATCH: {release_version!r}"
+        )
+    return release_version
+
+
+def _internal_dependency_bounds_for_release(release_version: str) -> frozenset[str]:
+    match = SEMVER_CORE_RE.match(release_version)
+    if match is None:
+        raise SystemExit(
+            f"release version must start with MAJOR.MINOR.PATCH: {release_version!r}"
+        )
+    major = int(match.group(1))
+    minor = int(match.group(2))
+    return frozenset({f">={major}.{minor}.0", f"<{major}.{minor + 1}.0"})
 
 
 def _wheel_distribution_key(wheel: Path) -> str:
@@ -568,6 +603,35 @@ def _assert_artifact_metadata_identity(
         )
 
 
+def _assert_artifact_versions_match_release(
+    wheels_by_distribution: Mapping[str, Path],
+    sdists_by_distribution: Mapping[str, Path],
+    packages: tuple[ShippingPackage, ...],
+    *,
+    release_version: str,
+) -> None:
+    issues: list[str] = []
+    for package in packages:
+        key = _distribution_key(package.distribution_name)
+        wheel_version = _wheel_version(wheels_by_distribution[key])
+        if wheel_version != release_version:
+            issues.append(
+                f"{package.directory}: wheel version {wheel_version!r} "
+                f"does not match release version {release_version!r}"
+            )
+        sdist_version = _sdist_version(sdists_by_distribution[key])
+        if sdist_version != release_version:
+            issues.append(
+                f"{package.directory}: sdist version {sdist_version!r} "
+                f"does not match release version {release_version!r}"
+            )
+    if issues:
+        raise SystemExit(
+            "built artifact versions do not match the shipping release version:\n  "
+            + "\n  ".join(issues)
+        )
+
+
 def _requirement_name(requirement: str) -> str:
     match = re.match(r"\s*([A-Za-z0-9_.-]+)", requirement)
     return _distribution_key(match.group(1)) if match else ""
@@ -591,11 +655,13 @@ def _requirement_specifiers(requirement: str) -> frozenset[str]:
     )
 
 
-def _has_required_internal_dependency_bounds(requirement: str) -> bool:
+def _has_required_internal_dependency_bounds(
+    requirement: str,
+    *,
+    expected_bounds: frozenset[str],
+) -> bool:
     specifiers = _requirement_specifiers(requirement)
-    return specifiers == frozenset(
-        {INTERNAL_DEPENDENCY_LOWER_BOUND, INTERNAL_DEPENDENCY_UPPER_BOUND}
-    )
+    return specifiers == expected_bounds
 
 
 def _assert_artifact_internal_dependencies_bounded(
@@ -604,6 +670,7 @@ def _assert_artifact_internal_dependencies_bounded(
     *,
     internal_distribution_keys: frozenset[str],
     shipping_distribution_keys: frozenset[str],
+    expected_internal_dependency_bounds: frozenset[str],
 ) -> None:
     unbounded: list[str] = []
     unpublished: list[str] = []
@@ -614,7 +681,10 @@ def _assert_artifact_internal_dependencies_bounded(
                 continue
             if name not in shipping_distribution_keys:
                 unpublished.append(f"{distribution_key} wheel: {requirement}")
-            if not _has_required_internal_dependency_bounds(requirement):
+            if not _has_required_internal_dependency_bounds(
+                requirement,
+                expected_bounds=expected_internal_dependency_bounds,
+            ):
                 unbounded.append(f"{distribution_key} wheel: {requirement}")
     for distribution_key, sdist in sdists_by_distribution.items():
         for requirement in _sdist_requires_dist(sdist):
@@ -623,7 +693,10 @@ def _assert_artifact_internal_dependencies_bounded(
                 continue
             if name not in shipping_distribution_keys:
                 unpublished.append(f"{distribution_key} sdist: {requirement}")
-            if not _has_required_internal_dependency_bounds(requirement):
+            if not _has_required_internal_dependency_bounds(
+                requirement,
+                expected_bounds=expected_internal_dependency_bounds,
+            ):
                 unbounded.append(f"{distribution_key} sdist: {requirement}")
     issues: list[str] = []
     if unpublished:
@@ -719,6 +792,10 @@ def main(argv: list[str] | None = None) -> int:
     _prepare_dir(venv_dir, purpose="venv-dir")
 
     packages = shipping_packages()
+    release_version = _shipping_release_version(packages)
+    expected_internal_dependency_bounds = _internal_dependency_bounds_for_release(
+        release_version
+    )
     expected_artifacts = len(packages) * 2
     for package in packages:
         _run(
@@ -749,6 +826,12 @@ def main(argv: list[str] | None = None) -> int:
         sdists_by_distribution,
         packages,
     )
+    _assert_artifact_versions_match_release(
+        wheels_by_distribution,
+        sdists_by_distribution,
+        packages,
+        release_version=release_version,
+    )
     _assert_artifact_publication_metadata_complete(
         wheels_by_distribution,
         sdists_by_distribution,
@@ -765,6 +848,7 @@ def main(argv: list[str] | None = None) -> int:
         sdists_by_distribution,
         internal_distribution_keys=_workspace_distribution_keys(),
         shipping_distribution_keys=_shipping_distribution_keys(packages),
+        expected_internal_dependency_bounds=expected_internal_dependency_bounds,
     )
 
     _run(

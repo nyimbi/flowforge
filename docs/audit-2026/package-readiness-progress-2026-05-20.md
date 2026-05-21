@@ -2814,6 +2814,50 @@ Design audit 5 - operations, security, and reliability:
     markers, and completed clean-venv `flowforge --help`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## PyPI release version coherence audit
+
+- Code review finding:
+  - The PyPI smoke enforced exact internal Flowforge dependency bounds but kept
+    the release line hard-coded as `>=0.1.0,<0.2.0`, while release guidance
+    requires all shipping packages to move together. A future minor release
+    could therefore pass source ratchets with stale internal dependency bounds
+    or mixed-version artifacts.
+- Action:
+  - Added a shared release-version gate to the PyPI smoke. It now requires
+    every shipping package to declare the same `project.version`, validates
+    that the version starts with `MAJOR.MINOR.PATCH`, derives the expected
+    internal dependency window from that release line, and verifies every built
+    wheel and sdist filename version matches the release version.
+  - Updated internal dependency metadata checks to compare artifact
+    `Requires-Dist` entries with the dynamically derived release window rather
+    than fixed `0.1.x` constants.
+  - Added regression tests for mixed shipping package versions, derived
+    dependency windows, artifact-version drift, and the source dependency
+    ratchet.
+  - Updated the publishing guide so release operators know version bumps must
+    keep every shipping package on one release line and that the PyPI smoke
+    derives internal dependency bounds from that version.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `1 file reformatted, 1 file left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright scripts/audit_2026/pypi_build_smoke.py tests/audit_2026/test_E_73_external_release_gate.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - Focused release-version/docs tests:
+    `5 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/audit_2026/test_E_73_external_release_gate.py -q`:
+    `48 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache make audit-2026-pypi-build`:
+    built 16 packages / 32 artifacts in a temporary readiness directory, passed
+    `twine check` on every artifact, installed all 16 wheels into a clean venv,
+    imported all 16 shipping packages, completed `flowforge --help`, and
+    verified artifact versions plus dynamically derived internal dependency
+    bounds.
+  - `git diff --check`: clean.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.
   - Full external release proof still requires browser-capable CI or an
     unsandboxed browser environment.
 

@@ -66,8 +66,10 @@ make audit-2026-pypi-build-dist
 because it validates the uploadable repository `dist/*` artifacts. Both targets discover shipping packages from
 the workspace metadata, build each package, require exactly one wheel and one
 sdist per package, verify PEP 561 `py.typed` markers are present in typed
-package wheels, verify wheel `METADATA` and sdist `PKG-INFO` `Name` / `Version` fields
-match the shipping package and artifact filename, verify publication-facing PyPI metadata
+package wheels, require every shipping package to use the same `project.version`,
+derive the internal Flowforge dependency window from that release version,
+verify wheel `METADATA` and sdist `PKG-INFO` `Name` / `Version` fields
+match the shipping package, artifact filename, and release version, verify publication-facing PyPI metadata
 from `pyproject.toml` is present in the built artifacts, including
 Summary, Requires-Python, license, author, maintainer, project URLs,
 classifiers, keywords, and README content type, verify each wheel and sdist
@@ -171,7 +173,10 @@ personal account password.
 ## Version bumps
 
 Versions live in each package's `pyproject.toml::project.version`.
-Bump every shipping package together; the workspace deps in
+Bump every shipping package together. The PyPI build smoke rejects mixed
+shipping versions and derives the internal Flowforge dependency window from the
+shared release line, for example `>=0.1.0,<0.2.0` for any `0.1.x` release.
+The workspace deps in
 `pyproject.toml::[tool.uv.sources]` resolve from the
 workspace during local dev, so no per-package dep version pin needs
 to track in lockstep.
