@@ -1755,3 +1755,33 @@ Design audit 5 - operations, security, and reliability:
   - `uv run pytest tests -q --cov=flowforge_cli --cov-branch --cov-report=term-missing --cov-fail-under=0`
     from `python/flowforge-cli`: `872 passed`, one optional `mmdc` skip, and
     overall package coverage 83%.
+
+## Code review audit 9 - recent CLI and desktop coverage slices
+
+- Scope:
+  - Reviewed commits `b24fc97`, `0287ffb`, `f28499c`, and `a94c1c5`,
+    covering JTBD lint command-wrapper tests, polish-copy provider/sidecar
+    tests, bundle-diff deploy-safety tests, desktop document-model tests, and
+    their readiness-log evidence.
+  - A native `code-reviewer` agent could not be spawned because stale shutdown
+    agent records are still counted against the thread limit, so this audit was
+    performed locally using the code-review checklist.
+- Checks:
+  - Verified `git diff --check c854d2f..HEAD` reports no whitespace/check
+    errors.
+  - Inspected the changed files from `c854d2f..HEAD` for brittle private-state
+    assumptions, misleading coverage claims, hidden production-behavior risk,
+    fixture pollution, and incorrect readiness-log evidence.
+  - Confirmed the new polish-copy tests keep Anthropic and Claude CLI paths
+    hermetic with fakes/monkeypatching and do not require live credentials.
+  - Confirmed the bundle-diff tests lock existing deploy-safety categorization
+    rules without changing production code.
+  - Confirmed the desktop document-model tests stay GUI-free and do not import
+    PyQt runtime behavior.
+- Findings:
+  - No critical, high, medium, or low findings.
+- Residual risk:
+  - This audit remains local because native review-agent spawning is blocked by
+    the stale thread-limit condition.
+  - The large `jtbd_desktop/app.py` GUI surface is still effectively uncovered
+    in package coverage and needs a separate UI-adapter testing strategy.
