@@ -2214,6 +2214,46 @@ Design audit 5 - operations, security, and reliability:
     DSL spec branches, lint conflict/dependency/lifecycle/linter edges, Claude
     LLM port branches, and template cache branches.
 
+## Package coverage slice - flowforge-jtbd lint graph and orchestration
+
+- Baseline measurement:
+  - `flowforge_jtbd.lint.dependencies` had an unreachable defensive cycle-path
+    bound after Tarjan SCC detection.
+  - `flowforge_jtbd.lint.lifecycle` lacked coverage for delegated optional
+    stages suppressing optional-stage hints.
+  - `flowforge_jtbd.lint.linter` lacked coverage for actor analyzer issues
+    attached to JTBD ids outside the bundle.
+- Action:
+  - Removed the impossible dependency-cycle bound; SCC materialisation already
+    walks within a strongly connected component and exits when the path returns
+    to the start.
+  - Added lifecycle coverage for an `undo` stage delegated to another JTBD.
+  - Added linter orchestration coverage that buckets detached actor issues into
+    `bundle_issues`.
+- Result:
+  - `flowforge_jtbd.lint.dependencies`, `flowforge_jtbd.lint.lifecycle`, and
+    `flowforge_jtbd.lint.linter` now reach 100% statement and branch coverage
+    in focused gates.
+  - Overall `flowforge-jtbd` remains at rounded 97% package coverage, with
+    three fewer uncovered statements and three fewer partial branches.
+- Verification:
+  - `uv run pytest tests/unit/test_lint_dependencies.py tests/unit/test_lint_lifecycle.py tests/unit/test_linter.py -q --cov=flowforge_jtbd.lint.dependencies --cov=flowforge_jtbd.lint.lifecycle --cov=flowforge_jtbd.lint.linter --cov-branch --cov-report=term-missing --cov-fail-under=100`
+    from `python/flowforge-jtbd`: `28 passed`, targeted modules 100%.
+  - `uv run ruff check src/flowforge_jtbd/lint/dependencies.py tests/unit/test_lint_lifecycle.py tests/unit/test_linter.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run ruff format --check src/flowforge_jtbd/lint/dependencies.py tests/unit/test_lint_lifecycle.py tests/unit/test_linter.py`
+    from `python/flowforge-jtbd`: clean.
+  - `uv run pyright src/flowforge_jtbd/lint/dependencies.py tests/unit/test_lint_lifecycle.py tests/unit/test_linter.py`
+    from `python/flowforge-jtbd`: `0 errors`, `0 warnings`.
+  - `uv run pytest tests -q --cov=flowforge_jtbd --cov-branch --cov-report=term-missing --cov-fail-under=0`
+    from `python/flowforge-jtbd`: `593 passed`, one optional skip, one expected
+    in-memory embedding-store performance warning, and package coverage 97%.
+- Remaining risk:
+  - `flowforge-jtbd` is not yet ready for the closed-package coverage ratchet.
+    Remaining gaps are concentrated in AI quality scoring, recommender edges,
+    DSL spec branches, lint conflict edges, Claude LLM port branches, and
+    template cache branches.
+
 ## Package coverage slice - flowforge-jtbd audit logger
 
 - Baseline measurement:
