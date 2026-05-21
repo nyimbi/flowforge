@@ -4772,3 +4772,32 @@ Design audit 5 - operations, security, and reliability:
     `640 passed, 1 skipped`; total coverage `100.00%`.
 - Remaining risk:
   - Push remains blocked locally by missing GitHub HTTPS credentials.
+
+## JTBD Claude adapter optimized-runtime validation audit
+
+- Code review finding:
+  - `flowforge_jtbd.ports.llm_claude.LlmProviderClaude` used `assert` for
+    public runtime validation of model id, prompt, message list, and token
+    counts. Those checks disappear under optimized Python (`python -O`), so a
+    packaged runtime could send invalid requests to the SDK instead of failing
+    locally with a clear caller error.
+- Action:
+  - Replaced public validation asserts with explicit `ValueError` checks before
+    the adapter touches the Anthropic client.
+  - Added behavior tests for empty model, empty prompt, invalid generation
+    token count, empty chat messages, and invalid stream token count.
+  - Added a source ratchet that keeps optimized-out `assert` validation from
+    returning in the Claude adapter.
+- Verification:
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff format python/flowforge-jtbd/src/flowforge_jtbd/ports/llm_claude.py python/flowforge-jtbd/tests/unit/test_ports_llm_claude.py`:
+    `1 file reformatted, 1 file left unchanged`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run ruff check python/flowforge-jtbd/src/flowforge_jtbd/ports/llm_claude.py python/flowforge-jtbd/tests/unit/test_ports_llm_claude.py`:
+    clean.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pyright python/flowforge-jtbd/src/flowforge_jtbd/ports/llm_claude.py python/flowforge-jtbd/tests/unit/test_ports_llm_claude.py`:
+    `0 errors, 0 warnings, 0 informations`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest python/flowforge-jtbd/tests/unit/test_ports_llm_claude.py -q`:
+    `19 passed`.
+  - `UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest python/flowforge-jtbd/tests -q --cov=flowforge_jtbd --cov-branch --cov-report=term-missing --cov-fail-under=100`:
+    `646 passed, 1 skipped`; total coverage `100.00%`.
+- Remaining risk:
+  - Push remains blocked locally by missing GitHub HTTPS credentials.

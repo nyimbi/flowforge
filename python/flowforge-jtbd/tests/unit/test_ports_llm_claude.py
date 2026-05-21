@@ -8,6 +8,7 @@ the real SDK shape closely enough to drive the adapter. The
 
 from __future__ import annotations
 
+import inspect
 import sys
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -16,6 +17,7 @@ from typing import Any
 
 import pytest
 
+from flowforge_jtbd.ports import llm_claude as llm_claude_module
 from flowforge_jtbd.ports import LlmProviderError
 from flowforge_jtbd.ports.llm_claude import LlmProviderClaude
 
@@ -93,6 +95,16 @@ class _FakeClient:
 # ---------------------------------------------------------------------------
 
 
+def test_public_validation_does_not_use_optimized_out_asserts() -> None:
+    source = inspect.getsource(llm_claude_module)
+    assert "assert " not in source
+
+
+def test_constructor_rejects_empty_model() -> None:
+    with pytest.raises(ValueError, match="model must be a non-empty string"):
+        LlmProviderClaude(client=_FakeClient(), model="")
+
+
 async def test_generate_returns_concatenated_text() -> None:
     client = _FakeClient()
     provider = LlmProviderClaude(client=client)
@@ -101,6 +113,26 @@ async def test_generate_returns_concatenated_text() -> None:
     # adapter forwards parameters.
     assert client.messages.last_call["max_tokens"] == 200
     assert client.messages.last_call["temperature"] == 0.0
+
+
+async def test_generate_rejects_empty_prompt() -> None:
+    client = _FakeClient()
+    provider = LlmProviderClaude(client=client)
+
+    with pytest.raises(ValueError, match="prompt must be non-empty"):
+        await provider.generate("")
+
+    assert client.messages.last_call == {}
+
+
+async def test_generate_rejects_invalid_max_tokens() -> None:
+    client = _FakeClient()
+    provider = LlmProviderClaude(client=client)
+
+    with pytest.raises(ValueError, match="max_tokens must be >= 1"):
+        await provider.generate("draft", max_tokens=0)
+
+    assert client.messages.last_call == {}
 
 
 async def test_generate_concatenates_multiple_blocks() -> None:
@@ -169,6 +201,31 @@ async def test_stream_chat_yields_each_delta() -> None:
     async for token in provider.stream_chat([{"role": "user", "content": "hi"}]):
         chunks.append(token)
     assert chunks == ["alpha ", "beta"]
+
+
+async def test_stream_chat_rejects_empty_messages() -> None:
+    client = _FakeClient()
+    provider = LlmProviderClaude(client=client)
+
+    with pytest.raises(ValueError, match="messages must contain at least one entry"):
+        async for _ in provider.stream_chat([]):
+            pass
+
+    assert client.messages.last_call == {}
+
+
+async def test_stream_chat_rejects_invalid_max_tokens() -> None:
+    client = _FakeClient()
+    provider = LlmProviderClaude(client=client)
+
+    with pytest.raises(ValueError, match="max_tokens must be >= 1"):
+        async for _ in provider.stream_chat(
+            [{"role": "user", "content": "hi"}],
+            max_tokens=0,
+        ):
+            pass
+
+    assert client.messages.last_call == {}
 
 
 async def test_stream_chat_handles_object_events_and_skips_non_text() -> None:
