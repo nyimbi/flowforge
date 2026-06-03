@@ -499,6 +499,74 @@ async def _fire_locked(
 
 		instance.history.append(f"token:{token_id}:({chosen_t.id}:{event})->{chosen_t.to_state}")
 
+		# -----------------------------------------------------------------------
+		# E-81: join barrier collapse.
+		# If the token just landed on a parallel_join state, attempt to drain
+		# the region. When ALL tokens have been consumed the instance's primary
+		# state collapses to the join state and then advances synthetically
+		# through the join's single outgoing transition.
+		# -----------------------------------------------------------------------
+		from ._fork import consume_token, all_branches_joined
+		_new_token_state_def = next(
+			(s for s in wd.states if s.name == _token.state), None
+		)
+		if _new_token_state_def is not None and _new_token_state_def.kind == "parallel_join":
+			# Consume this token — removes it from the live set.
+			consume_token(instance.tokens, token_id)
+
+			if all_branches_joined(instance.tokens, _token.region):
+				# All branches drained — collapse primary state to the join.
+				instance.state = _new_token_state_def.name
+
+				# Synthetic advance: pick the highest-priority outgoing
+				# transition from the join state (no event guard needed).
+				_join_outgoing = [
+					t for t in wd.transitions if t.from_state == instance.state
+				]
+				if _join_outgoing:
+					_join_outgoing.sort(key=lambda t: -t.priority)
+					_join_transition = _join_outgoing[0]
+					instance.state = _join_transition.to_state
+					instance.history.append(
+						f"join_collapsed:({_join_transition.id})->{_join_transition.to_state}"
+					)
+					audits.append(
+						AuditEvent(
+							kind=f"wf.{wd.key}.join_collapsed",
+							subject_kind=wd.subject_kind,
+							subject_id=instance.id,
+							tenant_id=tenant_id,
+							actor_user_id=principal.user_id if principal else None,
+							payload={
+								"join_state": _new_token_state_def.name,
+								"final_state": instance.state,
+								"region": _token.region,
+							},
+						)
+					)
+			else:
+				# Tokens still outstanding — emit observability counter.
+				_cfg2 = config.current()
+				if _cfg2.metrics is not None:
+					try:
+						_cfg2.metrics.emit(
+							"flowforge_fork_join_timeout_total",
+							float(instance.tokens.count_in_region(_token.region)),
+							{},
+						)
+					except Exception:
+						pass
+				# Also emit orphan counter for raw outstanding-token count.
+				if _cfg2.metrics is not None:
+					try:
+						_cfg2.metrics.emit(
+							"flowforge_fork_orphan_tokens_total",
+							float(instance.tokens.count_in_region(_token.region)),
+							{},
+						)
+					except Exception:
+						pass
+
 		cfg = config.current()
 		if dispatch_ports and cfg.audit is not None:
 			try:
@@ -515,12 +583,13 @@ async def _fire_locked(
 					_restore_instance(instance, pre_snapshot)
 					raise OutboxDispatchError(instance.id, env.kind) from e
 
+		terminal = _is_terminal(wd, instance.state)
 		return FireResult(
 			instance=instance,
 			matched_transition_id=chosen_t.id,
 			planned_effects=list(chosen_t.effects),
 			new_state=instance.state,
-			terminal=False,
+			terminal=terminal,
 			audit_events=audits,
 			outbox_envelopes=outboxes,
 		)
