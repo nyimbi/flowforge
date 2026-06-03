@@ -3,6 +3,7 @@
 Tracks engineering findings for the v0.2.0 release cycle.
 
 | Finding | Description | Status | Test file | Notes |
+| E-74p1 | Instance.tokens snapshot field | implemented | tests/audit_2026/test_E_74p1_instance_tokens.py | TokenSet field on Instance dataclass; snapshot/restore + shallow-clone isolation; tokens excluded from canonical audit body (R-2 / invariant 7) |
 |---------|-------------|--------|-----------|-------|
 | E-75 | per-fix metric emitters | implemented | tests/audit_2026/test_E_75_metrics_emitted.py | 11 counters across 9 source files; no_orphan_promql_metrics.sh ratchet added |
 | E-76 | JWT principal extractor | implemented | tests/integration/python/tests/test_E_73_rbac_full.py | JwtPrincipalExtractor + make_jwt_extractor; async __call__; lazy-init (F-6); flowforge_jwt_tokens_issued_total metric |

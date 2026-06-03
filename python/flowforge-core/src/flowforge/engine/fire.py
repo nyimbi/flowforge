@@ -33,6 +33,7 @@ from typing import Any
 from .. import config
 from .._uuid7 import uuid7str
 from ..dsl import Effect, Transition, WorkflowDef
+from .tokens import Token, TokenSet
 from ..expr import EvaluationError, evaluate
 from ..ports.types import (
 	AuditEvent,
@@ -138,6 +139,7 @@ class Instance:
 	created_entities: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
 	saga: list[dict[str, Any]] = field(default_factory=list)
 	history: list[str] = field(default_factory=list)
+	tokens: TokenSet = field(default_factory=TokenSet)
 
 
 @dataclass
@@ -536,6 +538,7 @@ def _snapshot_instance(instance: Instance) -> dict[str, Any]:
 		"created_entities": list(instance.created_entities),
 		"saga": copy.deepcopy(instance.saga),
 		"history": list(instance.history),
+		"tokens": [(t.id, t.region, t.state, dict(t.context)) for t in instance.tokens.list()],
 	}
 
 
@@ -547,6 +550,10 @@ def _restore_instance(instance: Instance, snapshot: dict[str, Any]) -> None:
 	instance.created_entities = snapshot["created_entities"]
 	instance.saga = snapshot["saga"]
 	instance.history = snapshot["history"]
+	ts = TokenSet()
+	for (tid, region, state, ctx) in snapshot.get("tokens", []):
+		ts.add(Token(id=tid, region=region, state=state, context=ctx))
+	instance.tokens = ts
 
 
 async def _record_rollback_audit(

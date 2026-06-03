@@ -25,6 +25,7 @@ from dataclasses import replace
 from typing import Protocol, runtime_checkable
 
 from .fire import Instance
+from .tokens import Token, TokenSet
 
 
 @runtime_checkable
@@ -42,12 +43,16 @@ def _shallow_clone(instance: Instance) -> Instance:
 	wrapper, the caller mutates freely without touching the snapshot.
 	"""
 
+	ts = TokenSet()
+	for t in instance.tokens.list():
+		ts.add(Token(id=t.id, region=t.region, state=t.state, context=dict(t.context)))
 	return replace(
 		instance,
 		context=dict(instance.context),
 		created_entities=list(instance.created_entities),
 		saga=list(instance.saga),
 		history=list(instance.history),
+		tokens=ts,
 	)
 
 
