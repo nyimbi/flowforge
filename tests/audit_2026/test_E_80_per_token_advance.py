@@ -135,12 +135,16 @@ def test_E_80_per_token_advance(monkeypatch) -> None:
 	result2 = _run(fire(wd, inst, "a_done", token_id=token_a.id))
 	assert result2.matched_transition_id == "a_to_join"
 
-	# token_a should now be in "join" state
+	# token_a lands on a parallel_join state → E-81 consumes it immediately.
+	# After E-81 consume, token_a must NOT be in the live set (consumed).
+	# token_b must still be present and untouched.
 	updated_tokens = {t.id: t for t in inst.tokens.list()}
-	assert updated_tokens[token_a.id].state == "join", (
-		f"expected token_a.state='join', got {updated_tokens[token_a.id].state!r}"
+	assert token_a.id not in updated_tokens, (
+		f"expected token_a to be consumed by join barrier, but still present: {updated_tokens}"
 	)
-	# token_b untouched
+	assert token_b.id in updated_tokens, (
+		f"expected token_b still live, but missing from: {updated_tokens}"
+	)
 	assert updated_tokens[token_b.id].state == "branch_b"
 
 	# Primary instance state unchanged (still at fork_point)

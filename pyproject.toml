@@ -129,6 +129,9 @@ flowforge-notify-multichannel = { workspace = true }
 flowforge-otel = { workspace = true }
 flowforge-cli = { workspace = true }
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
 [tool.pyright]
 pythonVersion = "3.11"
 typeCheckingMode = "basic"

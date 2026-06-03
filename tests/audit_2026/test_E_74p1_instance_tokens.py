@@ -132,38 +132,32 @@ def test_E_74p1_snapshot_round_trip_with_tokens() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_E_74p1_shallow_clone_isolates_tokens() -> None:
+async def test_E_74p1_shallow_clone_isolates_tokens() -> None:
 	"""Tokens in a stored snapshot are isolated from the caller's copy."""
-	import asyncio
+	wd = _simple_wd()
+	inst = new_instance(wd)
 
-	async def _run() -> None:
-		wd = _simple_wd()
-		inst = new_instance(wd)
+	t1, t2 = _two_tokens()
+	inst.tokens.add(t1)
+	inst.tokens.add(t2)
 
-		t1, t2 = _two_tokens()
-		inst.tokens.add(t1)
-		inst.tokens.add(t2)
+	store = InMemorySnapshotStore()
+	await store.put(inst)
 
-		store = InMemorySnapshotStore()
-		await store.put(inst)
+	# get() returns a shallow clone
+	clone = await store.get(inst.id)
+	assert clone is not None
+	assert len(clone.tokens.list()) == 2
 
-		# get() returns a shallow clone
-		clone = await store.get(inst.id)
-		assert clone is not None
-		assert len(clone.tokens.list()) == 2
+	# mutate the clone — should NOT bleed back into the stored copy
+	extra = Token(id=uuid7str(), region="branch_c", state="new", context={})
+	clone.tokens.add(extra)
+	assert len(clone.tokens.list()) == 3
 
-		# mutate the clone — should NOT bleed back into the stored copy
-		extra = Token(id=uuid7str(), region="branch_c", state="new", context={})
-		clone.tokens.add(extra)
-		assert len(clone.tokens.list()) == 3
-
-		# fetch again from store — still 2 tokens
-		fresh = await store.get(inst.id)
-		assert fresh is not None
-		assert len(fresh.tokens.list()) == 2
-
-	loop = asyncio.get_event_loop()
-	loop.run_until_complete(_run())
+	# fetch again from store — still 2 tokens
+	fresh = await store.get(inst.id)
+	assert fresh is not None
+	assert len(fresh.tokens.list()) == 2
 
 
 # ---------------------------------------------------------------------------

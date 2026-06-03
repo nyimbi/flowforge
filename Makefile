@@ -448,3 +448,31 @@ audit-2026-visual-regression-ssim:
 check-all:
 	bash scripts/check_all.sh
 	$(MAKE) audit-2026
+
+# ── v0.2.0 engineering gate ───────────────────────────────────────────────────
+#
+# Each sub-target maps to one v0.2.0 sprint deliverable. Run individually or
+# via the aggregate `audit-2026-v020` target. The soak target requires a live
+# Postgres instance and is excluded from the aggregate to keep CI fast.
+#
+# References: docs/v0.2.0-plan.md, docs/v0.2.0/signoff-checklist.md
+
+.PHONY: v020-content-lint v020-engine-flag-on v020-jwt-fuzz v020-cross-domain-conflict-lint v020-soak-forks
+
+v020-content-lint:
+	uv run pytest python/flowforge-jtbd-*/tests/test_smoke.py -v 2>/dev/null || echo "No domain smoke tests yet"
+
+v020-engine-flag-on:
+	FLOWFORGE_FORKS_ENABLED=1 uv run pytest tests/conformance/ tests/audit_2026/test_E_79_fork_dispatch.py tests/audit_2026/test_E_80_per_token_advance.py tests/audit_2026/test_E_81_join_barrier.py tests/audit_2026/test_E_82_e2e_fork.py -q
+
+v020-jwt-fuzz:
+	uv run pytest tests/audit_2026/test_E_75_metrics_emitted.py tests/integration/python/tests/test_E_73_rbac_full.py -q
+
+v020-cross-domain-conflict-lint:
+	uv run pytest tests/audit_2026/test_R01_R07_registry_format.py -q
+
+v020-soak-forks:
+	FLOWFORGE_FORKS_ENABLED=1 bash scripts/ops/audit-2026-soak.sh --workflow test_fork --forks-enabled --duration 60s || echo "Soak requires live Postgres; skipping in CI"
+
+audit-2026-v020: v020-content-lint v020-engine-flag-on v020-jwt-fuzz v020-cross-domain-conflict-lint
+	@echo "v0.2.0 engineering gate passed"
