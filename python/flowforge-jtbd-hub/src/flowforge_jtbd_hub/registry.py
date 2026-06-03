@@ -32,6 +32,7 @@ from typing import Any
 from flowforge_jtbd.registry.manifest import JtbdManifest
 from flowforge_jtbd.registry.signing import verify_manifest
 
+from .rbac import Principal
 from .reputation import DefaultReputationScorer, ReputationScorer, utcnow
 from .trust import TrustConfig
 
@@ -285,6 +286,7 @@ class PackageRegistry:
 		bundle: bytes,
 		*,
 		allow_unsigned: bool = False,
+		principal: Principal | None = None,
 	) -> PublishResult:
 		"""Publish a new package version.
 
@@ -337,6 +339,15 @@ class PackageRegistry:
 			self._store_package(package)
 
 		score = self._scorer.score(package, now=self._clock())
+		await _emit_audit_event(
+			self._audit_hook,
+			None,
+			event="PACKAGE_PUBLISH",
+			payload=_audit_payload(
+				{"name": manifest.name, "version": manifest.version},
+				principal,
+			),
+		)
 		return PublishResult(package=package, scored=score)
 
 	# ------------------------------------------------------------------
@@ -559,6 +570,7 @@ class PackageRegistry:
 		version: str,
 		*,
 		reason: str,
+		principal: Principal | None = None,
 	) -> Package:
 		async with self._lock:
 			pkg = self._load_package(name, version)
@@ -568,6 +580,15 @@ class PackageRegistry:
 				pkg, demoted=True, demote_reason=reason
 			)
 			self._store_package(updated)
+		await _emit_audit_event(
+			self._audit_hook,
+			None,
+			event="PACKAGE_DEMOTE",
+			payload=_audit_payload(
+				{"name": name, "version": version, "reason": reason},
+				principal,
+			),
+		)
 		return updated
 
 	async def mark_verified(
@@ -576,6 +597,7 @@ class PackageRegistry:
 		version: str,
 		*,
 		verified: bool = True,
+		principal: Principal | None = None,
 	) -> Package:
 		async with self._lock:
 			pkg = self._load_package(name, version)
@@ -583,6 +605,15 @@ class PackageRegistry:
 				raise PackageNotFoundError(f"{name}@{version} not found")
 			updated = dataclasses.replace(pkg, verified=verified)
 			self._store_package(updated)
+		await _emit_audit_event(
+			self._audit_hook,
+			None,
+			event="PACKAGE_MARK_VERIFIED",
+			payload=_audit_payload(
+				{"name": name, "version": version, "verified": verified},
+				principal,
+			),
+		)
 		return updated
 
 
@@ -614,6 +645,22 @@ async def _maybe_await(value: Any) -> Any:
 	if inspect.isawaitable(value):
 		return await value
 	return value
+
+
+def _audit_payload(base: dict, principal: "Principal | None") -> dict:
+	"""Merge *base* event data with principal metadata fields.
+
+	E-73 phase 4 / E-37 invariant 7: the canonical audit body (the
+	*base* dict) is never mutated.  Principal fields go into a separate
+	``principal_*`` namespace so downstream consumers can filter by
+	identity without touching the fixed canonical body bytes.
+	"""
+	payload = dict(base)
+	if principal is not None:
+		payload["principal_user_id"] = principal.user_id
+		payload["principal_kind"] = principal.principal_kind
+		payload["principal_roles"] = [r.value for r in principal.roles]
+	return payload
 
 
 async def _emit_audit_event(

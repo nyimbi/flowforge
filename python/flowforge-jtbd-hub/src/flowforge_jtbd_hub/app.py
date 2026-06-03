@@ -230,7 +230,7 @@ def create_app(
 				return LEGACY_ADMIN_PRINCIPAL
 		return None
 
-	def _resolve_principal(
+	async def _resolve_principal(
 		authorization: str | None,
 		request: Any | None = None,
 	) -> Principal | None:
@@ -239,6 +239,7 @@ def create_app(
 		Order: ``principal_extractor`` first (per-user RBAC), then the
 		legacy admin-token bridge. Returns None if neither matched.
 		"""
+		import inspect
 		# Prefer the per-user extractor when configured. If it raises
 		# (bad token format, KMS error), surface as 401.
 		if principal_extractor is not None:
@@ -247,7 +248,12 @@ def create_app(
 			# so legacy callers don't need to migrate at once.
 			extractor_arg = request if request is not None else _AuthHeaderRequest(authorization)
 			try:
-				principal = principal_extractor(extractor_arg)
+				result = principal_extractor(extractor_arg)
+				# Support both sync and async extractors.
+				if inspect.isawaitable(result):
+					principal = await result
+				else:
+					principal = result
 			except Exception:
 				principal = None
 			if principal is not None:
@@ -261,13 +267,13 @@ def create_app(
 		principal; 403 if authenticated but unauthorised.
 		"""
 
-		def _checker(
+		async def _checker(
 			request: Request,
 			authorization: str | None = Header(default=None),
 		) -> Principal:
 			if dev_mode and principal_extractor is None and not allowed_tokens:
 				return LEGACY_ADMIN_PRINCIPAL
-			principal = _resolve_principal(authorization, request)
+			principal = await _resolve_principal(authorization, request)
 			if principal is None:
 				raise HTTPException(
 					status_code=status.HTTP_401_UNAUTHORIZED,
@@ -382,7 +388,7 @@ def create_app(
 	)
 	async def publish_package(
 		payload: PublishRequest,
-		_: Principal = Depends(_require_permission(Permission.PACKAGE_PUBLISH)),
+		principal: Principal = Depends(_require_permission(Permission.PACKAGE_PUBLISH)),
 	) -> PackageDetail:
 		try:
 			bundle = base64.b64decode(payload.bundle_b64)
@@ -396,6 +402,7 @@ def create_app(
 				payload.manifest,
 				bundle,
 				allow_unsigned=payload.allow_unsigned,
+				principal=principal,
 			)
 		except PackageAlreadyExistsError as exc:
 			raise HTTPException(
@@ -472,7 +479,7 @@ def create_app(
 		principal: Principal = Depends(_require_permission(Permission.ADMIN_WRITE)),
 	) -> PackageDetail:
 		try:
-			pkg = await registry.demote(name, version, reason=payload.reason)
+			pkg = await registry.demote(name, version, reason=payload.reason, principal=principal)
 		except PackageNotFoundError as exc:
 			raise HTTPException(
 				status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
@@ -500,7 +507,7 @@ def create_app(
 	) -> PackageDetail:
 		try:
 			pkg = await registry.mark_verified(
-				name, version, verified=payload.verified
+				name, version, verified=payload.verified, principal=principal
 			)
 		except PackageNotFoundError as exc:
 			raise HTTPException(

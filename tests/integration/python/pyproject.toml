@@ -19,6 +19,7 @@ dependencies = [
 	"flowforge-otel",
 	"flowforge-cli",
 	"flowforge-jtbd",
+	"flowforge-jtbd-hub",
 	"fastapi>=0.115",
 	"httpx>=0.27",
 	"aiosqlite>=0.20",
@@ -46,6 +47,7 @@ flowforge-notify-multichannel = { path = "../../../python/flowforge-notify-multi
 flowforge-otel = { path = "../../../python/flowforge-otel", editable = true }
 flowforge-cli = { path = "../../../python/flowforge-cli", editable = true }
 flowforge-jtbd = { path = "../../../python/flowforge-jtbd", editable = true }
+flowforge-jtbd-hub = { path = "../../../python/flowforge-jtbd-hub", editable = true }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
