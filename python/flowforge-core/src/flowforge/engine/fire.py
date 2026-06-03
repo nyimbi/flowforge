@@ -179,6 +179,13 @@ def _match_transitions(wd: WorkflowDef, instance: Instance, event: str) -> list[
 	return candidates
 
 
+def _match_transitions_for_token(wd: WorkflowDef, token: "Token", event: str) -> list[Transition]:
+	"""Match transitions from the token's current state (E-80)."""
+	candidates = [t for t in wd.transitions if t.from_state == token.state and t.event == event]
+	candidates.sort(key=lambda t: -t.priority)
+	return candidates
+
+
 def _guards_pass(transition: Transition, ctx: dict[str, Any]) -> bool:
 	"""Evaluate every guard against *ctx*; return True iff all are truthy.
 
@@ -343,6 +350,7 @@ async def fire(
 	jtbd_id: str | None = None,
 	jtbd_version: str | None = None,
 	dispatch_ports: bool = True,
+	token_id: str | None = None,  # E-80: if set, advance this token instead of primary state
 ) -> FireResult:
 	"""Plan + commit *event* against *instance* per *wd*.
 
@@ -361,6 +369,12 @@ async def fire(
 	``config.outbox``. Durable adapters use this mode to persist state,
 	event log, audit rows, and transactional outbox rows in one database
 	transaction.
+
+	``token_id`` (E-80): when set, advance the named parallel-region token
+	instead of the primary instance state. Requires ``FLOWFORGE_FORKS_ENABLED=1``.
+	Raises :class:`~flowforge.engine._fork.TokenAlreadyConsumedError` if the
+	token is not found. Raises :class:`~flowforge.engine._fork.RegionStillForkedError`
+	on a primary fire when live tokens occupy the current state.
 	"""
 
 	# E-32 / C-04: per-instance serialisation. The check-and-add is a
@@ -393,6 +407,7 @@ async def fire(
 			jtbd_id=jtbd_id,
 			jtbd_version=jtbd_version,
 			dispatch_ports=dispatch_ports,
+			token_id=token_id,
 		)
 	finally:
 		_FIRING_INSTANCES.discard(instance.id)
@@ -409,6 +424,7 @@ async def _fire_locked(
 	jtbd_id: str | None,
 	jtbd_version: str | None,
 	dispatch_ports: bool,
+	token_id: str | None = None,
 ) -> FireResult:
 	"""Body of :func:`fire` after the per-instance gate has been claimed.
 
@@ -416,6 +432,108 @@ async def _fire_locked(
 	rollback-on-failure path is unambiguously distinct from the gate's
 	cleanup.
 	"""
+
+	# -----------------------------------------------------------------------
+	# E-80: Per-token advance path.
+	# When token_id is set, advance that parallel-branch token instead of the
+	# primary instance state. Both the global feature flag AND the presence of
+	# the token in the live set are required.
+	# -----------------------------------------------------------------------
+	if token_id is not None:
+		from ._fork import consume_token, TokenAlreadyConsumedError, _has_token
+		from .fork_config import forks_enabled
+		if not forks_enabled():
+			raise ValueError("token_id requires FLOWFORGE_FORKS_ENABLED=1")
+		if not _has_token(instance.tokens, token_id):
+			_cfg = config.current()
+			if _cfg.metrics is not None:
+				try:
+					_cfg.metrics.emit("flowforge_token_unknown_advance_total", 1.0, {})
+				except Exception:
+					pass
+			raise TokenAlreadyConsumedError(f"token {token_id!r} not found or already consumed")
+
+		_token = next(t for t in instance.tokens.list() if t.id == token_id)
+
+		candidates_tok = _match_transitions_for_token(wd, _token, event)
+		chosen_t: Transition | None = None
+		eval_ctx_tok = {
+			"context": instance.context,
+			"__tenant_id__": tenant_id,
+			"__actor__": principal.user_id if principal else None,
+			"event": {"name": event, "payload": payload or {}},
+		}
+		for t in candidates_tok:
+			if _guards_pass(t, eval_ctx_tok):
+				chosen_t = t
+				break
+
+		if chosen_t is None:
+			return FireResult(instance, None, [], instance.state, terminal=False)
+
+		pre_snapshot = _snapshot_instance(instance)
+		_from_state = _token.state
+		_token.state = chosen_t.to_state
+
+		audits: list[AuditEvent] = [
+			AuditEvent(
+				kind=f"wf.{wd.key}.token_advanced",
+				subject_kind=wd.subject_kind,
+				subject_id=instance.id,
+				tenant_id=tenant_id,
+				actor_user_id=principal.user_id if principal else None,
+				payload={
+					"token_id": token_id,
+					"from_state": _from_state,
+					"to_state": _token.state,
+					"event": event,
+				},
+			)
+		]
+
+		outboxes: list[OutboxEnvelope] = []
+		for effect in chosen_t.effects:
+			a, o = _apply_effect(effect, instance, eval_ctx_tok)
+			audits.extend(a)
+			outboxes.extend(o)
+
+		instance.history.append(f"token:{token_id}:({chosen_t.id}:{event})->{chosen_t.to_state}")
+
+		cfg = config.current()
+		if dispatch_ports and cfg.audit is not None:
+			try:
+				for evt in audits:
+					await cfg.audit.record(evt)
+			except Exception:
+				_restore_instance(instance, pre_snapshot)
+				raise
+		if dispatch_ports and cfg.outbox is not None:
+			for env in outboxes:
+				try:
+					await cfg.outbox.dispatch(env)
+				except Exception as e:
+					_restore_instance(instance, pre_snapshot)
+					raise OutboxDispatchError(instance.id, env.kind) from e
+
+		return FireResult(
+			instance=instance,
+			matched_transition_id=chosen_t.id,
+			planned_effects=list(chosen_t.effects),
+			new_state=instance.state,
+			terminal=False,
+			audit_events=audits,
+			outbox_envelopes=outboxes,
+		)
+
+	# -----------------------------------------------------------------------
+	# E-80: primary-state fire blocked while tokens occupy the current state.
+	# -----------------------------------------------------------------------
+	from ._fork import RegionStillForkedError
+	if instance.tokens.count_in_region(instance.state) > 0:
+		raise RegionStillForkedError(
+			f"instance {instance.id!r}: primary fire blocked — "
+			f"state {instance.state!r} has live tokens; use fire(..., token_id=...) to advance branches"
+		)
 
 	candidates = _match_transitions(wd, instance, event)
 	chosen: Transition | None = None
