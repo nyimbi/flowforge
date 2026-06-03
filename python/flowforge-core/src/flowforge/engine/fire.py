@@ -452,6 +452,50 @@ async def _fire_locked(
 	instance.state = chosen.to_state
 	instance.history.append(f"{prev_state}-({chosen.id}:{event})->{chosen.to_state}")
 
+	# E-79: parallel_fork dispatch (layered feature flag).
+	# Both the global env-var AND the per-workflow manifest declaration must be
+	# true — neither alone is sufficient. This keeps existing workflows safe when
+	# the operator flips FLOWFORGE_FORKS_ENABLED=1 in v0.3.0.
+	from .fork_config import forks_enabled, workflow_declares_fork
+	from ._fork import make_fork_tokens
+	_new_state_def = next((s for s in wd.states if s.name == instance.state), None)
+	if (
+		_new_state_def is not None
+		and _new_state_def.kind == "parallel_fork"
+		and forks_enabled()
+		and workflow_declares_fork(wd.metadata)
+	):
+		# _ForkBranch protocol requires a `.to` attribute; Transition uses
+		# `.to_state`.  Wrap with a lightweight adapter rather than mutating
+		# the DSL model.
+		class _BranchAdapter:
+			__slots__ = ("to",)
+			def __init__(self, to_state: str) -> None:
+				self.to = to_state
+
+		_outgoing = [t for t in wd.transitions if t.from_state == instance.state]
+		_fork_tokens = make_fork_tokens(
+			region=instance.state,
+			branches=[_BranchAdapter(t.to_state) for t in _outgoing],
+		)
+		for _tok in _fork_tokens:
+			instance.tokens.add(_tok)
+		audits.insert(
+			0,
+			AuditEvent(
+				kind=f"wf.{wd.key}.fork_dispatched",
+				subject_kind=wd.subject_kind,
+				subject_id=instance.id,
+				tenant_id=tenant_id,
+				actor_user_id=principal.user_id if principal else None,
+				payload={
+					"fork_state": instance.state,
+					"token_ids": [t.id for t in _fork_tokens],
+					"branch_count": len(_fork_tokens),
+				},
+			),
+		)
+
 	# Always audit the transition itself.  jtbd_id / jtbd_version are
 	# included when present so dashboards can GROUP BY jtbd_id (E-10).
 	transition_payload: dict[str, Any] = {
