@@ -12,10 +12,11 @@ Three end-to-end flows must be green together:
    on the outbox, fire a transition that emits a notify effect, assert
    the handler ran and an ack envelope was recorded by the host.
 
-3. **fork → migrate → replay-determinism** — snapshot an instance, run
-   the same event sequence on the original and a restored snapshot,
-   assert byte-identical resulting state and history. (Replay
-   determinism in the absence of a real workflow-fork primitive.)
+3. **parallel_fork → advance branches → join collapse → replay-determinism**
+   — exercise the real parallel_fork engine primitive (E-82): fork two
+   branch tokens, advance each via per-token fire(), assert the join barrier
+   holds until the last token is drained, then verify byte-identical state
+   and history across two independent replays of the same event sequence.
 
 Per plan §5.2 the production variant runs against ``pytest-postgresql`` /
 ``testcontainers``; in CI we use the sqlite+aiosqlite stand-in, which
@@ -34,7 +35,6 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from flowforge import config as _config
 from flowforge.dsl import WorkflowDef
 from flowforge.engine import fire, new_instance
-from flowforge.engine.snapshots import InMemorySnapshotStore, _shallow_clone
 from flowforge.ports.types import OutboxEnvelope, Principal
 from flowforge.testing.port_fakes import InMemoryAuditSink, InMemoryOutbox
 from flowforge_audit_pg import PgAuditSink, create_tables
@@ -194,53 +194,108 @@ async def test_IT_02_flow_2_fire_outbox_handler_ack() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Flow 3 — fork → migrate → replay-determinism
+# Flow 3 — parallel_fork → advance branches → join collapse → replay-determinism
 # ---------------------------------------------------------------------------
+
+
+def _fork_workflow_def() -> WorkflowDef:
+	"""Minimal fork/join workflow for flow 3."""
+	return WorkflowDef.model_validate(
+		{
+			"key": "it02_fork_e2e",
+			"version": "1.0.0",
+			"subject_kind": "it02_subject",
+			"initial_state": "triage",
+			"metadata": {"engine_features": ["parallel_fork"]},
+			"states": [
+				{"name": "triage",     "kind": "manual_review"},
+				{"name": "fork_point", "kind": "parallel_fork"},
+				{"name": "branch_a",   "kind": "automatic"},
+				{"name": "branch_b",   "kind": "automatic"},
+				{"name": "join",       "kind": "parallel_join"},
+				{"name": "done",       "kind": "terminal_success"},
+			],
+			"transitions": [
+				{"id": "triage_to_fork", "event": "ready",    "from_state": "triage",     "to_state": "fork_point", "priority": 0},
+				{"id": "fork_to_a",      "event": "__auto__", "from_state": "fork_point", "to_state": "branch_a",   "priority": 1},
+				{"id": "fork_to_b",      "event": "__auto__", "from_state": "fork_point", "to_state": "branch_b",   "priority": 0},
+				{"id": "a_to_join",      "event": "a_done",   "from_state": "branch_a",   "to_state": "join",       "priority": 0},
+				{"id": "b_to_join",      "event": "b_done",   "from_state": "branch_b",   "to_state": "join",       "priority": 0},
+				{"id": "join_to_done",   "event": "join_complete", "from_state": "join",  "to_state": "done",       "priority": 0},
+			],
+		}
+	)
 
 
 @_async
 async def test_IT_02_flow_3_fork_migrate_replay_determinism() -> None:
-	"""Two replays of the same event sequence on equal initial snapshots converge."""
-	store = InMemorySnapshotStore()
-	_config.reset_to_fakes()
+	"""parallel_fork full lifecycle: fork → advance branches → join collapse.
 
-	wd = _claim_intake_def()
-	inst_a = new_instance(
-		wd, initial_context={"intake": {"policy_id": "p-3", "tenant_id": "t-3"}}
-	)
-	# Snapshot the initial state — this is the "fork" point.
-	await store.put(inst_a)
-	# Restore a clone — semantic of "fork+migrate to a new instance node":
-	# the migration is a no-op DSL bump in this scaffold, but the replay
-	# determinism property must hold even before any real DSL diff.
-	restored = await store.get(inst_a.id)
-	assert restored is not None
-	inst_b = _shallow_clone(restored)
-	# Give B a distinct id so the snapshot store can hold both.
-	inst_b.id = f"{inst_a.id}-fork"
-	# Sanity: clones start equal.
-	assert inst_a.state == inst_b.state
-	assert inst_a.context == inst_b.context
+	Upgraded from the snapshot+clone+replay scaffold to use the real
+	parallel_fork engine primitive (E-82).  Both the primary fork→join path
+	and replay-determinism are verified via fire() with FLOWFORGE_FORKS_ENABLED=1.
+	"""
+	import os
 
-	principal = Principal(user_id="u-3", is_system=True)
+	os.environ["FLOWFORGE_FORKS_ENABLED"] = "1"
+	try:
+		_config.reset_to_fakes()
+		wd = _fork_workflow_def()
+		principal = Principal(user_id="u-3", is_system=True)
 
-	# Replay the same event sequence on both branches.
-	for event in ("submit", "approve"):
-		await fire(wd, inst_a, event, principal=principal)
-		await fire(wd, inst_b, event, principal=principal)
+		# --- Primary path: fork → advance_a → advance_b → join collapse ---
+		inst = new_instance(wd)
+		await fire(wd, inst, "ready", principal=principal)
+		assert inst.state == "fork_point"
 
-	# Replay-determinism: byte-identical state + context + history.
-	assert inst_a.state == inst_b.state == "approved"
-	assert inst_a.context == inst_b.context
-	assert inst_a.history == inst_b.history
+		tokens = inst.tokens.list()
+		assert len(tokens) == 2, f"expected 2 tokens after fork, got {tokens}"
+		token_by_state = {t.state: t for t in tokens}
+		assert set(token_by_state) == {"branch_a", "branch_b"}
 
-	# Save the post-replay snapshot — proving the snapshot store round-trips
-	# Instance shape unchanged across the fork.
-	await store.put(inst_a)
-	round_tripped = await store.get(inst_a.id)
-	assert round_tripped is not None
-	assert round_tripped.state == inst_a.state
-	assert round_tripped.context == inst_a.context
+		token_a = token_by_state["branch_a"]
+		token_b = token_by_state["branch_b"]
+
+		# Advance branch_a — join barrier must hold (branch_b still alive)
+		await fire(wd, inst, "a_done", token_id=token_a.id, principal=principal)
+		assert inst.state == "fork_point", (
+			f"premature collapse: expected fork_point, got {inst.state!r}"
+		)
+		assert len(inst.tokens.list()) == 1
+
+		# Advance branch_b — final token drained → join collapses
+		result_b = await fire(wd, inst, "b_done", token_id=token_b.id, principal=principal)
+		assert inst.state == "done", (
+			f"expected 'done' after join collapse, got {inst.state!r}"
+		)
+		assert result_b.terminal is True
+		assert inst.tokens.list() == []
+
+		# --- Replay-determinism: two independent instances, same event sequence ---
+		_config.reset_to_fakes()
+		wd2 = _fork_workflow_def()
+		inst_a = new_instance(wd2, instance_id="it02-replay-a")
+		inst_b = new_instance(wd2, instance_id="it02-replay-b")
+
+		for replay_inst in (inst_a, inst_b):
+			await fire(wd2, replay_inst, "ready", principal=principal)
+			tmap = {t.state: t for t in replay_inst.tokens.list()}
+			await fire(wd2, replay_inst, "a_done", token_id=tmap["branch_a"].id, principal=principal)
+			tmap2 = {t.state: t for t in replay_inst.tokens.list()}
+			await fire(wd2, replay_inst, "b_done", token_id=tmap2["branch_b"].id, principal=principal)
+
+		assert inst_a.state == inst_b.state == "done"
+		# Token IDs are UUID7 — strip them before comparing so we test
+		# structural determinism (same transitions in same order).
+		import re as _re
+		_uuid_pat = _re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+		def _strip(h: list[str]) -> list[str]:
+			return [_uuid_pat.sub("<uuid>", e) for e in h]
+		assert _strip(inst_a.history) == _strip(inst_b.history), (
+			f"replay history structure diverged:\n  a={_strip(inst_a.history)}\n  b={_strip(inst_b.history)}"
+		)
+	finally:
+		os.environ.pop("FLOWFORGE_FORKS_ENABLED", None)
 
 
 # ---------------------------------------------------------------------------

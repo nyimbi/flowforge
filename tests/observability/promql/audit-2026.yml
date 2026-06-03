@@ -198,3 +198,40 @@ groups:
           fix_id: E-41
         annotations:
           summary: "FastAPI hub cross-app leakage — request-scoping broken"
+
+  - name: audit-2026-fork-engine
+    interval: 1m
+    rules:
+      - alert: flowforge_v020_fork_orphan_tokens
+        # E-82. Orphan tokens accumulate when a branch never fires its
+        # completion event (e.g. dead-letter, lost message). Sustained
+        # accumulation means branches are stuck — investigate the fork
+        # region and trigger a manual advance or compensate.
+        expr: |
+          sum(rate(flowforge_fork_orphan_tokens_total[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          fix_id: E-82
+        annotations:
+          summary: "Fork orphan tokens accumulating — branches may be stuck"
+          runbook: |
+            Query flowforge_fork_orphan_tokens_total by instance_id.
+            Identify the stuck fork region and fire a manual advance or
+            trigger compensation via flowforge audit-2026 health.
+
+      - alert: flowforge_v020_token_unknown_advance
+        # E-80. A high rate of unknown-token advances means callers are
+        # replaying or guessing token IDs that have already been consumed
+        # (or never existed). Could be a retry storm or a client bug.
+        expr: |
+          sum(rate(flowforge_token_unknown_advance_total[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          fix_id: E-80
+        annotations:
+          summary: "High rate of unknown token advance attempts"
+          runbook: |
+            Check caller retry logic for token_id reuse.
+            A burst may indicate an idempotency gap in the client.

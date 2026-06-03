@@ -769,6 +769,127 @@ def test_invariant_9_parallel_fork_token_primitives_safe() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Invariant 9b — parallel_fork full fire() lifecycle (E-82)
+#   Tests that the engine primitive wired through fire() correctly manages
+#   token lifecycle end-to-end: symmetric join, double-advance guard, replay
+#   determinism.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.invariant_p1
+def test_invariant_9_parallel_fork_lifecycle_through_fire() -> None:
+	"""E-82: parallel_fork token lifecycle through fire() is correct.
+
+	(a) fork-of-2 + symmetric join → final state is the join-collapse target.
+	(b) fork-of-2 + unbalanced fire (advance branch_a twice) → second advance
+	    raises TokenAlreadyConsumedError.
+	(c) fork-of-N + replay of same event sequence → byte-identical state + history.
+	"""
+	import os
+
+	os.environ["FLOWFORGE_FORKS_ENABLED"] = "1"
+	try:
+		from flowforge import config as _cfg
+		from flowforge.dsl import WorkflowDef
+		from flowforge.engine._fork import TokenAlreadyConsumedError
+		from flowforge.engine.fire import fire, new_instance
+
+		def _fork_wd() -> WorkflowDef:
+			return WorkflowDef.model_validate(
+				{
+					"key": "inv9b_fork_test",
+					"version": "0.1.0",
+					"subject_kind": "test",
+					"initial_state": "triage",
+					"metadata": {"engine_features": ["parallel_fork"]},
+					"states": [
+						{"name": "triage",     "kind": "manual_review"},
+						{"name": "fork_point", "kind": "parallel_fork"},
+						{"name": "branch_a",   "kind": "automatic"},
+						{"name": "branch_b",   "kind": "automatic"},
+						{"name": "join",       "kind": "parallel_join"},
+						{"name": "done",       "kind": "terminal_success"},
+					],
+					"transitions": [
+						{"id": "t1", "event": "ready",    "from_state": "triage",     "to_state": "fork_point", "priority": 0},
+						{"id": "t2", "event": "__auto__", "from_state": "fork_point", "to_state": "branch_a",   "priority": 1},
+						{"id": "t3", "event": "__auto__", "from_state": "fork_point", "to_state": "branch_b",   "priority": 0},
+						{"id": "t4", "event": "a_done",   "from_state": "branch_a",   "to_state": "join",       "priority": 0},
+						{"id": "t5", "event": "b_done",   "from_state": "branch_b",   "to_state": "join",       "priority": 0},
+						{"id": "t6", "event": "join_complete", "from_state": "join",  "to_state": "done",       "priority": 0},
+					],
+				}
+			)
+
+		async def _run_all() -> None:
+			# (a) Symmetric fork-join
+			_cfg.reset_to_fakes()
+			wd = _fork_wd()
+			inst = new_instance(wd)
+			await fire(wd, inst, "ready")
+			tokens = inst.tokens.list()
+			assert len(tokens) == 2, f"expected 2 tokens after fork, got {tokens}"
+			token_by_state = {t.state: t for t in tokens}
+			assert set(token_by_state) == {"branch_a", "branch_b"}
+
+			a_id = token_by_state["branch_a"].id
+			b_id = token_by_state["branch_b"].id
+
+			await fire(wd, inst, "a_done", token_id=a_id)
+			await fire(wd, inst, "b_done", token_id=b_id)
+			assert inst.state == "done", f"expected 'done' after symmetric join, got {inst.state!r}"
+			assert inst.tokens.list() == [], f"expected empty tokens after join, got {inst.tokens.list()}"
+
+			# (b) Double-advance raises TokenAlreadyConsumedError
+			_cfg.reset_to_fakes()
+			wd2 = _fork_wd()
+			inst2 = new_instance(wd2)
+			await fire(wd2, inst2, "ready")
+			t2_list = inst2.tokens.list()
+			t2_by_state = {t.state: t for t in t2_list}
+			a2_id = t2_by_state["branch_a"].id
+			await fire(wd2, inst2, "a_done", token_id=a2_id)
+			try:
+				await fire(wd2, inst2, "a_done", token_id=a2_id)
+				raise AssertionError("Expected TokenAlreadyConsumedError — double advance must be rejected")
+			except TokenAlreadyConsumedError:
+				pass  # correct: replay-safety contract holds
+
+			# (c) Replay determinism
+			_cfg.reset_to_fakes()
+			wd3 = _fork_wd()
+			inst_a = new_instance(wd3, instance_id="replay-inv9b-a")
+			inst_b = new_instance(wd3, instance_id="replay-inv9b-b")
+
+			await fire(wd3, inst_a, "ready")
+			await fire(wd3, inst_b, "ready")
+
+			for inst in (inst_a, inst_b):
+				tmap = {t.state: t for t in inst.tokens.list()}
+				await fire(wd3, inst, "a_done", token_id=tmap["branch_a"].id)
+				tmap2 = {t.state: t for t in inst.tokens.list()}
+				await fire(wd3, inst, "b_done", token_id=tmap2["branch_b"].id)
+
+			assert inst_a.state == inst_b.state == "done", (
+				f"replay diverged: inst_a.state={inst_a.state!r} inst_b.state={inst_b.state!r}"
+			)
+			# Token IDs are UUID7 — they differ between independent instances.
+			# Strip them so we test structural determinism (same transitions in
+			# same order), not incidental UUID values.
+			import re as _re
+			_uuid_pat = _re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+			def _strip(h: list[str]) -> list[str]:
+				return [_uuid_pat.sub("<uuid>", e) for e in h]
+			assert _strip(inst_a.history) == _strip(inst_b.history), (
+				f"replay history structure diverged:\n  a={_strip(inst_a.history)}\n  b={_strip(inst_b.history)}"
+			)
+
+		asyncio.run(_run_all())
+	finally:
+		os.environ.pop("FLOWFORGE_FORKS_ENABLED", None)
+
+
+# ---------------------------------------------------------------------------
 # Invariant 10 — Compensation symmetry (v0.3.0 W0 / item 2)
 # ---------------------------------------------------------------------------
 #

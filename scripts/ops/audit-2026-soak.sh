@@ -35,6 +35,9 @@ TENANT="${AUDIT_2026_SOAK_TENANT:-soak-test-tenant}"
 PRINCIPAL="${AUDIT_2026_SOAK_PRINCIPAL:-}"
 EVIDENCE_DIR="${AUDIT_2026_SOAK_EVIDENCE_DIR:-./soak-evidence}"
 
+WORKFLOW="${AUDIT_2026_SOAK_WORKFLOW:-}"
+FORKS_ENABLED=0
+
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--target-url) TARGET="$2"; shift 2;;
@@ -45,6 +48,8 @@ while [[ $# -gt 0 ]]; do
 		--tenant) TENANT="$2"; shift 2;;
 		--principal) PRINCIPAL="$2"; shift 2;;
 		--evidence-dir) EVIDENCE_DIR="$2"; shift 2;;
+		--workflow) WORKFLOW="$2"; shift 2;;
+		--forks-enabled) FORKS_ENABLED=1; shift;;
 		-h|--help)
 			grep '^# ' "$0" | sed 's/^# \?//'
 			exit 0;;
@@ -52,6 +57,10 @@ while [[ $# -gt 0 ]]; do
 			echo "unknown flag: $1" >&2; exit 2;;
 	esac
 done
+
+if [[ $FORKS_ENABLED -eq 1 ]]; then
+	export FLOWFORGE_FORKS_ENABLED=1
+fi
 
 [[ -n "$TARGET" ]] || { echo "missing --target-url" >&2; exit 2; }
 [[ -n "$PROM" ]]   || { echo "missing --prom-url"   >&2; exit 2; }
@@ -167,6 +176,8 @@ verify_acceptance() {
 
 main() {
 	echo "audit-2026 soak: target=${TARGET} duration=${DURATION} fires/s=${FIRES_PER_SEC} outbox/s=${OUTBOX_PER_SEC}"
+	[[ -n "$WORKFLOW" ]]       && echo "  workflow=${WORKFLOW}"
+	[[ $FORKS_ENABLED -eq 1 ]] && echo "  FLOWFORGE_FORKS_ENABLED=1 (parallel_fork path active)"
 	verify_alert_rules
 	scrape_sli "pre"
 	run_load
