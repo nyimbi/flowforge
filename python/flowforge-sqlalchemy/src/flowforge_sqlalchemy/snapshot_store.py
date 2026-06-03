@@ -284,6 +284,7 @@ class SqlAlchemySnapshotStore:
 		tenant_id: str | None = None,
 		jtbd_id: str | None = None,
 		jtbd_version: str | None = None,
+		token_id: str | None = None,
 	) -> FireResult:
 		"""Fire an event and persist all durable side effects atomically.
 
@@ -315,6 +316,7 @@ class SqlAlchemySnapshotStore:
 			jtbd_id=jtbd_id,
 			jtbd_version=jtbd_version,
 			dispatch_ports=False,
+			token_id=token_id,
 		)
 		if result.matched_transition_id is None:
 			return result
@@ -506,6 +508,12 @@ def _body_from_instance(instance: Instance) -> dict[str, Any]:
 		"created_entities": [list(t) for t in instance.created_entities],
 		"saga": list(instance.saga),
 		"history": list(instance.history),
+		# E-74p1: persist live parallel-region tokens so forked instances
+		# survive a snapshot round-trip (fix for code-review finding C1).
+		"tokens": [
+			{"id": t.id, "region": t.region, "state": t.state, "context": dict(t.context)}
+			for t in instance.tokens.list()
+		],
 	}
 
 
@@ -527,6 +535,8 @@ def _transition_payload(result: FireResult) -> dict[str, Any]:
 
 def _instance_from_body(row: WorkflowInstanceSnapshot, body: dict[str, Any]) -> Instance:
 	"""Hydrate an :class:`Instance` from a snapshot row + body dict."""
+	from flowforge.engine.tokens import Token, TokenSet
+
 	created_entities_raw = body.get("created_entities") or []
 	# Stored as ``[entity_kind, row_dict]`` pairs; rebuild tuple shape.
 	created_entities: list[tuple[str, dict[str, Any]]] = []
@@ -534,6 +544,16 @@ def _instance_from_body(row: WorkflowInstanceSnapshot, body: dict[str, Any]) -> 
 		if isinstance(pair, (list, tuple)) and len(pair) == 2:
 			kind, payload = pair[0], pair[1]
 			created_entities.append((str(kind), dict(payload or {})))
+	# E-74p1: rebuild TokenSet from persisted token records (fix C1).
+	ts = TokenSet()
+	for tok in (body.get("tokens") or []):
+		if isinstance(tok, dict):
+			ts.add(Token(
+				id=str(tok["id"]),
+				region=str(tok["region"]),
+				state=str(tok["state"]),
+				context=dict(tok.get("context") or {}),
+			))
 	return Instance(
 		id=str(body.get("id") or row.instance_id),
 		def_key=str(body.get("def_key") or row.def_key),
@@ -543,4 +563,5 @@ def _instance_from_body(row: WorkflowInstanceSnapshot, body: dict[str, Any]) -> 
 		created_entities=created_entities,
 		saga=list(body.get("saga") or []),
 		history=list(body.get("history") or []),
+		tokens=ts,
 	)

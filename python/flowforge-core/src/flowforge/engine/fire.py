@@ -394,7 +394,14 @@ async def fire(
 		raise ConcurrentFireRejected(instance.id)
 	_FIRING_INSTANCES.add(instance.id)
 	try:
-		if instance.state.startswith("terminal_") or _is_terminal(wd, instance.state):
+		# Terminal fast-path only applies to primary-state fires. A per-token
+		# fire (token_id is not None) must reach _fire_locked so the token is
+		# correctly advanced and consumed even when the primary state has already
+		# reached a terminal — otherwise the token is stranded in the live set
+		# and all_branches_joined() never fires (code-review finding C4).
+		if token_id is None and (
+			instance.state.startswith("terminal_") or _is_terminal(wd, instance.state)
+		):
 			return FireResult(instance, None, [], instance.state, terminal=True)
 
 		return await _fire_locked(
@@ -511,6 +518,11 @@ async def _fire_locked(
 			(s for s in wd.states if s.name == _token.state), None
 		)
 		if _new_token_state_def is not None and _new_token_state_def.kind == "parallel_join":
+			# Capture outstanding count BEFORE consuming this token so that
+			# the metrics in the else-branch reflect the pre-consume count
+			# (code-review finding C8: count_in_region is off-by-one after consume).
+			_outstanding_before = instance.tokens.count_in_region(_token.region)
+
 			# Consume this token — removes it from the live set.
 			consume_token(instance.tokens, token_id)
 
@@ -519,7 +531,7 @@ async def _fire_locked(
 				instance.state = _new_token_state_def.name
 
 				# Synthetic advance: pick the highest-priority outgoing
-				# transition from the join state (no event guard needed).
+				# transition from the join state.
 				_join_outgoing = [
 					t for t in wd.transitions if t.from_state == instance.state
 				]
@@ -530,6 +542,12 @@ async def _fire_locked(
 					instance.history.append(
 						f"join_collapsed:({_join_transition.id})->{_join_transition.to_state}"
 					)
+					# Apply effects declared on the join→post-join transition
+					# (code-review finding C3: effects were silently skipped).
+					for _jfx in _join_transition.effects:
+						_ja, _jo = _apply_effect(_jfx, instance, eval_ctx_tok)
+						audits.extend(_ja)
+						outboxes.extend(_jo)
 					audits.append(
 						AuditEvent(
 							kind=f"wf.{wd.key}.join_collapsed",
@@ -545,27 +563,35 @@ async def _fire_locked(
 						)
 					)
 			else:
-				# Tokens still outstanding — emit observability counter.
+				# Tokens still outstanding — emit observability counters using
+				# the pre-consume count so the value reflects tokens outstanding
+				# *before* this fire (code-review finding C8).
 				_cfg2 = config.current()
 				if _cfg2.metrics is not None:
 					try:
 						_cfg2.metrics.emit(
 							"flowforge_fork_join_timeout_total",
-							float(instance.tokens.count_in_region(_token.region)),
+							float(_outstanding_before),
 							{},
 						)
 					except Exception:
 						pass
-				# Also emit orphan counter for raw outstanding-token count.
-				if _cfg2.metrics is not None:
 					try:
 						_cfg2.metrics.emit(
 							"flowforge_fork_orphan_tokens_total",
-							float(instance.tokens.count_in_region(_token.region)),
+							float(_outstanding_before),
 							{},
 						)
 					except Exception:
 						pass
+
+		# Take a post-mutation snapshot (after consume_token + join collapse) for
+		# the dispatch-failure rollback. Using the pre-mutation pre_snapshot here
+		# would restore a consumed token, allowing double-consume on retry
+		# (code-review finding C5). With the post-mutation snapshot:
+		#   - dispatch failure: token stays consumed, state stays at updated value
+		#   - caller retry: _has_token returns False → TokenAlreadyConsumedError
+		_post_mutation_snapshot = _snapshot_instance(instance)
 
 		cfg = config.current()
 		if dispatch_ports and cfg.audit is not None:
@@ -573,14 +599,32 @@ async def _fire_locked(
 				for evt in audits:
 					await cfg.audit.record(evt)
 			except Exception:
-				_restore_instance(instance, pre_snapshot)
+				_restore_instance(instance, _post_mutation_snapshot)
 				raise
 		if dispatch_ports and cfg.outbox is not None:
 			for env in outboxes:
 				try:
 					await cfg.outbox.dispatch(env)
 				except Exception as e:
-					_restore_instance(instance, pre_snapshot)
+					_restore_instance(instance, _post_mutation_snapshot)
+					# Mirror the primary-fire path: record a rollback audit row
+					# so the audit chain reflects the restored state
+					# (code-review finding C6).
+					if cfg.audit is not None:
+						await _record_rollback_audit(
+							cfg.audit,
+							wd=wd,
+							instance=instance,
+							tenant_id=tenant_id,
+							principal=principal,
+							transition_id=chosen_t.id,
+							from_state=_from_state,
+							to_state=chosen_t.to_state,
+							event=event,
+							envelope_kind=env.kind,
+							jtbd_id=None,
+							jtbd_version=None,
+						)
 					raise OutboxDispatchError(instance.id, env.kind) from e
 
 		terminal = _is_terminal(wd, instance.state)
@@ -598,10 +642,16 @@ async def _fire_locked(
 	# E-80: primary-state fire blocked while tokens occupy the current state.
 	# -----------------------------------------------------------------------
 	from ._fork import RegionStillForkedError
-	if instance.tokens.count_in_region(instance.state) > 0:
+	# Block primary fire when ANY tokens are live — not just tokens whose
+	# region matches the current primary state. After a join collapse,
+	# instance.state is the post-join state, but outstanding branch tokens
+	# still carry region=<fork-state-name>; count_in_region(instance.state)
+	# would return 0 and silently allow an incorrect primary advance
+	# (code-review finding C7).
+	if instance.tokens.list():
 		raise RegionStillForkedError(
 			f"instance {instance.id!r}: primary fire blocked — "
-			f"state {instance.state!r} has live tokens; use fire(..., token_id=...) to advance branches"
+			f"live parallel-region tokens exist; use fire(..., token_id=...) to advance branches"
 		)
 
 	candidates = _match_transitions(wd, instance, event)
