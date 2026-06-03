@@ -1,0 +1,16 @@
+# E-77p — Team registry: canonical team_id source for per-domain JTBD authoring teams
+teams:
+  - team_id: insurance-team-A
+    domain: insurance
+    tier: A
+    status: active
+
+  - team_id: healthcare-team-A
+    domain: healthcare
+    tier: A
+    status: active
+
+  - team_id: banking-team-A
+    domain: banking
+    tier: A
+    status: active

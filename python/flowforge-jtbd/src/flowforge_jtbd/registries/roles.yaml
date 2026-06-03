@@ -1,0 +1,51 @@
+# R-03 — Cross-domain role taxonomy
+# Canonical role definitions used across all JTBD domains.
+# Fields: id (slug), label (human-readable), description
+
+- id: approver
+  label: Approver
+  description: Has authority to approve or reject a submitted item; carries final decision responsibility.
+
+- id: reviewer
+  label: Reviewer
+  description: Evaluates submitted content for correctness, completeness, and policy compliance; non-binding opinion.
+
+- id: submitter
+  label: Submitter
+  description: Initiates and submits a workflow item (claim, application, form, etc.) on behalf of an entity.
+
+- id: auditor
+  label: Auditor
+  description: Reads audit trails, generates audit reports, and attests to control effectiveness; no mutation rights.
+
+- id: admin
+  label: Administrator
+  description: Manages configuration, user provisioning, and tenant settings; superuser within the application boundary.
+
+- id: supervisor
+  label: Supervisor
+  description: Oversees a team of submitters or reviewers; may escalate, reassign, or override decisions.
+
+- id: compliance_officer
+  label: Compliance Officer
+  description: Owns regulatory compliance posture; signs off on policy exceptions and regulatory filings.
+
+- id: legal_counsel
+  label: Legal Counsel
+  description: Provides legal review; approves contracts, regulatory responses, and litigation-related documents.
+
+- id: finance_controller
+  label: Finance Controller
+  description: Authorises financial transactions above defined thresholds; owns P&L integrity.
+
+- id: system_agent
+  label: System Agent
+  description: Non-human actor (automation, integration, AI) performing actions under a service identity.
+
+- id: data_steward
+  label: Data Steward
+  description: Governs data quality, classification, and retention policy; may invoke erasure requests.
+
+- id: notary
+  label: Notary / Witness
+  description: Attests to the authenticity of a signature or document; generates legally-binding witness records.

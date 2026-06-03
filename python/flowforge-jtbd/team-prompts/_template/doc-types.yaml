@@ -1,0 +1,5 @@
+# Per-domain doc-type extract — template (empty)
+# Copy this file to your domain directory and populate with doc types
+# drawn from registries/doc_types.yaml that apply to your domain.
+# Format: list of {id, label, domains}
+[]

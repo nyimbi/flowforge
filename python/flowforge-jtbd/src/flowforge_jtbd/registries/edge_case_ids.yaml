@@ -1,0 +1,43 @@
+# R-06 — Edge case identifier registry
+# Canonical edge case identifiers used in test fixtures and JTBD edge_cases sections.
+# Fields: id (slug), category, description
+
+- id: concurrent_submit
+  category: concurrency
+  description: Two actors submit the same workflow instance simultaneously; exactly one must win, the other must receive ConcurrentFireRejected.
+
+- id: expired_document
+  category: data_validity
+  description: A document referenced by the workflow has passed its expiry date at evaluation time; the engine must surface a validation error, not silently proceed.
+
+- id: duplicate_entity
+  category: idempotency
+  description: The same entity is submitted twice with identical dedup key; the second submission must be a no-op returning the existing instance ID.
+
+- id: partial_approval
+  category: approval_logic
+  description: A multi-approver gate receives fewer approvals than required; the workflow must wait, not advance or timeout prematurely.
+
+- id: rollback_mid_saga
+  category: saga_compensation
+  description: A saga step fails after two prior steps have committed; both committed steps must be compensated in reverse order.
+
+- id: tenant_boundary_crossing
+  category: tenancy
+  description: An actor from tenant A attempts to read or mutate an instance owned by tenant B; RLS must block the attempt and log a security event.
+
+- id: zero_amount_transaction
+  category: financial_invariant
+  description: A money port operation is invoked with a zero-value amount; the engine must reject it as a precondition violation.
+
+- id: stale_snapshot
+  category: optimistic_concurrency
+  description: A fire attempt presents a snapshot version that has been superseded by a concurrent commit; the engine must reject with SnapshotConflict and allow the caller to reload.
+
+- id: missing_required_field
+  category: schema_validation
+  description: Workflow payload omits a field marked required in the JTBD data_capture spec; the engine must reject at intake, before any state mutation.
+
+- id: notification_delivery_failure
+  category: notification_resilience
+  description: The notification port raises a transport error mid-fire; the outbox must still be committed and the fire must not roll back due to notification failure alone.

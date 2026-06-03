@@ -1,0 +1,33 @@
+# Insurance domain citation extract
+# Drawn from registries/citations.yaml — insurance-applicable entries only.
+# All text values must match registries/citations.yaml exactly.
+
+- id: naic_model_act_820
+  text: "NAIC Model Act #820 — Insurance Data Security Model Law"
+  domain: insurance
+  jurisdiction: US
+
+- id: naic_model_act_676
+  text: "NAIC Model Act #676 — Health Information Privacy Model Act"
+  domain: insurance
+  jurisdiction: US
+
+- id: solvency_ii_art44
+  text: "Directive 2009/138/EC (Solvency II), Article 44 — Risk management"
+  domain: insurance
+  jurisdiction: EU
+
+- id: gdpr_art32
+  text: "Regulation (EU) 2016/679, Article 32 — Security of processing"
+  domain: data_privacy
+  jurisdiction: EU
+
+- id: naic_orsa
+  text: "NAIC Own Risk and Solvency Assessment (ORSA) Guidance Manual (2017 edition)"
+  domain: insurance
+  jurisdiction: US
+
+- id: naic_model_act_785
+  text: "NAIC Model Act #785 — Privacy of Consumer Financial and Health Information Regulation"
+  domain: insurance
+  jurisdiction: US

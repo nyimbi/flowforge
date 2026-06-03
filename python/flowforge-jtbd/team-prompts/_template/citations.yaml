@@ -1,0 +1,5 @@
+# Per-domain citation extract — template (empty)
+# Copy this file to your domain directory and populate with citations
+# drawn from registries/citations.yaml that apply to your domain.
+# Format: list of {id, text, domain, jurisdiction}
+[]

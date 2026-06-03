@@ -1,0 +1,34 @@
+# Healthcare domain citation extract
+# Drawn from registries/citations.yaml — healthcare-applicable entries only,
+# plus healthcare-specific citations not yet in the cross-domain registry.
+# All text values must match registries/citations.yaml exactly where they appear there.
+
+- id: hipaa_45cfr164_312
+  text: "45 CFR § 164.312 — Technical safeguards (HIPAA Security Rule)"
+  domain: healthcare
+  jurisdiction: US
+
+- id: hipaa_45cfr164_502
+  text: "45 CFR § 164.502 — Uses and disclosures of protected health information (HIPAA Privacy Rule)"
+  domain: healthcare
+  jurisdiction: US
+
+- id: hipaa_45cfr164_524
+  text: "45 CFR § 164.524 — Access of individuals to protected health information (HIPAA Privacy Rule)"
+  domain: healthcare
+  jurisdiction: US
+
+- id: cms_9115_f
+  text: "CMS Interoperability and Patient Access Final Rule (CMS-9115-F), 85 FR 25510"
+  domain: healthcare
+  jurisdiction: US
+
+- id: cures_act_s4004
+  text: "21st Century Cures Act, Section 4004 — Information blocking prohibition"
+  domain: healthcare
+  jurisdiction: US
+
+- id: gdpr_art9
+  text: "Regulation (EU) 2016/679, Article 9 — Processing of special categories of personal data"
+  domain: data_privacy
+  jurisdiction: EU

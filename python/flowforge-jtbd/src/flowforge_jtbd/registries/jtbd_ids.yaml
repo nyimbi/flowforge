@@ -1,0 +1,23 @@
+# R-05 — Registered cross-domain JTBD IDs (reserved namespace)
+# Convention: <domain>.<verb>_<noun>
+# Fields: id, domain, description
+
+- id: insurance.process_claim
+  domain: insurance
+  description: End-to-end insurance claim intake, triage, assessment, and settlement workflow.
+
+- id: healthcare.prior_authorise_procedure
+  domain: healthcare
+  description: Clinical prior-authorisation request from provider to payer for a scheduled procedure.
+
+- id: banking.originate_wire_transfer
+  domain: banking
+  description: Initiate, validate, and settle a domestic or international wire transfer under UCC 4A.
+
+- id: government.renew_business_license
+  domain: government
+  description: Business license renewal application with fee payment, compliance check, and issuance.
+
+- id: hr.onboard_employee
+  domain: hr
+  description: New-hire onboarding workflow covering identity verification, document collection, system provisioning, and day-one readiness.

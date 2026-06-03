@@ -1,0 +1,51 @@
+# R-04 — Document type registry
+# Canonical document types referenced across all JTBD domains.
+# Fields: id (slug), label (human-readable), domains (list of applicable domain slugs)
+
+- id: identity_document
+  label: Identity Document
+  domains: [insurance, healthcare, banking, government, hr]
+
+- id: proof_of_income
+  label: Proof of Income
+  domains: [banking, insurance, government, hr]
+
+- id: contract
+  label: Contract / Agreement
+  domains: [insurance, banking, legal, hr, real_estate]
+
+- id: invoice
+  label: Invoice
+  domains: [banking, finance, insurance, procurement]
+
+- id: policy_document
+  label: Policy Document
+  domains: [insurance, healthcare, hr, government]
+
+- id: regulatory_filing
+  label: Regulatory Filing
+  domains: [insurance, banking, finance, healthcare, government]
+
+- id: audit_trail
+  label: Audit Trail
+  domains: [insurance, healthcare, banking, government, hr, finance]
+
+- id: medical_record
+  label: Medical Record
+  domains: [healthcare, insurance]
+
+- id: title_deed
+  label: Title Deed
+  domains: [real_estate, banking, legal]
+
+- id: tax_return
+  label: Tax Return
+  domains: [finance, banking, government, insurance]
+
+- id: claim_form
+  label: Claim Form
+  domains: [insurance, healthcare, government]
+
+- id: kyc_document
+  label: KYC Document (Know Your Customer)
+  domains: [banking, insurance, finance]

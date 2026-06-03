@@ -1,0 +1,35 @@
+# R-07 — SLA key conventions
+# Canonical SLA metric keys used in JTBD sla sections and monitoring rules.
+# Fields: key (exact string used in sla: blocks), unit, description
+
+- key: response_time_p99_seconds
+  unit: seconds
+  description: 99th-percentile end-to-end response time for the primary workflow entry endpoint.
+
+- key: approval_deadline_days
+  unit: days
+  description: Calendar days from submission to final approval decision; breach triggers escalation.
+
+- key: escalation_trigger_hours
+  unit: hours
+  description: Hours of inactivity at a pending gate before the supervisor role receives an escalation notification.
+
+- key: breach_notification_hours
+  unit: hours
+  description: Hours after an SLA breach is detected within which the compliance officer must be notified.
+
+- key: resolution_deadline_days
+  unit: days
+  description: Calendar days from intake to full resolution (all saga steps complete, all notifications sent).
+
+- key: soak_duration_seconds
+  unit: seconds
+  description: Minimum continuous uptime required after a deployment before the release is considered stable.
+
+- key: retry_backoff_max_seconds
+  unit: seconds
+  description: Maximum backoff interval for outbox retry attempts before a dead-letter event is emitted.
+
+- key: audit_flush_interval_seconds
+  unit: seconds
+  description: Maximum seconds between audit event batches being written to the audit sink.

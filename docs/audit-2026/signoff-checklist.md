@@ -637,6 +637,87 @@
     signer: Nyimbi Odero
     date: 2026-05-07
     commit_sha: 61a4aff
+
+- ticket: R-01-R-07
+  title: "Cross-domain registries: citations, channels, roles, doc_types, jtbd_ids, edge_case_ids, sla_keys"
+  findings: [R-01, R-02, R-03, R-04, R-05, R-06, R-07]
+  phase: v0.2.0
+  worker: worker-eng-1
+  status: signed
+  evidence:
+    files_changed:
+      - "python/flowforge-jtbd/src/flowforge_jtbd/registries/citations.yaml (NEW — R-01, 10 entries)"
+      - "python/flowforge-jtbd/src/flowforge_jtbd/registries/channels.yaml (NEW — R-02, 8 entries)"
+      - "python/flowforge-jtbd/src/flowforge_jtbd/registries/roles.yaml (NEW — R-03, 12 entries)"
+      - "python/flowforge-jtbd/src/flowforge_jtbd/registries/doc_types.yaml (NEW — R-04, 12 entries)"
+      - "python/flowforge-jtbd/src/flowforge_jtbd/registries/jtbd_ids.yaml (NEW — R-05, 5 entries, 4 domains)"
+      - "python/flowforge-jtbd/src/flowforge_jtbd/registries/edge_case_ids.yaml (NEW — R-06, 10 entries)"
+      - "python/flowforge-jtbd/src/flowforge_jtbd/registries/sla_keys.yaml (NEW — R-07, 8 entries)"
+      - "tests/audit_2026/test_R01_R07_registry_format.py (NEW — 7 format-validation tests)"
+    acceptance_tests:
+      - "test_registry_citations_canonical_format — green (R-01: id/text/domain/jurisdiction, 5 spot-checks)"
+      - "test_registry_channels_no_collisions — green (R-02: no duplicate ids, all 8 channels present)"
+      - "test_registry_roles_required_fields — green (R-03: id/label/description, >=10 roles)"
+      - "test_registry_doc_types_required_fields — green (R-04: id/label/domains, >=10 types)"
+      - "test_registry_jtbd_ids_namespaced — green (R-05: <domain>.<verb>_<noun> pattern, >=3 domains)"
+      - "test_registry_edge_cases_required_fields — green (R-06: id/category/description, >=8 entries)"
+      - "test_registry_sla_keys_required_fields — green (R-07: key/unit/description, >=6 entries)"
+    pre_deploy_checks:
+      - "uv run pytest tests/audit_2026/test_R01_R07_registry_format.py -q — 7 passed"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-06-03
+    note: "single-stakeholder approval pattern (see roles header)"
+  security_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-06-03
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-06-03
+
+- ticket: E-77p
+  title: "Per-domain team prompts scaffold (insurance, healthcare, banking)"
+  findings: [E-77p]
+  phase: v0.2.0
+  worker: worker-eng-1
+  status: signed
+  evidence:
+    files_changed:
+      - "python/flowforge-jtbd/team-prompts/registry.yaml (NEW — 3 active teams)"
+      - "python/flowforge-jtbd/team-prompts/_template/author.md (NEW — author prompt template)"
+      - "python/flowforge-jtbd/team-prompts/_template/reviewer.md (NEW — reviewer prompt template)"
+      - "python/flowforge-jtbd/team-prompts/_template/citations.yaml (NEW — empty citation template)"
+      - "python/flowforge-jtbd/team-prompts/_template/doc-types.yaml (NEW — empty doc-type template)"
+      - "python/flowforge-jtbd/team-prompts/insurance/author.md (NEW — NAIC/Solvency II scope)"
+      - "python/flowforge-jtbd/team-prompts/insurance/reviewer.md (NEW — citation gate + insurance-specific checks)"
+      - "python/flowforge-jtbd/team-prompts/insurance/citations.yaml (NEW — 6 insurance citations)"
+      - "python/flowforge-jtbd/team-prompts/insurance/doc-types.yaml (NEW — 10 insurance doc types)"
+      - "python/flowforge-jtbd/team-prompts/healthcare/author.md (NEW — HIPAA/CMS/45 CFR scope)"
+      - "python/flowforge-jtbd/team-prompts/healthcare/reviewer.md (NEW — PHI tagging + citation gate)"
+      - "python/flowforge-jtbd/team-prompts/healthcare/citations.yaml (NEW — 6 healthcare citations)"
+      - "python/flowforge-jtbd/team-prompts/healthcare/doc-types.yaml (NEW — 10 healthcare doc types)"
+      - "python/flowforge-jtbd/team-prompts/banking/author.md (NEW — UCC 4A/BSA/FFIEC scope)"
+      - "python/flowforge-jtbd/team-prompts/banking/reviewer.md (NEW — BSA/AML + citation gate)"
+      - "python/flowforge-jtbd/team-prompts/banking/citations.yaml (NEW — 7 banking citations)"
+      - "python/flowforge-jtbd/team-prompts/banking/doc-types.yaml (NEW — 10 banking doc types)"
+      - "tests/audit_2026/test_E_77p_team_prompts.py (NEW — 4 structural tests)"
+    acceptance_tests:
+      - "test_E_77p_team_prompts_present_for_first_three — green (all 4 files present for 3 domains)"
+      - "test_E_77p_registry_has_three_teams — green (registry.yaml: 3 teams, all required domains)"
+      - "test_E_77p_template_scaffold_present — green (_template/: author.md + reviewer.md present)"
+      - "test_E_77p_citation_extract_has_entries — green (all 3 domain citations.yaml non-empty)"
+    pre_deploy_checks:
+      - "uv run pytest tests/audit_2026/test_E_77p_team_prompts.py -q — 4 passed"
+  qa_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-06-03
+    note: "single-stakeholder approval pattern (see roles header)"
+  security_lead_signoff:
+    signer: Nyimbi Odero
+    date: 2026-06-03
+  release_manager_signoff:
+    signer: Nyimbi Odero
+    date: 2026-06-03
 ```
 
 (Architecture lead + QA lead signatures; checklist rows added per ticket as they enter exec.)

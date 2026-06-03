@@ -1,0 +1,43 @@
+# Insurance domain doc-type extract
+# Drawn from registries/doc_types.yaml — insurance-applicable entries only,
+# plus insurance-specific types not in the cross-domain registry.
+
+- id: policy_document
+  label: Policy Document
+  domains: [insurance]
+
+- id: claim_form
+  label: Claim Form
+  domains: [insurance, healthcare]
+
+- id: adjuster_report
+  label: Adjuster Report
+  domains: [insurance]
+
+- id: proof_of_loss
+  label: Proof of Loss Statement
+  domains: [insurance]
+
+- id: certificate_of_insurance
+  label: Certificate of Insurance
+  domains: [insurance]
+
+- id: endorsement
+  label: Policy Endorsement
+  domains: [insurance]
+
+- id: regulatory_filing
+  label: Regulatory Filing (DOI)
+  domains: [insurance, government]
+
+- id: reinsurance_treaty
+  label: Reinsurance Treaty
+  domains: [insurance]
+
+- id: audit_trail
+  label: Audit Trail
+  domains: [insurance, healthcare, banking, government]
+
+- id: identity_document
+  label: Identity Document
+  domains: [insurance, healthcare, banking, government, hr]

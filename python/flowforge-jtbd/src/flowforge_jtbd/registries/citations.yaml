@@ -1,0 +1,53 @@
+# R-01 — Canonical regulatory citation strings
+# Cross-domain registry of authoritative regulatory references.
+# Fields: id (slug), text (full citation string), domain, jurisdiction
+
+- id: gdpr_art32
+  text: "Regulation (EU) 2016/679, Article 32 — Security of processing"
+  domain: data_privacy
+  jurisdiction: EU
+
+- id: hipaa_45cfr164_312
+  text: "45 CFR § 164.312 — Technical safeguards (HIPAA Security Rule)"
+  domain: healthcare
+  jurisdiction: US
+
+- id: sox_s404
+  text: "Sarbanes-Oxley Act of 2002, Section 404 — Management assessment of internal controls"
+  domain: finance
+  jurisdiction: US
+
+- id: naic_model_act_820
+  text: "NAIC Model Act #820 — Insurance Data Security Model Law"
+  domain: insurance
+  jurisdiction: US
+
+- id: ucc_4a_202
+  text: "Uniform Commercial Code Article 4A-202 — Authorized and verified payment orders"
+  domain: banking
+  jurisdiction: US
+
+- id: hipaa_45cfr164_502
+  text: "45 CFR § 164.502 — Uses and disclosures of protected health information (HIPAA Privacy Rule)"
+  domain: healthcare
+  jurisdiction: US
+
+- id: gdpr_art17
+  text: "Regulation (EU) 2016/679, Article 17 — Right to erasure ('right to be forgotten')"
+  domain: data_privacy
+  jurisdiction: EU
+
+- id: bsa_31cfr1010
+  text: "31 CFR § 1010.311 — Filing obligations for reports of cash payments over $10,000 (BSA)"
+  domain: banking
+  jurisdiction: US
+
+- id: naic_model_act_676
+  text: "NAIC Model Act #676 — Health Information Privacy Model Act"
+  domain: insurance
+  jurisdiction: US
+
+- id: solvency_ii_art44
+  text: "Directive 2009/138/EC (Solvency II), Article 44 — Risk management"
+  domain: insurance
+  jurisdiction: EU

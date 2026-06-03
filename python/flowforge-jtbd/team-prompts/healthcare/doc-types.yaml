@@ -1,0 +1,43 @@
+# Healthcare domain doc-type extract
+# Drawn from registries/doc_types.yaml — healthcare-applicable entries only,
+# plus healthcare-specific types not in the cross-domain registry.
+
+- id: medical_record
+  label: Medical Record
+  domains: [healthcare, insurance]
+
+- id: explanation_of_benefits
+  label: Explanation of Benefits (EOB)
+  domains: [healthcare, insurance]
+
+- id: prior_authorization
+  label: Prior Authorization Request
+  domains: [healthcare, insurance]
+
+- id: clinical_notes
+  label: Clinical Notes
+  domains: [healthcare]
+
+- id: lab_result
+  label: Laboratory Result
+  domains: [healthcare]
+
+- id: prescription
+  label: Prescription / Medication Order
+  domains: [healthcare]
+
+- id: discharge_summary
+  label: Discharge Summary
+  domains: [healthcare]
+
+- id: hipaa_authorization
+  label: HIPAA Authorization Form
+  domains: [healthcare]
+
+- id: claim_form
+  label: Claim Form (CMS-1500 / UB-04)
+  domains: [healthcare, insurance]
+
+- id: identity_document
+  label: Identity Document
+  domains: [insurance, healthcare, banking, government, hr]

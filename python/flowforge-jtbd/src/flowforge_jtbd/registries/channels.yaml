@@ -1,0 +1,35 @@
+# R-02 — Notification channel taxonomy
+# Canonical list of notification delivery channels across all domains.
+# Fields: id (slug), label (human-readable), protocol
+
+- id: email
+  label: Email
+  protocol: smtp
+
+- id: sms
+  label: SMS
+  protocol: sms
+
+- id: in_app
+  label: In-App Notification
+  protocol: websocket
+
+- id: push
+  label: Push Notification
+  protocol: apns_fcm
+
+- id: slack
+  label: Slack
+  protocol: slack_webhook
+
+- id: webhook
+  label: Generic Webhook
+  protocol: https
+
+- id: fax
+  label: Fax
+  protocol: t38
+
+- id: postal_mail
+  label: Postal Mail
+  protocol: physical

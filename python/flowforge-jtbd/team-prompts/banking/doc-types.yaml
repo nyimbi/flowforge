@@ -1,0 +1,43 @@
+# Banking domain doc-type extract
+# Drawn from registries/doc_types.yaml — banking-applicable entries only,
+# plus banking-specific types not in the cross-domain registry.
+
+- id: wire_transfer_request
+  label: Wire Transfer Request
+  domains: [banking]
+
+- id: kyc_document
+  label: KYC Document (Know Your Customer)
+  domains: [banking, insurance, finance]
+
+- id: suspicious_activity_report
+  label: Suspicious Activity Report (SAR)
+  domains: [banking]
+
+- id: currency_transaction_report
+  label: Currency Transaction Report (CTR)
+  domains: [banking]
+
+- id: loan_agreement
+  label: Loan Agreement
+  domains: [banking, finance]
+
+- id: account_opening_form
+  label: Account Opening Form
+  domains: [banking]
+
+- id: proof_of_income
+  label: Proof of Income
+  domains: [banking, insurance, government, hr]
+
+- id: identity_document
+  label: Identity Document
+  domains: [insurance, healthcare, banking, government, hr]
+
+- id: audit_trail
+  label: Audit Trail
+  domains: [insurance, healthcare, banking, government, hr, finance]
+
+- id: regulatory_filing
+  label: Regulatory Filing
+  domains: [insurance, banking, finance, healthcare, government]
