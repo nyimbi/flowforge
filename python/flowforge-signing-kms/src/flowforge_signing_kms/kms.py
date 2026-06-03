@@ -219,6 +219,14 @@ class AwsKmsSigning:
 			classified = _aws_classify(exc)
 			if classified is exc:
 				raise
+			if isinstance(classified, KmsTransientError):
+				try:
+					from flowforge import config as _cfg
+					_c = _cfg.current()
+					if _c.metrics is not None:
+						_c.metrics.emit("flowforge_kms_transient_errors_total", 1.0, {})
+				except Exception:
+					pass
 			raise classified from exc
 
 	async def verify(self, payload: bytes, signature: bytes, key_id: str) -> bool:
@@ -357,6 +365,14 @@ class GcpKmsSigning:
 			classified = _gcp_classify(exc)
 			if classified is exc:
 				raise
+			if isinstance(classified, KmsTransientError):
+				try:
+					from flowforge import config as _cfg
+					_c = _cfg.current()
+					if _c.metrics is not None:
+						_c.metrics.emit("flowforge_kms_transient_errors_total", 1.0, {})
+				except Exception:
+					pass
 			raise classified from exc
 
 	async def verify(self, payload: bytes, signature: bytes, key_id: str) -> bool:

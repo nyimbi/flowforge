@@ -253,6 +253,13 @@ def _assert_known_table(name: str) -> "quoted_name":
 	``str``.
 	"""
 	if not isinstance(name, str) or not _IDENT_RE.match(name) or name not in _RLS_ALLOWLIST:
+		try:
+			from flowforge import config as _cfg
+			_c = _cfg.current()
+			if _c.metrics is not None:
+				_c.metrics.emit("flowforge_migration_table_allowlist_rejections_total", 1.0, {})
+		except Exception:
+			pass
 		raise ValueError(
 			f"refusing to splice unknown / malformed table name into RLS DDL: {name!r}"
 		)

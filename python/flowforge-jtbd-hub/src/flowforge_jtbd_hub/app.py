@@ -220,6 +220,13 @@ def create_app(
 
 		for valid in allowed_tokens:
 			if _hmac.compare_digest(offered, valid):
+				try:
+					from flowforge import config as _cfg
+					_c = _cfg.current()
+					if _c.metrics is not None:
+						_c.metrics.emit("flowforge_jtbd_hub_admin_legacy_token_uses_total", 1.0, {})
+				except Exception:
+					pass
 				return LEGACY_ADMIN_PRINCIPAL
 		return None
 

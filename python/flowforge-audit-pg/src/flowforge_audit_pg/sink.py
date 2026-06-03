@@ -63,6 +63,19 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncConnection
 from flowforge.ports.audit import Verdict
 from flowforge.ports.types import AuditEvent
 
+# ---------------------------------------------------------------------------
+# E-75: per-fix metric helpers (fire-and-forget, never raise)
+# ---------------------------------------------------------------------------
+
+def _emit_metric(name: str, value: float = 1.0, labels: dict | None = None) -> None:
+	try:
+		from flowforge import config as _cfg
+		_c = _cfg.current()
+		if _c.metrics is not None:
+			_c.metrics.emit(name, value, labels or {})
+	except Exception:
+		pass
+
 from .hash_chain import (
 	AuditRow,
 	canonical_json,
@@ -250,15 +263,22 @@ class PgAuditSink:
 		prev_sha = await self._chain_head(conn, event.tenant_id)
 		next_ordinal = await self._next_ordinal(conn, event.tenant_id)
 		row_sha = compute_row_sha(prev_sha, row_data)
-		await conn.execute(
-			ff_audit_events.insert().values(
-				event_id=event_id,
-				prev_sha256=prev_sha,
-				row_sha256=row_sha,
-				ordinal=next_ordinal,
-				**row_data,
+		try:
+			await conn.execute(
+				ff_audit_events.insert().values(
+					event_id=event_id,
+					prev_sha256=prev_sha,
+					row_sha256=row_sha,
+					ordinal=next_ordinal,
+					**row_data,
+				)
 			)
-		)
+		except Exception as _insert_exc:
+			# Catch UNIQUE(tenant_id, ordinal) violations (AU-01 regression).
+			_exc_name = type(_insert_exc).__name__
+			if "unique" in _exc_name.lower() or "integrity" in _exc_name.lower() or "unique" in str(_insert_exc).lower():
+				_emit_metric("flowforge_audit_record_unique_violation_total")
+			raise
 		return event_id
 
 	async def verify_chain(self, since: str | None = None) -> Verdict:
@@ -324,12 +344,14 @@ class PgAuditSink:
 					else:
 						prev_sha = None
 					if row.prev_sha256 != prev_sha:
+						_emit_metric("flowforge_audit_chain_breaks_total")
 						return Verdict.supported_bad(row.event_id, checked + 1)
 					canonical = canonical_json(_row_to_canonical_dict(row))
 					expected = hashlib.sha256(
 						((prev_sha or "") + canonical).encode()
 					).hexdigest()
 					if row.row_sha256 != expected:
+						_emit_metric("flowforge_audit_chain_breaks_total")
 						return Verdict.supported_bad(row.event_id, checked + 1)
 					prev_by_tenant[tenant_key] = row.row_sha256
 					checked += 1

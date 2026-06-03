@@ -319,12 +319,26 @@ def _validate_ws_origin(
 
 
 def _hub_for(websocket: WebSocket) -> WorkflowEventsHub:
-	"""Return the per-app hub if one is pinned to ``app.state``, else the default."""
+	"""Return the per-app hub if one is pinned to ``app.state``, else the default.
+
+	E-41 / FA-04: falling back to the module-level singleton means the WS
+	endpoint is NOT running inside a ``mount_routers``-wired app, which is
+	a cross-app hub leak.  Increment the metric so operators can detect
+	misconfigured deployments.
+	"""
 	app = getattr(websocket, "app", None)
 	if app is not None:
 		hub = getattr(app.state, "flowforge_events_hub", None)
 		if isinstance(hub, WorkflowEventsHub):
 			return hub
+	# Cross-app leak: no per-app hub found; emitting metric before falling back.
+	try:
+		from flowforge import config as _cfg
+		_c = _cfg.current()
+		if _c.metrics is not None:
+			_c.metrics.emit("flowforge_fastapi_hub_cross_app_leak_total", 1.0, {})
+	except Exception:
+		pass
 	return _hub
 
 

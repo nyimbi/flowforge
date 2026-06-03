@@ -104,6 +104,13 @@ def _resolve_keys(
         if os.environ.get("FLOWFORGE_ALLOW_INSECURE_DEFAULT") == "1":
             global _INSECURE_DEFAULT_USED_TOTAL
             _INSECURE_DEFAULT_USED_TOTAL += 1
+            try:
+                from flowforge import config as _cfg
+                _c = _cfg.current()
+                if _c.metrics is not None:
+                    _c.metrics.emit("flowforge_signing_secret_default_used_total", 1.0, {})
+            except Exception:
+                pass
             _logger.warning(
                 "!!! INSECURE DEFAULT IN USE !!! "
                 "HmacDevSigning fell back to the hard-coded legacy secret because "

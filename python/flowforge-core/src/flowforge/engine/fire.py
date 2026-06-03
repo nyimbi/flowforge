@@ -368,6 +368,13 @@ async def fire(
 	# a second caller must not bypass the gate by observing that temporary
 	# terminal state.
 	if instance.id in _FIRING_INSTANCES:
+		from .. import config as _cfg_m
+		_c = _cfg_m.current()
+		if _c.metrics is not None:
+			try:
+				_c.metrics.emit("flowforge_engine_fire_rejected_concurrent_total", 1.0, {})
+			except Exception:
+				pass
 		raise ConcurrentFireRejected(instance.id)
 	_FIRING_INSTANCES.add(instance.id)
 	try:

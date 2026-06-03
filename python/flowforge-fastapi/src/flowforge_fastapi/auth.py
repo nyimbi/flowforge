@@ -297,6 +297,13 @@ def issue_csrf_token(
 	insecure cookies cannot leak into a TLS-terminated host by default.
 	"""
 	if secure is False and not dev_mode:
+		try:
+			from flowforge import config as _cfg
+			_c = _cfg.current()
+			if _c.metrics is not None:
+				_c.metrics.emit("flowforge_fastapi_csrf_config_error_total", 1.0, {})
+		except Exception:
+			pass
 		raise ConfigError(
 			"issue_csrf_token: secure=False is only allowed when dev_mode=True. "
 			"In production the CSRF cookie MUST carry the Secure attribute."

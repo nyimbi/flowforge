@@ -409,6 +409,13 @@ class PackageRegistry:
 			# host-wide wiring) and the per-call ``audit_emit`` (for
 			# request-scoped overrides).  Failures must not block install —
 			# the install was authorised, the audit trail is observability.
+			try:
+				from flowforge import config as _cfg
+				_c = _cfg.current()
+				if _c.metrics is not None:
+					_c.metrics.emit("flowforge_jtbd_hub_package_install_unsigned_total", 1.0, {})
+			except Exception:
+				pass
 			await _emit_audit_event(
 				self._audit_hook,
 				audit_emit,

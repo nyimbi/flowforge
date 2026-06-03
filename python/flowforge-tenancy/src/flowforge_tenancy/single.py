@@ -31,6 +31,13 @@ _SET_CONFIG_SQL: str = "SELECT set_config(:k, :v, true)"
 
 def _validate_guc_key(key: str) -> None:
 	if not isinstance(key, str) or not _GUC_KEY_RE.match(key):
+		try:
+			from flowforge import config as _cfg
+			_c = _cfg.current()
+			if _c.metrics is not None:
+				_c.metrics.emit("flowforge_tenancy_invalid_guc_key_total", 1.0, {})
+		except Exception:
+			pass
 		raise ValueError(
 			f"invalid GUC key {key!r}: must match {_GUC_KEY_RE.pattern}"
 		)
