@@ -1,5 +1,68 @@
 # flowforge changelog
 
+## [0.2.0] — 2026-06-04
+
+> Second versioned release. Promotes the audit-2026 follow-on work
+> (E-73..E-82) to a stable minor. **Includes one SECURITY-BREAKING
+> change**: `forks_enabled` defaults to `False`; set
+> `FLOWFORGE_FORKS_ENABLED=1` to opt in to the parallel-fork engine.
+> All 16 shipping packages move from `0.1.x` to `0.2.0` in lockstep.
+
+- **[Capable, Reliable]** (E-79..E-82) Parallel fork engine. The
+  two-phase `fire()` entry point now supports parallel-region
+  execution when `FLOWFORGE_FORKS_ENABLED=1`. Fork tokens
+  (`make_fork_tokens`, `consume_token`, `all_branches_joined`) are
+  promoted from adapter-managed primitives to first-class engine
+  citizens; `RegionStillForkedError` and `TokenAlreadyConsumedError`
+  surface through the public API. The join-barrier collapse and
+  per-token transition dispatch (Phases 2–5 of the E-74 design) land
+  here; the host-managed pattern exercised in
+  `tests/integration/python/tests/test_parallel_regions.py` is
+  preserved unchanged. **SECURITY-BREAKING**: `forks_enabled`
+  defaults to `False`; set `FLOWFORGE_FORKS_ENABLED=1` to enable.
+
+- **[Capable]** (E-75) Per-fix metric emitters. Every audit-2026
+  finding now has a corresponding Prometheus counter emitted by the
+  engine and adapter layer at the point of enforcement (e.g.
+  `flowforge_concurrent_fire_rejected_total`,
+  `flowforge_signing_secret_default_used_total`). PromQL alert rules
+  in `tests/observability/promql/audit-2026.yml` updated from
+  `vector(0)` placeholders to real expressions feeding Alertmanager.
+  The `flowforge audit-2026 health` CLI command probes these counters
+  directly and exits non-zero on any required-probe failure.
+
+- **[Capable]** (E-76 / E-73) JWT extractor + per-user RBAC. New
+  `flowforge_fastapi.JwtPrincipalExtractor` validates RS256/ES256
+  bearer tokens against a JWKS endpoint (cached, with configurable
+  TTL). `flowforge_jtbd_hub.rbac` per-user permission gates
+  (PACKAGE_PUBLISH/UNPUBLISH/INSTALL, ADMIN_READ/WRITE, AUDIT_READ)
+  are now wired through the JWT extractor so hub routes enforce
+  per-user identity without a shared admin token. The E-58
+  `admin_token=` bridge remains available for one minor deprecation
+  window.
+
+- **[Capable]** (E-74 phase 1) `Instance.tokens`. `Instance` gains a
+  `tokens: dict[str, bool]` field tracking live fork-token states.
+  The field is copy-on-read consistent with the existing snapshot
+  semantics (E-61 / C-12); `flowforge.config.reset_to_fakes()`
+  resets the in-memory token store alongside the other port fakes.
+  Conformance invariant 9 (`test_invariant_9_parallel_fork_token_primitives_safe`)
+  is extended to cover the new field.
+
+- **[Capable]** (E-77 phase 1) Cross-domain registries scaffold.
+  `flowforge.registry` exposes a `CrossDomainRegistry` that lets
+  multiple JTBD bundles share entity references across domain
+  boundaries under a common tenant without RLS bypass. Initial
+  implementation covers read-only cross-domain queries; write
+  propagation follows in 0.3.x.
+
+- **[Capable]** (E-77p) Team-prompts scaffold. New
+  `flowforge_cli.commands.team_prompts` subcommand emits per-JTBD
+  prompt templates suitable for LLM-assisted triage and escalation
+  workflows. The generated prompts are deterministic (seeded from
+  `jtbd_id`), never call an LLM at generation time, and join the
+  byte-identical regen baseline.
+
 ## [0.3.0-engr.4b] — Wave 4b
 
 > Sixth and final wave of the v0.3.0 engineering track per

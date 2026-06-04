@@ -1,6 +1,6 @@
 [project]
 name = "flowforge-notify-multichannel"
-version = "0.1.0"
+version = "0.2.0"
 description = "flowforge-notify-multichannel — multichannel notification adapter (in-app, email, SMS, push, webhook, Slack)"
 readme = "README.md"
 license = "Apache-2.0"
@@ -32,7 +32,7 @@ classifiers = [
 
 requires-python = ">=3.11"
 dependencies = [
-    "flowforge>=0.1.0,<0.2.0",
+    "flowforge>=0.2.0,<0.3.0",
     "jinja2>=3.1",
     "babel>=2.14",
     "httpx>=0.27",

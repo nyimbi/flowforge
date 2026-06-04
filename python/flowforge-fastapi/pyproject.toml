@@ -1,6 +1,6 @@
 [project]
 name = "flowforge-fastapi"
-version = "0.1.0"
+version = "0.2.0"
 description = "flowforge-fastapi — FastAPI HTTP/WS adapters wrapping the flowforge engine, designer, and runtime routers"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -32,7 +32,7 @@ classifiers = [
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-	"flowforge>=0.1.0,<0.2.0",
+	"flowforge>=0.2.0,<0.3.0",
 	"fastapi>=0.115",
 	"starlette>=0.40",
 	"pydantic>=2.5",
