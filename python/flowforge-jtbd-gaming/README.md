@@ -1,12 +1,45 @@
-# flowforge-jtbd-gaming-starter
+# flowforge-jtbd-gaming
 
-> **Starter scaffold.** This package provides a domain-shaped scaffold for the
-> JTBD framework. The shipped JTBDs are illustrative skeletons — they
-> demonstrate the schema but are NOT operationally complete. For production
-> use, fill in real JTBDs (data_capture fields, edge_cases, documents_required,
-> approvals, notifications, sla, data_sensitivity, compliance) per your
-> operational reality. Strategic verticals with reviewed real content live in
-> the un-suffixed packages (insurance, healthcare, banking, gov, hr).
+Online gaming platform workflows covering player abuse investigation, ban appeals, tournament registration, virtual item disputes, payment refunds, community content moderation, compromised account recovery, virtual currency auditing, loot box regulation compliance, and cheating/hacking investigations.
 
+**Tier**: B (AI-authored, citation-anchored)
+**JTBDs**: 10
 
-This package will be filled in by E-48a follow-on work or a downstream consumer.
+## Included JTBDs
+
+| ID | Title |
+|---|---|
+| investigate_report | Investigate a player abuse report |
+| process_ban_appeal | Process a ban appeal |
+| register_tournament | Register and validate a tournament |
+| resolve_item_dispute | Resolve a virtual item dispute |
+| process_refund | Process a payment refund |
+| moderate_community | Moderate community content |
+| recover_account | Recover a compromised player account |
+| audit_virtual_currency | Audit virtual currency issuance |
+| comply_loot_box_regulation | Comply with loot box regulation |
+| investigate_cheating | Investigate cheating / hacking |
+
+## Usage
+
+```python
+from flowforge_jtbd_gaming import load_bundle
+
+bundle = load_bundle()
+# bundle["jtbds"] — list of JTBD dicts
+# bundle["project"] — domain metadata
+```
+
+## CLI
+
+```bash
+# Lint the bundle
+flowforge jtbd lint python/flowforge-jtbd-gaming/src/flowforge_jtbd_gaming/examples/bundle.json
+
+# Run the tutorial with this domain
+flowforge tutorial --domain gaming
+```
+
+## Citation accuracy
+
+This package is AI-authored. All regulatory citations are anchored to the R-01 registry snapshot at authoring time. Validate citations against current law before production use. Named SME review is pending.
