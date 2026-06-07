@@ -128,7 +128,11 @@ def jtbd_lock_cmd(
 		typer.echo(f"  project_package: {lf.project_package}")
 		typer.echo(f"  pins           : {len(lf.pins)}")
 		typer.echo(f"  body_hash      : {lf.body_hash}")
-		return
+		# When only --init was requested, stop here.  When both --init and --verify
+		# are passed, fall through so the freshly-written lockfile is validated
+		# in the same invocation (fix: early return silently skipped verification).
+		if not verify:
+			return
 
 	# --verify
 	lf_path = out or lockfile_path(bundle_path)

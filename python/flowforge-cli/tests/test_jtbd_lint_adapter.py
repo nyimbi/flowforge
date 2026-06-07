@@ -297,7 +297,9 @@ def test_lint_strict_promotes_warning_to_failure(write_bundle) -> None:
 	non_strict = runner.invoke(app, [
 		"jtbd", "lint", "--bundle", str(bundle_path),
 	])
-	assert non_strict.exit_code == 0
+	# Exit 2 = warnings present, non-strict (per jtbd_lint_cmd docstring:
+	# "0=clean, 1=errors or strict-warnings, 2=warnings-only").
+	assert non_strict.exit_code == 2
 	assert "actor_role_undeclared" in non_strict.output
 
 	strict = runner.invoke(app, [

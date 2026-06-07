@@ -71,6 +71,7 @@ def test_simulate_reports_unknown_matched_transition(
 		_wd: WorkflowDef,
 		_initial_context: dict[str, object],
 		_events: list[str],
+		_fault_specs=None,  # added in E-80/simulate.py for fault injection support
 	) -> list[tuple[str, FireResult]]:
 		return [("submit", result)]
 

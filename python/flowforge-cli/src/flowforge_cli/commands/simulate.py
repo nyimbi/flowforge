@@ -155,7 +155,15 @@ async def _run(
 			principal=principal,
 			tenant_id="sim-tenant",
 		)
-		return list(zip(events[:len(fault_result.fire_results)], fault_result.fire_results))
+		processed = len(fault_result.fire_results)
+		skipped = len(events) - processed
+		if skipped > 0:
+			# Surface the truncation so operators know the full sequence didn't run.
+			typer.echo(
+				f"  (note: {skipped} event(s) not processed — simulation reached terminal state after event {processed})",
+				err=True,
+			)
+		return list(zip(events[:processed], fault_result.fire_results))
 
 	instance = new_instance(wd, initial_context=initial_context)
 	results: list[tuple[str, FireResult]] = []

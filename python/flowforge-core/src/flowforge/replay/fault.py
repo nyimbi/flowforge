@@ -356,7 +356,10 @@ class FaultInjector:
 					"event": event,
 				},
 			)
-			fr.audit_events.append(audit_evt)
+			# Build a new list rather than mutating fr.audit_events in place —
+			# FireResult.audit_events may become immutable in a future hardening pass.
+			import dataclasses as _dc
+			fr = _dc.replace(fr, audit_events=list(fr.audit_events) + [audit_evt])
 			fault_evt = FaultEvent(
 				mode=FaultMode.webhook_5xx,
 				state=state,

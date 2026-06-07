@@ -208,7 +208,8 @@ def _run_cmd(args: list[str], *, cwd: Path, dry_run: bool) -> bool:
 
 def _flowforge() -> str:
 	"""Return the path to the current flowforge executable."""
-	return sys.executable.replace("python", "flowforge") if shutil.which("flowforge") else sys.argv[0]
+	ff = shutil.which("flowforge")
+	return ff if ff is not None else sys.argv[0]
 
 
 # ---------------------------------------------------------------------------
@@ -232,7 +233,7 @@ def _load_domain_bundle(domain: str) -> dict:
 	try:
 		import importlib
 		mod = importlib.import_module(pkg_name)
-	except ModuleNotFoundError:
+	except ImportError:  # catches ModuleNotFoundError + transitive ImportError
 		typer.echo(
 			f"error: domain package {pkg_name!r} is not installed.\n"
 			f"Install it with: uv pip install flowforge-jtbd-{domain}",
@@ -301,7 +302,11 @@ def tutorial_cmd(
 
 	bundle_path = out / "bundle.json"
 	generated_dir = out / "generated"
-	wf_path = generated_dir / "workflows" / "claim_intake" / "definition.json"
+	# Derive workflow path from the first JTBD id in the bundle — jtbd-generate
+	# names each workflow directory after its JTBD id, not always "claim_intake"
+	# (fix: wf_path was hardcoded and silently broken for --domain bundles).
+	_first_jtbd_id = ((bundle_data.get("jtbds") or [{}])[0]).get("id", "claim_intake")
+	wf_path = generated_dir / "workflows" / _first_jtbd_id / "definition.json"
 
 	errors: list[str] = []
 
@@ -318,12 +323,16 @@ def tutorial_cmd(
 					encoding="utf-8",
 				)
 			typer.echo(f"  ✓ Written: {bundle_path}")
+			# Derive summary from the actual bundle (fix: was hardcoded to claim_intake).
+			_fj = ((bundle_data.get("jtbds") or [{}])[0])
+			_actor = (_fj.get("actor") or {}).get("role", "?")
+			_dc_count = len(_fj.get("data_capture") or [])
+			_sla = _fj.get("sla") or {}
 			typer.echo("  Bundle fields:")
-			typer.echo("    - JTBD id       : claim_intake")
-			typer.echo("    - Actor         : policyholder (external)")
-			typer.echo("    - Data capture  : 5 fields (name, policy#, date, amount, desc)")
-			typer.echo("    - Approvals     : adjuster (1_of_1)")
-			typer.echo("    - SLA           : 4h breach, 75% warn")
+			typer.echo(f"    - JTBD id       : {_fj.get('id', '?')}")
+			typer.echo(f"    - Actor         : {_actor}")
+			typer.echo(f"    - Data capture  : {_dc_count} field(s)")
+			typer.echo(f"    - SLA breach    : {_sla.get('breach_seconds', '?')}s")
 
 		# ── Step 2: Generate ─────────────────────────────────────────────
 		elif n == 2:

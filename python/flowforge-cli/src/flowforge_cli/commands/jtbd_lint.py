@@ -216,14 +216,10 @@ def jtbd_lint_cmd(
 		typer.Option(
 			"--bundle",
 			dir_okay=False,
-			hidden=True,
-			help="JTBD bundle JSON/YAML (legacy option, prefer positional arg).",
+			help="JTBD bundle JSON/YAML (legacy alias for positional arg).",
 		),
 	] = None,
-	strict: Annotated[
-		bool,
-		typer.Option("--strict/--no-strict", help="Treat warnings as errors (exit 1)."),
-	] = False,
+	strict: bool = typer.Option(False, "--strict/--no-strict", help="Treat warnings as errors (exit 1)."),
 	domain: Annotated[
 		str | None,
 		typer.Option("--domain", help="Filter issues to a specific domain."),

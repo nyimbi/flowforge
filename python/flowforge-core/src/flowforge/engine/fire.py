@@ -450,7 +450,11 @@ async def _fire_locked(
 		from ._fork import consume_token, TokenAlreadyConsumedError, _has_token
 		from .fork_config import forks_enabled
 		if not forks_enabled():
-			raise ValueError("token_id requires FLOWFORGE_FORKS_ENABLED=1")
+			raise ValueError(
+				"token_id requires parallel-fork support to be enabled. "
+				"Set FLOWFORGE_FORKS_ENABLED=0 only to disable; "
+				"forks are on by default in v0.3.0+."
+			)
 		if not _has_token(instance.tokens, token_id):
 			_cfg = config.current()
 			if _cfg.metrics is not None:
