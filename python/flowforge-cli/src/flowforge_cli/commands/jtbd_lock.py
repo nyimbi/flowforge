@@ -148,8 +148,10 @@ def jtbd_lock_cmd(
 		raise typer.Exit(1) from exc
 
 	# Recompute body_hash of the on-disk lockfile body to confirm it wasn't tampered.
+	# A missing (None) body_hash is itself a tamper signal — lockfiles written by
+	# this tool always carry a hash (fix: truthy guard allowed null bypass).
 	on_disk_hash = existing.compute_body_hash()
-	if existing.body_hash and existing.body_hash != on_disk_hash:
+	if existing.body_hash is None or existing.body_hash != on_disk_hash:
 		typer.echo(
 			f"error: lockfile body_hash mismatch — stored={existing.body_hash} "
 			f"computed={on_disk_hash}",

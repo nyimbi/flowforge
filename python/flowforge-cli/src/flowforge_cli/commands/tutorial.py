@@ -248,7 +248,14 @@ def _load_domain_bundle(domain: str) -> dict:
 		)
 		raise typer.Exit(1)
 
-	bundle: dict = mod.load_bundle()
+	try:
+		bundle: dict = mod.load_bundle()
+	except Exception as exc:
+		typer.echo(
+			f"error: {pkg_name}.load_bundle() raised {type(exc).__name__}: {exc}",
+			err=True,
+		)
+		raise typer.Exit(1) from exc
 	return bundle
 
 
@@ -302,10 +309,10 @@ def tutorial_cmd(
 
 	bundle_path = out / "bundle.json"
 	generated_dir = out / "generated"
-	# Derive workflow path from the first JTBD id in the bundle — jtbd-generate
-	# names each workflow directory after its JTBD id, not always "claim_intake"
-	# (fix: wf_path was hardcoded and silently broken for --domain bundles).
-	_first_jtbd_id = ((bundle_data.get("jtbds") or [{}])[0]).get("id", "claim_intake")
+	# Extract first JTBD once; reused for wf_path and step-1 display fields
+	# (fix: was computed twice independently — double extraction could diverge).
+	_first_jtbd = ((bundle_data.get("jtbds") or [{}])[0])
+	_first_jtbd_id = _first_jtbd.get("id", "claim_intake")
 	wf_path = generated_dir / "workflows" / _first_jtbd_id / "definition.json"
 
 	errors: list[str] = []
@@ -323,13 +330,11 @@ def tutorial_cmd(
 					encoding="utf-8",
 				)
 			typer.echo(f"  ✓ Written: {bundle_path}")
-			# Derive summary from the actual bundle (fix: was hardcoded to claim_intake).
-			_fj = ((bundle_data.get("jtbds") or [{}])[0])
-			_actor = (_fj.get("actor") or {}).get("role", "?")
-			_dc_count = len(_fj.get("data_capture") or [])
-			_sla = _fj.get("sla") or {}
+			_actor = (_first_jtbd.get("actor") or {}).get("role", "?")
+			_dc_count = len(_first_jtbd.get("data_capture") or [])
+			_sla = _first_jtbd.get("sla") or {}
 			typer.echo("  Bundle fields:")
-			typer.echo(f"    - JTBD id       : {_fj.get('id', '?')}")
+			typer.echo(f"    - JTBD id       : {_first_jtbd_id}")
 			typer.echo(f"    - Actor         : {_actor}")
 			typer.echo(f"    - Data capture  : {_dc_count} field(s)")
 			typer.echo(f"    - SLA breach    : {_sla.get('breach_seconds', '?')}s")
@@ -361,12 +366,26 @@ def tutorial_cmd(
 		# ── Step 4: Simulate ─────────────────────────────────────────────
 		elif n == 4:
 			if wf_path.exists() or dry_run:
+				# Derive event names from the generated workflow definition so the
+				# tutorial works for any domain (fix: was hardcoded to "submit"/"approve"
+				# which are only correct for the built-in insurance starter).
+				_sim_events = ["submit", "approve"]
+				if wf_path.exists():
+					try:
+						_wf_raw = json.loads(wf_path.read_text(encoding="utf-8"))
+						_evs = [
+							t.get("event") for t in _wf_raw.get("transitions", [])
+							if t.get("event")
+						]
+						# Preserve order, deduplicate, cap at 2 for the tutorial.
+						_unique_evs = list(dict.fromkeys(_evs))
+						if _unique_evs:
+							_sim_events = _unique_evs[:2]
+					except Exception:
+						pass
+				_sim_args = [item for ev in _sim_events for item in ("--events", ev)]
 				ok = _run_cmd(
-					[
-						"flowforge", "simulate", "--def", str(wf_path),
-						"--events", "submit",
-						"--events", "approve",
-					],
+					["flowforge", "simulate", "--def", str(wf_path)] + _sim_args,
 					cwd=Path.cwd(),
 					dry_run=dry_run,
 				)

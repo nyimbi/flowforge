@@ -300,7 +300,10 @@ class FaultInjector:
 				matched_transition_id=None,
 				planned_effects=[],
 				new_state=state,
-				terminal=False,
+				# Reflect the actual terminal status of the CURRENT state so callers
+				# can correctly detect end-of-workflow even when a fault blocks the
+				# final transition (fix: was hardcoded False regardless of state).
+				terminal=_is_terminal(wd, state),
 				audit_events=[audit_evt],
 				outbox_envelopes=[],
 			)
@@ -358,8 +361,7 @@ class FaultInjector:
 			)
 			# Build a new list rather than mutating fr.audit_events in place —
 			# FireResult.audit_events may become immutable in a future hardening pass.
-			import dataclasses as _dc
-			fr = _dc.replace(fr, audit_events=list(fr.audit_events) + [audit_evt])
+			fr = dataclasses.replace(fr, audit_events=list(fr.audit_events) + [audit_evt])
 			fault_evt = FaultEvent(
 				mode=FaultMode.webhook_5xx,
 				state=state,

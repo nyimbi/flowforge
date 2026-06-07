@@ -90,6 +90,14 @@ def simulate_cmd(
 	results = asyncio.run(_run(wd, initial_context, flat_events, fault_specs))
 	dt = time.perf_counter() - t0
 
+	# Surface fault-induced truncation here (caller level) not inside _run().
+	if fault_specs and len(results) < len(flat_events):
+		skipped = len(flat_events) - len(results)
+		typer.echo(
+			f"  (note: {skipped} event(s) not processed — simulation reached terminal state after event {len(results)})",
+			err=True,
+		)
+
 	# Print per §10.4 sample structure.
 	for idx, (event_name, fr) in enumerate(results, start=1):
 		typer.echo(f"event {idx}/{len(results)}: {event_name}")
@@ -156,13 +164,6 @@ async def _run(
 			tenant_id="sim-tenant",
 		)
 		processed = len(fault_result.fire_results)
-		skipped = len(events) - processed
-		if skipped > 0:
-			# Surface the truncation so operators know the full sequence didn't run.
-			typer.echo(
-				f"  (note: {skipped} event(s) not processed — simulation reached terminal state after event {processed})",
-				err=True,
-			)
 		return list(zip(events[:processed], fault_result.fire_results))
 
 	instance = new_instance(wd, initial_context=initial_context)
