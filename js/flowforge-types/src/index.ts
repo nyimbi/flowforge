@@ -34,4 +34,7 @@ export type {
   Approval,
   Approval1,
   Notification,
+  // v0.4.0 E2 hand-authored summary types
+  JtbdSummary,
+  JtbdBundle,
 } from "./jtbd.js";

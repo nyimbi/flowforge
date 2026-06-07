@@ -1,3 +1,6 @@
+export { JobMap } from "./JobMap/JobMap.js";
+export type { JobMapProps, JtbdSummaryItem } from "./JobMap/JobMap.js";
+
 export { Canvas } from "./Canvas.js";
 export type { CanvasProps } from "./Canvas.js";
 export { CommentThread, extractMentions } from "./CommentThread.js";

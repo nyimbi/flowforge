@@ -1,6 +1,28 @@
 // Generated from jtbd-1.0.schema.json — do not edit by hand.
 // Run `pnpm gen` to regenerate.
 
+// ── Hand-authored summary types (v0.4.0 E2) ──────────────────────────────────
+
+/** Lightweight projection of a JTBD used in listing / JobMap views. */
+export interface JtbdSummary {
+	id: string;
+	title: string;
+	actor: { role: string };
+	domain: string;
+}
+
+/** Minimal bundle envelope used when the full JTBDBundle schema is not needed. */
+export interface JtbdBundle {
+	project: {
+		name: string;
+		package: string;
+		domain: string;
+	};
+	jtbds: JtbdSummary[];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export type Approval = {
   role: string;
   policy: "1_of_1" | "2_of_2" | "n_of_m" | "authority_tier";
