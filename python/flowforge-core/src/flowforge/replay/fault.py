@@ -79,11 +79,14 @@ class FaultSpec:
 	  meaning "any state".
 	*target_event* — event name to scope the injection to, or ``None``
 	  meaning "any event".
+	*target_transition_id* — transition id to scope the injection to, or
+	  ``None`` meaning "any transition".
 	"""
 
 	mode: FaultMode
 	target_state: str | None = None
 	target_event: str | None = None
+	target_transition_id: str | None = None
 
 
 @dataclasses.dataclass
@@ -162,6 +165,63 @@ class FaultInjector:
 	def __init__(self, specs: list[FaultSpec]) -> None:
 		assert isinstance(specs, list), "specs must be a list of FaultSpec"
 		self.specs = specs
+
+	def register(self, spec: FaultSpec) -> None:
+		"""Append *spec* to the active fault list."""
+		assert isinstance(spec, FaultSpec), "spec must be a FaultSpec"
+		self.specs.append(spec)
+
+	def should_inject(self, state: str, transition_id: str | None = None) -> "FaultSpec | None":
+		"""Return the first matching FaultSpec for the given *state* / *transition_id*, or ``None``.
+
+		Matching rules:
+		- ``target_state`` must equal *state* or be ``None``.
+		- ``target_transition_id`` must equal *transition_id* or be ``None``.
+		- ``target_event`` is not evaluated here (use :meth:`_active_specs` for full matching).
+		"""
+		for s in self.specs:
+			if s.target_state is not None and s.target_state != state:
+				continue
+			if s.target_transition_id is not None and s.target_transition_id != transition_id:
+				continue
+			return s
+		return None
+
+	def apply_to_context(self, ctx: dict, fault: "FaultSpec") -> dict:
+		"""Return a copy of *ctx* with fault-mode annotations injected.
+
+		The returned dict is a shallow copy of *ctx* with a ``__fault__`` key
+		added containing the fault mode and any extra context keys the mode
+		injects (e.g. ``sla_breach`` injects ``sla_seconds_remaining=0``).
+		The original *ctx* is not mutated.
+		"""
+		assert isinstance(ctx, dict), "ctx must be a dict"
+		assert isinstance(fault, FaultSpec), "fault must be a FaultSpec"
+		result = dict(ctx)
+		extras: dict = {}
+		if fault.mode == FaultMode.sla_breach:
+			extras["sla_seconds_remaining"] = 0
+			extras["sla_breached"] = True
+		elif fault.mode == FaultMode.doc_missing:
+			extras["documents_present"] = False
+		elif fault.mode == FaultMode.delegation_expired:
+			extras["delegation_valid"] = False
+		elif fault.mode == FaultMode.partner_404:
+			extras["partner_available"] = False
+		elif fault.mode == FaultMode.webhook_5xx:
+			extras["webhook_status_code"] = 500
+		elif fault.mode == FaultMode.gate_fail:
+			extras["__gate_forced_fail__"] = True
+		elif fault.mode == FaultMode.lookup_oracle_bypass:
+			extras["__lookup_oracle_bypass__"] = True
+		result["__fault__"] = {
+			"mode": fault.mode.value,
+			"target_state": fault.target_state,
+			"target_event": fault.target_event,
+			"target_transition_id": fault.target_transition_id,
+			**extras,
+		}
+		return result
 
 	def _active_specs(self, state: str, event: str) -> list[FaultSpec]:
 		return [

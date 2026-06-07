@@ -8,11 +8,14 @@ and returns a result. Used by the JTBD generator's tests, the
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import TYPE_CHECKING, Any, Iterable
 
 from ..dsl import WorkflowDef
 from ..engine.fire import FireResult, fire, new_instance
 from ..ports.types import AuditEvent, OutboxEnvelope, Principal
+
+if TYPE_CHECKING:
+	from .fault import FaultSpec
 
 
 @dataclass
@@ -32,8 +35,36 @@ async def simulate(
 	events: Iterable[tuple[str, dict[str, Any]]] | None = None,
 	tenant_id: str = "sim-tenant",
 	principal: Principal | None = None,
+	faults: "list[FaultSpec] | None" = None,
 ) -> SimulationResult:
-	"""Run *events* against a fresh instance of *wd*."""
+	"""Run *events* against a fresh instance of *wd*.
+
+	*faults* is an optional list of :class:`~flowforge.replay.fault.FaultSpec`
+	objects. When provided a :class:`~flowforge.replay.fault.FaultInjector` is
+	constructed and used in place of the bare :func:`~flowforge.engine.fire.fire`
+	call so fault injection is applied before each guard evaluation.
+	"""
+
+	if faults:
+		from .fault import FaultInjector
+		injector = FaultInjector(list(faults))
+		fault_result = await injector.simulate(
+			wd,
+			initial_context=initial_context,
+			events=events,
+			tenant_id=tenant_id,
+			principal=principal,
+		)
+		# Re-wrap as SimulationResult for API compatibility.
+		result = SimulationResult(
+			terminal_state=fault_result.terminal_state,
+			created_entities=fault_result.created_entities,
+			history=fault_result.history,
+			audit_events=fault_result.audit_events,
+			outbox_envelopes=fault_result.outbox_envelopes,
+			fire_results=fault_result.fire_results,
+		)
+		return result
 
 	instance = new_instance(wd, initial_context=initial_context)
 	result = SimulationResult(terminal_state=instance.state)

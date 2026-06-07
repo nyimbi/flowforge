@@ -14,12 +14,35 @@ import typer
 from flowforge.dsl import WorkflowDef
 from flowforge.engine.fire import FireResult, fire, new_instance
 from flowforge.ports.types import Principal
+from flowforge.replay.fault import FaultMode, FaultSpec
 
 from .._io import load_structured
 
 
 def register(app: typer.Typer) -> None:
 	app.command("simulate", help="Walk a workflow with events and print the plan/commit log.")(simulate_cmd)
+
+
+def _parse_fault(raw: str) -> FaultSpec:
+	"""Parse ``<mode>:<state>`` into a :class:`FaultSpec`.
+
+	Examples::
+
+	    gate_fail:review          → FaultSpec(mode=FaultMode.gate_fail, target_state="review")
+	    sla_breach:approval       → FaultSpec(mode=FaultMode.sla_breach, target_state="approval")
+	    webhook_5xx               → FaultSpec(mode=FaultMode.webhook_5xx, target_state=None)
+	"""
+	parts = raw.split(":", 1)
+	mode_str = parts[0].strip()
+	target_state = parts[1].strip() if len(parts) > 1 else None
+	try:
+		mode = FaultMode(mode_str)
+	except ValueError:
+		valid = ", ".join(m.value for m in FaultMode)
+		raise typer.BadParameter(
+			f"Unknown fault mode {mode_str!r}. Valid modes: {valid}"
+		)
+	return FaultSpec(mode=mode, target_state=target_state or None)
 
 
 def simulate_cmd(
@@ -31,6 +54,15 @@ def simulate_cmd(
 		[],
 		"--events",
 		help="Event names to fire in order. Repeatable or comma-separated.",
+	),
+	fault: list[str] = typer.Option(
+		[],
+		"--fault",
+		help=(
+			"Inject a fault. Format: <mode>:<state> (state optional). "
+			"Repeatable. E.g. --fault gate_fail:review --fault sla_breach:approval. "
+			f"Valid modes: {', '.join(m.value for m in FaultMode)}."
+		),
 	),
 ) -> None:
 	"""Run a deterministic simulation against *def_path*."""
@@ -45,9 +77,17 @@ def simulate_cmd(
 		initial_context = dict(ctx_raw)
 
 	flat_events = _flatten_events(events)
+	fault_specs = [_parse_fault(f) for f in fault]
+
+	if fault_specs:
+		typer.echo(f"fault injection: {len(fault_specs)} fault(s) registered")
+		for fs in fault_specs:
+			scope = f" on state={fs.target_state!r}" if fs.target_state else " (any state)"
+			typer.echo(f"  {fs.mode.value}{scope}")
+		typer.echo("")
 
 	t0 = time.perf_counter()
-	results = asyncio.run(_run(wd, initial_context, flat_events))
+	results = asyncio.run(_run(wd, initial_context, flat_events, fault_specs))
 	dt = time.perf_counter() - t0
 
 	# Print per §10.4 sample structure.
@@ -78,6 +118,13 @@ def simulate_cmd(
 	typer.echo(f"simulation complete in {dt:.2f}s")
 	typer.echo(f"audit events: {audit_total}")
 	typer.echo(f"outbox rows: {outbox_total}")
+	if fault_specs:
+		fault_audit = sum(
+			1 for _, fr in results
+			for ae in fr.audit_events
+			if ae.kind.startswith("wf.fault.")
+		)
+		typer.echo(f"fault injections fired: {fault_audit}")
 
 
 def _flatten_events(raw: list[str]) -> list[str]:
@@ -94,9 +141,23 @@ async def _run(
 	wd: WorkflowDef,
 	initial_context: dict[str, Any],
 	events: list[str],
+	fault_specs: list[FaultSpec] | None = None,
 ) -> list[tuple[str, FireResult]]:
-	instance = new_instance(wd, initial_context=initial_context)
 	principal = Principal(user_id="sim-user", roles=("simulator",), is_system=True)
+
+	if fault_specs:
+		from flowforge.replay.fault import FaultInjector
+		injector = FaultInjector(list(fault_specs))
+		fault_result = await injector.simulate(
+			wd,
+			initial_context=initial_context,
+			events=[(e, {}) for e in events],
+			principal=principal,
+			tenant_id="sim-tenant",
+		)
+		return list(zip(events[:len(fault_result.fire_results)], fault_result.fire_results))
+
+	instance = new_instance(wd, initial_context=initial_context)
 	results: list[tuple[str, FireResult]] = []
 	for event_name in events:
 		fr = await fire(

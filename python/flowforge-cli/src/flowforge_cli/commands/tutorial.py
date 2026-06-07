@@ -220,6 +220,37 @@ def register(app: typer.Typer) -> None:
 	app.command("tutorial", help="Interactive 5-step walkthrough from JTBD bundle to simulated workflow.")(tutorial_cmd)
 
 
+def _load_domain_bundle(domain: str) -> dict:
+	"""Load ``examples/bundle.yaml`` from ``flowforge-jtbd-<domain>`` package.
+
+	Imports the domain package's ``load_bundle()`` helper (the E-51 / D-03
+	standard), converts the result to the tutorial-compatible dict structure,
+	and returns it.  Raises :exc:`typer.Exit` with a helpful message on any
+	``ImportError`` or ``ModuleNotFoundError``.
+	"""
+	pkg_name = f"flowforge_jtbd_{domain.replace('-', '_')}"
+	try:
+		import importlib
+		mod = importlib.import_module(pkg_name)
+	except ModuleNotFoundError:
+		typer.echo(
+			f"error: domain package {pkg_name!r} is not installed.\n"
+			f"Install it with: uv pip install flowforge-jtbd-{domain}",
+			err=True,
+		)
+		raise typer.Exit(1)
+
+	if not hasattr(mod, "load_bundle"):
+		typer.echo(
+			f"error: {pkg_name}.load_bundle() not found — package does not follow E-51 standard.",
+			err=True,
+		)
+		raise typer.Exit(1)
+
+	bundle: dict = mod.load_bundle()
+	return bundle
+
+
 def tutorial_cmd(
 	out: Annotated[
 		Path,
@@ -237,6 +268,17 @@ def tutorial_cmd(
 		bool,
 		typer.Option("--dry-run", help="Show steps without writing files or running commands."),
 	] = False,
+	domain: Annotated[
+		str | None,
+		typer.Option(
+			"--domain",
+			help=(
+				"Load the tutorial bundle from an installed flowforge-jtbd-<domain> package "
+				"instead of the built-in insurance example. "
+				"E.g. --domain insurance loads flowforge_jtbd_insurance.load_bundle()."
+			),
+		),
+	] = None,
 ) -> None:
 	"""Walk through the five tutorial steps end-to-end."""
 
@@ -244,6 +286,13 @@ def tutorial_cmd(
 	typer.echo(f"\nOutput directory: {out.resolve()}")
 	if dry_run:
 		typer.echo("  (dry-run mode — no files will be written)")
+
+	# Determine bundle data: domain override or built-in starter.
+	if domain is not None:
+		bundle_data = _load_domain_bundle(domain)
+		typer.echo(f"  domain bundle: flowforge-jtbd-{domain}")
+	else:
+		bundle_data = _STARTER_BUNDLE
 
 	selected_steps = _STEPS if step is None else [s for s in _STEPS if s["n"] == step]
 	if not selected_steps:
@@ -265,7 +314,7 @@ def tutorial_cmd(
 			if not dry_run:
 				out.mkdir(parents=True, exist_ok=True)
 				bundle_path.write_text(
-					json.dumps(_STARTER_BUNDLE, indent=2),
+					json.dumps(bundle_data, indent=2),
 					encoding="utf-8",
 				)
 			typer.echo(f"  ✓ Written: {bundle_path}")

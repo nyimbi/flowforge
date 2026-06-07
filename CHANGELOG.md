@@ -1,5 +1,51 @@
 # flowforge changelog
 
+## [0.5.0] — 2026-06-07
+
+> Fifth versioned release. v0.5.0 E3 Python engineering sprint: FaultInjector
+> (7 modes), WorkflowDiffer, `flowforge simulate --fault`, `flowforge tutorial
+> --domain`, and 30 domain JTBD bundles shipped. All 16 strategic packages move
+> from `0.4.0` to `0.5.0` in lockstep.
+
+- **[Debugger]** (E-12) `FaultInjector` in `flowforge.replay.fault` — seven
+  canonical fault modes for JTBD debugger simulation:
+  `gate_fail`, `doc_missing`, `sla_breach`, `delegation_expired`,
+  `webhook_5xx`, `partner_404`, `lookup_oracle_bypass`.
+  New public API: `FaultInjector.register(spec)`,
+  `FaultInjector.should_inject(state, transition_id) -> FaultSpec | None`,
+  `FaultInjector.apply_to_context(ctx, fault) -> dict`.
+  `FaultSpec` gains `target_transition_id: str | None` field for
+  transition-scoped fault injection.
+
+- **[Debugger]** (E-13) `WorkflowDiffer` in `flowforge.compiler.diff` — fully
+  implemented structural diff between two `WorkflowDef` versions.
+  `diff_workflows(old, new) -> WorkflowDiff` surfaces added/removed/changed
+  states and transitions. `WorkflowDiff.summary()` emits a human-readable
+  multi-line diff log. `diff_workflow_dicts()` convenience wrapper validates
+  raw dicts before diffing.
+
+- **[Capable]** (E3 CLI) `flowforge simulate --fault <mode>:<state>` —
+  inject fault modes into a simulation run from the CLI. Repeatable flag;
+  format is `<mode>:<state>` where `<state>` is optional (omit to match any
+  state). Example: `--fault gate_fail:review --fault sla_breach:approval`.
+  All 7 fault modes are accepted; unknown modes produce a `BadParameter` error
+  with the valid list.
+
+- **[Capable]** (E3 CLI) `flowforge tutorial --domain <domain>` — load the
+  tutorial bundle from an installed `flowforge-jtbd-<domain>` package instead
+  of the built-in insurance example. Uses the E-51 / D-03 `load_bundle()`
+  standard. Emits a helpful install hint on `ModuleNotFoundError`.
+
+- **[Capable]** (E3 domains) 30 domain JTBD bundle packages shipped under
+  `python/flowforge-jtbd-<domain>/`. Each exposes `load_bundle()` returning
+  the `examples/bundle.yaml` data. Packages remain `package = false` (E-46
+  gate) until E-48a/E-48b review completes.
+
+- **[Simulator]** `flowforge.replay.simulator.simulate()` gains `faults:
+  list[FaultSpec] | None = None` parameter. When faults are provided,
+  delegates to `FaultInjector.simulate()` and re-wraps the result as a
+  `SimulationResult` for API compatibility.
+
 ## [0.4.0] — 2026-06-07
 
 > Fourth versioned release. v0.4.0 E2 Python engineering sprint: AI-assisted JTBD

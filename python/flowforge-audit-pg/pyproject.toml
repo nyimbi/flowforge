@@ -1,6 +1,6 @@
 [project]
 name = "flowforge-audit-pg"
-version = "0.4.0"
+version = "0.5.0"
 description = "flowforge-audit-pg — PostgreSQL AuditSink with sha256 hash chain"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -32,7 +32,7 @@ classifiers = [
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "flowforge>=0.4.0,<0.5.0",
+    "flowforge>=0.5.0,<0.6.0",
     "sqlalchemy>=2.0",
     "aiosqlite>=0.19",
 ]

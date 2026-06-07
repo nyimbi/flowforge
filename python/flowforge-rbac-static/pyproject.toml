@@ -1,6 +1,6 @@
 [project]
 name = "flowforge-rbac-static"
-version = "0.4.0"
+version = "0.5.0"
 description = "flowforge-rbac-static — RBAC resolver reading roles+permissions from YAML/JSON"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -32,7 +32,7 @@ classifiers = [
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "flowforge>=0.4.0,<0.5.0",
+    "flowforge>=0.5.0,<0.6.0",
     "pyyaml>=6",
 ]
 

@@ -1,6 +1,6 @@
 [project]
 name = "flowforge-jtbd-hub"
-version = "0.4.0"
+version = "0.5.0"
 description = "flowforge-jtbd-hub — public registry service for signed JTBD packages"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -32,9 +32,9 @@ classifiers = [
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "flowforge>=0.4.0,<0.5.0",
-    "flowforge-jtbd>=0.4.0,<0.5.0",
-    "flowforge-signing-kms>=0.4.0,<0.5.0",
+    "flowforge>=0.5.0,<0.6.0",
+    "flowforge-jtbd>=0.5.0,<0.6.0",
+    "flowforge-signing-kms>=0.5.0,<0.6.0",
     "fastapi>=0.115",
     "pydantic>=2.5",
     "pyyaml>=6.0",
