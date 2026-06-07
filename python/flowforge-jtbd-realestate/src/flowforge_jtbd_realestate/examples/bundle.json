@@ -1,0 +1,434 @@
+{
+  "project": {
+    "name": "realestate-example",
+    "package": "realestate_example",
+    "domain": "real-estate",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD"]
+  },
+  "shared": {
+    "roles": ["listing_agent", "buyer_agent", "escrow_officer", "title_examiner", "inspector", "loan_officer", "property_manager", "tenant", "landlord"],
+    "permissions": [
+      "listing.create", "listing.publish", "offer.submit", "offer.review",
+      "escrow.open", "escrow.close", "title.search", "inspection.schedule",
+      "lease.renew", "maintenance.create", "dispute.open"
+    ]
+  },
+  "jtbds": [
+    {
+      "id": "list_property",
+      "title": "List a property for sale",
+      "actor": {"role": "listing_agent"},
+      "situation": "a seller engages a listing agent and the agent must prepare and publish a compliant MLS listing with all required disclosures",
+      "motivation": "maximise exposure to qualified buyers while meeting MLS rules and disclosure obligations before the property goes live",
+      "outcome": "MLS listing published, seller disclosures signed, and listing agreement executed",
+      "success_criteria": [
+        "listing agreement signed by seller before any marketing activity",
+        "all mandatory disclosures attached and countersigned by seller",
+        "MLS listing published within 2 business days of photography completion",
+        "listing price supported by documented CMA"
+      ],
+      "data_capture": [
+        {"id": "property_address",   "kind": "address",  "label": "Property address",          "required": true,  "pii": false},
+        {"id": "assessor_parcel",    "kind": "text",     "label": "APN / parcel number",       "required": true,  "pii": false},
+        {"id": "list_price",         "kind": "money",    "label": "List price (USD)",          "required": true,  "pii": false},
+        {"id": "seller_name",        "kind": "text",     "label": "Seller legal name",         "required": true,  "pii": true},
+        {"id": "listing_agreement",  "kind": "signature","label": "Listing agreement (signed)","required": true,  "pii": true},
+        {"id": "disclosure_package", "kind": "file",     "label": "Seller disclosure package", "required": true,  "pii": false},
+        {"id": "cma_report",         "kind": "file",     "label": "Comparative market analysis","required": true, "pii": false},
+        {"id": "mls_photos",         "kind": "file",     "label": "MLS-ready photographs",    "required": true,  "pii": false},
+        {"id": "hoa_docs",           "kind": "file",     "label": "HOA documents (if applicable)","required": false,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "title_defect_found",    "condition": "preliminary title report shows encumbrances", "handle": "escalate"},
+        {"id": "below_market_price",    "condition": "list_price < 80% of CMA midpoint",            "handle": "escalate"},
+        {"id": "disclosure_unsigned",   "condition": "disclosure_package not countersigned",        "handle": "reject"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "listing_agent"},
+        {"trigger": "approved",    "channel": "email",  "audience": "listing_agent"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "listing_agent"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 172800},
+      "metrics": ["days_on_market", "list_to_close_days", "price_reduction_rate"],
+      "compliance": ["NAR-code-of-ethics", "state-RE-disclosure-law", "MLS-rules"],
+      "data_sensitivity": ["pii", "customer-data"]
+    },
+    {
+      "id": "review_offer",
+      "title": "Review and respond to a purchase offer",
+      "actor": {"role": "listing_agent"},
+      "situation": "a buyer submits a written purchase offer and the seller must review terms, counter, accept, or reject within the offer expiry window",
+      "motivation": "maximise seller net proceeds while securing a buyer with the financial strength to close",
+      "outcome": "offer accepted with countersign, countered with revised terms, or rejected with documented rationale",
+      "success_criteria": [
+        "seller response delivered before offer expiry",
+        "financing pre-approval or proof of funds reviewed before acceptance",
+        "all addenda and contingency dates explicitly agreed in writing"
+      ],
+      "data_capture": [
+        {"id": "offer_ref",          "kind": "text",   "label": "Offer reference ID",         "required": true,  "pii": false},
+        {"id": "buyer_name",         "kind": "text",   "label": "Buyer legal name",           "required": true,  "pii": true},
+        {"id": "offer_price",        "kind": "money",  "label": "Offer price (USD)",          "required": true,  "pii": false},
+        {"id": "earnest_money",      "kind": "money",  "label": "Earnest money deposit",      "required": true,  "pii": false},
+        {"id": "financing_type",     "kind": "enum",   "label": "Financing type",             "required": true,  "pii": false},
+        {"id": "pre_approval_doc",   "kind": "file",   "label": "Pre-approval letter / POF",  "required": true,  "pii": false},
+        {"id": "close_of_escrow_date","kind":"date",   "label": "Proposed COE date",          "required": true,  "pii": false},
+        {"id": "contingencies",      "kind": "textarea","label": "Contingencies list",        "required": true,  "pii": false},
+        {"id": "seller_response",    "kind": "enum",   "label": "Seller response (Accept/Counter/Reject)","required": true,"pii": false},
+        {"id": "counter_terms",      "kind": "textarea","label": "Counter terms (if countering)","required": false,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "offer_expired",       "condition": "offer expiry passed before seller response",  "handle": "reject"},
+        {"id": "below_net_threshold", "condition": "offer_price < seller_minimum_net",            "handle": "escalate"},
+        {"id": "financing_not_verified","condition": "pre_approval_doc missing or expired",       "handle": "reject"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "listing_agent"},
+        {"trigger": "approved",    "channel": "email",  "audience": "buyer_agent"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "buyer_agent"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "listing_agent"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 86400},
+      "metrics": ["offer_acceptance_rate", "days_to_accepted_offer", "multiple_offer_rate"],
+      "compliance": ["state-RE-contract-law", "RESPA", "ECOA"],
+      "data_sensitivity": ["pii", "customer-data", "financial"]
+    },
+    {
+      "id": "open_escrow",
+      "title": "Open escrow",
+      "actor": {"role": "escrow_officer"},
+      "situation": "a purchase contract is fully executed and must be deposited with the escrow company to initiate the closing process",
+      "motivation": "establish an independent custodial account for funds and documents so all parties can fulfil their contractual obligations safely",
+      "outcome": "escrow account opened, instructions executed by all parties, earnest money deposited and confirmed",
+      "success_criteria": [
+        "escrow instructions signed by buyer and seller within 3 business days of contract execution",
+        "earnest money wired and cleared within the contract deadline",
+        "preliminary title report ordered within 1 business day of opening"
+      ],
+      "data_capture": [
+        {"id": "escrow_number",      "kind": "text",     "label": "Escrow number",             "required": true,  "pii": false},
+        {"id": "purchase_price",     "kind": "money",    "label": "Purchase price (USD)",      "required": true,  "pii": false},
+        {"id": "earnest_deposit",    "kind": "money",    "label": "Earnest money deposit",     "required": true,  "pii": false},
+        {"id": "buyer_legal_name",   "kind": "text",     "label": "Buyer legal name",          "required": true,  "pii": true},
+        {"id": "seller_legal_name",  "kind": "text",     "label": "Seller legal name",         "required": true,  "pii": true},
+        {"id": "contract_copy",      "kind": "file",     "label": "Executed purchase contract","required": true,  "pii": false},
+        {"id": "earnest_wire_confirm","kind":"file",     "label": "Wire confirmation",         "required": true,  "pii": false},
+        {"id": "vesting_instructions","kind":"textarea", "label": "Title vesting instructions","required": true,  "pii": true},
+        {"id": "close_date",         "kind": "date",     "label": "Projected close of escrow", "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "earnest_money_late",  "condition": "earnest deposit not received by contract deadline", "handle": "escalate"},
+        {"id": "wire_fraud_flag",     "condition": "wire originates from unverified account",           "handle": "branch", "branch_to": "fraud_hold"},
+        {"id": "vesting_dispute",     "condition": "buyer parties disagree on vesting",                "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "escrow_officer", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "buyer_agent"},
+        {"trigger": "state_enter", "channel": "email",  "audience": "listing_agent"},
+        {"trigger": "approved",    "channel": "email",  "audience": "loan_officer"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "escrow_officer"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 259200},
+      "metrics": ["escrow_open_time", "earnest_deposit_on_time_rate", "escrow_fall_through_rate"],
+      "compliance": ["RESPA", "state-escrow-licensing-law", "CFPB-Reg-X"],
+      "data_sensitivity": ["pii", "financial", "customer-data"]
+    },
+    {
+      "id": "conduct_title_search",
+      "title": "Conduct a title search and issue preliminary report",
+      "actor": {"role": "title_examiner"},
+      "situation": "escrow has opened and the title company must search public records to identify all encumbrances, liens, and defects on title",
+      "motivation": "ensure the buyer can receive clear, insurable title at close and surface any issues early enough to cure them",
+      "outcome": "preliminary title report issued, exceptions listed, and curative action items assigned with deadlines",
+      "success_criteria": [
+        "preliminary title report issued within 5 business days of escrow opening",
+        "all recorded liens, judgements, and easements listed as exceptions",
+        "curative items assigned to responsible party with cure deadline before COE"
+      ],
+      "data_capture": [
+        {"id": "title_order_number", "kind": "text",     "label": "Title order number",        "required": true,  "pii": false},
+        {"id": "assessor_parcel",    "kind": "text",     "label": "APN / parcel number",       "required": true,  "pii": false},
+        {"id": "search_date",        "kind": "date",     "label": "Search through date",       "required": true,  "pii": false},
+        {"id": "prelim_report",      "kind": "file",     "label": "Preliminary title report",  "required": true,  "pii": false},
+        {"id": "exception_count",    "kind": "number",   "label": "Number of title exceptions","required": true,  "pii": false},
+        {"id": "exceptions_list",    "kind": "textarea", "label": "Exceptions / encumbrances", "required": true,  "pii": false},
+        {"id": "curative_items",     "kind": "textarea", "label": "Curative action items",     "required": false, "pii": false},
+        {"id": "vesting_owner",      "kind": "text",     "label": "Current vested owner",      "required": true,  "pii": true}
+      ],
+      "edge_cases": [
+        {"id": "undisclosed_lien",    "condition": "tax lien or judgment exceeds earnest deposit",    "handle": "escalate"},
+        {"id": "chain_of_title_break","condition": "gap found in recorded ownership chain",           "handle": "escalate"},
+        {"id": "lis_pendens",         "condition": "active litigation notice recorded",               "handle": "branch", "branch_to": "legal_hold"}
+      ],
+      "approvals": [
+        {"role": "title_examiner", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "escrow_officer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "buyer_agent"},
+        {"trigger": "approved",    "channel": "email",  "audience": "listing_agent"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "title_examiner"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 432000},
+      "metrics": ["prelim_report_lead_time", "curative_item_count", "clear_title_rate"],
+      "compliance": ["ALTA-title-standards", "RESPA", "state-title-insurance-code"],
+      "data_sensitivity": ["pii", "legal", "customer-data"]
+    },
+    {
+      "id": "schedule_inspection",
+      "title": "Schedule and complete a property inspection",
+      "actor": {"role": "buyer_agent"},
+      "situation": "a purchase contract is executed with an inspection contingency and the buyer must engage a licensed inspector within the contingency period",
+      "motivation": "identify material defects before the contingency deadline so the buyer can negotiate repairs, credits, or withdraw without penalty",
+      "outcome": "inspection completed, report delivered, and buyer response to seller submitted before contingency expiry",
+      "success_criteria": [
+        "inspection scheduled within 3 business days of contract execution",
+        "inspection report delivered to buyer within 24 hours of inspection completion",
+        "buyer's Request for Repair or contingency release submitted before deadline"
+      ],
+      "data_capture": [
+        {"id": "inspection_order_id","kind": "text",     "label": "Inspection order ID",       "required": true,  "pii": false},
+        {"id": "inspector_license",  "kind": "text",     "label": "Inspector license number",  "required": true,  "pii": false},
+        {"id": "inspection_date",    "kind": "datetime", "label": "Inspection date/time",      "required": true,  "pii": false},
+        {"id": "inspection_report",  "kind": "file",     "label": "Inspection report PDF",     "required": true,  "pii": false},
+        {"id": "defect_count",       "kind": "number",   "label": "Number of noted defects",   "required": true,  "pii": false},
+        {"id": "material_defects",   "kind": "textarea", "label": "Material defects summary",  "required": true,  "pii": false},
+        {"id": "repair_request",     "kind": "file",     "label": "Request for Repair (if any)","required": false,"pii": false},
+        {"id": "contingency_deadline","kind":"date",     "label": "Inspection contingency deadline","required": true,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "major_structural_defect","condition": "inspection flags foundation or structural failure", "handle": "escalate"},
+        {"id": "contingency_deadline_passed","condition": "repair_request submitted after contingency_deadline","handle": "reject"},
+        {"id": "inspector_no_show",   "condition": "inspector cancels within 24h of appointment",          "handle": "branch", "branch_to": "reschedule_inspection"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "buyer_agent"},
+        {"trigger": "approved",    "channel": "email",  "audience": "listing_agent"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "buyer_agent"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 259200},
+      "metrics": ["inspection_on_time_rate", "repair_request_rate", "inspection_contingency_removal_rate"],
+      "compliance": ["state-home-inspection-licensing-law", "state-RE-contract-law"],
+      "data_sensitivity": ["customer-data", "internal"]
+    },
+    {
+      "id": "manage_financing_contingency",
+      "title": "Manage the financing contingency",
+      "actor": {"role": "loan_officer"},
+      "situation": "a purchase contract includes a financing contingency and the buyer must obtain formal loan approval before the contingency expiry date",
+      "motivation": "protect the buyer's earnest money deposit while giving the seller confidence the transaction will close on schedule",
+      "outcome": "loan commitment letter issued, contingency removed in writing, and file cleared to close",
+      "success_criteria": [
+        "loan application submitted within 3 business days of contract execution",
+        "appraisal ordered within 5 business days",
+        "loan commitment letter issued before financing contingency deadline",
+        "contingency removal signed by buyer and delivered to escrow before expiry"
+      ],
+      "data_capture": [
+        {"id": "loan_file_number",   "kind": "text",   "label": "Loan file number",           "required": true,  "pii": false},
+        {"id": "borrower_name",      "kind": "text",   "label": "Borrower legal name",        "required": true,  "pii": true},
+        {"id": "loan_amount",        "kind": "money",  "label": "Loan amount (USD)",          "required": true,  "pii": false},
+        {"id": "loan_type",          "kind": "enum",   "label": "Loan type (Conv/FHA/VA/USDA)","required": true, "pii": false},
+        {"id": "appraisal_value",    "kind": "money",  "label": "Appraised value (USD)",      "required": true,  "pii": false},
+        {"id": "commitment_letter",  "kind": "file",   "label": "Loan commitment letter",     "required": true,  "pii": false},
+        {"id": "contingency_deadline","kind":"date",   "label": "Financing contingency deadline","required": true,"pii": false},
+        {"id": "conditions_list",    "kind": "textarea","label": "Loan conditions (PTD/PTC)",  "required": true, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "appraisal_gap",       "condition": "appraisal_value < purchase_price",              "handle": "escalate"},
+        {"id": "loan_denied",         "condition": "underwriting denies loan",                      "handle": "branch", "branch_to": "contingency_cancellation"},
+        {"id": "contingency_expired", "condition": "commitment_letter not issued by contingency_deadline","handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "loan_officer", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "buyer_agent"},
+        {"trigger": "approved",    "channel": "email",  "audience": "escrow_officer"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "buyer_agent"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "loan_officer"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 1296000},
+      "metrics": ["loan_approval_rate", "time_to_commitment", "appraisal_gap_rate"],
+      "compliance": ["RESPA", "TRID-CFPB-Reg-X-Z", "ECOA", "HMDA", "state-RE-contract-law"],
+      "data_sensitivity": ["pii", "financial", "customer-data"]
+    },
+    {
+      "id": "coordinate_closing",
+      "title": "Coordinate and execute the closing",
+      "actor": {"role": "escrow_officer"},
+      "situation": "all contingencies have been removed, the lender is ready to fund, and closing documents must be prepared, signed, recorded, and funds disbursed",
+      "motivation": "complete the transfer of ownership cleanly on the scheduled date with every party funded correctly and title recorded",
+      "outcome": "deed recorded, funds disbursed to all parties, and closing disclosure delivered to buyer",
+      "success_criteria": [
+        "HUD-1 / Closing Disclosure balanced and approved by all parties at least 3 days before closing",
+        "buyer signing completed and documents returned to lender before funding cutoff",
+        "deed recorded with county on closing date",
+        "seller net proceeds wire confirmed within 24 hours of recording"
+      ],
+      "data_capture": [
+        {"id": "escrow_number",      "kind": "text",   "label": "Escrow number",              "required": true,  "pii": false},
+        {"id": "closing_date",       "kind": "date",   "label": "Closing date",               "required": true,  "pii": false},
+        {"id": "closing_disclosure", "kind": "file",   "label": "Closing Disclosure (CD)",    "required": true,  "pii": true},
+        {"id": "deed",               "kind": "file",   "label": "Executed grant deed",        "required": true,  "pii": true},
+        {"id": "recording_number",   "kind": "text",   "label": "County recording number",    "required": true,  "pii": false},
+        {"id": "recording_date",     "kind": "datetime","label": "Date / time recorded",      "required": true,  "pii": false},
+        {"id": "seller_wire_ref",    "kind": "text",   "label": "Seller net proceeds wire ref","required": true, "pii": true},
+        {"id": "buyer_wire_ref",     "kind": "text",   "label": "Buyer down payment wire ref","required": true,  "pii": true},
+        {"id": "1099s_issued",       "kind": "boolean","label": "1099-S issued to seller",    "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "funding_cutoff_missed","condition": "lender wire not received before county recording cutoff","handle": "branch", "branch_to": "closing_postponement"},
+        {"id": "cd_discrepancy",      "condition": "closing figures differ from lender's final numbers",     "handle": "escalate"},
+        {"id": "recording_rejection", "condition": "county rejects deed for recording",                     "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "escrow_officer", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "buyer_agent"},
+        {"trigger": "state_enter", "channel": "email",  "audience": "listing_agent"},
+        {"trigger": "approved",    "channel": "email",  "audience": "buyer_agent"},
+        {"trigger": "approved",    "channel": "email",  "audience": "listing_agent"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "escrow_officer"},
+        {"trigger": "sla_breach",  "channel": "email",  "audience": "escrow_officer"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 86400},
+      "metrics": ["on_time_close_rate", "funding_to_recording_hours", "cd_amendment_count"],
+      "compliance": ["TRID-CFPB-Reg-X-Z", "RESPA", "IRS-Form-1099-S", "state-recording-laws"],
+      "data_sensitivity": ["pii", "financial", "customer-data", "legal"]
+    },
+    {
+      "id": "process_lease_renewal",
+      "title": "Process a lease renewal",
+      "actor": {"role": "property_manager"},
+      "situation": "a tenant's lease approaches its expiry date and the property manager must offer renewal terms, negotiate, and execute a new lease before the current term ends",
+      "motivation": "retain a reliable tenant and avoid vacancy costs while adjusting rent to market",
+      "outcome": "lease renewal executed with updated terms and signed by all parties before lease expiry",
+      "success_criteria": [
+        "renewal offer delivered to tenant at least 60 days before lease expiry",
+        "tenant response received within 30 days of offer",
+        "new lease executed and returned at least 14 days before expiry"
+      ],
+      "data_capture": [
+        {"id": "lease_ref",          "kind": "text",   "label": "Lease reference number",    "required": true,  "pii": false},
+        {"id": "tenant_name",        "kind": "text",   "label": "Tenant legal name(s)",      "required": true,  "pii": true},
+        {"id": "unit_id",            "kind": "text",   "label": "Unit / property ID",        "required": true,  "pii": false},
+        {"id": "current_rent",       "kind": "money",  "label": "Current monthly rent",      "required": true,  "pii": false},
+        {"id": "proposed_rent",      "kind": "money",  "label": "Proposed renewal rent",     "required": true,  "pii": false},
+        {"id": "renewal_term_months","kind": "number", "label": "Renewal term (months)",     "required": true,  "pii": false},
+        {"id": "lease_expiry",       "kind": "date",   "label": "Current lease expiry date", "required": true,  "pii": false},
+        {"id": "renewed_lease",      "kind": "signature","label": "Signed renewal lease",    "required": true,  "pii": true},
+        {"id": "rent_increase_reason","kind":"textarea","label": "Rent increase justification","required": false,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "tenant_vacating",      "condition": "tenant declines renewal",               "handle": "branch", "branch_to": "vacancy_preparation"},
+        {"id": "rent_control_applies", "condition": "rent_increase_pct > local_rent_cap",   "handle": "reject"},
+        {"id": "outstanding_balance",  "condition": "tenant has unpaid rent balance",        "handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "tenant"},
+        {"trigger": "approved",    "channel": "email",  "audience": "tenant"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "property_manager"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "property_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 2592000},
+      "metrics": ["renewal_rate", "rent_increase_pct", "days_to_signed_renewal"],
+      "compliance": ["state-landlord-tenant-act", "local-rent-stabilisation-ordinance", "FHA"],
+      "data_sensitivity": ["pii", "customer-data", "financial"]
+    },
+    {
+      "id": "handle_maintenance_request",
+      "title": "Handle a tenant maintenance request",
+      "actor": {"role": "property_manager"},
+      "situation": "a tenant submits a maintenance request for a repair needed at their unit and the property manager must assign a vendor and track resolution",
+      "motivation": "fulfil the implied warranty of habitability, prevent minor issues from becoming major repairs, and maintain tenant satisfaction",
+      "outcome": "work order assigned, repair completed and confirmed by tenant, and maintenance record updated",
+      "success_criteria": [
+        "emergency requests (no heat, water loss, safety hazard) dispatched within 4 hours",
+        "standard requests scheduled within 5 business days",
+        "completion confirmed by tenant and work order closed with photo evidence",
+        "landlord cost threshold for owner approval respected"
+      ],
+      "data_capture": [
+        {"id": "work_order_id",      "kind": "text",     "label": "Work order ID",             "required": true,  "pii": false},
+        {"id": "unit_id",            "kind": "text",     "label": "Unit / property ID",        "required": true,  "pii": false},
+        {"id": "tenant_name",        "kind": "text",     "label": "Tenant name",               "required": true,  "pii": true},
+        {"id": "issue_category",     "kind": "enum",     "label": "Issue category",            "required": true,  "pii": false},
+        {"id": "priority",           "kind": "enum",     "label": "Priority (Emergency/Urgent/Standard)","required": true,"pii": false},
+        {"id": "description",        "kind": "textarea", "label": "Issue description",         "required": true,  "pii": false},
+        {"id": "vendor_name",        "kind": "text",     "label": "Assigned vendor",           "required": true,  "pii": false},
+        {"id": "repair_cost",        "kind": "money",    "label": "Repair cost (USD)",         "required": true,  "pii": false},
+        {"id": "completion_photos",  "kind": "file",     "label": "Completion photos",         "required": true,  "pii": false},
+        {"id": "tenant_confirmation","kind": "signature","label": "Tenant sign-off",           "required": true,  "pii": true}
+      ],
+      "edge_cases": [
+        {"id": "cost_over_threshold", "condition": "repair_cost > owner_approval_threshold",   "handle": "escalate"},
+        {"id": "habitability_hazard", "condition": "priority == Emergency",                    "handle": "branch", "branch_to": "emergency_dispatch"},
+        {"id": "vendor_no_show",      "condition": "vendor misses scheduled appointment",      "handle": "branch", "branch_to": "vendor_reassignment"}
+      ],
+      "approvals": [
+        {"role": "landlord", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "tenant"},
+        {"trigger": "state_enter", "channel": "in_app", "audience": "property_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "tenant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "property_manager"},
+        {"trigger": "sla_breach",  "channel": "email",  "audience": "landlord"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 14400},
+      "metrics": ["work_order_response_time", "first_visit_resolution_rate", "avg_repair_cost", "tenant_satisfaction_score"],
+      "compliance": ["state-landlord-tenant-habitability-law", "local-building-codes"],
+      "data_sensitivity": ["pii", "customer-data"]
+    },
+    {
+      "id": "resolve_tenant_dispute",
+      "title": "Resolve a tenant dispute",
+      "actor": {"role": "property_manager"},
+      "situation": "a tenant raises a formal complaint about the landlord's actions, a neighbour dispute, or a lease violation allegation",
+      "motivation": "resolve the dispute without litigation by addressing legitimate grievances fairly and documenting the landlord's good-faith efforts",
+      "outcome": "dispute investigated, response issued, corrective action taken if warranted, and record maintained for legal defence if escalated",
+      "success_criteria": [
+        "written acknowledgement sent to tenant within 2 business days of complaint receipt",
+        "investigation completed and response provided within 10 business days",
+        "any required corrective action completed within agreed timeframe",
+        "full dispute record retained in property management system"
+      ],
+      "data_capture": [
+        {"id": "dispute_id",         "kind": "text",     "label": "Dispute case ID",           "required": true,  "pii": false},
+        {"id": "tenant_name",        "kind": "text",     "label": "Complainant tenant name",   "required": true,  "pii": true},
+        {"id": "unit_id",            "kind": "text",     "label": "Unit / property ID",        "required": true,  "pii": false},
+        {"id": "complaint_type",     "kind": "enum",     "label": "Complaint type",            "required": true,  "pii": false},
+        {"id": "complaint_detail",   "kind": "textarea", "label": "Complaint description",     "required": true,  "pii": false},
+        {"id": "investigation_notes","kind": "textarea", "label": "Investigation findings",    "required": true,  "pii": false},
+        {"id": "resolution_type",    "kind": "enum",     "label": "Resolution type",           "required": true,  "pii": false},
+        {"id": "corrective_actions", "kind": "textarea", "label": "Corrective actions taken",  "required": false, "pii": false},
+        {"id": "supporting_docs",    "kind": "file",     "label": "Supporting documentation",  "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "fair_housing_allegation","condition": "complaint type is discrimination / fair housing violation","handle": "branch", "branch_to": "legal_review"},
+        {"id": "habitability_claim",    "condition": "complaint involves uninhabitable conditions",              "handle": "escalate"},
+        {"id": "eviction_context",      "condition": "dispute arises concurrently with eviction proceedings",   "handle": "branch", "branch_to": "legal_hold"}
+      ],
+      "approvals": [
+        {"role": "landlord", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "tenant"},
+        {"trigger": "approved",    "channel": "email",  "audience": "tenant"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "tenant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "property_manager"},
+        {"trigger": "sla_breach",  "channel": "email",  "audience": "landlord"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 864000},
+      "metrics": ["dispute_resolution_rate", "time_to_resolution", "legal_escalation_rate", "repeat_dispute_rate"],
+      "compliance": ["FHA", "state-landlord-tenant-act", "local-rent-stabilisation-ordinance"],
+      "data_sensitivity": ["pii", "legal", "customer-data"]
+    }
+  ]
+}

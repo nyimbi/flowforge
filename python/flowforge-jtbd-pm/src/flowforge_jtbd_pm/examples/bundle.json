@@ -1,0 +1,408 @@
+{
+  "project": {
+    "name": "pm-example",
+    "package": "pm_example",
+    "domain": "project-mgmt",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD"]
+  },
+  "shared": {
+    "roles": ["project_manager", "sponsor", "team_member", "pmo_analyst", "stakeholder"],
+    "permissions": [
+      "project.read", "project.write", "milestone.approve",
+      "risk.escalate", "budget.view", "budget.approve"
+    ]
+  },
+  "jtbds": [
+    {
+      "id": "charter_project",
+      "title": "Charter a new project",
+      "actor": {"role": "project_manager"},
+      "situation": "a sponsor approves funding and the PM must formally initiate the project, define scope, budget, and governance structure",
+      "motivation": "establish a single authoritative baseline document before any work begins",
+      "outcome": "signed project charter on record with all stakeholders identified and initial budget locked",
+      "success_criteria": [
+        "charter signed by sponsor within 5 business days of kickoff request",
+        "scope statement captures in-scope and explicitly out-of-scope deliverables",
+        "budget baseline recorded with contingency reserve percentage",
+        "RACI matrix completed for all key roles"
+      ],
+      "data_capture": [
+        {"id": "project_name",      "kind": "text",     "label": "Project name",           "required": true,  "pii": false},
+        {"id": "project_code",      "kind": "text",     "label": "Project code / WBS ID",  "required": true,  "pii": false},
+        {"id": "sponsor_name",      "kind": "text",     "label": "Sponsor name",           "required": true,  "pii": true},
+        {"id": "budget_baseline",   "kind": "money",    "label": "Approved budget (USD)",  "required": true,  "pii": false},
+        {"id": "contingency_pct",   "kind": "number",   "label": "Contingency % of budget","required": true,  "pii": false},
+        {"id": "target_start",      "kind": "date",     "label": "Planned start date",     "required": true,  "pii": false},
+        {"id": "target_end",        "kind": "date",     "label": "Planned end date",       "required": true,  "pii": false},
+        {"id": "scope_statement",   "kind": "textarea", "label": "Scope statement",        "required": true,  "pii": false},
+        {"id": "out_of_scope",      "kind": "textarea", "label": "Out-of-scope exclusions", "required": true, "pii": false},
+        {"id": "signed_charter",    "kind": "signature","label": "Sponsor signature",      "required": true,  "pii": true}
+      ],
+      "edge_cases": [
+        {"id": "budget_exceeds_threshold", "condition": "budget_baseline > 500000", "handle": "escalate"},
+        {"id": "missing_sponsor",          "condition": "sponsor_name is empty",    "handle": "reject"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "sponsor"},
+        {"trigger": "approved",     "channel": "email",  "audience": "project_manager"},
+        {"trigger": "approved",     "channel": "in_app", "audience": "team_member"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "project_manager"},
+        {"trigger": "sla_breach",   "channel": "email",  "audience": "sponsor"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["time_to_charter", "charter_revision_count"],
+      "compliance": ["PMI-PMBOK-5.1", "ISO-21500-4.3.3"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "manage_scope_change",
+      "title": "Manage a scope change request",
+      "actor": {"role": "project_manager"},
+      "situation": "a stakeholder requests work that falls outside the approved project scope during execution",
+      "motivation": "evaluate impact on schedule and budget before committing to additional work",
+      "outcome": "scope change approved or rejected with baseline updated and communicated",
+      "success_criteria": [
+        "impact analysis completed within 3 business days of change request",
+        "decision communicated to requester within 1 business day of approval",
+        "approved changes reflected in revised WBS and schedule within 2 business days"
+      ],
+      "data_capture": [
+        {"id": "change_ref",        "kind": "text",     "label": "Change request ID",      "required": true,  "pii": false},
+        {"id": "requester_name",    "kind": "text",     "label": "Requester name",         "required": true,  "pii": true},
+        {"id": "change_description","kind": "textarea", "label": "Change description",     "required": true,  "pii": false},
+        {"id": "schedule_impact_d", "kind": "number",   "label": "Schedule impact (days)", "required": true,  "pii": false},
+        {"id": "cost_impact",       "kind": "money",    "label": "Cost impact (USD)",      "required": true,  "pii": false},
+        {"id": "risk_rating",       "kind": "enum",     "label": "Risk rating (L/M/H)",    "required": true,  "pii": false},
+        {"id": "pm_recommendation", "kind": "textarea", "label": "PM recommendation",      "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "cost_above_contingency", "condition": "cost_impact > contingency_reserve", "handle": "escalate"},
+        {"id": "critical_path_shift",    "condition": "schedule_impact_d > 5",             "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "sponsor",        "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "stakeholder"},
+        {"trigger": "approved",    "channel": "email",  "audience": "stakeholder"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "stakeholder"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "project_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 259200},
+      "metrics": ["scope_change_approval_rate", "avg_cost_impact_per_change", "time_to_decision"],
+      "compliance": ["PMI-PMBOK-5.6"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "escalate_risk",
+      "title": "Escalate a project risk",
+      "actor": {"role": "project_manager"},
+      "situation": "a risk materialises or its probability/impact score crosses the escalation threshold during the risk review cycle",
+      "motivation": "ensure sponsor and steering committee have timely visibility to make resource or priority decisions",
+      "outcome": "risk logged in risk register, mitigation plan approved, and owner assigned",
+      "success_criteria": [
+        "risk registered within 24 hours of identification",
+        "mitigation plan reviewed by sponsor within 2 business days",
+        "risk owner confirmed before escalation closes"
+      ],
+      "data_capture": [
+        {"id": "risk_id",           "kind": "text",     "label": "Risk ID",                "required": true,  "pii": false},
+        {"id": "risk_title",        "kind": "text",     "label": "Risk title",             "required": true,  "pii": false},
+        {"id": "probability",       "kind": "number",   "label": "Probability (0-1)",      "required": true,  "pii": false},
+        {"id": "impact_score",      "kind": "number",   "label": "Impact score (1-5)",     "required": true,  "pii": false},
+        {"id": "trigger_condition", "kind": "textarea", "label": "Risk trigger condition", "required": true,  "pii": false},
+        {"id": "mitigation_plan",   "kind": "textarea", "label": "Mitigation plan",        "required": true,  "pii": false},
+        {"id": "risk_owner",        "kind": "text",     "label": "Risk owner name",        "required": true,  "pii": true},
+        {"id": "contingency_plan",  "kind": "textarea", "label": "Contingency plan",       "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "risk_materialised",    "condition": "trigger_condition already occurred", "handle": "branch", "branch_to": "issue_management"},
+        {"id": "no_mitigation_viable", "condition": "mitigation_plan is empty after 24h", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "sponsor",        "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "sponsor"},
+        {"trigger": "state_enter", "channel": "slack",  "audience": "project_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "project_manager"},
+        {"trigger": "sla_breach",  "channel": "email",  "audience": "sponsor"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 172800},
+      "metrics": ["open_risk_count", "risk_score_trend", "mitigation_plan_lead_time"],
+      "compliance": ["PMI-PMBOK-11.5", "ISO-31000"],
+      "data_sensitivity": ["internal", "confidential"]
+    },
+    {
+      "id": "review_milestone",
+      "title": "Review and approve a project milestone",
+      "actor": {"role": "project_manager"},
+      "situation": "a scheduled milestone date arrives and the PM must verify deliverables, confirm acceptance criteria, and obtain formal sign-off",
+      "motivation": "prevent scope drift and maintain stakeholder confidence by verifying work against agreed acceptance criteria",
+      "outcome": "milestone formally approved or deferred with updated forecast",
+      "success_criteria": [
+        "all milestone deliverables attached and reviewed before sign-off meeting",
+        "acceptance criteria checklist completed by PM and reviewer",
+        "sign-off recorded within 1 business day of review meeting"
+      ],
+      "data_capture": [
+        {"id": "milestone_id",       "kind": "text",     "label": "Milestone ID",            "required": true,  "pii": false},
+        {"id": "milestone_title",    "kind": "text",     "label": "Milestone title",         "required": true,  "pii": false},
+        {"id": "planned_date",       "kind": "date",     "label": "Planned completion date", "required": true,  "pii": false},
+        {"id": "actual_date",        "kind": "date",     "label": "Actual completion date",  "required": true,  "pii": false},
+        {"id": "deliverables_pack",  "kind": "file",     "label": "Deliverables package",    "required": true,  "pii": false},
+        {"id": "acceptance_checklist","kind":"textarea", "label": "Acceptance checklist",    "required": true,  "pii": false},
+        {"id": "reviewer_notes",     "kind": "textarea", "label": "Reviewer notes",          "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "deliverable_missing",  "condition": "deliverables_pack not attached",          "handle": "reject"},
+        {"id": "milestone_overdue",    "condition": "actual_date > planned_date + 5 days",     "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "sponsor",        "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "sponsor"},
+        {"trigger": "approved",    "channel": "email",  "audience": "team_member"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "project_manager"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "project_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 86400},
+      "metrics": ["milestone_on_time_rate", "time_to_sign_off", "deliverable_rework_rate"],
+      "compliance": ["PMI-PMBOK-4.5"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "allocate_resource",
+      "title": "Allocate a resource to a project",
+      "actor": {"role": "project_manager"},
+      "situation": "a work package is ready to start and the PM needs to assign a team member with the right skills and availability",
+      "motivation": "prevent schedule slippage from under-staffing while avoiding over-allocation on other projects",
+      "outcome": "resource formally assigned with confirmed availability, skill match documented, and capacity updated",
+      "success_criteria": [
+        "resource assignment confirmed with functional manager within 3 business days",
+        "no resource allocated above 100% capacity in any given week",
+        "skill match recorded against work package requirements"
+      ],
+      "data_capture": [
+        {"id": "resource_name",      "kind": "text",   "label": "Resource name",           "required": true,  "pii": true},
+        {"id": "role_type",          "kind": "enum",   "label": "Role type",               "required": true,  "pii": false},
+        {"id": "allocation_pct",     "kind": "number", "label": "Allocation % (0-100)",    "required": true,  "pii": false},
+        {"id": "start_date",         "kind": "date",   "label": "Assignment start",        "required": true,  "pii": false},
+        {"id": "end_date",           "kind": "date",   "label": "Assignment end",          "required": true,  "pii": false},
+        {"id": "skill_match_score",  "kind": "number", "label": "Skill match score (1-5)", "required": true,  "pii": false},
+        {"id": "manager_approval",   "kind": "signature","label": "Functional manager approval","required": true, "pii": true}
+      ],
+      "edge_cases": [
+        {"id": "over_allocation",      "condition": "allocation_pct + existing_load > 100", "handle": "reject"},
+        {"id": "skill_gap",            "condition": "skill_match_score < 3",                "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "pmo_analyst",    "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "team_member"},
+        {"trigger": "approved",    "channel": "email",  "audience": "team_member"},
+        {"trigger": "rejected",    "channel": "in_app", "audience": "project_manager"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "project_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 259200},
+      "metrics": ["resource_utilisation_pct", "time_to_assign", "skill_match_avg"],
+      "compliance": ["PMI-PMBOK-9.3"],
+      "data_sensitivity": ["internal", "hr-restricted"]
+    },
+    {
+      "id": "handle_stakeholder_complaint",
+      "title": "Handle a stakeholder complaint",
+      "actor": {"role": "project_manager"},
+      "situation": "a stakeholder raises a formal complaint about project delivery, communication, or quality",
+      "motivation": "preserve stakeholder trust and resolve dissatisfaction before it escalates to executive intervention",
+      "outcome": "complaint acknowledged, root cause identified, corrective action agreed and closed",
+      "success_criteria": [
+        "complaint acknowledged to stakeholder within 4 business hours",
+        "root cause analysis completed within 2 business days",
+        "corrective action plan agreed with stakeholder within 5 business days",
+        "closure confirmation from stakeholder obtained"
+      ],
+      "data_capture": [
+        {"id": "complaint_id",       "kind": "text",     "label": "Complaint reference",    "required": true,  "pii": false},
+        {"id": "stakeholder_name",   "kind": "text",     "label": "Stakeholder name",       "required": true,  "pii": true},
+        {"id": "complaint_detail",   "kind": "textarea", "label": "Complaint description",  "required": true,  "pii": false},
+        {"id": "severity",           "kind": "enum",     "label": "Severity (L/M/H/Critical)","required": true,"pii": false},
+        {"id": "root_cause",         "kind": "textarea", "label": "Root cause analysis",    "required": true,  "pii": false},
+        {"id": "corrective_actions", "kind": "textarea", "label": "Corrective actions",     "required": true,  "pii": false},
+        {"id": "closure_date",       "kind": "date",     "label": "Agreed closure date",    "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "critical_severity",  "condition": "severity == Critical",              "handle": "escalate"},
+        {"id": "stakeholder_withdraws","condition": "stakeholder declines further engagement","handle": "reject"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "stakeholder"},
+        {"trigger": "state_enter", "channel": "slack",  "audience": "project_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "stakeholder"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "project_manager"},
+        {"trigger": "sla_breach",  "channel": "email",  "audience": "sponsor"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 432000},
+      "metrics": ["complaint_resolution_time", "stakeholder_satisfaction_score", "repeat_complaint_rate"],
+      "compliance": ["PMI-PMBOK-13.3", "ISO-10002"],
+      "data_sensitivity": ["confidential"]
+    },
+    {
+      "id": "close_project",
+      "title": "Close a project",
+      "actor": {"role": "project_manager"},
+      "situation": "all project deliverables have been accepted and the PM must formally close the project, release resources, and archive records",
+      "motivation": "ensure contractual and financial obligations are discharged and lessons are captured before team disperses",
+      "outcome": "project closure report signed, resources released, final invoice issued, and archive complete",
+      "success_criteria": [
+        "final deliverables accepted by sponsor before closure initiated",
+        "all open risks and issues closed or transferred",
+        "financial reconciliation completed within 5 business days of acceptance",
+        "closure report signed within 10 business days of final acceptance"
+      ],
+      "data_capture": [
+        {"id": "final_cost",         "kind": "money",    "label": "Final project cost",     "required": true,  "pii": false},
+        {"id": "budget_variance",    "kind": "money",    "label": "Budget variance (USD)",  "required": true,  "pii": false},
+        {"id": "schedule_variance_d","kind": "number",   "label": "Schedule variance (days)","required": true, "pii": false},
+        {"id": "deliverable_list",   "kind": "file",     "label": "Accepted deliverables list","required": true,"pii": false},
+        {"id": "open_items_log",     "kind": "textarea", "label": "Open items / handovers",  "required": true, "pii": false},
+        {"id": "closure_report",     "kind": "file",     "label": "Closure report PDF",     "required": true,  "pii": false},
+        {"id": "sponsor_sign_off",   "kind": "signature","label": "Sponsor sign-off",       "required": true,  "pii": true}
+      ],
+      "edge_cases": [
+        {"id": "open_issues_remain",    "condition": "open_items_log has unresolved items",    "handle": "reject"},
+        {"id": "financial_discrepancy", "condition": "abs(budget_variance) > 0.1 * budget_baseline","handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "sponsor",        "policy": "1_of_1"},
+        {"role": "pmo_analyst",    "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "team_member"},
+        {"trigger": "approved",    "channel": "email",  "audience": "stakeholder"},
+        {"trigger": "approved",    "channel": "slack",  "audience": "project_manager"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "project_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 864000},
+      "metrics": ["time_to_close", "budget_variance_pct", "schedule_variance_days"],
+      "compliance": ["PMI-PMBOK-4.7", "SOX-section-404"],
+      "data_sensitivity": ["internal", "finance-restricted"]
+    },
+    {
+      "id": "capture_lessons_learned",
+      "title": "Capture lessons learned",
+      "actor": {"role": "project_manager"},
+      "situation": "a project phase or the project itself has concluded and the team reviews what went well and what should change",
+      "motivation": "institutionalise knowledge so future projects avoid repeat failures and replicate successes",
+      "outcome": "lessons learned report published to the PMO knowledge base with actionable recommendations",
+      "success_criteria": [
+        "retrospective facilitated with at least 60% of core team attending",
+        "minimum 5 lessons captured with at least 2 improvement recommendations",
+        "report published to PMO knowledge base within 10 business days of session"
+      ],
+      "data_capture": [
+        {"id": "session_date",       "kind": "date",     "label": "Retrospective date",     "required": true,  "pii": false},
+        {"id": "attendee_count",     "kind": "number",   "label": "Attendee count",         "required": true,  "pii": false},
+        {"id": "went_well",          "kind": "textarea", "label": "What went well",         "required": true,  "pii": false},
+        {"id": "improvement_areas",  "kind": "textarea", "label": "Improvement areas",      "required": true,  "pii": false},
+        {"id": "action_items",       "kind": "textarea", "label": "Action items / owners",  "required": true,  "pii": false},
+        {"id": "lessons_report",     "kind": "file",     "label": "Lessons learned report", "required": true,  "pii": false},
+        {"id": "pmo_category",       "kind": "enum",     "label": "PMO category tag",       "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "low_attendance",     "condition": "attendee_count < 0.6 * core_team_size", "handle": "branch", "branch_to": "reschedule_retrospective"},
+        {"id": "no_actions_identified","condition": "action_items is empty",               "handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "team_member"},
+        {"trigger": "approved",    "channel": "in_app", "audience": "pmo_analyst"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "project_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 864000},
+      "metrics": ["lessons_per_project", "action_item_closure_rate", "retrospective_participation_pct"],
+      "compliance": ["PMI-PMBOK-4.7"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "analyze_budget_variance",
+      "title": "Analyse and report budget variance",
+      "actor": {"role": "pmo_analyst"},
+      "situation": "monthly financial reporting period closes and a project shows cost variance beyond the acceptable threshold",
+      "motivation": "give sponsor and finance accurate earned-value data to decide whether to re-baseline or intervene",
+      "outcome": "variance root cause documented, forecast at completion updated, and corrective action approved",
+      "success_criteria": [
+        "EVM report submitted within 2 business days of period close",
+        "CPI and SPI calculated and narrative explanation attached",
+        "forecast at completion (EAC) agreed with sponsor within 5 business days"
+      ],
+      "data_capture": [
+        {"id": "reporting_period",   "kind": "text",   "label": "Reporting period (YYYY-MM)","required": true, "pii": false},
+        {"id": "planned_value",      "kind": "money",  "label": "Planned Value (PV)",        "required": true, "pii": false},
+        {"id": "earned_value",       "kind": "money",  "label": "Earned Value (EV)",         "required": true, "pii": false},
+        {"id": "actual_cost",        "kind": "money",  "label": "Actual Cost (AC)",          "required": true, "pii": false},
+        {"id": "cpi",                "kind": "number", "label": "Cost Performance Index",    "required": true, "pii": false},
+        {"id": "spi",                "kind": "number", "label": "Schedule Performance Index","required": true, "pii": false},
+        {"id": "eac",                "kind": "money",  "label": "Estimate at Completion",    "required": true, "pii": false},
+        {"id": "variance_narrative", "kind": "textarea","label": "Variance narrative",       "required": true, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "cpi_below_threshold", "condition": "cpi < 0.85", "handle": "escalate"},
+        {"id": "spi_critical",        "condition": "spi < 0.80", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "sponsor",        "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "sponsor"},
+        {"trigger": "approved",    "channel": "email",  "audience": "pmo_analyst"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "pmo_analyst"},
+        {"trigger": "sla_breach",  "channel": "email",  "audience": "sponsor"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 172800},
+      "metrics": ["cpi_trend", "spi_trend", "variance_at_completion_pct", "forecast_accuracy"],
+      "compliance": ["PMI-PMBOK-7.4", "SOX-section-404"],
+      "data_sensitivity": ["internal", "finance-restricted"]
+    },
+    {
+      "id": "facilitate_sprint_review",
+      "title": "Facilitate a sprint review",
+      "actor": {"role": "project_manager"},
+      "situation": "a sprint ends and the scrum team must demonstrate completed work to stakeholders and update the product backlog",
+      "motivation": "maintain stakeholder alignment and ensure the backlog reflects current priorities before the next sprint",
+      "outcome": "sprint review minutes recorded, accepted stories logged, backlog updated, and velocity captured",
+      "success_criteria": [
+        "sprint review held within 1 business day of sprint end",
+        "all completed stories demonstrated to product owner",
+        "acceptance status recorded for every story in the sprint",
+        "updated backlog priority confirmed by product owner"
+      ],
+      "data_capture": [
+        {"id": "sprint_number",      "kind": "number",   "label": "Sprint number",           "required": true,  "pii": false},
+        {"id": "sprint_end_date",    "kind": "date",     "label": "Sprint end date",         "required": true,  "pii": false},
+        {"id": "stories_committed",  "kind": "number",   "label": "Story points committed",  "required": true,  "pii": false},
+        {"id": "stories_completed",  "kind": "number",   "label": "Story points completed",  "required": true,  "pii": false},
+        {"id": "accepted_stories",   "kind": "textarea", "label": "Accepted story IDs",      "required": true,  "pii": false},
+        {"id": "rejected_stories",   "kind": "textarea", "label": "Rejected / deferred IDs", "required": false, "pii": false},
+        {"id": "review_minutes",     "kind": "file",     "label": "Sprint review minutes",   "required": true,  "pii": false},
+        {"id": "backlog_snapshot",   "kind": "file",     "label": "Updated backlog snapshot","required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "zero_stories_complete", "condition": "stories_completed == 0",               "handle": "escalate"},
+        {"id": "product_owner_absent",  "condition": "product owner did not attend review",  "handle": "branch", "branch_to": "reschedule_review"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "stakeholder"},
+        {"trigger": "approved",    "channel": "in_app", "audience": "team_member"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "project_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 86400},
+      "metrics": ["sprint_velocity", "sprint_completion_rate", "backlog_refinement_lag"],
+      "compliance": ["SAFe-5.1-PI-objectives"],
+      "data_sensitivity": ["internal"]
+    }
+  ]
+}

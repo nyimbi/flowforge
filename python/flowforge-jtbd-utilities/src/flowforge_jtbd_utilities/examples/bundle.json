@@ -1,0 +1,438 @@
+{
+  "project": {
+    "name": "utilities-example",
+    "package": "utilities_example",
+    "domain": "utilities",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD"]
+  },
+  "shared": {
+    "roles": ["field_technician", "customer_service_rep", "operations_supervisor", "billing_analyst", "safety_officer", "regulatory_coordinator"],
+    "permissions": [
+      "meter.read", "meter.write", "outage.declare", "outage.close",
+      "billing.view", "billing.adjust", "permit.submit", "safety.report",
+      "compliance.report", "service.connect", "demand_response.execute"
+    ]
+  },
+  "jtbds": [
+    {
+      "id": "read_meter",
+      "title": "Record a meter reading",
+      "actor": {"role": "field_technician"},
+      "situation": "a scheduled meter reading cycle triggers and a field technician must visit the premises, capture consumption, and sync the reading to the billing system",
+      "motivation": "produce accurate consumption data on schedule to enable correct customer billing and grid load analytics",
+      "outcome": "validated meter reading recorded in the billing system with timestamp and technician attestation",
+      "success_criteria": [
+        "reading captured within the scheduled read window (±2 days of cycle date)",
+        "reading value validated against previous reading (no negative delta, no implausible spike)",
+        "GPS location stamp within 50m of meter asset coordinates"
+      ],
+      "data_capture": [
+        {"id": "meter_id",           "kind": "text",    "label": "Meter asset ID",             "required": true,  "pii": false},
+        {"id": "account_number",     "kind": "text",    "label": "Customer account number",    "required": true,  "pii": false},
+        {"id": "read_value",         "kind": "number",  "label": "Meter reading (kWh / therm)","required": true,  "pii": false},
+        {"id": "read_date",          "kind": "datetime","label": "Read date/time",             "required": true,  "pii": false},
+        {"id": "read_type",          "kind": "enum",    "label": "Read type (Actual/Estimated)","required": true, "pii": false},
+        {"id": "gps_lat",            "kind": "number",  "label": "GPS latitude",               "required": true,  "pii": false},
+        {"id": "gps_lon",            "kind": "number",  "label": "GPS longitude",              "required": true,  "pii": false},
+        {"id": "meter_photo",        "kind": "file",    "label": "Meter face photo",           "required": true,  "pii": false},
+        {"id": "anomaly_notes",      "kind": "textarea","label": "Anomaly notes",              "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "negative_consumption",  "condition": "read_value < previous_read_value",            "handle": "escalate"},
+        {"id": "implausible_spike",     "condition": "delta > 3 * 12_month_avg_monthly_consumption","handle": "escalate"},
+        {"id": "meter_inaccessible",    "condition": "technician cannot access meter location",     "handle": "branch", "branch_to": "estimated_read"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "field_technician"},
+        {"trigger": "approved",    "channel": "email",  "audience": "customer_service_rep"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "operations_supervisor"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 172800},
+      "metrics": ["read_on_time_rate", "estimated_read_pct", "anomaly_rate"],
+      "compliance": ["ANSI-C12.1", "NERC-CIP-007"],
+      "data_sensitivity": ["customer-data"]
+    },
+    {
+      "id": "respond_to_outage",
+      "title": "Respond to a service outage",
+      "actor": {"role": "operations_supervisor"},
+      "situation": "SCADA alarms or customer reports indicate a segment of the distribution network is de-energised or a gas pressure loss event has occurred",
+      "motivation": "restore service to affected customers within regulatory response time commitments while protecting public safety",
+      "outcome": "fault isolated, safe restoration completed, affected customers notified, and regulator notified if threshold breached",
+      "success_criteria": [
+        "crew dispatched within 30 minutes of alarm for Priority 1 outage",
+        "customer notifications sent within 1 hour of outage declaration",
+        "service restored within SAIDI/CAIDI commitments for the outage category",
+        "regulatory notification filed if customers without power exceed threshold duration"
+      ],
+      "data_capture": [
+        {"id": "outage_id",          "kind": "text",     "label": "Outage incident ID",        "required": true,  "pii": false},
+        {"id": "outage_type",        "kind": "enum",     "label": "Type (Electric/Gas/Water)",  "required": true,  "pii": false},
+        {"id": "affected_customers", "kind": "number",   "label": "Affected customer count",   "required": true,  "pii": false},
+        {"id": "fault_location",     "kind": "text",     "label": "Fault location / grid ref",  "required": true,  "pii": false},
+        {"id": "cause_code",         "kind": "enum",     "label": "Cause code",                "required": true,  "pii": false},
+        {"id": "crew_dispatch_time", "kind": "datetime", "label": "Crew dispatch time",        "required": true,  "pii": false},
+        {"id": "restore_time",       "kind": "datetime", "label": "Restoration time",          "required": false, "pii": false},
+        {"id": "cmi_minutes",        "kind": "number",   "label": "Customer-minutes interrupted","required": true, "pii": false},
+        {"id": "safety_clearances",  "kind": "textarea", "label": "Safety clearance references","required": true, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "safety_hazard",        "condition": "fault involves downed wire or gas leak",     "handle": "branch", "branch_to": "safety_emergency"},
+        {"id": "regulatory_threshold", "condition": "affected_customers > 50000 OR duration > 8h","handle": "branch", "branch_to": "regulatory_notification"},
+        {"id": "critical_facility",    "condition": "hospital or emergency services on affected segment","handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "sms",   "audience": "customer_service_rep"},
+        {"trigger": "state_enter", "channel": "email", "audience": "operations_supervisor"},
+        {"trigger": "approved",    "channel": "sms",   "audience": "customer_service_rep"},
+        {"trigger": "sla_warn",    "channel": "pagerduty", "audience": "operations_supervisor"},
+        {"trigger": "sla_breach",  "channel": "email", "audience": "regulatory_coordinator"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 28800},
+      "metrics": ["saidi", "caidi", "saifi", "time_to_dispatch", "restoration_rate_2h"],
+      "compliance": ["NERC-CIP-014", "CPUC-Rule-16", "IEEE-1366"],
+      "data_sensitivity": ["customer-data", "ops-sensitive"]
+    },
+    {
+      "id": "connect_service",
+      "title": "Connect a new service to the grid",
+      "actor": {"role": "field_technician"},
+      "situation": "a customer has completed all prerequisite steps (permit, inspection, meter installation) and requests energisation or gas commissioning",
+      "motivation": "complete the final service connection within committed timelines to meet contractual and regulatory service quality standards",
+      "outcome": "service energised/commissioned, meter commissioned, and connection record updated in CIS",
+      "success_criteria": [
+        "all prerequisite inspections passed and recorded before energisation",
+        "connection completed within committed service appointment window",
+        "meter commissioning test passed and recorded in AMI head-end system",
+        "customer welcome communication sent same day as connection"
+      ],
+      "data_capture": [
+        {"id": "service_order_id",   "kind": "text",   "label": "Service order ID",           "required": true,  "pii": false},
+        {"id": "account_number",     "kind": "text",   "label": "Customer account number",    "required": true,  "pii": false},
+        {"id": "premise_id",         "kind": "text",   "label": "Premise / NMI / MPRN",       "required": true,  "pii": false},
+        {"id": "service_type",       "kind": "enum",   "label": "Service type (Electric/Gas/Water)","required": true,"pii": false},
+        {"id": "meter_serial",       "kind": "text",   "label": "Meter serial number",        "required": true,  "pii": false},
+        {"id": "inspection_cert",    "kind": "file",   "label": "Inspection certificate",     "required": true,  "pii": false},
+        {"id": "connection_date",    "kind": "datetime","label": "Connection date/time",      "required": true,  "pii": false},
+        {"id": "technician_id",      "kind": "text",   "label": "Technician employee ID",     "required": true,  "pii": true}
+      ],
+      "edge_cases": [
+        {"id": "inspection_failed",   "condition": "inspection_cert status is Failed",    "handle": "reject"},
+        {"id": "meter_comm_fail",     "condition": "AMI commissioning test fails",        "handle": "branch", "branch_to": "meter_replacement"},
+        {"id": "unsafe_installation", "condition": "technician identifies safety defect", "handle": "branch", "branch_to": "safety_hold"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "sms",   "audience": "customer_service_rep"},
+        {"trigger": "approved",    "channel": "email", "audience": "customer_service_rep"},
+        {"trigger": "rejected",    "channel": "email", "audience": "customer_service_rep"},
+        {"trigger": "sla_warn",    "channel": "in_app","audience": "operations_supervisor"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 86400},
+      "metrics": ["connection_on_time_rate", "first_visit_resolution_rate", "ami_commissioning_success_rate"],
+      "compliance": ["ANSI-C12.1", "NEC-230", "state-PUC-service-quality-rules"],
+      "data_sensitivity": ["customer-data"]
+    },
+    {
+      "id": "resolve_billing_dispute",
+      "title": "Resolve a customer billing dispute",
+      "actor": {"role": "customer_service_rep"},
+      "situation": "a customer contests a bill citing an incorrect meter read, rate misapplication, or estimated billing over multiple periods",
+      "motivation": "resolve the dispute fairly, retain the customer, and avoid regulatory complaints",
+      "outcome": "dispute investigation completed, credit or adjustment issued if warranted, and customer notified of outcome",
+      "success_criteria": [
+        "dispute acknowledged to customer within 1 business day",
+        "investigation completed within 10 business days",
+        "any credit or adjustment processed within 2 billing cycles",
+        "root cause identified and flagged to operations if systemic"
+      ],
+      "data_capture": [
+        {"id": "dispute_id",         "kind": "text",     "label": "Dispute case ID",           "required": true,  "pii": false},
+        {"id": "account_number",     "kind": "text",     "label": "Customer account number",   "required": true,  "pii": false},
+        {"id": "disputed_amount",    "kind": "money",    "label": "Disputed amount (USD)",     "required": true,  "pii": false},
+        {"id": "dispute_reason",     "kind": "enum",     "label": "Dispute reason code",       "required": true,  "pii": false},
+        {"id": "dispute_periods",    "kind": "textarea", "label": "Billing periods in dispute","required": true,  "pii": false},
+        {"id": "investigation_notes","kind": "textarea", "label": "Investigation findings",    "required": true,  "pii": false},
+        {"id": "adjustment_amount",  "kind": "money",    "label": "Adjustment amount (USD)",   "required": false, "pii": false},
+        {"id": "resolution_type",    "kind": "enum",     "label": "Resolution type",           "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "regulatory_escalation","condition": "customer files complaint with PUC",          "handle": "escalate"},
+        {"id": "systemic_billing_error","condition": "same error found across > 10 accounts",     "handle": "branch", "branch_to": "mass_correction"},
+        {"id": "large_dispute",        "condition": "disputed_amount > 5000",                     "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "billing_analyst", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email", "audience": "customer_service_rep"},
+        {"trigger": "approved",    "channel": "email", "audience": "customer_service_rep"},
+        {"trigger": "rejected",    "channel": "email", "audience": "customer_service_rep"},
+        {"trigger": "sla_warn",    "channel": "in_app","audience": "customer_service_rep"},
+        {"trigger": "sla_breach",  "channel": "email", "audience": "operations_supervisor"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 864000},
+      "metrics": ["dispute_resolution_rate", "time_to_resolution", "credit_adjustment_rate", "regulatory_escalation_rate"],
+      "compliance": ["CPUC-Rule-10", "state-PUC-billing-accuracy-rules"],
+      "data_sensitivity": ["customer-data", "pii"]
+    },
+    {
+      "id": "investigate_safety_incident",
+      "title": "Investigate a field safety incident",
+      "actor": {"role": "safety_officer"},
+      "situation": "a workplace injury, near-miss, or public safety event involving utility assets occurs and requires formal investigation",
+      "motivation": "comply with OSHA and utility commission reporting obligations while identifying systemic causes to prevent recurrence",
+      "outcome": "safety investigation report completed, corrective actions assigned, and regulatory reports filed on time",
+      "success_criteria": [
+        "initial incident report submitted within 24 hours of event",
+        "root cause analysis completed within 15 business days",
+        "OSHA 300 log updated if recordable injury",
+        "corrective actions have owners and 90-day completion deadlines"
+      ],
+      "data_capture": [
+        {"id": "incident_id",        "kind": "text",     "label": "Safety incident ID",        "required": true,  "pii": false},
+        {"id": "incident_date",      "kind": "datetime", "label": "Incident date/time",        "required": true,  "pii": false},
+        {"id": "location",           "kind": "text",     "label": "Incident location",         "required": true,  "pii": false},
+        {"id": "incident_type",      "kind": "enum",     "label": "Type (Injury/Near-miss/Property/Public)","required": true,"pii": false},
+        {"id": "injured_party",      "kind": "text",     "label": "Injured party (if applicable)","required": false,"pii": true},
+        {"id": "description",        "kind": "textarea", "label": "Incident description",      "required": true,  "pii": false},
+        {"id": "root_cause",         "kind": "textarea", "label": "Root cause analysis",       "required": true,  "pii": false},
+        {"id": "corrective_actions", "kind": "textarea", "label": "Corrective actions",        "required": true,  "pii": false},
+        {"id": "witness_statements", "kind": "file",     "label": "Witness statements",        "required": false, "pii": true},
+        {"id": "osha_recordable",    "kind": "boolean",  "label": "OSHA 300 recordable",       "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "fatality",           "condition": "incident resulted in fatality",             "handle": "branch", "branch_to": "fatality_protocol"},
+        {"id": "public_involvement", "condition": "incident_type == Public",                  "handle": "escalate"},
+        {"id": "regulatory_report_due","condition": "osha_recordable == true",                "handle": "branch", "branch_to": "osha_filing"}
+      ],
+      "approvals": [
+        {"role": "safety_officer",          "policy": "1_of_1"},
+        {"role": "operations_supervisor",   "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "safety_officer"},
+        {"trigger": "state_enter", "channel": "email",  "audience": "operations_supervisor"},
+        {"trigger": "approved",    "channel": "email",  "audience": "safety_officer"},
+        {"trigger": "sla_warn",    "channel": "email",  "audience": "safety_officer"},
+        {"trigger": "sla_breach",  "channel": "email",  "audience": "operations_supervisor"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 86400},
+      "metrics": ["trir", "ltir", "near_miss_reporting_rate", "corrective_action_closure_rate"],
+      "compliance": ["OSHA-29-CFR-1910", "OSHA-29-CFR-1926", "NERC-CIP-006", "state-PUC-safety-rules"],
+      "data_sensitivity": ["sensitive", "legal-hold", "pii"]
+    },
+    {
+      "id": "file_regulatory_report",
+      "title": "File a mandatory regulatory report",
+      "actor": {"role": "regulatory_coordinator"},
+      "situation": "a periodic or event-triggered regulatory filing obligation is due (FERC EQR, state PUC annual report, EIA-861, NERC reliability reports, etc.)",
+      "motivation": "avoid civil penalties and maintain operating licence by submitting accurate data on time",
+      "outcome": "report filed with regulator, confirmation reference recorded, and internal audit trail complete",
+      "success_criteria": [
+        "data extract validated against source systems before submission",
+        "report submitted by regulatory deadline",
+        "confirmation receipt from regulator stored in document management system",
+        "any material corrections submitted as amended filings within 30 days"
+      ],
+      "data_capture": [
+        {"id": "report_type",        "kind": "text",     "label": "Report type / form number", "required": true,  "pii": false},
+        {"id": "regulator",          "kind": "enum",     "label": "Regulator (FERC/EIA/State PUC/NERC)","required": true,"pii": false},
+        {"id": "reporting_period",   "kind": "text",     "label": "Reporting period",          "required": true,  "pii": false},
+        {"id": "submission_deadline","kind": "date",     "label": "Submission deadline",       "required": true,  "pii": false},
+        {"id": "report_file",        "kind": "file",     "label": "Report file",               "required": true,  "pii": false},
+        {"id": "data_validation_log","kind": "file",     "label": "Data validation log",       "required": true,  "pii": false},
+        {"id": "submission_ref",     "kind": "text",     "label": "Regulator confirmation ref","required": false, "pii": false},
+        {"id": "certifier_name",     "kind": "text",     "label": "Certifying officer name",   "required": true,  "pii": true}
+      ],
+      "edge_cases": [
+        {"id": "validation_failure",  "condition": "data_validation_log contains errors",       "handle": "reject"},
+        {"id": "deadline_passed",     "condition": "submission_deadline < today",               "handle": "branch", "branch_to": "late_filing_notice"},
+        {"id": "material_error_found","condition": "post-submission error discovered",          "handle": "branch", "branch_to": "amended_filing"}
+      ],
+      "approvals": [
+        {"role": "regulatory_coordinator", "policy": "1_of_1"},
+        {"role": "operations_supervisor",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "regulatory_coordinator"},
+        {"trigger": "approved",    "channel": "email",  "audience": "regulatory_coordinator"},
+        {"trigger": "sla_warn",    "channel": "email",  "audience": "regulatory_coordinator"},
+        {"trigger": "sla_breach",  "channel": "email",  "audience": "operations_supervisor"}
+      ],
+      "sla": {"warn_pct": 85, "breach_seconds": 86400},
+      "metrics": ["on_time_filing_rate", "amended_filing_rate", "data_error_rate"],
+      "compliance": ["FERC-18-CFR-35", "EIA-861", "NERC-FAC-001", "state-PUC-annual-report-rules"],
+      "data_sensitivity": ["regulatory", "internal"]
+    },
+    {
+      "id": "obtain_permit",
+      "title": "Obtain a construction or excavation permit",
+      "actor": {"role": "operations_supervisor"},
+      "situation": "infrastructure work requiring excavation, right-of-way use, or local authority permission must begin and no permit is yet in place",
+      "motivation": "ensure legal authorisation before ground disturbance to avoid fines, work-stop orders, and third-party infrastructure damage",
+      "outcome": "permit granted, conditions recorded, work authorisation issued to crew, and permit copy on-site before work commences",
+      "success_criteria": [
+        "811 / Dial Before You Dig notification submitted at least 3 business days before work",
+        "permit conditions reviewed by supervisor and accepted before work order issued",
+        "permit copy verified on-site before excavation begins"
+      ],
+      "data_capture": [
+        {"id": "permit_type",        "kind": "enum",     "label": "Permit type",               "required": true,  "pii": false},
+        {"id": "work_location",      "kind": "text",     "label": "Work site address / coords","required": true,  "pii": false},
+        {"id": "issuing_authority",  "kind": "text",     "label": "Issuing authority",         "required": true,  "pii": false},
+        {"id": "work_description",   "kind": "textarea", "label": "Work description",          "required": true,  "pii": false},
+        {"id": "start_date",         "kind": "date",     "label": "Planned start date",        "required": true,  "pii": false},
+        {"id": "end_date",           "kind": "date",     "label": "Planned end date",          "required": true,  "pii": false},
+        {"id": "permit_document",    "kind": "file",     "label": "Permit document",           "required": true,  "pii": false},
+        {"id": "locate_ticket",      "kind": "text",     "label": "811 locate ticket number",  "required": true,  "pii": false},
+        {"id": "conditions",         "kind": "textarea", "label": "Permit conditions",         "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "permit_denied",      "condition": "issuing authority denies permit",            "handle": "escalate"},
+        {"id": "locate_not_complete","condition": "811 locate response not received before start","handle": "reject"},
+        {"id": "permit_expired",     "condition": "work extends beyond permit end_date",        "handle": "branch", "branch_to": "permit_renewal"}
+      ],
+      "approvals": [
+        {"role": "operations_supervisor", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "operations_supervisor"},
+        {"trigger": "approved",    "channel": "email",  "audience": "field_technician"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "operations_supervisor"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "operations_supervisor"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 259200},
+      "metrics": ["permit_approval_rate", "permit_lead_time_days", "locate_compliance_rate"],
+      "compliance": ["PHMSA-49-CFR-192", "state-one-call-laws", "local-ROW-ordinances"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "process_service_relocation",
+      "title": "Process a service relocation request",
+      "actor": {"role": "operations_supervisor"},
+      "situation": "a developer, property owner, or municipality requests relocation of existing utility infrastructure due to construction or road works",
+      "motivation": "coordinate design, approvals, and physical relocation without interrupting service to other customers on the shared network segment",
+      "outcome": "relocation designed, approved, executed, and as-built records updated in GIS",
+      "success_criteria": [
+        "feasibility assessment returned to requester within 10 business days",
+        "cost estimate and timeline approved by requester before design commences",
+        "relocation completed with zero unplanned service interruptions",
+        "GIS as-built updated within 10 business days of completion"
+      ],
+      "data_capture": [
+        {"id": "relocation_ref",     "kind": "text",     "label": "Relocation request ID",    "required": true,  "pii": false},
+        {"id": "requester_name",     "kind": "text",     "label": "Requester name",           "required": true,  "pii": true},
+        {"id": "requester_type",     "kind": "enum",     "label": "Requester type (Developer/Municipality/Private)","required": true,"pii": false},
+        {"id": "affected_assets",    "kind": "textarea", "label": "Affected asset IDs",       "required": true,  "pii": false},
+        {"id": "cost_estimate",      "kind": "money",    "label": "Cost estimate (USD)",      "required": true,  "pii": false},
+        {"id": "design_drawing",     "kind": "file",     "label": "Relocation design drawing","required": true,  "pii": false},
+        {"id": "completion_date",    "kind": "date",     "label": "Actual completion date",   "required": false, "pii": false},
+        {"id": "gis_update_ref",     "kind": "text",     "label": "GIS work order reference", "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "cost_dispute",       "condition": "requester disputes cost estimate",          "handle": "escalate"},
+        {"id": "heritage_constraint","condition": "relocation area has heritage/environmental constraint","handle": "escalate"},
+        {"id": "emergency_relocation","condition": "relocation required within 24h",           "handle": "branch", "branch_to": "emergency_relocation"}
+      ],
+      "approvals": [
+        {"role": "operations_supervisor", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "operations_supervisor"},
+        {"trigger": "approved",    "channel": "email",  "audience": "customer_service_rep"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "operations_supervisor"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 864000},
+      "metrics": ["feasibility_response_time", "relocation_on_time_rate", "gis_update_lag_days"],
+      "compliance": ["PHMSA-49-CFR-192", "state-PUC-line-extension-rules"],
+      "data_sensitivity": ["customer-data", "internal"]
+    },
+    {
+      "id": "track_renewable_credits",
+      "title": "Track and retire renewable energy credits",
+      "actor": {"role": "regulatory_coordinator"},
+      "situation": "the utility's renewable portfolio standard (RPS) compliance period requires tracking RECs generated, transferred, and retired against the mandated percentage",
+      "motivation": "demonstrate RPS compliance to the state commission on schedule and avoid shortfall penalties",
+      "outcome": "REC inventory reconciled, retirement transactions submitted to WREGIS / GATS, and compliance attestation filed",
+      "success_criteria": [
+        "REC inventory reconciled monthly against WREGIS/GATS account",
+        "retirement transactions submitted before compliance period deadline",
+        "compliance attestation signed by certifying officer and filed with commission",
+        "shortfall identified and procured at least 60 days before deadline"
+      ],
+      "data_capture": [
+        {"id": "compliance_period",  "kind": "text",     "label": "Compliance period (YYYY)",  "required": true,  "pii": false},
+        {"id": "rps_requirement_pct","kind": "number",   "label": "RPS requirement (%)",       "required": true,  "pii": false},
+        {"id": "mwh_sold",           "kind": "number",   "label": "Retail MWh sold",           "required": true,  "pii": false},
+        {"id": "rec_inventory",      "kind": "number",   "label": "REC inventory (MWh equiv)", "required": true,  "pii": false},
+        {"id": "rec_retired",        "kind": "number",   "label": "RECs retired",              "required": true,  "pii": false},
+        {"id": "registry_account",   "kind": "text",     "label": "WREGIS / GATS account ID",  "required": true,  "pii": false},
+        {"id": "retirement_cert",    "kind": "file",     "label": "Retirement certificate",    "required": true,  "pii": false},
+        {"id": "compliance_report",  "kind": "file",     "label": "Compliance attestation",    "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "shortfall_detected", "condition": "rec_inventory < mwh_sold * rps_requirement_pct / 100","handle": "escalate"},
+        {"id": "registry_sync_fail", "condition": "WREGIS / GATS API returns error",           "handle": "branch", "branch_to": "manual_reconciliation"}
+      ],
+      "approvals": [
+        {"role": "regulatory_coordinator", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "regulatory_coordinator"},
+        {"trigger": "approved",    "channel": "email",  "audience": "regulatory_coordinator"},
+        {"trigger": "sla_warn",    "channel": "email",  "audience": "regulatory_coordinator"},
+        {"trigger": "sla_breach",  "channel": "email",  "audience": "operations_supervisor"}
+      ],
+      "sla": {"warn_pct": 85, "breach_seconds": 5184000},
+      "metrics": ["rps_compliance_pct", "rec_shortfall_mwh", "retirement_lead_time_days"],
+      "compliance": ["state-RPS-statutes", "WREGIS-operating-rules", "FERC-18-CFR-35"],
+      "data_sensitivity": ["regulatory", "internal"]
+    },
+    {
+      "id": "execute_demand_response",
+      "title": "Execute a demand response event",
+      "actor": {"role": "operations_supervisor"},
+      "situation": "grid operator issues a capacity or emergency demand response dispatch signal requiring enrolled customers to reduce load within the activation window",
+      "motivation": "deliver contracted MW reduction to grid operator to avoid curtailment penalties and demonstrate programme performance",
+      "outcome": "dispatch signals sent to enrolled resources, load reduction measured and verified, and settlement report submitted",
+      "success_criteria": [
+        "dispatch notification sent to all enrolled customers within 10 minutes of grid operator signal",
+        "measured load reduction within ±5% of contracted MW by end of performance interval",
+        "M&V report submitted to grid operator within the settlement deadline",
+        "non-performing resources flagged for programme review"
+      ],
+      "data_capture": [
+        {"id": "event_id",           "kind": "text",     "label": "DR event ID",               "required": true,  "pii": false},
+        {"id": "event_type",         "kind": "enum",     "label": "Event type (Capacity/Emergency/Economic)","required": true,"pii": false},
+        {"id": "dispatch_time",      "kind": "datetime", "label": "Dispatch notification time","required": true,  "pii": false},
+        {"id": "performance_start",  "kind": "datetime", "label": "Performance window start",  "required": true,  "pii": false},
+        {"id": "performance_end",    "kind": "datetime", "label": "Performance window end",    "required": true,  "pii": false},
+        {"id": "contracted_mw",      "kind": "number",   "label": "Contracted MW reduction",   "required": true,  "pii": false},
+        {"id": "measured_mw",        "kind": "number",   "label": "Measured MW reduction",     "required": true,  "pii": false},
+        {"id": "enrolled_count",     "kind": "number",   "label": "Enrolled resource count",   "required": true,  "pii": false},
+        {"id": "mv_report",          "kind": "file",     "label": "M&V settlement report",     "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "performance_shortfall","condition": "measured_mw < contracted_mw * 0.90", "handle": "escalate"},
+        {"id": "dispatch_system_failure","condition": "dispatch signal delivery fails",    "handle": "branch", "branch_to": "manual_dispatch"},
+        {"id": "customer_opt_out",    "condition": "enrolled_count drops below threshold", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "operations_supervisor", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "sms",   "audience": "customer_service_rep"},
+        {"trigger": "state_enter", "channel": "email", "audience": "operations_supervisor"},
+        {"trigger": "approved",    "channel": "email", "audience": "regulatory_coordinator"},
+        {"trigger": "sla_warn",    "channel": "pagerduty", "audience": "operations_supervisor"},
+        {"trigger": "sla_breach",  "channel": "email", "audience": "operations_supervisor"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 3600},
+      "metrics": ["dr_performance_pct", "dispatch_latency_min", "mv_settlement_error_rate", "enrolled_resource_availability_pct"],
+      "compliance": ["FERC-Order-2222", "NERC-BAL-002", "state-DR-programme-rules"],
+      "data_sensitivity": ["customer-data", "ops-sensitive"]
+    }
+  ]
+}

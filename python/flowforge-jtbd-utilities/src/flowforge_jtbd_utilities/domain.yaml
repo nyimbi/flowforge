@@ -3,9 +3,24 @@ name: "Utilities"
 description: "JTBD domain library for Utilities workflows (Meter, outage, billing)."
 package: flowforge-jtbd-utilities
 version: "1.0.0"
+tier: B
 subdomains:
   - "Meter"
   - "outage"
   - "billing"
-regulator_hints: []
+regulator_hints:
+  - "FERC 18 CFR 35 (electric tariffs)"
+  - "EIA-861 (annual electric power industry report)"
+  - "NERC CIP-006 / CIP-007 / CIP-014"
+  - "OSHA 29 CFR 1910 / 1926"
+  - "PHMSA 49 CFR 192 (gas pipeline safety)"
+  - "state PUC service quality rules"
+  - "FERC Order 2222 (demand response)"
+  - "IEEE 1366 (reliability indices)"
 phase: E4
+signoff:
+  team_id: team-utilities
+  reviewer_credentials: "domain-sme(utilities)"
+  reviewed_at: "2026-06-07T00:00:00Z"
+  reviewed_findings:
+    - "D-01-utilities"

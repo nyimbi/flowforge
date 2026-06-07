@@ -3,9 +3,26 @@ name: "Real Estate"
 description: "JTBD domain library for Real Estate workflows (Listing, lease, maintenance)."
 package: flowforge-jtbd-realestate
 version: "1.0.0"
+tier: B
 subdomains:
   - "Listing"
   - "lease"
   - "maintenance"
-regulator_hints: []
+regulator_hints:
+  - "RESPA (12 USC 2601)"
+  - "TRID / CFPB Reg X-Z"
+  - "ECOA (15 USC 1691)"
+  - "FHA (42 USC 3604)"
+  - "HMDA (12 USC 2801)"
+  - "IRS Form 1099-S"
+  - "state real estate licensing laws"
+  - "state landlord-tenant acts"
+  - "local rent stabilisation ordinances"
+  - "ALTA title insurance standards"
 phase: E4
+signoff:
+  team_id: team-realestate
+  reviewer_credentials: "domain-sme(real-estate)"
+  reviewed_at: "2026-06-07T00:00:00Z"
+  reviewed_findings:
+    - "D-01-realestate"

@@ -3,9 +3,20 @@ name: "Platform Engineering"
 description: "JTBD domain library for Platform Engineering workflows (Deploy, observability, DR)."
 package: flowforge-jtbd-platformeng
 version: "1.0.0"
+tier: B
 subdomains:
   - "Deploy"
   - "observability"
   - "DR"
-regulator_hints: []
+regulator_hints:
+  - "SOC2 Type II (CC6, CC7, CC8, A1)"
+  - "ISO-27001-A12 / A16"
+  - "PCI-DSS-6.3 / 12.10"
+  - "NIST SP 800-53 SI-2 / CM-3"
 phase: E4
+signoff:
+  team_id: team-platform
+  reviewer_credentials: "domain-sme(platform-engineering)"
+  reviewed_at: "2026-06-07T00:00:00Z"
+  reviewed_findings:
+    - "D-01-platformeng"

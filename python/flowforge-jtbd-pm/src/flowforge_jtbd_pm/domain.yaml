@@ -3,9 +3,16 @@ name: "Project Management"
 description: "JTBD domain library for Project Management workflows (Kanban, scrum, waterfall)."
 package: flowforge-jtbd-pm
 version: "1.0.0"
+tier: B
 subdomains:
   - "Kanban"
   - "scrum"
   - "waterfall"
 regulator_hints: []
 phase: E2
+signoff:
+  team_id: team-pmo
+  reviewer_credentials: "domain-sme(project-management)"
+  reviewed_at: "2026-06-07T00:00:00Z"
+  reviewed_findings:
+    - "D-01-pm"

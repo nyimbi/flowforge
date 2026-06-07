@@ -1,0 +1,417 @@
+{
+  "project": {
+    "name": "platformeng-example",
+    "package": "platformeng_example",
+    "domain": "platform-eng",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD"]
+  },
+  "shared": {
+    "roles": ["oncall_engineer", "incident_commander", "platform_lead", "security_engineer", "sre"],
+    "permissions": [
+      "deploy.execute", "deploy.rollback", "incident.declare", "incident.close",
+      "certificate.rotate", "oncall.handoff", "postmortem.publish", "cost.view"
+    ]
+  },
+  "jtbds": [
+    {
+      "id": "manage_deployment",
+      "title": "Manage a production deployment",
+      "actor": {"role": "sre"},
+      "situation": "a CI/CD pipeline produces a release artifact and an SRE must promote it through staging to production with gated approvals",
+      "motivation": "ship validated changes with a documented rollback path and no unreviewed surprises in prod",
+      "outcome": "deployment completed or rolled back with full audit trail and SLO impact recorded",
+      "success_criteria": [
+        "canary health checks pass for minimum 10 minutes before full rollout",
+        "error budget impact calculated and within policy before promotion",
+        "deployment record references the exact artifact SHA and approval chain"
+      ],
+      "data_capture": [
+        {"id": "service_name",       "kind": "text",   "label": "Service name",               "required": true,  "pii": false},
+        {"id": "artifact_sha",       "kind": "text",   "label": "Artifact SHA-256",           "required": true,  "pii": false},
+        {"id": "deploy_env",         "kind": "enum",   "label": "Target environment",         "required": true,  "pii": false},
+        {"id": "change_ticket",      "kind": "text",   "label": "Change ticket ID",           "required": true,  "pii": false},
+        {"id": "rollback_plan",      "kind": "textarea","label": "Rollback procedure",        "required": true,  "pii": false},
+        {"id": "error_budget_pct",   "kind": "number", "label": "Error budget consumed (%)",  "required": true,  "pii": false},
+        {"id": "canary_duration_min","kind": "number", "label": "Canary soak duration (min)", "required": true,  "pii": false},
+        {"id": "deploy_owner",       "kind": "text",   "label": "Deploying engineer",         "required": true,  "pii": true}
+      ],
+      "edge_cases": [
+        {"id": "canary_error_spike",   "condition": "error_rate > baseline * 1.5 during canary", "handle": "branch", "branch_to": "auto_rollback"},
+        {"id": "budget_exhausted",     "condition": "error_budget_pct >= 100",                   "handle": "reject"},
+        {"id": "missing_change_ticket","condition": "change_ticket is empty",                    "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "platform_lead", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "slack",  "audience": "oncall_engineer"},
+        {"trigger": "approved",    "channel": "slack",  "audience": "sre"},
+        {"trigger": "rejected",    "channel": "slack",  "audience": "sre"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "sre"},
+        {"trigger": "sla_breach",  "channel": "pagerduty", "audience": "oncall_engineer"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 3600},
+      "metrics": ["deployment_frequency", "change_failure_rate", "lead_time_for_change", "mttr"],
+      "compliance": ["DORA-elite-criteria", "SOC2-CC8.1"],
+      "data_sensitivity": ["internal", "ops-sensitive"]
+    },
+    {
+      "id": "respond_to_incident",
+      "title": "Respond to a production incident",
+      "actor": {"role": "incident_commander"},
+      "situation": "a monitoring alert fires or a customer report arrives indicating a production service is degraded or unavailable",
+      "motivation": "restore service to SLO within the error budget window while preserving evidence for root cause analysis",
+      "outcome": "incident mitigated, timeline documented, and postmortem scheduled",
+      "success_criteria": [
+        "incident declared and commander assigned within 5 minutes of alert",
+        "customer-facing status page updated within 10 minutes of declaration",
+        "service restored or workaround applied within SLO threshold",
+        "postmortem scheduled before incident is closed"
+      ],
+      "data_capture": [
+        {"id": "incident_id",        "kind": "text",     "label": "Incident ID",              "required": true,  "pii": false},
+        {"id": "severity",           "kind": "enum",     "label": "Severity (P1-P4)",         "required": true,  "pii": false},
+        {"id": "affected_services",  "kind": "textarea", "label": "Affected services",        "required": true,  "pii": false},
+        {"id": "customer_impact",    "kind": "textarea", "label": "Customer impact statement", "required": true, "pii": false},
+        {"id": "detection_time",     "kind": "datetime", "label": "Time detected",            "required": true,  "pii": false},
+        {"id": "mitigation_time",    "kind": "datetime", "label": "Time mitigated",           "required": true,  "pii": false},
+        {"id": "resolution_time",    "kind": "datetime", "label": "Time resolved",            "required": false, "pii": false},
+        {"id": "timeline_log",       "kind": "textarea", "label": "Incident timeline",        "required": true,  "pii": false},
+        {"id": "postmortem_date",    "kind": "date",     "label": "Postmortem scheduled date","required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "p1_no_commander",  "condition": "severity == P1 and commander not assigned within 5 min", "handle": "escalate"},
+        {"id": "data_breach_suspected","condition": "incident involves potential data exposure",           "handle": "branch", "branch_to": "security_incident_response"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "pagerduty", "audience": "oncall_engineer"},
+        {"trigger": "state_enter",  "channel": "slack",     "audience": "incident_commander"},
+        {"trigger": "approved",     "channel": "email",     "audience": "stakeholder"},
+        {"trigger": "sla_warn",     "channel": "pagerduty", "audience": "incident_commander"},
+        {"trigger": "sla_breach",   "channel": "pagerduty", "audience": "platform_lead"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 14400},
+      "metrics": ["mttd", "mtta", "mttm", "mttr", "incident_recurrence_rate"],
+      "compliance": ["SOC2-A1.2", "ISO-27001-A16", "ITIL-4-incident-mgmt"],
+      "data_sensitivity": ["internal", "ops-sensitive"]
+    },
+    {
+      "id": "run_DR_drill",
+      "title": "Run a disaster recovery drill",
+      "actor": {"role": "platform_lead"},
+      "situation": "the quarterly DR schedule requires a full failover test to validate RTO and RPO targets for critical services",
+      "motivation": "confirm that documented recovery procedures actually work before a real disaster forces the issue",
+      "outcome": "DR drill completed, RTO and RPO measurements recorded, gap report published",
+      "success_criteria": [
+        "drill executed in isolated environment with no production impact",
+        "RTO measured and compared against target for every in-scope service",
+        "RPO data loss window measured and within contractual SLA",
+        "gap report with prioritised remediations published within 5 business days"
+      ],
+      "data_capture": [
+        {"id": "drill_date",         "kind": "date",     "label": "Drill date",               "required": true,  "pii": false},
+        {"id": "in_scope_services",  "kind": "textarea", "label": "In-scope services",        "required": true,  "pii": false},
+        {"id": "rto_target_min",     "kind": "number",   "label": "RTO target (minutes)",     "required": true,  "pii": false},
+        {"id": "rto_actual_min",     "kind": "number",   "label": "RTO actual (minutes)",     "required": true,  "pii": false},
+        {"id": "rpo_target_min",     "kind": "number",   "label": "RPO target (minutes)",     "required": true,  "pii": false},
+        {"id": "rpo_actual_min",     "kind": "number",   "label": "RPO actual (minutes)",     "required": true,  "pii": false},
+        {"id": "drill_log",          "kind": "file",     "label": "Drill execution log",      "required": true,  "pii": false},
+        {"id": "gap_report",         "kind": "file",     "label": "Gap report",               "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "rto_breach",         "condition": "rto_actual_min > rto_target_min",   "handle": "escalate"},
+        {"id": "rpo_breach",         "condition": "rpo_actual_min > rpo_target_min",   "handle": "escalate"},
+        {"id": "production_impact",  "condition": "drill caused unplanned prod impact", "handle": "branch", "branch_to": "incident_response"}
+      ],
+      "approvals": [
+        {"role": "platform_lead", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "sre"},
+        {"trigger": "approved",    "channel": "email",  "audience": "platform_lead"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "platform_lead"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["rto_compliance_rate", "rpo_compliance_rate", "dr_gap_closure_rate"],
+      "compliance": ["SOC2-A1.3", "ISO-22301", "PCI-DSS-12.10"],
+      "data_sensitivity": ["internal", "ops-sensitive"]
+    },
+    {
+      "id": "plan_capacity",
+      "title": "Plan infrastructure capacity",
+      "actor": {"role": "platform_lead"},
+      "situation": "quarterly capacity review cycle opens and forecasted traffic growth must be mapped to resource provisioning decisions",
+      "motivation": "avoid both over-provisioning waste and under-provisioning incidents during peak traffic events",
+      "outcome": "capacity plan approved with provisioning tickets raised and budget allocated",
+      "success_criteria": [
+        "P95 latency projections modelled for next 6 months based on growth forecast",
+        "capacity plan approved by finance within 10 business days",
+        "provisioning tickets raised for all approved resources before plan closes"
+      ],
+      "data_capture": [
+        {"id": "planning_period",    "kind": "text",   "label": "Planning period (YYYY-QQ)",  "required": true,  "pii": false},
+        {"id": "growth_forecast_pct","kind": "number", "label": "Traffic growth forecast (%)", "required": true, "pii": false},
+        {"id": "current_utilisation","kind": "number", "label": "Current peak utilisation (%)", "required": true,"pii": false},
+        {"id": "headroom_target_pct","kind": "number", "label": "Target headroom (%)",         "required": true,  "pii": false},
+        {"id": "cost_estimate",      "kind": "money",  "label": "Cost estimate (USD/month)",   "required": true,  "pii": false},
+        {"id": "capacity_plan_doc",  "kind": "file",   "label": "Capacity plan document",      "required": true,  "pii": false},
+        {"id": "provisioning_tickets","kind":"textarea","label": "Provisioning ticket IDs",     "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "cost_exceeds_budget", "condition": "cost_estimate > approved_capacity_budget", "handle": "escalate"},
+        {"id": "critical_headroom",   "condition": "current_utilisation > 90",                 "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "platform_lead", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "platform_lead"},
+        {"trigger": "approved",    "channel": "slack",  "audience": "sre"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "platform_lead"},
+        {"trigger": "sla_breach",  "channel": "email",  "audience": "platform_lead"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 864000},
+      "metrics": ["capacity_headroom_pct", "cost_per_request", "overprovisioning_waste_pct"],
+      "compliance": ["SOC2-A1.1", "FinOps-FOCUS-1.0"],
+      "data_sensitivity": ["internal", "finance-restricted"]
+    },
+    {
+      "id": "triage_security_vulnerability",
+      "title": "Triage a security vulnerability",
+      "actor": {"role": "security_engineer"},
+      "situation": "a CVE scan, bug bounty submission, or internal pen-test surfaces a vulnerability in a production system",
+      "motivation": "assess exploitability and business impact quickly enough to meet SLA-driven patch windows",
+      "outcome": "vulnerability risk-rated, remediation assigned, and patch deadline set with stakeholder sign-off",
+      "success_criteria": [
+        "initial triage completed within 4 hours of report for Critical/High CVEs",
+        "CVSS score and exploitability context documented",
+        "remediation owner assigned and deadline confirmed before triage closes"
+      ],
+      "data_capture": [
+        {"id": "cve_id",             "kind": "text",     "label": "CVE / issue ID",           "required": true,  "pii": false},
+        {"id": "cvss_score",         "kind": "number",   "label": "CVSS v3 base score",       "required": true,  "pii": false},
+        {"id": "affected_components","kind": "textarea", "label": "Affected components",      "required": true,  "pii": false},
+        {"id": "exploitability",     "kind": "enum",     "label": "Exploitability (None/POC/Active)","required": true,"pii": false},
+        {"id": "blast_radius",       "kind": "textarea", "label": "Blast radius assessment",  "required": true,  "pii": false},
+        {"id": "remediation_plan",   "kind": "textarea", "label": "Remediation plan",         "required": true,  "pii": false},
+        {"id": "patch_deadline",     "kind": "date",     "label": "Patch deadline",           "required": true,  "pii": false},
+        {"id": "remediation_owner",  "kind": "text",     "label": "Remediation owner",        "required": true,  "pii": true}
+      ],
+      "edge_cases": [
+        {"id": "active_exploitation", "condition": "exploitability == Active",    "handle": "branch", "branch_to": "emergency_patch"},
+        {"id": "no_fix_available",    "condition": "no vendor patch exists",      "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "security_engineer", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "slack",  "audience": "security_engineer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "platform_lead"},
+        {"trigger": "sla_warn",    "channel": "pagerduty", "audience": "security_engineer"},
+        {"trigger": "sla_breach",  "channel": "pagerduty", "audience": "platform_lead"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 14400},
+      "metrics": ["mean_time_to_triage", "patch_sla_compliance_rate", "open_critical_cve_count"],
+      "compliance": ["NIST-SP800-53-SI-2", "SOC2-CC7.1", "ISO-27001-A12.6"],
+      "data_sensitivity": ["internal", "security-restricted"]
+    },
+    {
+      "id": "rotate_certificate",
+      "title": "Rotate a TLS/mTLS certificate",
+      "actor": {"role": "sre"},
+      "situation": "a certificate approaches its expiry threshold (≤30 days) or a CA revocation event requires emergency rotation",
+      "motivation": "prevent service disruption from expired certificates or trust chain compromise",
+      "outcome": "certificate rotated, deployed, and verified across all consuming services with zero downtime",
+      "success_criteria": [
+        "new certificate provisioned from approved CA with validity ≥365 days",
+        "rotation validated in staging before production",
+        "old certificate revoked after grace period",
+        "all consuming service health checks green after rotation"
+      ],
+      "data_capture": [
+        {"id": "cert_fingerprint",   "kind": "text",   "label": "Current cert SHA-256 fingerprint","required": true, "pii": false},
+        {"id": "expiry_date",        "kind": "date",   "label": "Current cert expiry date",  "required": true,  "pii": false},
+        {"id": "domain_names",       "kind": "textarea","label": "Subject alternative names", "required": true,  "pii": false},
+        {"id": "new_cert_ref",       "kind": "text",   "label": "New cert reference / ARN",  "required": true,  "pii": false},
+        {"id": "rotation_type",      "kind": "enum",   "label": "Rotation type (Scheduled/Emergency)","required": true,"pii": false},
+        {"id": "consuming_services", "kind": "textarea","label": "Consuming services list",  "required": true,  "pii": false},
+        {"id": "validation_evidence","kind": "file",   "label": "Post-rotation health check log","required": true,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "cert_already_expired","condition": "expiry_date < today",                      "handle": "branch", "branch_to": "emergency_rotation"},
+        {"id": "health_check_fail",   "condition": "any consuming service health check fails", "handle": "branch", "branch_to": "rollback_certificate"}
+      ],
+      "approvals": [
+        {"role": "security_engineer", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "slack",     "audience": "sre"},
+        {"trigger": "approved",     "channel": "slack",     "audience": "sre"},
+        {"trigger": "sla_warn",     "channel": "pagerduty", "audience": "sre"},
+        {"trigger": "sla_breach",   "channel": "pagerduty", "audience": "platform_lead"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 86400},
+      "metrics": ["cert_expiry_days_remaining", "rotation_lead_time", "rotation_failure_rate"],
+      "compliance": ["SOC2-CC6.7", "NIST-SP800-57", "PCI-DSS-4.1"],
+      "data_sensitivity": ["internal", "security-restricted"]
+    },
+    {
+      "id": "hand_off_on_call",
+      "title": "Hand off on-call responsibility",
+      "actor": {"role": "oncall_engineer"},
+      "situation": "the on-call rotation shifts and the outgoing engineer must transfer situational awareness and open items to the incoming engineer",
+      "motivation": "ensure the incoming engineer is fully briefed with zero knowledge gaps before the outgoing engineer goes offline",
+      "outcome": "handoff record signed by both engineers with all open incidents, known risks, and pending actions documented",
+      "success_criteria": [
+        "handoff initiated at least 30 minutes before rotation end",
+        "all open P1/P2 incidents explicitly referenced in handoff notes",
+        "incoming engineer confirms understanding before outgoing goes offline"
+      ],
+      "data_capture": [
+        {"id": "outgoing_engineer",  "kind": "text",     "label": "Outgoing engineer",        "required": true,  "pii": true},
+        {"id": "incoming_engineer",  "kind": "text",     "label": "Incoming engineer",        "required": true,  "pii": true},
+        {"id": "rotation_end",       "kind": "datetime", "label": "Rotation end time",        "required": true,  "pii": false},
+        {"id": "open_incidents",     "kind": "textarea", "label": "Open incident IDs + status","required": true, "pii": false},
+        {"id": "known_risks",        "kind": "textarea", "label": "Known risks / fragile areas","required": true,"pii": false},
+        {"id": "pending_actions",    "kind": "textarea", "label": "Pending actions / follow-ups","required": true,"pii": false},
+        {"id": "incoming_ack",       "kind": "signature","label": "Incoming engineer acknowledgement","required": true,"pii": true}
+      ],
+      "edge_cases": [
+        {"id": "incoming_unavailable","condition": "incoming engineer not reachable 1h before rotation end","handle": "escalate"},
+        {"id": "active_p1_open",      "condition": "P1 incident open during handoff",                      "handle": "branch", "branch_to": "extend_rotation"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "pagerduty", "audience": "incoming_engineer"},
+        {"trigger": "state_enter", "channel": "slack",     "audience": "oncall_engineer"},
+        {"trigger": "approved",    "channel": "slack",     "audience": "oncall_engineer"},
+        {"trigger": "sla_warn",    "channel": "pagerduty", "audience": "oncall_engineer"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 1800},
+      "metrics": ["handoff_completion_rate", "handoff_latency_min", "open_incidents_at_handoff"],
+      "compliance": ["ITIL-4-service-desk", "SOC2-CC7.4"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "conduct_postmortem",
+      "title": "Conduct an incident postmortem",
+      "actor": {"role": "incident_commander"},
+      "situation": "a P1 or P2 incident has been resolved and the team must run a blameless postmortem to prevent recurrence",
+      "motivation": "surface systemic weaknesses and convert incident learnings into durable reliability improvements",
+      "outcome": "blameless postmortem report published with root cause, contributing factors, and time-boxed action items",
+      "success_criteria": [
+        "postmortem completed within 5 business days of incident resolution",
+        "root cause identified and documented with supporting evidence",
+        "all action items have owners and due dates",
+        "report published to internal knowledge base and linked from incident record"
+      ],
+      "data_capture": [
+        {"id": "incident_ref",       "kind": "text",     "label": "Incident reference ID",   "required": true,  "pii": false},
+        {"id": "session_date",       "kind": "date",     "label": "Postmortem session date", "required": true,  "pii": false},
+        {"id": "attendees",          "kind": "textarea", "label": "Attendees",               "required": true,  "pii": true},
+        {"id": "timeline",           "kind": "textarea", "label": "Detailed incident timeline","required": true, "pii": false},
+        {"id": "root_cause",         "kind": "textarea", "label": "Root cause (5-Whys)",     "required": true,  "pii": false},
+        {"id": "contributing_factors","kind":"textarea", "label": "Contributing factors",    "required": true,  "pii": false},
+        {"id": "action_items",       "kind": "textarea", "label": "Action items with owners","required": true,  "pii": false},
+        {"id": "postmortem_doc",     "kind": "file",     "label": "Published postmortem doc","required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "blame_language_detected","condition": "postmortem draft contains blame language", "handle": "reject"},
+        {"id": "no_action_items",         "condition": "action_items is empty",                  "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "platform_lead", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "sre"},
+        {"trigger": "approved",    "channel": "slack",  "audience": "incident_commander"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "incident_commander"},
+        {"trigger": "sla_breach",  "channel": "email",  "audience": "platform_lead"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 432000},
+      "metrics": ["postmortem_completion_rate", "action_item_closure_rate_30d", "mean_time_to_postmortem"],
+      "compliance": ["ITIL-4-problem-mgmt", "SOC2-CC7.5", "ISO-27001-A16.1"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "optimize_cloud_cost",
+      "title": "Optimise cloud infrastructure cost",
+      "actor": {"role": "platform_lead"},
+      "situation": "monthly FinOps review reveals cloud spend has drifted above budget threshold or unit economics have degraded",
+      "motivation": "reduce waste from idle resources, overprovisioned instances, and untagged spend without impacting reliability",
+      "outcome": "optimisation recommendations implemented, savings realised and measured against baseline",
+      "success_criteria": [
+        "idle and underutilised resources identified via utilisation analysis",
+        "rightsizing recommendations reviewed and approved before any change",
+        "savings realised tracked against forecast within 30 days of changes",
+        "no SLO degradation observed post-optimisation"
+      ],
+      "data_capture": [
+        {"id": "review_period",      "kind": "text",   "label": "Review period (YYYY-MM)",    "required": true,  "pii": false},
+        {"id": "current_monthly_spend","kind":"money", "label": "Current monthly spend (USD)", "required": true, "pii": false},
+        {"id": "budget_target",      "kind": "money",  "label": "Budget target (USD/month)",  "required": true,  "pii": false},
+        {"id": "waste_identified",   "kind": "money",  "label": "Waste identified (USD/month)","required": true, "pii": false},
+        {"id": "recommendations",    "kind": "textarea","label": "Optimisation recommendations","required": true,"pii": false},
+        {"id": "risk_assessment",    "kind": "textarea","label": "Reliability risk assessment","required": true, "pii": false},
+        {"id": "savings_forecast",   "kind": "money",  "label": "Projected monthly savings",  "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "slo_risk_identified", "condition": "risk_assessment flags SLO impact",         "handle": "escalate"},
+        {"id": "untagged_spend_over_10pct","condition": "untagged resources > 10% of total spend","handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "platform_lead", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "platform_lead"},
+        {"trigger": "approved",    "channel": "slack",  "audience": "sre"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "platform_lead"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 1296000},
+      "metrics": ["cloud_cost_per_unit", "waste_pct", "savings_realised_usd", "coverage_tagged_pct"],
+      "compliance": ["FinOps-FOCUS-1.0", "SOC2-CC9.1"],
+      "data_sensitivity": ["internal", "finance-restricted"]
+    },
+    {
+      "id": "collect_compliance_evidence",
+      "title": "Collect compliance evidence for audit",
+      "actor": {"role": "platform_lead"},
+      "situation": "an external audit window opens (SOC 2, ISO 27001, PCI DSS) and control evidence must be gathered from multiple platform systems",
+      "motivation": "produce a complete, traceable evidence package on time to avoid audit findings and certification delays",
+      "outcome": "evidence package assembled, reviewed by security, and submitted to auditor within the evidence collection window",
+      "success_criteria": [
+        "all required controls have at least one evidence artefact attached",
+        "evidence timestamps fall within the audit period",
+        "security engineer signs off on evidence completeness before submission",
+        "evidence package submitted before auditor deadline"
+      ],
+      "data_capture": [
+        {"id": "audit_framework",    "kind": "enum",   "label": "Audit framework (SOC2/ISO27001/PCI)","required": true,"pii": false},
+        {"id": "audit_period_start", "kind": "date",   "label": "Audit period start",        "required": true,  "pii": false},
+        {"id": "audit_period_end",   "kind": "date",   "label": "Audit period end",          "required": true,  "pii": false},
+        {"id": "control_count",      "kind": "number", "label": "Total controls in scope",   "required": true,  "pii": false},
+        {"id": "evidence_package",   "kind": "file",   "label": "Evidence package archive",  "required": true,  "pii": false},
+        {"id": "control_coverage",   "kind": "number", "label": "Controls with evidence (%)", "required": true, "pii": false},
+        {"id": "auditor_deadline",   "kind": "date",   "label": "Auditor submission deadline","required": true, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "control_gap",        "condition": "control_coverage < 100",          "handle": "escalate"},
+        {"id": "evidence_out_of_period","condition": "evidence timestamp outside audit period","handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "security_engineer", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "security_engineer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "platform_lead"},
+        {"trigger": "sla_warn",    "channel": "email",  "audience": "platform_lead"},
+        {"trigger": "sla_breach",  "channel": "email",  "audience": "platform_lead"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 604800},
+      "metrics": ["evidence_coverage_pct", "time_to_collect", "audit_findings_count"],
+      "compliance": ["SOC2-CC1.1", "ISO-27001-A18.2", "PCI-DSS-12.3"],
+      "data_sensitivity": ["internal", "security-restricted", "audit-restricted"]
+    }
+  ]
+}
