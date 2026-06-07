@@ -1,0 +1,433 @@
+{
+  "project": {
+    "name": "procurement",
+    "package": "flowforge_jtbd_procurement",
+    "domain": "procurement",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD", "EUR", "GBP"]
+  },
+  "shared": {
+    "roles": ["buyer", "procurement_manager", "approver", "finance_controller", "supplier", "warehouse_manager"],
+    "permissions": ["po.read", "vendor.read", "invoice.read", "contract.read"]
+  },
+  "jtbds": [
+    {
+      "id": "source_vendor",
+      "title": "Source and evaluate a new vendor",
+      "actor": {"role": "buyer"},
+      "situation": "business unit identifies a need for a product or service with no approved vendor on record",
+      "motivation": "find the best-value supplier that meets quality, compliance, and delivery requirements",
+      "outcome": "vendor shortlisted, evaluated, and added to approved vendor list",
+      "success_criteria": [
+        "minimum 3 vendors evaluated before selection",
+        "vendor compliance documentation verified before approval",
+        "total cost of ownership calculated and documented"
+      ],
+      "data_capture": [
+        {"id": "category",           "kind": "enum",    "label": "Spend category",        "required": true,  "pii": false},
+        {"id": "vendor_name",        "kind": "text",    "label": "Vendor legal name",      "required": true,  "pii": false},
+        {"id": "vendor_country",     "kind": "enum",    "label": "Vendor country",         "required": true,  "pii": false},
+        {"id": "tax_id",             "kind": "text",    "label": "Tax registration ID",    "required": true,  "pii": false},
+        {"id": "annual_revenue",     "kind": "money",   "label": "Vendor annual revenue",  "required": false, "pii": false},
+        {"id": "certifications",     "kind": "textarea","label": "Quality certifications", "required": false, "pii": false},
+        {"id": "risk_tier",          "kind": "enum",    "label": "Supplier risk tier",     "required": true,  "pii": false},
+        {"id": "bank_details",       "kind": "text",    "label": "Bank account reference", "required": true,  "pii": true},
+        {"id": "contact_name",       "kind": "text",    "label": "Primary contact",        "required": true,  "pii": true},
+        {"id": "contact_email",      "kind": "email",   "label": "Contact email",          "required": true,  "pii": true},
+        {"id": "evaluation_score",   "kind": "number",  "label": "Evaluation score (0-100)","required": false,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "sanctioned_country",    "condition": "vendor_country on OFAC/sanctions list",      "handle": "reject"},
+        {"id": "duplicate_vendor",      "condition": "tax_id already exists in vendor master",     "handle": "reject"},
+        {"id": "high_risk_tier",        "condition": "risk_tier == critical",                       "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "procurement_manager", "policy": "1_of_1"},
+        {"role": "finance_controller",  "policy": "authority_tier", "tier": 3}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "buyer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "supplier"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "buyer"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "procurement_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 1209600},
+      "metrics": ["vendor_onboarding_cycle_time", "vendor_compliance_rate", "sourcing_savings_pct"],
+      "compliance": ["OFAC_sanctions_check", "anti_bribery"],
+      "data_sensitivity": ["pii_contact", "financial", "supplier_confidential"]
+    },
+    {
+      "id": "create_PO",
+      "title": "Create and approve a purchase order",
+      "actor": {"role": "buyer"},
+      "situation": "buyer raises a PO against an approved vendor to fulfill an approved spend request",
+      "motivation": "commit spend within budget and establish a contractual basis for the purchase",
+      "outcome": "PO issued to vendor with unique PO number, budget encumbered, approval trail complete",
+      "success_criteria": [
+        "PO raised against approved vendor only",
+        "PO value within the budget code balance",
+        "approval chain completed per authority matrix before issue"
+      ],
+      "data_capture": [
+        {"id": "po_number",       "kind": "text",    "label": "PO number",              "required": true,  "pii": false},
+        {"id": "vendor_id",       "kind": "text",    "label": "Vendor ID",              "required": true,  "pii": false},
+        {"id": "line_items",      "kind": "textarea","label": "Line items (JSON)",      "required": true,  "pii": false},
+        {"id": "total_value",     "kind": "money",   "label": "Total PO value",         "required": true,  "pii": false},
+        {"id": "budget_code",     "kind": "text",    "label": "Budget cost centre",     "required": true,  "pii": false},
+        {"id": "delivery_date",   "kind": "date",    "label": "Required delivery date", "required": true,  "pii": false},
+        {"id": "ship_to_address", "kind": "address", "label": "Ship-to address",        "required": true,  "pii": false},
+        {"id": "payment_terms",   "kind": "enum",    "label": "Payment terms",          "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "over_budget",         "condition": "total_value > budget_code_balance",                "handle": "reject"},
+        {"id": "unapproved_vendor",   "condition": "vendor_id not in approved_vendor_list",            "handle": "reject"},
+        {"id": "high_value_po",       "condition": "total_value > 50000",                              "handle": "escalate"},
+        {"id": "capex_threshold",     "condition": "total_value > 100000 and category == capex",       "handle": "branch", "branch_to": "capex_approval"}
+      ],
+      "approvals": [
+        {"role": "approver",            "policy": "authority_tier", "tier": 2},
+        {"role": "finance_controller",  "policy": "authority_tier", "tier": 3}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "buyer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "supplier"},
+        {"trigger": "approved",    "channel": "in_app", "audience": "buyer"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "buyer"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "buyer"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "procurement_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 172800},
+      "metrics": ["po_cycle_time", "po_first_pass_approval_rate", "budget_utilisation_pct"],
+      "compliance": ["segregation_of_duties", "three_way_match_required"],
+      "data_sensitivity": ["financial"]
+    },
+    {
+      "id": "conduct_three_way_match",
+      "title": "Conduct three-way match",
+      "actor": {"role": "finance_controller"},
+      "situation": "invoice received from vendor and accounts payable must verify it against the PO and goods receipt before payment",
+      "motivation": "prevent payment of erroneous, duplicate, or fraudulent invoices",
+      "outcome": "invoice approved for payment or routed for exception resolution",
+      "success_criteria": [
+        "PO, goods receipt, and invoice quantities match within tolerance",
+        "unit prices match within agreed tolerance (typically 2%)",
+        "match decision recorded with audit trail before payment release"
+      ],
+      "data_capture": [
+        {"id": "invoice_number",  "kind": "text",    "label": "Invoice number",          "required": true,  "pii": false},
+        {"id": "po_number",       "kind": "text",    "label": "Linked PO number",        "required": true,  "pii": false},
+        {"id": "gr_number",       "kind": "text",    "label": "Goods receipt number",    "required": true,  "pii": false},
+        {"id": "invoice_amount",  "kind": "money",   "label": "Invoice amount",          "required": true,  "pii": false},
+        {"id": "po_amount",       "kind": "money",   "label": "PO amount",               "required": true,  "pii": false},
+        {"id": "gr_amount",       "kind": "money",   "label": "Goods receipt amount",    "required": true,  "pii": false},
+        {"id": "variance_pct",    "kind": "number",  "label": "Variance %",              "required": false, "pii": false},
+        {"id": "match_outcome",   "kind": "enum",    "label": "Match outcome",           "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "quantity_mismatch",   "condition": "invoice_qty != gr_qty",                             "handle": "branch", "branch_to": "quantity_exception"},
+        {"id": "price_variance",      "condition": "variance_pct > 2",                                  "handle": "branch", "branch_to": "price_exception"},
+        {"id": "duplicate_invoice",   "condition": "invoice_number already in paid or pending state",   "handle": "reject"},
+        {"id": "po_not_found",        "condition": "po_number does not exist in system",                "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "finance_controller", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "finance_controller"},
+        {"trigger": "approved",    "channel": "email",  "audience": "supplier"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "buyer"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "procurement_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 259200},
+      "metrics": ["match_rate", "exception_rate", "invoice_processing_cycle_time"],
+      "compliance": ["segregation_of_duties", "SOX_controls"],
+      "data_sensitivity": ["financial"]
+    },
+    {
+      "id": "renew_contract",
+      "title": "Renew a supplier contract",
+      "actor": {"role": "procurement_manager"},
+      "situation": "existing supplier contract approaches expiry and procurement must negotiate and execute renewal terms",
+      "motivation": "maintain supply continuity and capture improved commercial terms before contract lapses",
+      "outcome": "renewed contract signed and activated, updated terms loaded into contract register",
+      "success_criteria": [
+        "renewal process initiated at least 90 days before expiry",
+        "renegotiated terms reviewed by legal at least 45 days before expiry",
+        "signed contract archived in document system before expiry date"
+      ],
+      "data_capture": [
+        {"id": "contract_id",       "kind": "text",    "label": "Contract ID",            "required": true,  "pii": false},
+        {"id": "expiry_date",       "kind": "date",    "label": "Contract expiry date",   "required": true,  "pii": false},
+        {"id": "current_value",     "kind": "money",   "label": "Current contract value", "required": true,  "pii": false},
+        {"id": "proposed_value",    "kind": "money",   "label": "Proposed renewal value", "required": true,  "pii": false},
+        {"id": "savings_achieved",  "kind": "money",   "label": "Savings vs prior term",  "required": false, "pii": false},
+        {"id": "term_months",       "kind": "number",  "label": "Renewal term (months)",  "required": true,  "pii": false},
+        {"id": "signed_contract",   "kind": "file",    "label": "Signed contract PDF",    "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "sole_source",         "condition": "no alternative supplier exists for category",        "handle": "escalate"},
+        {"id": "price_increase_large","condition": "proposed_value > current_value * 1.1",               "handle": "escalate"},
+        {"id": "auto_renewal_risk",   "condition": "expiry_date < today + 30 days and not actioned",     "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "procurement_manager", "policy": "1_of_1"},
+        {"role": "finance_controller",  "policy": "authority_tier", "tier": 3}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "procurement_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "supplier"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "procurement_manager"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "finance_controller"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 7776000},
+      "metrics": ["contract_renewal_savings_pct", "on_time_renewal_rate", "supplier_price_variance"],
+      "compliance": ["anti_bribery", "segregation_of_duties"],
+      "data_sensitivity": ["financial", "contractual"]
+    },
+    {
+      "id": "resolve_supplier_dispute",
+      "title": "Resolve a supplier dispute",
+      "actor": {"role": "procurement_manager"},
+      "situation": "disagreement with supplier over invoice value, delivery quality, or contract terms requires formal dispute resolution",
+      "motivation": "settle the dispute without litigation while protecting commercial relationships and financial position",
+      "outcome": "dispute resolved with agreed credit note, revised delivery, or escalation to legal",
+      "success_criteria": [
+        "dispute formally logged within 2 business days of identification",
+        "supplier notified in writing within 5 business days",
+        "resolution or escalation decision made within 30 days"
+      ],
+      "data_capture": [
+        {"id": "dispute_ref",     "kind": "text",    "label": "Dispute reference",       "required": true,  "pii": false},
+        {"id": "vendor_id",       "kind": "text",    "label": "Vendor ID",               "required": true,  "pii": false},
+        {"id": "dispute_type",    "kind": "enum",    "label": "Dispute type",            "required": true,  "pii": false},
+        {"id": "amount_in_dispute","kind": "money",  "label": "Amount in dispute",       "required": true,  "pii": false},
+        {"id": "description",     "kind": "textarea","label": "Dispute description",     "required": true,  "pii": false},
+        {"id": "evidence_docs",   "kind": "file",    "label": "Supporting evidence",     "required": false, "pii": false},
+        {"id": "resolution_type", "kind": "enum",    "label": "Resolution type",         "required": false, "pii": false},
+        {"id": "credit_note_ref", "kind": "text",    "label": "Credit note reference",   "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "legal_threat_received","condition": "supplier has issued formal legal notice",           "handle": "escalate"},
+        {"id": "large_amount",         "condition": "amount_in_dispute > 100000",                        "handle": "escalate"},
+        {"id": "repeat_dispute",       "condition": "vendor has 3+ disputes in 12 months",              "handle": "branch", "branch_to": "vendor_review"}
+      ],
+      "approvals": [
+        {"role": "procurement_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "procurement_manager"},
+        {"trigger": "state_enter", "channel": "email",  "audience": "supplier"},
+        {"trigger": "resolved",    "channel": "email",  "audience": "supplier"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "finance_controller"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 2592000},
+      "metrics": ["dispute_resolution_cycle_time", "dispute_recovery_rate", "supplier_dispute_frequency"],
+      "compliance": ["contract_law_adherence"],
+      "data_sensitivity": ["financial", "contractual"]
+    },
+    {
+      "id": "process_emergency_purchase",
+      "title": "Process an emergency purchase",
+      "actor": {"role": "buyer"},
+      "situation": "an operational emergency requires immediate procurement outside the standard approval cycle",
+      "motivation": "restore operations quickly while maintaining a compliant audit trail for post-hoc approval",
+      "outcome": "purchase completed under emergency authority, PO raised retroactively, approval obtained within 48 hours",
+      "success_criteria": [
+        "emergency justification recorded before purchase",
+        "retroactive PO raised within 24 hours of purchase",
+        "post-hoc approval obtained within 48 hours"
+      ],
+      "data_capture": [
+        {"id": "emergency_ref",   "kind": "text",    "label": "Emergency reference",     "required": true,  "pii": false},
+        {"id": "business_impact", "kind": "textarea","label": "Operational impact if delayed","required": true,"pii": false},
+        {"id": "vendor_name",     "kind": "text",    "label": "Vendor name",             "required": true,  "pii": false},
+        {"id": "purchase_amount", "kind": "money",   "label": "Purchase amount",         "required": true,  "pii": false},
+        {"id": "purchase_date",   "kind": "date",    "label": "Purchase date",           "required": true,  "pii": false},
+        {"id": "retro_po_number", "kind": "text",    "label": "Retroactive PO number",   "required": false, "pii": false},
+        {"id": "approver_name",   "kind": "text",    "label": "Emergency approver",      "required": true,  "pii": true}
+      ],
+      "edge_cases": [
+        {"id": "exceeds_emergency_limit","condition": "purchase_amount > emergency_authority_limit",    "handle": "escalate"},
+        {"id": "repeated_emergency",     "condition": "same buyer has 3+ emergencies in 90 days",       "handle": "branch", "branch_to": "spend_review"},
+        {"id": "unapproved_vendor_used", "condition": "vendor not on approved vendor list",             "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "procurement_manager", "policy": "1_of_1"},
+        {"role": "finance_controller",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "slack",  "audience": "procurement_manager"},
+        {"trigger": "state_enter", "channel": "slack",  "audience": "finance_controller"},
+        {"trigger": "approved",    "channel": "email",  "audience": "buyer"},
+        {"trigger": "sla_breach",  "channel": "pagerduty", "audience": "procurement_manager"}
+      ],
+      "sla": {"warn_pct": 60, "breach_seconds": 172800},
+      "metrics": ["emergency_po_rate", "retro_approval_time", "emergency_spend_value"],
+      "compliance": ["SOX_controls", "segregation_of_duties"],
+      "data_sensitivity": ["financial", "pii_contact"]
+    },
+    {
+      "id": "run_RFP",
+      "title": "Run a Request for Proposal process",
+      "actor": {"role": "procurement_manager"},
+      "situation": "strategic spend category requires formal competitive sourcing through an RFP to select a new supplier",
+      "motivation": "maximise value and competitiveness through structured multi-supplier evaluation",
+      "outcome": "preferred supplier selected, award decision documented, losing vendors notified",
+      "success_criteria": [
+        "RFP issued to minimum 3 qualified suppliers",
+        "evaluation criteria published before bid submission deadline",
+        "award decision documented with scored evaluation matrix"
+      ],
+      "data_capture": [
+        {"id": "rfp_ref",           "kind": "text",    "label": "RFP reference",          "required": true,  "pii": false},
+        {"id": "category",          "kind": "enum",    "label": "Spend category",         "required": true,  "pii": false},
+        {"id": "estimated_value",   "kind": "money",   "label": "Estimated contract value","required": true,  "pii": false},
+        {"id": "submission_deadline","kind": "date",   "label": "Bid submission deadline", "required": true,  "pii": false},
+        {"id": "evaluation_criteria","kind": "textarea","label": "Evaluation criteria",    "required": true,  "pii": false},
+        {"id": "invited_suppliers", "kind": "textarea","label": "Invited supplier IDs",   "required": true,  "pii": false},
+        {"id": "evaluation_matrix", "kind": "file",    "label": "Scored evaluation matrix","required": false, "pii": false},
+        {"id": "awarded_vendor_id", "kind": "text",    "label": "Awarded vendor ID",       "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "single_response",    "condition": "fewer than 3 suppliers respond to RFP",             "handle": "escalate"},
+        {"id": "collusion_indicator","condition": "bid prices within 1% across all respondents",       "handle": "escalate"},
+        {"id": "incumbent_only",     "condition": "only incumbent supplier invited",                   "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "procurement_manager", "policy": "1_of_1"},
+        {"role": "finance_controller",  "policy": "authority_tier", "tier": 3}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",   "channel": "email",  "audience": "invited_suppliers"},
+        {"trigger": "approved",      "channel": "email",  "audience": "awarded_vendor_id"},
+        {"trigger": "rejected",      "channel": "email",  "audience": "invited_suppliers"},
+        {"trigger": "sla_warn",      "channel": "in_app", "audience": "procurement_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 5184000},
+      "metrics": ["rfp_savings_pct", "supplier_participation_rate", "rfp_cycle_time"],
+      "compliance": ["anti_bribery", "public_procurement_rules"],
+      "data_sensitivity": ["financial", "supplier_confidential"]
+    },
+    {
+      "id": "onboard_supplier",
+      "title": "Onboard a new supplier",
+      "actor": {"role": "buyer"},
+      "situation": "a new vendor has been selected and must be set up in the ERP system with verified banking, tax, and compliance data before first payment",
+      "motivation": "enable first PO issuance while ensuring fraud and compliance controls are satisfied",
+      "outcome": "supplier record created in ERP, bank details verified, compliance sign-off complete",
+      "success_criteria": [
+        "supplier data verified against a second independent source",
+        "bank account validated via callback or micro-deposit before first payment",
+        "OFAC and sanctions check passed before activation"
+      ],
+      "data_capture": [
+        {"id": "legal_entity_name","kind": "text",    "label": "Legal entity name",       "required": true,  "pii": false},
+        {"id": "registration_no",  "kind": "text",    "label": "Company registration no", "required": true,  "pii": false},
+        {"id": "vat_number",       "kind": "text",    "label": "VAT/tax number",          "required": true,  "pii": false},
+        {"id": "bank_account",     "kind": "text",    "label": "Bank account details",    "required": true,  "pii": true},
+        {"id": "payment_currency", "kind": "enum",    "label": "Payment currency",        "required": true,  "pii": false},
+        {"id": "w9_or_w8",         "kind": "file",    "label": "W-9/W-8 form",           "required": true,  "pii": true},
+        {"id": "insurance_cert",   "kind": "file",    "label": "Insurance certificate",   "required": false, "pii": false},
+        {"id": "sanctions_clear",  "kind": "boolean", "label": "Sanctions check passed",  "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "sanctions_hit",       "condition": "OFAC sanctions check returns match",               "handle": "reject"},
+        {"id": "bank_mismatch",       "condition": "bank account name != legal entity name",           "handle": "escalate"},
+        {"id": "duplicate_tax_id",    "condition": "vat_number matches existing supplier record",      "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "procurement_manager", "policy": "1_of_1"},
+        {"role": "finance_controller",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "supplier"},
+        {"trigger": "approved",    "channel": "email",  "audience": "supplier"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "buyer"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "procurement_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 604800},
+      "metrics": ["supplier_onboarding_cycle_time", "sanctions_hit_rate", "bank_validation_fail_rate"],
+      "compliance": ["OFAC_sanctions_check", "anti_money_laundering", "SOX_controls"],
+      "data_sensitivity": ["pii_contact", "financial", "supplier_confidential"]
+    },
+    {
+      "id": "handle_invoice_exception",
+      "title": "Handle an invoice exception",
+      "actor": {"role": "finance_controller"},
+      "situation": "an invoice fails automated three-way match and requires manual investigation and resolution",
+      "motivation": "resolve the discrepancy quickly to maintain supplier relationship and avoid late payment penalties",
+      "outcome": "invoice approved with adjustment, rejected, or credit note requested",
+      "success_criteria": [
+        "exception categorised within 1 business day of flagging",
+        "supplier notified of exception within 2 business days",
+        "resolution completed before payment due date"
+      ],
+      "data_capture": [
+        {"id": "invoice_number",   "kind": "text",    "label": "Invoice number",          "required": true,  "pii": false},
+        {"id": "exception_type",   "kind": "enum",    "label": "Exception type",          "required": true,  "pii": false},
+        {"id": "exception_amount", "kind": "money",   "label": "Exception amount",        "required": true,  "pii": false},
+        {"id": "exception_notes",  "kind": "textarea","label": "Exception notes",         "required": true,  "pii": false},
+        {"id": "resolution_type",  "kind": "enum",    "label": "Resolution type",         "required": false, "pii": false},
+        {"id": "adjustment_amount","kind": "money",   "label": "Approved adjustment",     "required": false, "pii": false},
+        {"id": "credit_note_req",  "kind": "boolean", "label": "Credit note requested",   "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "payment_due_today",  "condition": "invoice due date == today and not resolved",         "handle": "escalate"},
+        {"id": "fraud_indicator",    "condition": "invoice number or bank details changed since last",  "handle": "escalate"},
+        {"id": "large_exception",    "condition": "exception_amount > 10000",                           "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "finance_controller", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "supplier"},
+        {"trigger": "resolved",    "channel": "email",  "audience": "supplier"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "finance_controller"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "procurement_manager"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 172800},
+      "metrics": ["exception_resolution_time", "exception_rate_pct", "late_payment_penalty_amount"],
+      "compliance": ["SOX_controls", "segregation_of_duties"],
+      "data_sensitivity": ["financial"]
+    },
+    {
+      "id": "receive_goods",
+      "title": "Receive and inspect goods",
+      "actor": {"role": "warehouse_manager"},
+      "situation": "goods arrive at warehouse dock against an open PO and must be counted, inspected, and confirmed in the ERP to trigger payment eligibility",
+      "motivation": "create an accurate goods receipt to enable three-way match and protect against short or damaged deliveries",
+      "outcome": "goods receipt note created, discrepancies logged, PO status updated to received",
+      "success_criteria": [
+        "goods receipt recorded within 1 business day of physical receipt",
+        "quantity and condition checked against PO",
+        "any discrepancies formally notified to supplier within 2 business days"
+      ],
+      "data_capture": [
+        {"id": "gr_number",       "kind": "text",    "label": "GR number",               "required": true,  "pii": false},
+        {"id": "po_number",       "kind": "text",    "label": "PO number",               "required": true,  "pii": false},
+        {"id": "delivery_note",   "kind": "text",    "label": "Delivery note number",    "required": true,  "pii": false},
+        {"id": "received_qty",    "kind": "number",  "label": "Quantity received",       "required": true,  "pii": false},
+        {"id": "ordered_qty",     "kind": "number",  "label": "Quantity ordered",        "required": true,  "pii": false},
+        {"id": "condition",       "kind": "enum",    "label": "Goods condition",         "required": true,  "pii": false},
+        {"id": "damage_photos",   "kind": "file",    "label": "Damage photos",           "required": false, "pii": false},
+        {"id": "storage_location","kind": "text",    "label": "Storage location",        "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "short_delivery",   "condition": "received_qty < ordered_qty * 0.95",                   "handle": "branch", "branch_to": "short_delivery_claim"},
+        {"id": "damaged_goods",    "condition": "condition == damaged",                                 "handle": "branch", "branch_to": "damage_claim"},
+        {"id": "no_matching_po",   "condition": "po_number not found or already fully received",       "handle": "reject"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "warehouse_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "buyer"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "buyer"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "procurement_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 86400},
+      "metrics": ["gr_accuracy_rate", "time_to_gr", "short_delivery_rate"],
+      "compliance": ["three_way_match_required"],
+      "data_sensitivity": ["operational"]
+    }
+  ]
+}

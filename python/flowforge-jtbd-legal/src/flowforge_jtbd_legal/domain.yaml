@@ -1,11 +1,23 @@
 id: legal
 name: "Legal"
-description: "JTBD domain library for Legal workflows (Contract management, IP, litigation)."
+description: "JTBD domain library for legal workflows (contract drafting, IP registration, litigation management, legal hold, regulatory filing, outside counsel, NDA review, compliance audit, GDPR DSR, corporate governance)."
 package: flowforge-jtbd-legal
 version: "1.0.0"
+tier: B
+reviewer_credentials:
+  - "Qualified Solicitor / Attorney"
+  - "CIPP/E Certified Privacy Professional"
+  - "Chartered Company Secretary"
+team_id: legal-product
 subdomains:
-  - "Contract management"
+  - "Contracts"
   - "IP"
-  - "litigation"
-regulator_hints: []
+  - "Litigation"
+  - "Compliance"
+  - "Privacy"
+  - "Corporate Governance"
+regulator_hints:
+  - "GDPR Art. 12-17 statutory deadlines for DSR responses"
+  - "FRCP preservation obligations for US litigation holds"
+  - "Companies Act filings within statutory deadlines"
 phase: E2

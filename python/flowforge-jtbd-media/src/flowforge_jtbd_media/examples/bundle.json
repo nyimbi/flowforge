@@ -1,0 +1,437 @@
+{
+  "project": {
+    "name": "media",
+    "package": "flowforge_jtbd_media",
+    "domain": "media",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD", "EUR", "GBP"]
+  },
+  "shared": {
+    "roles": ["editor", "content_producer", "rights_manager", "legal_counsel", "talent_agent", "distribution_manager", "moderator"],
+    "permissions": ["content.read", "rights.read", "talent.read", "distribution.read"]
+  },
+  "jtbds": [
+    {
+      "id": "commission_content",
+      "title": "Commission a piece of content",
+      "actor": {"role": "editor"},
+      "situation": "editorial team identifies a content opportunity and must commission a writer, photographer, or producer with a defined brief, budget, and deadline",
+      "motivation": "secure the best-available creator for the assignment before a competitor commissions them",
+      "outcome": "commission brief accepted by creator, contract signed, delivery deadline confirmed",
+      "success_criteria": [
+        "brief sent to creator within 2 business days of editorial decision",
+        "creator confirmation received before production start",
+        "contract executed before any advance payment released"
+      ],
+      "data_capture": [
+        {"id": "commission_ref",   "kind": "text",    "label": "Commission reference",     "required": true,  "pii": false},
+        {"id": "content_type",     "kind": "enum",    "label": "Content type",             "required": true,  "pii": false},
+        {"id": "creator_name",     "kind": "text",    "label": "Creator name",             "required": true,  "pii": true},
+        {"id": "creator_email",    "kind": "email",   "label": "Creator email",            "required": true,  "pii": true},
+        {"id": "brief_summary",    "kind": "textarea","label": "Creative brief",           "required": true,  "pii": false},
+        {"id": "fee",              "kind": "money",   "label": "Creator fee",              "required": true,  "pii": false},
+        {"id": "delivery_date",    "kind": "date",    "label": "Delivery deadline",        "required": true,  "pii": false},
+        {"id": "word_or_unit_count","kind": "number", "label": "Target length / units",   "required": false, "pii": false},
+        {"id": "rights_scope",     "kind": "textarea","label": "Rights scope",            "required": true,  "pii": false},
+        {"id": "advance_pct",      "kind": "number",  "label": "Advance % of fee",        "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "creator_conflict",   "condition": "creator is under exclusivity with a competitor",    "handle": "escalate"},
+        {"id": "budget_overage",     "condition": "fee > editorial_budget_ceiling",                    "handle": "escalate"},
+        {"id": "late_delivery",      "condition": "delivery not received by delivery_date",            "handle": "branch", "branch_to": "extension_or_kill_fee"}
+      ],
+      "approvals": [
+        {"role": "editor",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "creator_email"},
+        {"trigger": "approved",    "channel": "email",  "audience": "creator_email"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "editor"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "editor"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 172800},
+      "metrics": ["commission_acceptance_rate", "on_time_delivery_rate", "fee_vs_budget_variance"],
+      "compliance": ["IR35_classification", "creator_contracts"],
+      "data_sensitivity": ["pii_contact", "financial", "contractual"]
+    },
+    {
+      "id": "clear_rights",
+      "title": "Clear rights for content publication",
+      "actor": {"role": "rights_manager"},
+      "situation": "content contains third-party material (music, images, footage, quotes) that requires clearance before publication to avoid infringement liability",
+      "motivation": "secure all required rights before content goes live to eliminate takedown and litigation risk",
+      "outcome": "all third-party rights cleared, licences logged, publication unblocked",
+      "success_criteria": [
+        "rights audit completed within 5 business days of draft receipt",
+        "all outstanding clearances actioned before publication date",
+        "executed licences archived in rights management system"
+      ],
+      "data_capture": [
+        {"id": "content_ref",      "kind": "text",    "label": "Content reference",        "required": true,  "pii": false},
+        {"id": "third_party_items","kind": "textarea","label": "Third-party items list",   "required": true,  "pii": false},
+        {"id": "rightsholder",     "kind": "text",    "label": "Rights holder name",       "required": true,  "pii": false},
+        {"id": "rights_type",      "kind": "enum",    "label": "Rights type",              "required": true,  "pii": false},
+        {"id": "territory",        "kind": "textarea","label": "Publication territories",  "required": true,  "pii": false},
+        {"id": "licence_fee",      "kind": "money",   "label": "Licence fee",              "required": false, "pii": false},
+        {"id": "licence_doc",      "kind": "file",    "label": "Executed licence",         "required": false, "pii": false},
+        {"id": "expiry_date",      "kind": "date",    "label": "Licence expiry date",      "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "rightsholder_uncontactable","condition": "rightsholder unresponsive after 3 attempts", "handle": "branch", "branch_to": "orphan_works_assessment"},
+        {"id": "clearance_refused",        "condition": "rightsholder refuses to grant licence",       "handle": "branch", "branch_to": "content_edit_or_kill"},
+        {"id": "licence_expired",          "condition": "existing licence expired before republication","handle": "branch", "branch_to": "renewal_clearance"}
+      ],
+      "approvals": [
+        {"role": "legal_counsel",   "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "rights_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "editor"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "rights_manager"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "legal_counsel"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 432000},
+      "metrics": ["clearance_cycle_time", "clearance_success_rate", "rights_cost_per_piece"],
+      "compliance": ["copyright_law", "neighbouring_rights"],
+      "data_sensitivity": ["contractual", "financial"]
+    },
+    {
+      "id": "schedule_publication",
+      "title": "Schedule content for publication",
+      "actor": {"role": "editor"},
+      "situation": "editorial-approved content needs to be scheduled across one or more channels with embargo, metadata, and SEO attributes set",
+      "motivation": "publish at the highest-impact time with complete and accurate metadata to maximise reach",
+      "outcome": "content published at scheduled time on all selected channels with correct metadata",
+      "success_criteria": [
+        "all rights clearances confirmed before scheduling",
+        "metadata and SEO tags reviewed by editor before publish",
+        "embargo respected — content not visible before scheduled datetime"
+      ],
+      "data_capture": [
+        {"id": "content_ref",      "kind": "text",    "label": "Content reference",        "required": true,  "pii": false},
+        {"id": "channels",         "kind": "textarea","label": "Publication channels",     "required": true,  "pii": false},
+        {"id": "publish_datetime", "kind": "datetime","label": "Scheduled publish time",   "required": true,  "pii": false},
+        {"id": "embargo_datetime", "kind": "datetime","label": "Embargo lift datetime",    "required": false, "pii": false},
+        {"id": "headline",         "kind": "text",    "label": "Headline",                 "required": true,  "pii": false},
+        {"id": "meta_description", "kind": "textarea","label": "Meta description",         "required": true,  "pii": false},
+        {"id": "tags",             "kind": "textarea","label": "Tags / taxonomy",          "required": false, "pii": false},
+        {"id": "rights_cleared",   "kind": "boolean", "label": "All rights cleared",       "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "rights_not_cleared",  "condition": "rights_cleared == false",                          "handle": "reject"},
+        {"id": "embargo_breach_risk", "condition": "publish_datetime < embargo_datetime",              "handle": "reject"},
+        {"id": "channel_outage",      "condition": "scheduled channel is unavailable at publish time", "handle": "branch", "branch_to": "fallback_channel"}
+      ],
+      "approvals": [
+        {"role": "editor",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "approved",    "channel": "in_app", "audience": "editor"},
+        {"trigger": "approved",    "channel": "in_app", "audience": "content_producer"},
+        {"trigger": "rejected",    "channel": "in_app", "audience": "editor"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "editor"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 3600},
+      "metrics": ["publication_on_time_rate", "metadata_completeness_score", "page_speed_on_publish"],
+      "compliance": ["copyright_law", "ASA_advertising_rules"],
+      "data_sensitivity": ["contractual"]
+    },
+    {
+      "id": "process_syndication",
+      "title": "Process a content syndication deal",
+      "actor": {"role": "distribution_manager"},
+      "situation": "a partner publisher requests to republish content under a syndication agreement, requiring rights verification, licensing, and technical delivery",
+      "motivation": "monetise existing content through syndication revenue while protecting brand and quality standards",
+      "outcome": "syndication licence executed, content delivered to partner, revenue tracked",
+      "success_criteria": [
+        "rights availability confirmed before licence offer",
+        "syndication licence executed before content delivery",
+        "revenue share or flat fee invoiced within 5 business days of publication by partner"
+      ],
+      "data_capture": [
+        {"id": "syndication_ref",  "kind": "text",    "label": "Syndication reference",    "required": true,  "pii": false},
+        {"id": "partner_name",     "kind": "text",    "label": "Partner publisher",        "required": true,  "pii": false},
+        {"id": "content_ref",      "kind": "text",    "label": "Content reference",        "required": true,  "pii": false},
+        {"id": "territory",        "kind": "textarea","label": "Territory of syndication", "required": true,  "pii": false},
+        {"id": "licence_type",     "kind": "enum",    "label": "Licence type",             "required": true,  "pii": false},
+        {"id": "fee_structure",    "kind": "enum",    "label": "Fee (flat / revenue share)","required": true, "pii": false},
+        {"id": "licence_fee",      "kind": "money",   "label": "Licence fee / MG",         "required": true,  "pii": false},
+        {"id": "exclusivity",      "kind": "boolean", "label": "Exclusive syndication",    "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "exclusivity_conflict","condition": "content already licensed to another partner in same territory","handle": "reject"},
+        {"id": "partner_not_vetted",  "condition": "partner not in approved partner register",             "handle": "escalate"},
+        {"id": "rights_window_expired","condition": "content rights window has lapsed",                    "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "rights_manager",    "policy": "1_of_1"},
+        {"role": "legal_counsel",     "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "partner_name"},
+        {"trigger": "approved",    "channel": "email",  "audience": "partner_name"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "distribution_manager"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "distribution_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 604800},
+      "metrics": ["syndication_revenue", "deal_closure_time", "active_syndication_partners"],
+      "compliance": ["copyright_law", "neighbouring_rights"],
+      "data_sensitivity": ["contractual", "financial"]
+    },
+    {
+      "id": "run_editorial_review",
+      "title": "Run editorial review and approval",
+      "actor": {"role": "editor"},
+      "situation": "content submitted by a producer or contributor must pass editorial review for accuracy, tone, brand, and legal compliance before publication",
+      "motivation": "publish only content that meets editorial standards and does not expose the organisation to legal or reputational risk",
+      "outcome": "content approved, amended, or rejected with substantive editor feedback",
+      "success_criteria": [
+        "first editorial pass completed within 2 business days of submission",
+        "factual claims verified with a minimum of 2 independent sources",
+        "legal sign-off obtained for content with litigation risk flags"
+      ],
+      "data_capture": [
+        {"id": "content_ref",      "kind": "text",    "label": "Content reference",        "required": true,  "pii": false},
+        {"id": "submission_date",  "kind": "date",    "label": "Submission date",          "required": true,  "pii": false},
+        {"id": "content_type",     "kind": "enum",    "label": "Content type",             "required": true,  "pii": false},
+        {"id": "editorial_score",  "kind": "number",  "label": "Editorial quality score",  "required": false, "pii": false},
+        {"id": "factcheck_notes",  "kind": "textarea","label": "Fact-check notes",         "required": false, "pii": false},
+        {"id": "legal_risk_flag",  "kind": "boolean", "label": "Legal risk flagged",       "required": true,  "pii": false},
+        {"id": "revision_count",   "kind": "number",  "label": "Number of revisions",      "required": false, "pii": false},
+        {"id": "editor_decision",  "kind": "enum",    "label": "Decision (approve/amend/reject)","required": false,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "legal_risk_flagged",  "condition": "legal_risk_flag == true",                            "handle": "branch", "branch_to": "legal_review"},
+        {"id": "excessive_revisions", "condition": "revision_count >= 3",                                "handle": "escalate"},
+        {"id": "breaking_news",       "condition": "content_type == breaking_news",                      "handle": "branch", "branch_to": "expedited_review"}
+      ],
+      "approvals": [
+        {"role": "editor",        "policy": "1_of_1"},
+        {"role": "legal_counsel", "policy": "conditional", "condition": "legal_risk_flag == true"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "content_producer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "content_producer"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "content_producer"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "editor"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "editor"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 172800},
+      "metrics": ["review_cycle_time", "first_pass_approval_rate", "revision_round_count"],
+      "compliance": ["editorial_standards", "defamation_law", "ASA_advertising_rules"],
+      "data_sensitivity": ["contractual"]
+    },
+    {
+      "id": "handle_takedown",
+      "title": "Handle a content takedown request",
+      "actor": {"role": "legal_counsel"},
+      "situation": "a rights holder, regulator, or court issues a takedown demand for published content citing infringement, defamation, or regulatory breach",
+      "motivation": "respond within the legal deadline and prevent ongoing liability while preserving editorial rights where legitimate",
+      "outcome": "content removed or defended within the response window, outcome documented",
+      "success_criteria": [
+        "takedown demand acknowledged within 24 hours",
+        "legal assessment completed within 48 hours",
+        "content removed or counter-notice filed within the statutory deadline"
+      ],
+      "data_capture": [
+        {"id": "takedown_ref",     "kind": "text",    "label": "Takedown reference",       "required": true,  "pii": false},
+        {"id": "content_ref",      "kind": "text",    "label": "Affected content ref",     "required": true,  "pii": false},
+        {"id": "demand_type",      "kind": "enum",    "label": "Demand type (DMCA/court/regulator)","required": true,"pii": false},
+        {"id": "claimant",         "kind": "text",    "label": "Claimant / sender",        "required": true,  "pii": false},
+        {"id": "alleged_breach",   "kind": "textarea","label": "Alleged breach",           "required": true,  "pii": false},
+        {"id": "response_deadline","kind": "date",    "label": "Response deadline",        "required": true,  "pii": false},
+        {"id": "legal_assessment", "kind": "textarea","label": "Legal assessment",         "required": false, "pii": false},
+        {"id": "action_taken",     "kind": "enum",    "label": "Action (remove/defend/counter)","required": false,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "court_order",         "condition": "demand_type == court_order",                        "handle": "escalate"},
+        {"id": "deadline_imminent",   "condition": "response_deadline < today + 2 days",               "handle": "escalate"},
+        {"id": "meritless_demand",    "condition": "legal assessment concludes demand is without merit","handle": "branch", "branch_to": "counter_notice_or_defence"}
+      ],
+      "approvals": [
+        {"role": "legal_counsel",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "slack",  "audience": "legal_counsel"},
+        {"trigger": "state_enter", "channel": "email",  "audience": "editor"},
+        {"trigger": "approved",    "channel": "email",  "audience": "claimant"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "legal_counsel"},
+        {"trigger": "sla_breach",  "channel": "pagerduty","audience": "legal_counsel"}
+      ],
+      "sla": {"warn_pct": 50, "breach_seconds": 86400},
+      "metrics": ["takedown_response_time", "content_reinstated_rate", "successful_defence_rate"],
+      "compliance": ["DMCA", "copyright_law", "defamation_law"],
+      "data_sensitivity": ["attorney_client_privilege", "contractual"]
+    },
+    {
+      "id": "negotiate_license",
+      "title": "Negotiate a content licence",
+      "actor": {"role": "rights_manager"},
+      "situation": "an external party requests to licence content for their own publication, broadcast, or product and commercial terms must be agreed and documented",
+      "motivation": "maximise licence revenue while protecting brand integrity and controlling distribution quality",
+      "outcome": "licence agreement executed, content delivered, invoice raised",
+      "success_criteria": [
+        "initial commercial terms proposed within 5 business days of enquiry",
+        "executed licence agreement filed before content access granted",
+        "invoice raised within 5 business days of execution"
+      ],
+      "data_capture": [
+        {"id": "licence_ref",      "kind": "text",    "label": "Licence reference",        "required": true,  "pii": false},
+        {"id": "licensee_name",    "kind": "text",    "label": "Licensee name",            "required": true,  "pii": false},
+        {"id": "content_ref",      "kind": "text",    "label": "Content reference",        "required": true,  "pii": false},
+        {"id": "use_type",         "kind": "enum",    "label": "Intended use",             "required": true,  "pii": false},
+        {"id": "territory",        "kind": "textarea","label": "Licence territory",        "required": true,  "pii": false},
+        {"id": "term_months",      "kind": "number",  "label": "Licence term (months)",    "required": true,  "pii": false},
+        {"id": "licence_fee",      "kind": "money",   "label": "Licence fee",              "required": true,  "pii": false},
+        {"id": "exclusivity",      "kind": "boolean", "label": "Exclusive licence",        "required": true,  "pii": false},
+        {"id": "executed_licence", "kind": "file",    "label": "Executed licence doc",     "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "below_minimum_fee",  "condition": "licence_fee < minimum_licence_rate for use_type",   "handle": "escalate"},
+        {"id": "unvetted_licensee",  "condition": "licensee not in approved partner register",         "handle": "branch", "branch_to": "licensee_vetting"},
+        {"id": "exclusivity_conflict","condition": "exclusivity == true and content already licensed",  "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "rights_manager",  "policy": "1_of_1"},
+        {"role": "legal_counsel",   "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "licensee_name"},
+        {"trigger": "approved",    "channel": "email",  "audience": "licensee_name"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "rights_manager"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "distribution_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 604800},
+      "metrics": ["licence_revenue", "deal_cycle_time", "licence_renewal_rate"],
+      "compliance": ["copyright_law", "neighbouring_rights"],
+      "data_sensitivity": ["contractual", "financial"]
+    },
+    {
+      "id": "manage_talent_contract",
+      "title": "Manage a talent contract",
+      "actor": {"role": "talent_agent"},
+      "situation": "on-screen or on-air talent must be contracted for a production with terms covering fee, exclusivity, image rights, and kill fee provisions",
+      "motivation": "secure talent on commercially sound terms that protect both parties through production contingencies",
+      "outcome": "talent contract executed, payment schedule set, image rights schedule attached",
+      "success_criteria": [
+        "contract draft issued within 5 business days of talent confirmation",
+        "talent agreement signed before first day of production",
+        "payment schedule loaded in finance system before first invoice due"
+      ],
+      "data_capture": [
+        {"id": "talent_name",      "kind": "text",    "label": "Talent name",              "required": true,  "pii": true},
+        {"id": "agent_name",       "kind": "text",    "label": "Agent / representative",   "required": false, "pii": true},
+        {"id": "production_ref",   "kind": "text",    "label": "Production reference",     "required": true,  "pii": false},
+        {"id": "role_description", "kind": "textarea","label": "Role / deliverables",      "required": true,  "pii": false},
+        {"id": "total_fee",        "kind": "money",   "label": "Total fee",                "required": true,  "pii": false},
+        {"id": "exclusivity_scope","kind": "textarea","label": "Exclusivity restrictions", "required": false, "pii": false},
+        {"id": "image_rights",     "kind": "enum",    "label": "Image rights scope",       "required": true,  "pii": false},
+        {"id": "kill_fee_pct",     "kind": "number",  "label": "Kill fee (%)",             "required": true,  "pii": false},
+        {"id": "start_date",       "kind": "date",    "label": "Production start date",    "required": true,  "pii": false},
+        {"id": "signed_contract",  "kind": "file",    "label": "Signed talent contract",   "required": false, "pii": true}
+      ],
+      "edge_cases": [
+        {"id": "talent_double_booked","condition": "talent has conflicting production on same dates",   "handle": "reject"},
+        {"id": "above_budget",       "condition": "total_fee > talent_budget_ceiling",                  "handle": "escalate"},
+        {"id": "exclusivity_breach", "condition": "talent accepts conflicting brand deal during term",  "handle": "branch", "branch_to": "breach_of_contract_review"}
+      ],
+      "approvals": [
+        {"role": "legal_counsel",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "agent_name"},
+        {"trigger": "approved",    "channel": "email",  "audience": "talent_name"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "talent_agent"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "legal_counsel"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 432000},
+      "metrics": ["contract_execution_time", "talent_budget_adherence", "talent_contract_disputes"],
+      "compliance": ["IR35_classification", "employment_law", "image_rights_law"],
+      "data_sensitivity": ["pii_contact", "financial", "contractual"]
+    },
+    {
+      "id": "moderate_content",
+      "title": "Moderate user-generated content",
+      "actor": {"role": "moderator"},
+      "situation": "user submits content to a platform that must be reviewed against community standards before publication or after a report is filed",
+      "motivation": "protect the platform and its users from harmful, illegal, or policy-violating content at scale",
+      "outcome": "content approved, edited, age-restricted, or removed with reason logged and, where applicable, user actioned",
+      "success_criteria": [
+        "moderation decision made within SLA window",
+        "all rejected content logged with specific policy violation reference",
+        "legal authorities notified for content that constitutes a reportable offence"
+      ],
+      "data_capture": [
+        {"id": "content_id",       "kind": "text",    "label": "Content ID",               "required": true,  "pii": false},
+        {"id": "content_type",     "kind": "enum",    "label": "Content type",             "required": true,  "pii": false},
+        {"id": "report_reason",    "kind": "enum",    "label": "Report reason",            "required": false, "pii": false},
+        {"id": "user_id",          "kind": "text",    "label": "Submitting user ID",       "required": true,  "pii": false},
+        {"id": "violation_type",   "kind": "enum",    "label": "Policy violation type",    "required": false, "pii": false},
+        {"id": "moderator_notes",  "kind": "textarea","label": "Moderator notes",          "required": false, "pii": false},
+        {"id": "decision",         "kind": "enum",    "label": "Decision (approve/restrict/remove)","required": false,"pii": false},
+        {"id": "csat",             "kind": "number",  "label": "Reporting user CSAT",      "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "csam_detected",      "condition": "content contains suspected child abuse material",    "handle": "escalate"},
+        {"id": "terrorist_content",  "condition": "content flagged as terrorist propaganda",            "handle": "escalate"},
+        {"id": "high_severity_report","condition": "report_reason in high_severity_list",              "handle": "escalate"},
+        {"id": "repeat_offender",    "condition": "user_id has 3+ prior violations",                   "handle": "branch", "branch_to": "account_suspension_review"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "moderator"},
+        {"trigger": "rejected",    "channel": "in_app", "audience": "user_id"},
+        {"trigger": "sla_breach",  "channel": "pagerduty","audience": "moderator"}
+      ],
+      "sla": {"warn_pct": 60, "breach_seconds": 14400},
+      "metrics": ["moderation_decision_time", "false_positive_rate", "escalation_rate"],
+      "compliance": ["DSA_platform_obligations", "CSAM_reporting", "terrorist_content_regulations"],
+      "data_sensitivity": ["pii_contact", "special_category_data", "regulatory"]
+    },
+    {
+      "id": "close_distribution_deal",
+      "title": "Close a content distribution deal",
+      "actor": {"role": "distribution_manager"},
+      "situation": "a broadcaster, streaming platform, or OTT service wants to acquire distribution rights for a catalogue or individual title, requiring negotiation and execution of a distribution agreement",
+      "motivation": "maximise distribution revenue and audience reach while protecting content value and contractual terms",
+      "outcome": "distribution agreement executed, content delivered to distributor, first payment schedule activated",
+      "success_criteria": [
+        "deal term sheet agreed within 10 business days of initial enquiry",
+        "legal review of final agreement completed before signature",
+        "content delivery to distributor within agreed technical specifications"
+      ],
+      "data_capture": [
+        {"id": "deal_ref",         "kind": "text",    "label": "Deal reference",           "required": true,  "pii": false},
+        {"id": "distributor_name", "kind": "text",    "label": "Distributor name",         "required": true,  "pii": false},
+        {"id": "titles",           "kind": "textarea","label": "Titles / catalogue scope", "required": true,  "pii": false},
+        {"id": "territory",        "kind": "textarea","label": "Distribution territory",   "required": true,  "pii": false},
+        {"id": "window_type",      "kind": "enum",    "label": "Distribution window",      "required": true,  "pii": false},
+        {"id": "deal_value",       "kind": "money",   "label": "Minimum guarantee",        "required": true,  "pii": false},
+        {"id": "revenue_share_pct","kind": "number",  "label": "Revenue share (%)",        "required": false, "pii": false},
+        {"id": "exclusivity",      "kind": "boolean", "label": "Exclusive window",         "required": true,  "pii": false},
+        {"id": "term_months",      "kind": "number",  "label": "Deal term (months)",       "required": true,  "pii": false},
+        {"id": "signed_agreement", "kind": "file",    "label": "Signed distribution agreement","required": false,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "exclusivity_conflict","condition": "exclusivity == true and title already licensed in territory","handle": "reject"},
+        {"id": "below_floor_price",  "condition": "deal_value < minimum_floor_price for window_type",         "handle": "escalate"},
+        {"id": "unvetted_distributor","condition": "distributor not in approved partner register",             "handle": "branch", "branch_to": "distributor_vetting"}
+      ],
+      "approvals": [
+        {"role": "distribution_manager","policy": "1_of_1"},
+        {"role": "legal_counsel",       "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "distributor_name"},
+        {"trigger": "approved",     "channel": "email",  "audience": "distributor_name"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "distribution_manager"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "distribution_manager"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "distribution_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 864000},
+      "metrics": ["distribution_revenue", "deal_closure_time", "territory_coverage_rate"],
+      "compliance": ["copyright_law", "competition_law", "neighbouring_rights"],
+      "data_sensitivity": ["contractual", "financial"]
+    }
+  ]
+}

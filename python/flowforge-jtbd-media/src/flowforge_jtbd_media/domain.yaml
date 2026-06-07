@@ -1,11 +1,24 @@
 id: media
 name: "Media"
-description: "JTBD domain library for Media workflows (Editorial, rights, distribution)."
+description: "JTBD domain library for media workflows (content commissioning, rights clearance, publication scheduling, syndication, editorial review, takedown, licence negotiation, talent contracts, content moderation, distribution deals)."
 package: flowforge-jtbd-media
 version: "1.0.0"
+tier: B
+reviewer_credentials:
+  - "Media Lawyer / IP Specialist"
+  - "Ofcom Compliance Officer"
+  - "Trust & Safety Policy Lead"
+team_id: media-product
 subdomains:
   - "Editorial"
-  - "rights"
-  - "distribution"
-regulator_hints: []
-phase: E4
+  - "Rights"
+  - "Talent"
+  - "Distribution"
+  - "Moderation"
+  - "Syndication"
+regulator_hints:
+  - "DSA platform obligations for content moderation (EU)"
+  - "DMCA safe harbour notice-and-takedown procedures"
+  - "CSAM mandatory reporting (NCMEC CyberTipline)"
+  - "Ofcom broadcasting codes"
+phase: E2

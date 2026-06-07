@@ -1,11 +1,21 @@
 id: crm
-name: "CRM"
-description: "JTBD domain library for CRM workflows (Lead, opportunity, account)."
+name: "Customer Relationship Management"
+description: "JTBD domain library for CRM workflows (lead qualification, opportunity management, account onboarding, renewals, escalations, upsell, partner deals)."
 package: flowforge-jtbd-crm
 version: "1.0.0"
+tier: B
+reviewer_credentials:
+  - "Certified CRM Practitioner"
+  - "Salesforce Administrator"
+team_id: crm-product
 subdomains:
   - "Lead"
-  - "opportunity"
-  - "account"
-regulator_hints: []
+  - "Opportunity"
+  - "Account"
+  - "Renewal"
+  - "Escalation"
+  - "Partner"
+regulator_hints:
+  - "GDPR consent tracking required for EU leads"
+  - "SOC 2 audit trail for account access"
 phase: E2

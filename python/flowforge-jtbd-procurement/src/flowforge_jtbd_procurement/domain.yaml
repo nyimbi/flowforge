@@ -1,11 +1,22 @@
 id: procurement
 name: "Procurement"
-description: "JTBD domain library for Procurement workflows (Sourcing, PO, 3-way match)."
+description: "JTBD domain library for procurement workflows (vendor sourcing, PO creation, three-way match, contract renewal, dispute resolution, emergency purchase, RFP, supplier onboarding, invoice exception, goods receipt)."
 package: flowforge-jtbd-procurement
 version: "1.0.0"
+tier: B
+reviewer_credentials:
+  - "CIPS Chartered Procurement Professional"
+  - "SAP MM Consultant"
+team_id: procurement-product
 subdomains:
-  - "Sourcing"
-  - "PO"
-  - "3-way match"
-regulator_hints: []
+  - "Vendor"
+  - "Purchase Order"
+  - "Invoice"
+  - "Contract"
+  - "Goods Receipt"
+  - "RFP"
+regulator_hints:
+  - "SOX controls required for PO approval chains"
+  - "OFAC sanctions check on all new vendors"
+  - "Anti-bribery policy compliance (UK Bribery Act / FCPA)"
 phase: E2

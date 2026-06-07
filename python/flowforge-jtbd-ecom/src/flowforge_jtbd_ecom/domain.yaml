@@ -1,11 +1,23 @@
 id: ecom
 name: "E-Commerce"
-description: "JTBD domain library for E-Commerce workflows (Catalog, order, fulfillment)."
+description: "JTBD domain library for e-commerce workflows (order processing, returns, catalog management, refunds, chargebacks, inventory replenishment, fraud review, delivery exceptions, seller onboarding, subscription renewals)."
 package: flowforge-jtbd-ecom
 version: "1.0.0"
+tier: B
+reviewer_credentials:
+  - "Certified E-Commerce Professional"
+  - "PCI DSS Qualified Security Assessor"
+team_id: ecom-product
 subdomains:
+  - "Order"
+  - "Return"
   - "Catalog"
-  - "order"
-  - "fulfillment"
-regulator_hints: []
+  - "Payment"
+  - "Fraud"
+  - "Seller"
+  - "Subscription"
+regulator_hints:
+  - "PCI DSS Level 1 compliance for payment card data"
+  - "EU Distance Selling Regulations (14-day return right)"
+  - "Consumer Rights Act obligations"
 phase: E2

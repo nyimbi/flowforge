@@ -1,0 +1,408 @@
+{
+  "project": {
+    "name": "logistics",
+    "package": "flowforge_jtbd_logistics",
+    "domain": "logistics",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD", "EUR", "GBP"]
+  },
+  "shared": {
+    "roles": ["dispatcher", "warehouse_manager", "customs_broker", "carrier_agent", "logistics_manager", "driver"],
+    "permissions": ["shipment.read", "manifest.read", "customs.read", "route.read"]
+  },
+  "jtbds": [
+    {
+      "id": "create_shipment",
+      "title": "Create and book a shipment",
+      "actor": {"role": "dispatcher"},
+      "situation": "customer order or inter-site transfer requires a shipment booking against a carrier to generate tracking, label, and manifest",
+      "motivation": "book the best available carrier service on time to meet the customer delivery promise",
+      "outcome": "shipment booked, label generated, tracking number issued, manifest updated",
+      "success_criteria": [
+        "shipment booked within 2 hours of order release to logistics",
+        "carrier label generated and attached to physical package before pickup",
+        "tracking number communicated to customer within 30 minutes of booking"
+      ],
+      "data_capture": [
+        {"id": "shipment_id",      "kind": "text",    "label": "Shipment ID",             "required": true,  "pii": false},
+        {"id": "origin_address",   "kind": "address", "label": "Origin address",          "required": true,  "pii": false},
+        {"id": "dest_address",     "kind": "address", "label": "Destination address",     "required": true,  "pii": true},
+        {"id": "weight_kg",        "kind": "number",  "label": "Shipment weight (kg)",    "required": true,  "pii": false},
+        {"id": "dimensions_cm",    "kind": "text",    "label": "L x W x H (cm)",          "required": true,  "pii": false},
+        {"id": "service_level",    "kind": "enum",    "label": "Service level",           "required": true,  "pii": false},
+        {"id": "carrier_id",       "kind": "text",    "label": "Carrier ID",              "required": true,  "pii": false},
+        {"id": "declared_value",   "kind": "money",   "label": "Declared value",          "required": true,  "pii": false},
+        {"id": "tracking_number",  "kind": "text",    "label": "Carrier tracking number", "required": false, "pii": false},
+        {"id": "hazmat_class",     "kind": "enum",    "label": "Hazmat class (if any)",   "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "carrier_unavailable", "condition": "preferred carrier has no capacity for service_level", "handle": "branch", "branch_to": "alternate_carrier_selection"},
+        {"id": "overweight",          "condition": "weight_kg > carrier_max_weight",                     "handle": "branch", "branch_to": "freight_shipment"},
+        {"id": "hazmat_restriction",  "condition": "hazmat_class set and carrier does not accept hazmat", "handle": "reject"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "dispatcher"},
+        {"trigger": "approved",    "channel": "email",  "audience": "dest_address"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "dispatcher"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "logistics_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 7200},
+      "metrics": ["booking_cycle_time", "carrier_on_time_rate", "cost_per_shipment"],
+      "compliance": ["IATA_DGR", "IMDG_code", "customs_export_declaration"],
+      "data_sensitivity": ["pii_contact", "financial"]
+    },
+    {
+      "id": "clear_customs",
+      "title": "Clear customs for an international shipment",
+      "actor": {"role": "customs_broker"},
+      "situation": "an international shipment arrives at the border and requires customs entry, duty calculation, and clearance before onward delivery",
+      "motivation": "clear goods through customs within dwell time limits to avoid storage charges and delivery delays",
+      "outcome": "customs entry filed, duties assessed and paid, release authorisation received",
+      "success_criteria": [
+        "customs entry filed within 4 hours of shipment arrival notification",
+        "all required documents submitted to customs authority in first submission",
+        "release obtained before dwell time limit"
+      ],
+      "data_capture": [
+        {"id": "shipment_id",      "kind": "text",    "label": "Shipment ID",             "required": true,  "pii": false},
+        {"id": "entry_number",     "kind": "text",    "label": "Customs entry number",    "required": false, "pii": false},
+        {"id": "hs_codes",         "kind": "textarea","label": "HS tariff codes",         "required": true,  "pii": false},
+        {"id": "country_of_origin","kind": "enum",    "label": "Country of origin",       "required": true,  "pii": false},
+        {"id": "cif_value",        "kind": "money",   "label": "CIF value",               "required": true,  "pii": false},
+        {"id": "duty_amount",      "kind": "money",   "label": "Duty assessed",           "required": false, "pii": false},
+        {"id": "commercial_invoice","kind": "file",   "label": "Commercial invoice",      "required": true,  "pii": false},
+        {"id": "packing_list",     "kind": "file",    "label": "Packing list",            "required": true,  "pii": false},
+        {"id": "certificate_origin","kind": "file",   "label": "Certificate of origin",   "required": false, "pii": false},
+        {"id": "release_date",     "kind": "date",    "label": "Customs release date",    "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "customs_exam",       "condition": "customs authority selects shipment for physical exam",   "handle": "branch", "branch_to": "exam_coordination"},
+        {"id": "hs_code_dispute",    "condition": "customs authority challenges HS code classification",    "handle": "escalate"},
+        {"id": "restricted_goods",   "condition": "hs_codes includes restricted or prohibited category",   "handle": "escalate"},
+        {"id": "sanctions_country",  "condition": "country_of_origin on sanctions list",                   "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "customs_broker",   "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "customs_broker"},
+        {"trigger": "approved",    "channel": "email",  "audience": "dispatcher"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "customs_broker"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "logistics_manager"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 28800},
+      "metrics": ["customs_dwell_time", "first_time_clearance_rate", "duty_accuracy_pct"],
+      "compliance": ["customs_import_regulations", "OFAC_sanctions_check", "AEO_compliance"],
+      "data_sensitivity": ["financial", "regulatory"]
+    },
+    {
+      "id": "handle_delivery_exception",
+      "title": "Handle a delivery exception",
+      "actor": {"role": "dispatcher"},
+      "situation": "carrier reports a delivery failure (address issue, recipient absent, access denied) requiring dispatcher intervention to resolve",
+      "motivation": "recover the delivery without escalating to a return-to-sender to preserve customer promise and reduce re-delivery cost",
+      "outcome": "delivery reattempted and completed, or redirect/return authorised with cost allocated",
+      "success_criteria": [
+        "exception acknowledged within 2 hours of carrier notification",
+        "customer contacted and alternative arrangement agreed within 4 business hours",
+        "delivery resolved within 2 business days of original failed attempt"
+      ],
+      "data_capture": [
+        {"id": "tracking_number",  "kind": "text",    "label": "Tracking number",         "required": true,  "pii": false},
+        {"id": "exception_code",   "kind": "enum",    "label": "Exception code",          "required": true,  "pii": false},
+        {"id": "carrier",          "kind": "enum",    "label": "Carrier",                 "required": true,  "pii": false},
+        {"id": "exception_date",   "kind": "date",    "label": "Exception date",          "required": true,  "pii": false},
+        {"id": "recipient_name",   "kind": "text",    "label": "Recipient name",          "required": true,  "pii": true},
+        {"id": "recipient_phone",  "kind": "phone",   "label": "Recipient phone",         "required": false, "pii": true},
+        {"id": "resolution_type",  "kind": "enum",    "label": "Resolution type",         "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "return_initiated",   "condition": "carrier initiates return to sender",                "handle": "branch", "branch_to": "return_intercept_or_accept"},
+        {"id": "perishable_goods",   "condition": "shipment contains perishable items",                "handle": "escalate"},
+        {"id": "hold_for_pickup",    "condition": "customer requests hold at carrier facility",        "handle": "branch", "branch_to": "hold_arrangement"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "recipient_name"},
+        {"trigger": "state_enter", "channel": "in_app", "audience": "dispatcher"},
+        {"trigger": "approved",    "channel": "email",  "audience": "recipient_name"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "logistics_manager"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 86400},
+      "metrics": ["exception_recovery_rate", "re_delivery_cycle_time", "return_to_sender_rate"],
+      "compliance": ["consumer_protection"],
+      "data_sensitivity": ["pii_contact"]
+    },
+    {
+      "id": "receive_warehouse_goods",
+      "title": "Receive goods into the warehouse",
+      "actor": {"role": "warehouse_manager"},
+      "situation": "inbound consignment arrives at the DC dock and must be checked in, scanned, inspected, and put away to make inventory available for outbound orders",
+      "motivation": "get inventory on the shelf and available for picking as fast as possible with zero accuracy errors",
+      "outcome": "all units scanned in, location assigned, inventory balance updated in WMS",
+      "success_criteria": [
+        "all units checked in within 4 hours of truck arrival",
+        "any discrepancies versus ASN documented before put-away",
+        "inventory available in WMS within 1 hour of put-away completion"
+      ],
+      "data_capture": [
+        {"id": "asn_number",       "kind": "text",    "label": "ASN / delivery reference","required": true, "pii": false},
+        {"id": "po_number",        "kind": "text",    "label": "Purchase order number",   "required": true,  "pii": false},
+        {"id": "carrier_name",     "kind": "text",    "label": "Carrier",                 "required": true,  "pii": false},
+        {"id": "expected_units",   "kind": "number",  "label": "Expected unit count",     "required": true,  "pii": false},
+        {"id": "received_units",   "kind": "number",  "label": "Received unit count",     "required": true,  "pii": false},
+        {"id": "damage_count",     "kind": "number",  "label": "Damaged unit count",      "required": false, "pii": false},
+        {"id": "storage_zone",     "kind": "enum",    "label": "Storage zone",            "required": true,  "pii": false},
+        {"id": "receipt_photos",   "kind": "file",    "label": "Receipt photos",          "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "short_shipment",     "condition": "received_units < expected_units * 0.95",            "handle": "branch", "branch_to": "shortage_claim"},
+        {"id": "over_shipment",      "condition": "received_units > expected_units",                   "handle": "branch", "branch_to": "overshipment_handling"},
+        {"id": "cold_chain_break",   "condition": "storage_zone == refrigerated and temp_log_missing", "handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "warehouse_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "dispatcher"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "logistics_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 14400},
+      "metrics": ["dock_to_stock_time", "receiving_accuracy_rate", "damage_rate"],
+      "compliance": ["food_safety_regulations", "cold_chain_compliance"],
+      "data_sensitivity": ["operational"]
+    },
+    {
+      "id": "optimize_route",
+      "title": "Optimise a delivery route",
+      "actor": {"role": "dispatcher"},
+      "situation": "dispatcher must build and assign optimised delivery routes for a fleet of vehicles from one or more depot locations",
+      "motivation": "minimise fuel cost and driver hours while meeting all delivery time windows",
+      "outcome": "route plan generated, drivers assigned, ETAs committed for all stops",
+      "success_criteria": [
+        "routes generated at least 2 hours before first departure",
+        "all stops assigned within driver hours-of-service limits",
+        "route plan reviewed and approved by logistics manager before dispatch"
+      ],
+      "data_capture": [
+        {"id": "route_date",       "kind": "date",    "label": "Delivery date",           "required": true,  "pii": false},
+        {"id": "depot_id",         "kind": "text",    "label": "Depot / origin ID",       "required": true,  "pii": false},
+        {"id": "stop_count",       "kind": "number",  "label": "Number of stops",         "required": true,  "pii": false},
+        {"id": "vehicle_ids",      "kind": "textarea","label": "Assigned vehicle IDs",    "required": true,  "pii": false},
+        {"id": "driver_ids",       "kind": "textarea","label": "Assigned driver IDs",     "required": true,  "pii": true},
+        {"id": "total_distance_km","kind": "number",  "label": "Total distance (km)",     "required": false, "pii": false},
+        {"id": "optimiser_score",  "kind": "number",  "label": "Optimisation score",      "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "insufficient_vehicles","condition": "stop_count > available_vehicle_capacity",         "handle": "escalate"},
+        {"id": "driver_hos_breach",   "condition": "route exceeds driver hours-of-service limit",      "handle": "branch", "branch_to": "route_split_or_deferral"},
+        {"id": "weather_disruption",  "condition": "severe weather alert on planned route corridor",   "handle": "branch", "branch_to": "alternate_routing"}
+      ],
+      "approvals": [
+        {"role": "logistics_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "approved",    "channel": "in_app", "audience": "driver_ids"},
+        {"trigger": "approved",    "channel": "in_app", "audience": "dispatcher"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "dispatcher"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "logistics_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 10800},
+      "metrics": ["route_efficiency_pct", "on_time_delivery_rate", "cost_per_stop"],
+      "compliance": ["driver_hours_of_service", "vehicle_roadworthiness"],
+      "data_sensitivity": ["pii_contact", "operational"]
+    },
+    {
+      "id": "process_damaged_goods",
+      "title": "Process damaged goods claim",
+      "actor": {"role": "warehouse_manager"},
+      "situation": "goods are found to be damaged during transit or while in warehouse care, requiring documentation, carrier claim, and disposition decision",
+      "motivation": "recover the cost of damaged goods through insurance or carrier liability while making a correct inventory adjustment",
+      "outcome": "damage documented, claim filed with carrier or insurer, goods disposed or returned, inventory adjusted",
+      "success_criteria": [
+        "damage documented with photographic evidence within 24 hours of discovery",
+        "carrier or insurance claim filed within 3 business days",
+        "inventory adjustment and financial write-off completed within 5 business days"
+      ],
+      "data_capture": [
+        {"id": "claim_ref",        "kind": "text",    "label": "Damage claim reference",  "required": true,  "pii": false},
+        {"id": "shipment_id",      "kind": "text",    "label": "Shipment ID",             "required": false, "pii": false},
+        {"id": "sku",              "kind": "text",    "label": "SKU",                     "required": true,  "pii": false},
+        {"id": "damaged_units",    "kind": "number",  "label": "Damaged unit count",      "required": true,  "pii": false},
+        {"id": "damage_value",     "kind": "money",   "label": "Estimated damage value",  "required": true,  "pii": false},
+        {"id": "damage_photos",    "kind": "file",    "label": "Damage photos",           "required": true,  "pii": false},
+        {"id": "liability_party",  "kind": "enum",    "label": "Liable party",            "required": true,  "pii": false},
+        {"id": "disposition",      "kind": "enum",    "label": "Goods disposition",       "required": false, "pii": false},
+        {"id": "claim_amount",     "kind": "money",   "label": "Claim amount",            "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "high_value_damage",  "condition": "damage_value > 10000",                              "handle": "escalate"},
+        {"id": "hazmat_damaged",     "condition": "sku has hazmat classification",                     "handle": "escalate"},
+        {"id": "dispute_liability",  "condition": "carrier disputes liability",                        "handle": "branch", "branch_to": "formal_dispute"}
+      ],
+      "approvals": [
+        {"role": "logistics_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "warehouse_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "logistics_manager"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "logistics_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 259200},
+      "metrics": ["damage_claim_recovery_rate", "damage_rate_pct", "claim_cycle_time"],
+      "compliance": ["cargo_insurance_requirements"],
+      "data_sensitivity": ["financial", "operational"]
+    },
+    {
+      "id": "pay_carrier_invoice",
+      "title": "Review and pay a carrier invoice",
+      "actor": {"role": "logistics_manager"},
+      "situation": "carrier submits an invoice for transport services rendered and logistics must audit it against shipment data before authorising payment",
+      "motivation": "pay only for services rendered at contracted rates while capturing surcharges for dispute",
+      "outcome": "invoice approved for payment at audited amount, discrepancies credited or disputed",
+      "success_criteria": [
+        "invoice audited against shipment manifest within 5 business days of receipt",
+        "discrepancies communicated to carrier within 10 business days",
+        "approved invoices paid within contracted payment terms"
+      ],
+      "data_capture": [
+        {"id": "invoice_number",   "kind": "text",    "label": "Carrier invoice number",  "required": true,  "pii": false},
+        {"id": "carrier_id",       "kind": "text",    "label": "Carrier ID",              "required": true,  "pii": false},
+        {"id": "invoice_amount",   "kind": "money",   "label": "Invoiced amount",         "required": true,  "pii": false},
+        {"id": "audited_amount",   "kind": "money",   "label": "Audited amount",          "required": false, "pii": false},
+        {"id": "variance_amount",  "kind": "money",   "label": "Variance",                "required": false, "pii": false},
+        {"id": "shipment_count",   "kind": "number",  "label": "Shipments on invoice",    "required": true,  "pii": false},
+        {"id": "payment_terms",    "kind": "enum",    "label": "Payment terms",           "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "large_variance",     "condition": "abs(variance_amount) > invoice_amount * 0.05",      "handle": "escalate"},
+        {"id": "duplicate_invoice",  "condition": "invoice_number already paid or in process",         "handle": "reject"},
+        {"id": "rate_card_breach",   "condition": "any shipment line billed above contracted rate",    "handle": "branch", "branch_to": "rate_dispute"}
+      ],
+      "approvals": [
+        {"role": "logistics_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "approved",    "channel": "email",  "audience": "carrier_id"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "logistics_manager"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "logistics_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 864000},
+      "metrics": ["invoice_accuracy_rate", "payment_on_time_rate", "freight_audit_savings"],
+      "compliance": ["SOX_controls", "payment_terms_adherence"],
+      "data_sensitivity": ["financial"]
+    },
+    {
+      "id": "manage_cross_dock",
+      "title": "Manage a cross-dock transfer",
+      "actor": {"role": "warehouse_manager"},
+      "situation": "inbound freight needs to be sorted and transferred directly to outbound vehicles without put-away, to meet tight delivery windows",
+      "motivation": "eliminate storage handling to reduce cost and compress the supply chain cycle time",
+      "outcome": "inbound goods matched to outbound orders, sorted, loaded, and departed within the cross-dock window",
+      "success_criteria": [
+        "inbound freight scanned and matched to outbound order within 30 minutes of arrival",
+        "cross-dock window (typically 2-4 hours) not exceeded",
+        "all outbound manifests confirmed before vehicle departure"
+      ],
+      "data_capture": [
+        {"id": "cross_dock_ref",   "kind": "text",    "label": "Cross-dock reference",    "required": true,  "pii": false},
+        {"id": "inbound_asn",      "kind": "text",    "label": "Inbound ASN",             "required": true,  "pii": false},
+        {"id": "outbound_orders",  "kind": "textarea","label": "Outbound order IDs",      "required": true,  "pii": false},
+        {"id": "unit_count",       "kind": "number",  "label": "Unit count",              "required": true,  "pii": false},
+        {"id": "dwell_minutes",    "kind": "number",  "label": "Actual dwell time (min)", "required": false, "pii": false},
+        {"id": "departure_vehicle","kind": "text",    "label": "Outbound vehicle ID",     "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "inbound_late",       "condition": "inbound freight delayed beyond cross-dock window start","handle": "branch", "branch_to": "put_away_fallback"},
+        {"id": "sort_error",         "condition": "unit matched to wrong outbound order",                  "handle": "escalate"},
+        {"id": "outbound_full",      "condition": "outbound vehicle at capacity before all units loaded",  "handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "warehouse_manager"},
+        {"trigger": "approved",    "channel": "in_app", "audience": "dispatcher"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "warehouse_manager"},
+        {"trigger": "sla_breach",  "channel": "pagerduty","audience": "logistics_manager"}
+      ],
+      "sla": {"warn_pct": 60, "breach_seconds": 14400},
+      "metrics": ["cross_dock_dwell_time", "cross_dock_accuracy_rate", "throughput_units_per_hour"],
+      "compliance": ["food_safety_regulations"],
+      "data_sensitivity": ["operational"]
+    },
+    {
+      "id": "execute_recall",
+      "title": "Execute a product recall",
+      "actor": {"role": "logistics_manager"},
+      "situation": "a safety or quality issue triggers a product recall and all affected units in transit and at customer locations must be identified, stopped, and returned",
+      "motivation": "minimise consumer harm and regulatory exposure by executing the recall as rapidly and completely as possible",
+      "outcome": "all affected units traced, shipments intercepted where possible, customers notified, recalled units quarantined",
+      "success_criteria": [
+        "recall scope defined and affected shipments identified within 4 hours",
+        "all in-transit shipments stopped or intercepted within 24 hours",
+        "customer notification sent within 24 hours of recall decision"
+      ],
+      "data_capture": [
+        {"id": "recall_ref",       "kind": "text",    "label": "Recall reference",        "required": true,  "pii": false},
+        {"id": "affected_skus",    "kind": "textarea","label": "Affected SKU and lot codes","required": true, "pii": false},
+        {"id": "recall_reason",    "kind": "enum",    "label": "Recall reason",           "required": true,  "pii": false},
+        {"id": "regulator_notified","kind": "boolean","label": "Regulator notified",      "required": true,  "pii": false},
+        {"id": "units_in_field",   "kind": "number",  "label": "Units estimated in field","required": true,  "pii": false},
+        {"id": "units_recovered",  "kind": "number",  "label": "Units recovered",         "required": false, "pii": false},
+        {"id": "disposition",      "kind": "enum",    "label": "Disposition (destroy/rework)","required": true,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "international_recall","condition": "affected units shipped to multiple countries",     "handle": "escalate"},
+        {"id": "class_1_recall",     "condition": "recall_reason == health_risk_class_1",              "handle": "escalate"},
+        {"id": "regulator_deadline", "condition": "regulatory authority sets specific recall timeline","handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "logistics_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "logistics_manager"},
+        {"trigger": "state_enter", "channel": "slack",  "audience": "warehouse_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "affected_customers"},
+        {"trigger": "sla_breach",  "channel": "pagerduty","audience": "logistics_manager"}
+      ],
+      "sla": {"warn_pct": 50, "breach_seconds": 86400},
+      "metrics": ["recall_recovery_rate", "recall_notification_time", "units_recovered_pct"],
+      "compliance": ["CPSC_recall_rules", "FDA_recall_regulations", "product_liability"],
+      "data_sensitivity": ["pii_contact", "regulatory", "operational"]
+    },
+    {
+      "id": "manage_last_mile",
+      "title": "Manage last-mile delivery",
+      "actor": {"role": "driver"},
+      "situation": "driver carries out final delivery run for a set of stops and must record proof of delivery, handle failed attempts, and return undelivered parcels",
+      "motivation": "maximise successful deliveries per run while creating audit-proof delivery records",
+      "outcome": "all delivered stops confirmed with POD, exceptions reported, end-of-day manifest reconciled",
+      "success_criteria": [
+        "POD captured (signature or photo) for all delivered stops",
+        "delivery exception reported to dispatcher within 30 minutes of failed attempt",
+        "end-of-day manifest reconciled and submitted before depot close"
+      ],
+      "data_capture": [
+        {"id": "run_id",           "kind": "text",    "label": "Delivery run ID",         "required": true,  "pii": false},
+        {"id": "driver_id",        "kind": "text",    "label": "Driver ID",               "required": true,  "pii": true},
+        {"id": "stop_count",       "kind": "number",  "label": "Total stops",             "required": true,  "pii": false},
+        {"id": "delivered_count",  "kind": "number",  "label": "Successfully delivered",  "required": false, "pii": false},
+        {"id": "failed_count",     "kind": "number",  "label": "Failed delivery attempts","required": false, "pii": false},
+        {"id": "pod_evidence",     "kind": "file",    "label": "POD images / signatures", "required": false, "pii": false},
+        {"id": "return_items",     "kind": "textarea","label": "Returned parcel IDs",     "required": false, "pii": false},
+        {"id": "fuel_used_litres", "kind": "number",  "label": "Fuel used (litres)",      "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "driver_incident",    "condition": "driver reports road incident during run",            "handle": "escalate"},
+        {"id": "all_failed",         "condition": "failed_count == stop_count",                        "handle": "escalate"},
+        {"id": "cod_collection",     "condition": "any stop requires cash-on-delivery collection",      "handle": "branch", "branch_to": "cod_reconciliation"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "driver"},
+        {"trigger": "approved",    "channel": "in_app", "audience": "dispatcher"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "driver"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "logistics_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 57600},
+      "metrics": ["first_attempt_delivery_rate", "stops_per_driver_hour", "pod_capture_rate"],
+      "compliance": ["driver_hours_of_service", "road_transport_regulations"],
+      "data_sensitivity": ["pii_contact", "operational"]
+    }
+  ]
+}

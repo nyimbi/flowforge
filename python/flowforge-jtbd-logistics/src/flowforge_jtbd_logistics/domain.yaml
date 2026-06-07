@@ -1,11 +1,25 @@
 id: logistics
 name: "Logistics"
-description: "JTBD domain library for Logistics workflows (Shipment, warehouse, routing)."
+description: "JTBD domain library for logistics workflows (shipment creation, customs clearance, delivery exceptions, warehouse receiving, route optimisation, damaged goods, carrier invoicing, cross-docking, product recall, last-mile delivery)."
 package: flowforge-jtbd-logistics
 version: "1.0.0"
+tier: B
+reviewer_credentials:
+  - "CILT Chartered Logistics Professional"
+  - "Licensed Customs Broker"
+  - "Dangerous Goods Safety Adviser (DGSA)"
+team_id: logistics-product
 subdomains:
   - "Shipment"
-  - "warehouse"
-  - "routing"
-regulator_hints: []
+  - "Customs"
+  - "Warehouse"
+  - "Carrier"
+  - "Route"
+  - "Recall"
+  - "Last Mile"
+regulator_hints:
+  - "IATA DGR for air dangerous goods"
+  - "IMDG Code for sea dangerous goods"
+  - "Driver hours-of-service (EU Regulation 561/2006 / FMCSA)"
+  - "FDA/CPSC recall notification requirements"
 phase: E2

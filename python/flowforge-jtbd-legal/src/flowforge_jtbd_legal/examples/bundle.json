@@ -1,0 +1,424 @@
+{
+  "project": {
+    "name": "legal",
+    "package": "flowforge_jtbd_legal",
+    "domain": "legal",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD", "EUR", "GBP"]
+  },
+  "shared": {
+    "roles": ["legal_counsel", "paralegal", "compliance_officer", "outside_counsel", "data_protection_officer", "general_counsel"],
+    "permissions": ["matter.read", "contract.read", "litigation.read", "ip.read"]
+  },
+  "jtbds": [
+    {
+      "id": "draft_contract",
+      "title": "Draft and execute a commercial contract",
+      "actor": {"role": "legal_counsel"},
+      "situation": "business unit requests a new commercial agreement and legal must draft, negotiate, and execute it within the deal timeline",
+      "motivation": "protect company interests while closing the transaction on schedule",
+      "outcome": "signed contract filed in contract management system with key dates extracted",
+      "success_criteria": [
+        "first draft delivered within agreed SLA from request receipt",
+        "all redlines reviewed and responded to within 3 business days",
+        "executed contract filed with metadata within 24 hours of final signature"
+      ],
+      "data_capture": [
+        {"id": "matter_ref",       "kind": "text",    "label": "Matter reference",         "required": true,  "pii": false},
+        {"id": "contract_type",    "kind": "enum",    "label": "Contract type",            "required": true,  "pii": false},
+        {"id": "counterparty",     "kind": "text",    "label": "Counterparty name",        "required": true,  "pii": false},
+        {"id": "contract_value",   "kind": "money",   "label": "Contract value",           "required": false, "pii": false},
+        {"id": "governing_law",    "kind": "enum",    "label": "Governing law jurisdiction","required": true,  "pii": false},
+        {"id": "start_date",       "kind": "date",    "label": "Contract start date",      "required": true,  "pii": false},
+        {"id": "end_date",         "kind": "date",    "label": "Contract end date",        "required": false, "pii": false},
+        {"id": "liability_cap",    "kind": "money",   "label": "Liability cap",            "required": false, "pii": false},
+        {"id": "signed_contract",  "kind": "file",    "label": "Executed contract PDF",    "required": false, "pii": false},
+        {"id": "key_obligations",  "kind": "textarea","label": "Key obligations summary",  "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "high_risk_jurisdiction","condition": "governing_law in high_risk_jurisdiction_list",   "handle": "escalate"},
+        {"id": "unusual_liability",     "condition": "liability_cap > company_revenue * 0.5",         "handle": "escalate"},
+        {"id": "counterparty_sdn",      "condition": "counterparty on sanctions list",                 "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "general_counsel",  "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "legal_counsel"},
+        {"trigger": "approved",    "channel": "email",  "audience": "legal_counsel"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "legal_counsel"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "general_counsel"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 604800},
+      "metrics": ["contract_cycle_time", "redline_round_count", "first_draft_sla_adherence"],
+      "compliance": ["OFAC_sanctions_check", "governing_law_approval"],
+      "data_sensitivity": ["contractual", "financial", "attorney_client_privilege"]
+    },
+    {
+      "id": "register_IP",
+      "title": "Register intellectual property",
+      "actor": {"role": "legal_counsel"},
+      "situation": "engineering or product team discloses an invention, trademark, or creative work requiring formal IP protection",
+      "motivation": "secure enforceable IP rights before public disclosure or competitor filing",
+      "outcome": "patent, trademark, or copyright application filed with the relevant IP office, docketed for prosecution",
+      "success_criteria": [
+        "invention disclosure reviewed within 10 business days",
+        "provisional patent or trademark application filed before any public disclosure",
+        "docket entry created with all deadlines tracked"
+      ],
+      "data_capture": [
+        {"id": "ip_type",          "kind": "enum",    "label": "IP type (patent/TM/copyright)","required": true, "pii": false},
+        {"id": "title",            "kind": "text",    "label": "Invention/work title",    "required": true,  "pii": false},
+        {"id": "inventors",        "kind": "textarea","label": "Inventors / authors",     "required": true,  "pii": true},
+        {"id": "disclosure_date",  "kind": "date",    "label": "Disclosure date",         "required": true,  "pii": false},
+        {"id": "prior_art_search", "kind": "file",    "label": "Prior art search report", "required": false, "pii": false},
+        {"id": "filing_jurisdiction","kind": "textarea","label": "Filing jurisdictions",  "required": true,  "pii": false},
+        {"id": "application_number","kind": "text",   "label": "Application number",      "required": false, "pii": false},
+        {"id": "filing_date",      "kind": "date",    "label": "Filing date",             "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "prior_art_blocking", "condition": "prior art search returns blocking prior art",        "handle": "branch", "branch_to": "freedom_to_operate_analysis"},
+        {"id": "public_disclosure",  "condition": "invention already publicly disclosed",               "handle": "escalate"},
+        {"id": "joint_inventors",    "condition": "inventors include external party",                   "handle": "branch", "branch_to": "assignment_agreement"}
+      ],
+      "approvals": [
+        {"role": "general_counsel",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "inventors"},
+        {"trigger": "approved",    "channel": "email",  "audience": "inventors"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "legal_counsel"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "general_counsel"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 864000},
+      "metrics": ["filing_on_time_rate", "ip_portfolio_growth", "prosecution_success_rate"],
+      "compliance": ["USPTO_rules", "EPO_rules", "inventor_assignment"],
+      "data_sensitivity": ["attorney_client_privilege", "pii_contact", "trade_secret"]
+    },
+    {
+      "id": "manage_litigation",
+      "title": "Manage litigation matter",
+      "actor": {"role": "legal_counsel"},
+      "situation": "company receives a complaint, demand letter, or is served with legal process requiring coordinated litigation response",
+      "motivation": "minimise legal exposure and cost while achieving best-available outcome",
+      "outcome": "matter resolved through settlement, dismissal, or judgment with total cost and reserve tracked throughout",
+      "success_criteria": [
+        "litigation hold issued within 24 hours of notice",
+        "outside counsel engaged and initial strategy memo delivered within 5 business days",
+        "reserve updated in financial system at each material development"
+      ],
+      "data_capture": [
+        {"id": "matter_ref",       "kind": "text",    "label": "Matter reference",         "required": true,  "pii": false},
+        {"id": "claimant",         "kind": "text",    "label": "Claimant / plaintiff",     "required": true,  "pii": false},
+        {"id": "claim_type",       "kind": "enum",    "label": "Claim type",               "required": true,  "pii": false},
+        {"id": "claim_amount",     "kind": "money",   "label": "Claimed amount",           "required": false, "pii": false},
+        {"id": "reserve_amount",   "kind": "money",   "label": "Financial reserve",        "required": true,  "pii": false},
+        {"id": "venue",            "kind": "text",    "label": "Court / arbitration venue","required": true,  "pii": false},
+        {"id": "answer_deadline",  "kind": "date",    "label": "Answer/response deadline", "required": true,  "pii": false},
+        {"id": "outside_counsel",  "kind": "text",    "label": "Outside counsel firm",     "required": false, "pii": false},
+        {"id": "litigation_hold",  "kind": "boolean", "label": "Litigation hold issued",   "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "class_action",        "condition": "claim_type == class_action",                        "handle": "escalate"},
+        {"id": "large_exposure",      "condition": "claim_amount > 1000000",                            "handle": "escalate"},
+        {"id": "deadline_imminent",   "condition": "answer_deadline < today + 5 days",                  "handle": "escalate"},
+        {"id": "regulatory_agency",   "condition": "claimant is a government or regulatory agency",     "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "general_counsel",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",   "channel": "slack",  "audience": "general_counsel"},
+        {"trigger": "state_enter",   "channel": "email",  "audience": "legal_counsel"},
+        {"trigger": "sla_warn",      "channel": "in_app", "audience": "legal_counsel"},
+        {"trigger": "sla_breach",    "channel": "pagerduty","audience": "general_counsel"}
+      ],
+      "sla": {"warn_pct": 50, "breach_seconds": 86400},
+      "metrics": ["litigation_cost", "settlement_vs_reserve_ratio", "matter_cycle_time"],
+      "compliance": ["litigation_hold_compliance", "e_discovery_rules"],
+      "data_sensitivity": ["attorney_client_privilege", "work_product", "financial"]
+    },
+    {
+      "id": "execute_legal_hold",
+      "title": "Execute a legal hold",
+      "actor": {"role": "legal_counsel"},
+      "situation": "litigation or regulatory investigation requires preservation of all potentially relevant documents and communications",
+      "motivation": "avoid spoliation sanctions by issuing, tracking, and confirming custodian acknowledgement of the hold",
+      "outcome": "hold issued to all custodians, acknowledgements collected, data sources preserved",
+      "success_criteria": [
+        "hold notice issued within 24 hours of triggering event",
+        "100% custodian acknowledgement within 5 business days",
+        "data preservation confirmed in IT systems before any scheduled deletion"
+      ],
+      "data_capture": [
+        {"id": "hold_ref",         "kind": "text",    "label": "Legal hold reference",     "required": true,  "pii": false},
+        {"id": "matter_ref",       "kind": "text",    "label": "Linked matter",            "required": true,  "pii": false},
+        {"id": "custodians",       "kind": "textarea","label": "Custodian list",           "required": true,  "pii": true},
+        {"id": "data_sources",     "kind": "textarea","label": "Data sources to preserve", "required": true,  "pii": false},
+        {"id": "issue_date",       "kind": "date",    "label": "Hold issue date",          "required": true,  "pii": false},
+        {"id": "scope_description","kind": "textarea","label": "Hold scope description",   "required": true,  "pii": false},
+        {"id": "ack_rate",         "kind": "number",  "label": "Acknowledgement rate (%)", "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "custodian_unresponsive","condition": "custodian has not acknowledged within 3 days",  "handle": "escalate"},
+        {"id": "departing_employee",   "condition": "custodian has submitted resignation",            "handle": "branch", "branch_to": "departure_preservation"},
+        {"id": "cross_border_data",    "condition": "data sources include EU personal data",          "handle": "branch", "branch_to": "gdpr_transfer_assessment"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "custodians"},
+        {"trigger": "state_enter",  "channel": "slack",  "audience": "legal_counsel"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "legal_counsel"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "general_counsel"}
+      ],
+      "sla": {"warn_pct": 60, "breach_seconds": 86400},
+      "metrics": ["hold_acknowledgement_rate", "time_to_full_ack", "custodian_count"],
+      "compliance": ["FRCP_preservation", "e_discovery_rules"],
+      "data_sensitivity": ["attorney_client_privilege", "pii_contact", "work_product"]
+    },
+    {
+      "id": "file_regulatory_submission",
+      "title": "File a regulatory submission",
+      "actor": {"role": "compliance_officer"},
+      "situation": "a statutory deadline for a regulatory filing (annual return, disclosure, report) is approaching and the submission must be prepared and filed",
+      "motivation": "meet the regulatory deadline without penalty and maintain the company's good standing",
+      "outcome": "submission filed on time with filing confirmation reference stored",
+      "success_criteria": [
+        "draft submission reviewed by legal counsel before filing",
+        "filed at least 5 business days before statutory deadline",
+        "filing confirmation and acknowledgement archived within 24 hours"
+      ],
+      "data_capture": [
+        {"id": "filing_type",      "kind": "enum",    "label": "Filing type",              "required": true,  "pii": false},
+        {"id": "regulator",        "kind": "text",    "label": "Regulator name",           "required": true,  "pii": false},
+        {"id": "statutory_deadline","kind": "date",   "label": "Statutory deadline",       "required": true,  "pii": false},
+        {"id": "period_covered",   "kind": "text",    "label": "Reporting period",         "required": true,  "pii": false},
+        {"id": "filing_document",  "kind": "file",    "label": "Filing document",          "required": true,  "pii": false},
+        {"id": "confirmation_ref", "kind": "text",    "label": "Filing confirmation ref",  "required": false, "pii": false},
+        {"id": "filing_date",      "kind": "date",    "label": "Actual filing date",       "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "deadline_breach_risk","condition": "today > statutory_deadline - 3 days and not filed","handle": "escalate"},
+        {"id": "material_change",    "condition": "significant event affects filing content post-draft","handle": "branch", "branch_to": "amendment_review"},
+        {"id": "regulator_query",    "condition": "regulator issues query on submission",               "handle": "branch", "branch_to": "regulator_response"}
+      ],
+      "approvals": [
+        {"role": "general_counsel",  "policy": "1_of_1"},
+        {"role": "compliance_officer","policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "compliance_officer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "compliance_officer"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "compliance_officer"},
+        {"trigger": "sla_breach",  "channel": "pagerduty","audience": "general_counsel"}
+      ],
+      "sla": {"warn_pct": 60, "breach_seconds": 432000},
+      "metrics": ["on_time_filing_rate", "filing_amendment_count", "regulator_query_count"],
+      "compliance": ["statutory_deadline_adherence"],
+      "data_sensitivity": ["regulatory", "financial"]
+    },
+    {
+      "id": "manage_outside_counsel",
+      "title": "Manage outside counsel engagement",
+      "actor": {"role": "general_counsel"},
+      "situation": "matter requires specialist legal advice beyond in-house capacity; outside counsel must be engaged, budgeted, and monitored",
+      "motivation": "get best-in-class legal advice within budget while maintaining oversight and cost predictability",
+      "outcome": "outside counsel engaged under billing guidelines, matter budget approved, monthly invoice reviewed and approved",
+      "success_criteria": [
+        "engagement letter executed before any billable work commences",
+        "matter budget set and approved before engagement",
+        "monthly invoices reviewed and approved within 15 business days of receipt"
+      ],
+      "data_capture": [
+        {"id": "firm_name",        "kind": "text",    "label": "Law firm name",            "required": true,  "pii": false},
+        {"id": "matter_ref",       "kind": "text",    "label": "Matter reference",         "required": true,  "pii": false},
+        {"id": "budget_amount",    "kind": "money",   "label": "Matter budget",            "required": true,  "pii": false},
+        {"id": "lead_partner",     "kind": "text",    "label": "Lead partner",             "required": true,  "pii": true},
+        {"id": "rate_card",        "kind": "file",    "label": "Agreed rate card",         "required": true,  "pii": false},
+        {"id": "engagement_letter","kind": "file",    "label": "Signed engagement letter", "required": true,  "pii": false},
+        {"id": "invoice_to_date",  "kind": "money",   "label": "Cumulative invoices",      "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "budget_overrun",      "condition": "invoice_to_date > budget_amount * 0.8",           "handle": "escalate"},
+        {"id": "conflict_check_fail", "condition": "firm fails conflict check",                        "handle": "reject"},
+        {"id": "no_engagement_letter","condition": "invoice received without signed engagement letter","handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "general_counsel",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "general_counsel"},
+        {"trigger": "approved",     "channel": "email",  "audience": "lead_partner"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "general_counsel"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "general_counsel"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 1296000},
+      "metrics": ["outside_counsel_spend", "budget_adherence_pct", "matter_budget_overrun_rate"],
+      "compliance": ["billing_guidelines", "conflict_check"],
+      "data_sensitivity": ["attorney_client_privilege", "financial"]
+    },
+    {
+      "id": "review_NDA",
+      "title": "Review and execute a non-disclosure agreement",
+      "actor": {"role": "legal_counsel"},
+      "situation": "business team needs to share confidential information with a third party and requires a signed NDA before any disclosure",
+      "motivation": "protect proprietary information while enabling the business relationship to proceed promptly",
+      "outcome": "NDA executed, key terms recorded, expiry date tracked for renewal",
+      "success_criteria": [
+        "NDA first review completed within 2 business days of request",
+        "no disclosure occurs before fully executed NDA is on file",
+        "executed NDA stored with expiry date tracked"
+      ],
+      "data_capture": [
+        {"id": "counterparty",     "kind": "text",    "label": "Counterparty name",        "required": true,  "pii": false},
+        {"id": "nda_type",         "kind": "enum",    "label": "NDA type (mutual/one-way)","required": true,  "pii": false},
+        {"id": "purpose",          "kind": "textarea","label": "Purpose of disclosure",    "required": true,  "pii": false},
+        {"id": "term_months",      "kind": "number",  "label": "NDA term (months)",        "required": true,  "pii": false},
+        {"id": "governing_law",    "kind": "enum",    "label": "Governing law",            "required": true,  "pii": false},
+        {"id": "signed_nda",       "kind": "file",    "label": "Executed NDA",             "required": false, "pii": false},
+        {"id": "expiry_date",      "kind": "date",    "label": "NDA expiry date",          "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "competitor_nda",     "condition": "counterparty is a known competitor",                "handle": "escalate"},
+        {"id": "unlimited_term",     "condition": "term_months == 0 (perpetual)",                      "handle": "branch", "branch_to": "term_limit_negotiation"},
+        {"id": "jurisdiction_risk",  "condition": "governing_law is not a pre-approved jurisdiction",  "handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "legal_counsel"},
+        {"trigger": "approved",    "channel": "email",  "audience": "counterparty"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "legal_counsel"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "general_counsel"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 172800},
+      "metrics": ["nda_cycle_time", "nda_redline_rounds", "nda_expiry_renewal_rate"],
+      "compliance": ["trade_secret_protection"],
+      "data_sensitivity": ["contractual", "attorney_client_privilege"]
+    },
+    {
+      "id": "conduct_compliance_audit",
+      "title": "Conduct an internal compliance audit",
+      "actor": {"role": "compliance_officer"},
+      "situation": "annual or triggered compliance audit is required to assess adherence to regulations, policies, or contractual obligations",
+      "motivation": "identify gaps before regulators do and demonstrate a culture of compliance to auditors and board",
+      "outcome": "audit report issued, findings prioritised, remediation plan approved and tracked",
+      "success_criteria": [
+        "audit scope and methodology approved before fieldwork",
+        "draft report issued within 10 business days of fieldwork completion",
+        "all P1 findings remediated within 30 days of report sign-off"
+      ],
+      "data_capture": [
+        {"id": "audit_ref",        "kind": "text",    "label": "Audit reference",          "required": true,  "pii": false},
+        {"id": "audit_type",       "kind": "enum",    "label": "Audit type",               "required": true,  "pii": false},
+        {"id": "scope",            "kind": "textarea","label": "Audit scope",              "required": true,  "pii": false},
+        {"id": "start_date",       "kind": "date",    "label": "Audit start date",         "required": true,  "pii": false},
+        {"id": "finding_count",    "kind": "number",  "label": "Number of findings",       "required": false, "pii": false},
+        {"id": "critical_findings","kind": "number",  "label": "Critical (P1) findings",   "required": false, "pii": false},
+        {"id": "audit_report",     "kind": "file",    "label": "Audit report",             "required": false, "pii": false},
+        {"id": "remediation_plan", "kind": "file",    "label": "Remediation plan",         "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "critical_finding",   "condition": "critical_findings > 0",                              "handle": "escalate"},
+        {"id": "scope_gap",          "condition": "audit scope excludes a high-risk area",              "handle": "escalate"},
+        {"id": "auditee_obstructs",  "condition": "auditee refuses to provide requested evidence",      "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "general_counsel",   "policy": "1_of_1"},
+        {"role": "compliance_officer","policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "compliance_officer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "compliance_officer"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "compliance_officer"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "general_counsel"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 2592000},
+      "metrics": ["audit_finding_closure_rate", "critical_finding_resolution_time", "repeat_finding_rate"],
+      "compliance": ["internal_audit_standards", "SOX_controls"],
+      "data_sensitivity": ["regulatory", "attorney_client_privilege"]
+    },
+    {
+      "id": "handle_GDPR_request",
+      "title": "Handle a data subject request under GDPR",
+      "actor": {"role": "data_protection_officer"},
+      "situation": "a data subject submits a right of access, erasure, rectification, or portability request under GDPR or equivalent privacy regulation",
+      "motivation": "fulfil the legal obligation within the statutory deadline to avoid regulatory sanction",
+      "outcome": "request fulfilled within 30-day statutory deadline with response sent and action logged",
+      "success_criteria": [
+        "request acknowledged within 3 business days of receipt",
+        "identity verification completed before any data disclosure",
+        "response delivered within 30 calendar days of verified receipt"
+      ],
+      "data_capture": [
+        {"id": "request_ref",      "kind": "text",    "label": "DSR reference",            "required": true,  "pii": false},
+        {"id": "request_type",     "kind": "enum",    "label": "Request type",             "required": true,  "pii": false},
+        {"id": "subject_name",     "kind": "text",    "label": "Data subject name",        "required": true,  "pii": true},
+        {"id": "subject_email",    "kind": "email",   "label": "Data subject email",       "required": true,  "pii": true},
+        {"id": "id_verified",      "kind": "boolean", "label": "Identity verified",        "required": true,  "pii": false},
+        {"id": "data_systems",     "kind": "textarea","label": "Systems searched",         "required": false, "pii": false},
+        {"id": "response_doc",     "kind": "file",    "label": "Response document",        "required": false, "pii": true},
+        {"id": "completion_date",  "kind": "date",    "label": "Completion date",          "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "identity_unverifiable","condition": "cannot verify data subject identity",              "handle": "branch", "branch_to": "alternative_verification"},
+        {"id": "manifestly_unfounded", "condition": "request deemed manifestly unfounded or excessive", "handle": "branch", "branch_to": "refusal_with_reason"},
+        {"id": "third_party_data",     "condition": "response would expose third-party personal data", "handle": "escalate"},
+        {"id": "deadline_breach_risk", "condition": "today > receipt_date + 25 days and not completed","handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "data_protection_officer", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "subject_email"},
+        {"trigger": "approved",    "channel": "email",  "audience": "subject_email"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "data_protection_officer"},
+        {"trigger": "sla_breach",  "channel": "pagerduty","audience": "general_counsel"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 2592000},
+      "metrics": ["dsr_response_rate", "on_time_dsr_completion", "erasure_completion_rate"],
+      "compliance": ["GDPR_Art_12_17", "CCPA", "statutory_deadline_adherence"],
+      "data_sensitivity": ["pii_contact", "special_category_data", "regulatory"]
+    },
+    {
+      "id": "manage_corporate_governance",
+      "title": "Manage a board resolution or corporate governance action",
+      "actor": {"role": "general_counsel"},
+      "situation": "board or committee decision requires formal documentation, quorum verification, and filing with company registrar",
+      "motivation": "ensure the company acts within its constitutional authority and maintains a valid corporate record",
+      "outcome": "board resolution passed, minutes recorded, statutory filings made if required",
+      "success_criteria": [
+        "quorum confirmed before vote is taken",
+        "board minutes drafted and circulated within 5 business days of meeting",
+        "statutory filings made within the legal deadline"
+      ],
+      "data_capture": [
+        {"id": "resolution_ref",   "kind": "text",    "label": "Resolution reference",     "required": true,  "pii": false},
+        {"id": "resolution_type",  "kind": "enum",    "label": "Resolution type",          "required": true,  "pii": false},
+        {"id": "meeting_date",     "kind": "date",    "label": "Board meeting date",       "required": true,  "pii": false},
+        {"id": "quorum_count",     "kind": "number",  "label": "Directors in attendance",  "required": true,  "pii": false},
+        {"id": "vote_for",         "kind": "number",  "label": "Votes for",                "required": true,  "pii": false},
+        {"id": "vote_against",     "kind": "number",  "label": "Votes against",            "required": true,  "pii": false},
+        {"id": "minutes_doc",      "kind": "file",    "label": "Signed board minutes",     "required": false, "pii": false},
+        {"id": "filing_required",  "kind": "boolean", "label": "Statutory filing required","required": true,  "pii": false},
+        {"id": "filing_deadline",  "kind": "date",    "label": "Filing deadline",          "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "no_quorum",          "condition": "quorum_count < minimum_quorum",                     "handle": "reject"},
+        {"id": "interested_director","condition": "a voting director has a declared conflict of interest","handle": "branch", "branch_to": "conflict_abstention"},
+        {"id": "filing_missed",      "condition": "filing_required and today > filing_deadline",        "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "general_counsel",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "general_counsel"},
+        {"trigger": "approved",    "channel": "email",  "audience": "general_counsel"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "general_counsel"},
+        {"trigger": "sla_breach",  "channel": "pagerduty","audience": "general_counsel"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 432000},
+      "metrics": ["resolution_filing_on_time_rate", "board_minutes_cycle_time", "quorum_achievement_rate"],
+      "compliance": ["companies_act", "statutory_deadline_adherence", "conflict_of_interest_policy"],
+      "data_sensitivity": ["contractual", "regulatory", "attorney_client_privilege"]
+    }
+  ]
+}

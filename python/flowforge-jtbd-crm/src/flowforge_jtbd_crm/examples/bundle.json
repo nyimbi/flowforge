@@ -1,0 +1,417 @@
+{
+  "project": {
+    "name": "crm",
+    "package": "flowforge_jtbd_crm",
+    "domain": "crm",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD", "EUR", "GBP"]
+  },
+  "shared": {
+    "roles": ["sales_rep", "account_executive", "sales_manager", "csm", "partner_manager"],
+    "permissions": ["lead.read", "opportunity.read", "account.read"]
+  },
+  "jtbds": [
+    {
+      "id": "qualify_lead",
+      "title": "Qualify a lead",
+      "actor": {"role": "sales_rep"},
+      "situation": "sales rep receives an inbound or outbound lead and must determine whether to invest further sales cycles",
+      "motivation": "separate high-intent prospects from noise before burning quota capacity",
+      "outcome": "lead scored and either advanced to opportunity or disqualified with reason captured",
+      "success_criteria": [
+        "BANT or MEDDIC fields completed within 2 business days of lead assignment",
+        "qualification decision recorded with rationale",
+        "lead score computed and stored for pipeline analytics"
+      ],
+      "data_capture": [
+        {"id": "lead_name",       "kind": "text",    "label": "Lead full name",        "required": true,  "pii": true},
+        {"id": "company",         "kind": "text",    "label": "Company",               "required": true,  "pii": false},
+        {"id": "email",           "kind": "email",   "label": "Business email",        "required": true,  "pii": true},
+        {"id": "phone",           "kind": "phone",   "label": "Phone",                 "required": false, "pii": true},
+        {"id": "annual_revenue",  "kind": "money",   "label": "Est. annual revenue",   "required": false, "pii": false},
+        {"id": "budget_confirmed","kind": "boolean", "label": "Budget confirmed",      "required": true,  "pii": false},
+        {"id": "decision_maker",  "kind": "boolean", "label": "Is decision maker",     "required": true,  "pii": false},
+        {"id": "need_identified", "kind": "boolean", "label": "Need identified",       "required": true,  "pii": false},
+        {"id": "timeline",        "kind": "enum",    "label": "Purchase timeline",     "required": true,  "pii": false},
+        {"id": "lead_source",     "kind": "enum",    "label": "Lead source",           "required": true,  "pii": false},
+        {"id": "notes",           "kind": "textarea","label": "Qualification notes",   "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "duplicate_lead",    "condition": "email matches existing contact",                       "handle": "reject"},
+        {"id": "competitor_account","condition": "company is flagged as a direct competitor",             "handle": "escalate"},
+        {"id": "gdpr_region",       "condition": "lead is from EU and no consent recorded",              "handle": "branch", "branch_to": "gdpr_consent_capture"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "sales_rep"},
+        {"trigger": "state_enter", "channel": "in_app", "audience": "sales_rep"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "sales_rep"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "sales_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 172800},
+      "metrics": ["lead_to_opportunity_rate", "time_to_qualify", "lead_score_distribution"],
+      "compliance": ["GDPR_consent_check"],
+      "data_sensitivity": ["pii_contact"]
+    },
+    {
+      "id": "manage_opportunity",
+      "title": "Manage a sales opportunity",
+      "actor": {"role": "account_executive"},
+      "situation": "account executive progresses a qualified opportunity through deal stages toward close",
+      "motivation": "accurately forecast and close revenue within the quarter",
+      "outcome": "opportunity closed-won or closed-lost with all stage activities documented",
+      "success_criteria": [
+        "next-step date always set when opportunity is active",
+        "stage progression logged with evidence at each gate",
+        "close date updated within 5 business days of any slip"
+      ],
+      "data_capture": [
+        {"id": "opportunity_name","kind": "text",    "label": "Opportunity name",      "required": true,  "pii": false},
+        {"id": "deal_value",      "kind": "money",   "label": "Deal value",            "required": true,  "pii": false},
+        {"id": "stage",           "kind": "enum",    "label": "Current stage",         "required": true,  "pii": false},
+        {"id": "close_date",      "kind": "date",    "label": "Expected close date",   "required": true,  "pii": false},
+        {"id": "next_step",       "kind": "text",    "label": "Next step",             "required": true,  "pii": false},
+        {"id": "win_probability", "kind": "number",  "label": "Win probability (%)",   "required": true,  "pii": false},
+        {"id": "competitor",      "kind": "text",    "label": "Primary competitor",    "required": false, "pii": false},
+        {"id": "poc_completed",   "kind": "boolean", "label": "POC completed",         "required": false, "pii": false},
+        {"id": "legal_review",    "kind": "boolean", "label": "Legal review done",     "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "large_deal_approval",  "condition": "deal_value > 250000",               "handle": "escalate"},
+        {"id": "close_date_past",      "condition": "close_date < today and stage != closed", "handle": "branch", "branch_to": "date_revision_required"},
+        {"id": "lost_to_competitor",   "condition": "stage == closed_lost",              "handle": "branch", "branch_to": "loss_analysis"}
+      ],
+      "approvals": [
+        {"role": "sales_manager", "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "account_executive"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "account_executive"},
+        {"trigger": "approved",    "channel": "email",  "audience": "account_executive"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "account_executive"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 604800},
+      "metrics": ["win_rate", "average_deal_size", "sales_cycle_length", "pipeline_coverage"],
+      "compliance": [],
+      "data_sensitivity": ["financial"]
+    },
+    {
+      "id": "onboard_account",
+      "title": "Onboard a new account",
+      "actor": {"role": "csm"},
+      "situation": "customer success manager kicks off structured onboarding for a newly closed account",
+      "motivation": "achieve first value milestone within 30 days to reduce churn risk and establish trust",
+      "outcome": "customer live on product, success plan signed off, health score baseline set",
+      "success_criteria": [
+        "kickoff call held within 5 business days of contract signature",
+        "implementation checklist 100% complete within agreed onboarding window",
+        "health score baseline recorded before 30-day mark"
+      ],
+      "data_capture": [
+        {"id": "account_id",       "kind": "text",    "label": "Account ID",           "required": true,  "pii": false},
+        {"id": "primary_contact",  "kind": "text",    "label": "Primary contact name", "required": true,  "pii": true},
+        {"id": "contact_email",    "kind": "email",   "label": "Contact email",        "required": true,  "pii": true},
+        {"id": "kickoff_date",     "kind": "date",    "label": "Kickoff call date",    "required": true,  "pii": false},
+        {"id": "go_live_date",     "kind": "date",    "label": "Target go-live",       "required": true,  "pii": false},
+        {"id": "use_cases",        "kind": "textarea","label": "Primary use cases",    "required": true,  "pii": false},
+        {"id": "integration_list", "kind": "textarea","label": "Required integrations","required": false, "pii": false},
+        {"id": "health_score",     "kind": "number",  "label": "Initial health score", "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "unresponsive_customer",  "condition": "no response within 5 days of kickoff invite",       "handle": "escalate"},
+        {"id": "integration_blocked",    "condition": "required integration unavailable",                  "handle": "branch", "branch_to": "technical_escalation"},
+        {"id": "contract_not_signed",    "condition": "signed contract not received before kickoff",       "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "sales_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "primary_contact"},
+        {"trigger": "state_enter", "channel": "slack",  "audience": "csm"},
+        {"trigger": "approved",    "channel": "email",  "audience": "primary_contact"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "csm"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "sales_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["time_to_first_value", "onboarding_completion_rate", "30_day_health_score"],
+      "compliance": ["GDPR_consent_check"],
+      "data_sensitivity": ["pii_contact"]
+    },
+    {
+      "id": "process_renewal",
+      "title": "Process a contract renewal",
+      "actor": {"role": "csm"},
+      "situation": "csm identifies an expiring contract and initiates the renewal motion 90 days before expiry",
+      "motivation": "retain ARR and expand where possible before contract auto-expires or lapses",
+      "outcome": "renewal booked, new contract executed, ARR delta recorded",
+      "success_criteria": [
+        "renewal initiated at least 90 days before expiry",
+        "commercial proposal sent at least 45 days before expiry",
+        "contract signed before expiry date"
+      ],
+      "data_capture": [
+        {"id": "contract_id",     "kind": "text",    "label": "Contract ID",            "required": true,  "pii": false},
+        {"id": "expiry_date",     "kind": "date",    "label": "Contract expiry date",   "required": true,  "pii": false},
+        {"id": "current_arr",     "kind": "money",   "label": "Current ARR",            "required": true,  "pii": false},
+        {"id": "proposed_arr",    "kind": "money",   "label": "Proposed renewal ARR",   "required": true,  "pii": false},
+        {"id": "churn_risk",      "kind": "enum",    "label": "Churn risk level",       "required": true,  "pii": false},
+        {"id": "renewal_notes",   "kind": "textarea","label": "Renewal notes",          "required": false, "pii": false},
+        {"id": "signed_renewal",  "kind": "file",    "label": "Signed renewal doc",     "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "price_increase_over_threshold", "condition": "proposed_arr > current_arr * 1.15",   "handle": "escalate"},
+        {"id": "churn_risk_high",               "condition": "churn_risk == high",                   "handle": "branch", "branch_to": "executive_save_play"},
+        {"id": "expired_without_signature",     "condition": "expiry_date < today and not signed",   "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "sales_manager", "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "csm"},
+        {"trigger": "state_enter", "channel": "in_app", "audience": "csm"},
+        {"trigger": "approved",    "channel": "email",  "audience": "primary_contact"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "csm"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "sales_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 7776000},
+      "metrics": ["renewal_rate", "net_revenue_retention", "time_to_renewal_close"],
+      "compliance": [],
+      "data_sensitivity": ["financial", "contractual"]
+    },
+    {
+      "id": "handle_escalation",
+      "title": "Handle a customer escalation",
+      "actor": {"role": "csm"},
+      "situation": "customer raises an urgent complaint or issue that threatens the relationship and requires cross-functional coordination",
+      "motivation": "resolve the root cause quickly to prevent churn and restore customer trust",
+      "outcome": "escalation resolved, root cause documented, remediation plan delivered to customer",
+      "success_criteria": [
+        "escalation acknowledged within 2 hours of receipt",
+        "initial response with action plan delivered within 4 business hours",
+        "post-mortem completed and sent to customer within 5 business days of resolution"
+      ],
+      "data_capture": [
+        {"id": "escalation_id",    "kind": "text",    "label": "Escalation ID",           "required": true,  "pii": false},
+        {"id": "severity",         "kind": "enum",    "label": "Severity (P1-P4)",        "required": true,  "pii": false},
+        {"id": "issue_summary",    "kind": "textarea","label": "Issue summary",           "required": true,  "pii": false},
+        {"id": "impacted_users",   "kind": "number",  "label": "Impacted user count",     "required": false, "pii": false},
+        {"id": "business_impact",  "kind": "textarea","label": "Business impact",         "required": true,  "pii": false},
+        {"id": "root_cause",       "kind": "textarea","label": "Root cause (post-mortem)","required": false, "pii": false},
+        {"id": "resolution_steps", "kind": "textarea","label": "Resolution steps",        "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "p1_severity",          "condition": "severity == P1",                              "handle": "escalate"},
+        {"id": "legal_threat",         "condition": "issue_summary contains 'legal' or 'breach'",  "handle": "escalate"},
+        {"id": "media_risk",           "condition": "customer is publicly listed company",          "handle": "branch", "branch_to": "pr_review"}
+      ],
+      "approvals": [
+        {"role": "sales_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "csm"},
+        {"trigger": "state_enter", "channel": "slack",  "audience": "sales_manager"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "csm"},
+        {"trigger": "sla_breach",  "channel": "pagerduty", "audience": "sales_manager"},
+        {"trigger": "resolved",    "channel": "email",  "audience": "primary_contact"}
+      ],
+      "sla": {"warn_pct": 50, "breach_seconds": 14400},
+      "metrics": ["escalation_resolution_time", "csat_post_escalation", "escalation_recurrence_rate"],
+      "compliance": ["SLA_adherence"],
+      "data_sensitivity": ["operational"]
+    },
+    {
+      "id": "log_complaint",
+      "title": "Log and resolve a customer complaint",
+      "actor": {"role": "csm"},
+      "situation": "customer submits a formal complaint via email, portal, or phone requiring tracked resolution",
+      "motivation": "meet contractual SLA obligations and prevent regulatory escalation",
+      "outcome": "complaint resolved, customer notified, outcome logged for quality review",
+      "success_criteria": [
+        "complaint logged within 1 business hour of receipt",
+        "resolution communicated to customer within SLA window",
+        "complaint category tagged for trend analysis"
+      ],
+      "data_capture": [
+        {"id": "complaint_ref",    "kind": "text",    "label": "Complaint reference",    "required": true,  "pii": false},
+        {"id": "customer_name",    "kind": "text",    "label": "Customer name",          "required": true,  "pii": true},
+        {"id": "channel",          "kind": "enum",    "label": "Receipt channel",        "required": true,  "pii": false},
+        {"id": "category",         "kind": "enum",    "label": "Complaint category",     "required": true,  "pii": false},
+        {"id": "description",      "kind": "textarea","label": "Complaint description",  "required": true,  "pii": false},
+        {"id": "desired_outcome",  "kind": "textarea","label": "Customer desired outcome","required": false, "pii": false},
+        {"id": "resolution_action","kind": "textarea","label": "Resolution action taken","required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "regulatory_mention", "condition": "description contains regulatory body name", "handle": "escalate"},
+        {"id": "repeat_complaint",   "condition": "same customer has 3+ open complaints",      "handle": "branch", "branch_to": "account_review"},
+        {"id": "sla_expired",        "condition": "breach_seconds elapsed without resolution", "handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "customer_name"},
+        {"trigger": "state_enter", "channel": "in_app", "audience": "csm"},
+        {"trigger": "resolved",    "channel": "email",  "audience": "customer_name"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "sales_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 86400},
+      "metrics": ["complaint_resolution_time", "first_contact_resolution_rate", "complaint_reopen_rate"],
+      "compliance": ["GDPR_consent_check", "consumer_protection"],
+      "data_sensitivity": ["pii_contact", "operational"]
+    },
+    {
+      "id": "process_upsell",
+      "title": "Process an upsell or cross-sell",
+      "actor": {"role": "account_executive"},
+      "situation": "account executive identifies an expansion opportunity within an existing customer account",
+      "motivation": "grow account revenue and deepen product adoption before renewal cycle",
+      "outcome": "upsell opportunity created, commercial terms agreed, order amendment executed",
+      "success_criteria": [
+        "expansion opportunity created from account health signal within 5 days",
+        "commercial proposal delivered within 10 business days of identification",
+        "order amendment signed and billing updated within 2 business days of agreement"
+      ],
+      "data_capture": [
+        {"id": "account_id",      "kind": "text",    "label": "Account ID",             "required": true,  "pii": false},
+        {"id": "expansion_type",  "kind": "enum",    "label": "Expansion type",         "required": true,  "pii": false},
+        {"id": "additional_arr",  "kind": "money",   "label": "Additional ARR",         "required": true,  "pii": false},
+        {"id": "trigger_signal",  "kind": "text",    "label": "Trigger signal",         "required": true,  "pii": false},
+        {"id": "product_skus",    "kind": "textarea","label": "SKUs to add",            "required": true,  "pii": false},
+        {"id": "amendment_doc",   "kind": "file",    "label": "Order amendment",        "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "low_health_score",   "condition": "account health_score < 40",             "handle": "branch", "branch_to": "health_recovery_first"},
+        {"id": "pending_escalation", "condition": "account has open P1 escalation",        "handle": "reject"},
+        {"id": "large_expansion",    "condition": "additional_arr > 100000",               "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "sales_manager", "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "approved",    "channel": "email",  "audience": "primary_contact"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "account_executive"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "sales_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 864000},
+      "metrics": ["expansion_revenue", "upsell_win_rate", "time_to_expand"],
+      "compliance": [],
+      "data_sensitivity": ["financial", "contractual"]
+    },
+    {
+      "id": "review_account",
+      "title": "Conduct quarterly account review",
+      "actor": {"role": "csm"},
+      "situation": "csm schedules and facilitates a quarterly business review with a key account to assess ROI and plan next quarter",
+      "motivation": "demonstrate value delivered, surface expansion signals, and pre-empt churn",
+      "outcome": "QBR deck presented, success metrics reviewed, next-quarter success plan agreed",
+      "success_criteria": [
+        "QBR scheduled at least 10 days in advance",
+        "deck shared with customer at least 2 business days before meeting",
+        "next-quarter success plan signed off within 5 business days of QBR"
+      ],
+      "data_capture": [
+        {"id": "account_id",       "kind": "text",    "label": "Account ID",             "required": true,  "pii": false},
+        {"id": "qbr_date",         "kind": "date",    "label": "QBR date",              "required": true,  "pii": false},
+        {"id": "attendees",        "kind": "textarea","label": "Attendee list",         "required": true,  "pii": true},
+        {"id": "kpis_reviewed",    "kind": "textarea","label": "KPIs reviewed",         "required": true,  "pii": false},
+        {"id": "nps_score",        "kind": "number",  "label": "NPS score",             "required": false, "pii": false},
+        {"id": "action_items",     "kind": "textarea","label": "Agreed action items",   "required": true,  "pii": false},
+        {"id": "qbr_deck",         "kind": "file",    "label": "QBR deck",              "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "customer_cancels",     "condition": "customer cancels QBR within 24h",            "handle": "branch", "branch_to": "reschedule"},
+        {"id": "nps_detractor",        "condition": "nps_score < 7",                              "handle": "branch", "branch_to": "detractor_recovery"},
+        {"id": "no_exec_attendance",   "condition": "no customer executive in attendees",          "handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "primary_contact"},
+        {"trigger": "state_enter", "channel": "in_app", "audience": "csm"},
+        {"trigger": "approved",    "channel": "email",  "audience": "primary_contact"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "csm"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 7776000},
+      "metrics": ["qbr_completion_rate", "nps_trend", "action_item_completion_rate"],
+      "compliance": ["GDPR_consent_check"],
+      "data_sensitivity": ["pii_contact", "operational"]
+    },
+    {
+      "id": "manage_churn_risk",
+      "title": "Manage a churn-risk account",
+      "actor": {"role": "csm"},
+      "situation": "health score drops below threshold or a cancellation signal is detected, triggering a coordinated save motion",
+      "motivation": "recover the account before it reaches formal cancellation request",
+      "outcome": "churn risk mitigated with documented recovery plan or formal offboarding initiated",
+      "success_criteria": [
+        "churn risk flag acknowledged within 1 business day",
+        "save plan created and shared with leadership within 3 business days",
+        "customer executive contacted within 5 business days"
+      ],
+      "data_capture": [
+        {"id": "account_id",      "kind": "text",    "label": "Account ID",              "required": true,  "pii": false},
+        {"id": "risk_score",      "kind": "number",  "label": "Churn risk score (0-100)","required": true,  "pii": false},
+        {"id": "risk_reasons",    "kind": "textarea","label": "Risk reasons",            "required": true,  "pii": false},
+        {"id": "save_actions",    "kind": "textarea","label": "Save actions planned",    "required": false, "pii": false},
+        {"id": "exec_sponsor",    "kind": "text",    "label": "Internal exec sponsor",   "required": false, "pii": false},
+        {"id": "outcome",         "kind": "enum",    "label": "Outcome (saved/churned)", "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "already_cancelled",   "condition": "customer has submitted cancellation notice",  "handle": "branch", "branch_to": "cancellation_processing"},
+        {"id": "risk_score_critical", "condition": "risk_score > 80",                             "handle": "escalate"},
+        {"id": "multi_contact_churn", "condition": "3+ contacts have disengaged",                 "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "sales_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "slack",  "audience": "csm"},
+        {"trigger": "state_enter", "channel": "slack",  "audience": "sales_manager"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "csm"},
+        {"trigger": "sla_breach",  "channel": "pagerduty", "audience": "sales_manager"}
+      ],
+      "sla": {"warn_pct": 50, "breach_seconds": 86400},
+      "metrics": ["save_rate", "time_to_recovery", "churn_by_risk_band"],
+      "compliance": [],
+      "data_sensitivity": ["financial", "operational"]
+    },
+    {
+      "id": "register_partner_deal",
+      "title": "Register a partner deal",
+      "actor": {"role": "partner_manager"},
+      "situation": "channel partner identifies a new opportunity and registers it to claim exclusivity protection and co-sell support",
+      "motivation": "protect the partner's investment in the deal and unlock co-sell resources from the vendor",
+      "outcome": "deal registered and approved, conflict check passed, co-sell support assigned",
+      "success_criteria": [
+        "registration submitted by partner within 5 days of opportunity identification",
+        "conflict check completed within 2 business days of submission",
+        "approval or rejection communicated to partner within 3 business days"
+      ],
+      "data_capture": [
+        {"id": "partner_id",       "kind": "text",    "label": "Partner ID",             "required": true,  "pii": false},
+        {"id": "end_customer",     "kind": "text",    "label": "End customer name",      "required": true,  "pii": false},
+        {"id": "deal_value",       "kind": "money",   "label": "Estimated deal value",   "required": true,  "pii": false},
+        {"id": "product_interest", "kind": "textarea","label": "Products of interest",   "required": true,  "pii": false},
+        {"id": "contact_name",     "kind": "text",    "label": "Customer contact name",  "required": true,  "pii": true},
+        {"id": "contact_email",    "kind": "email",   "label": "Customer contact email", "required": true,  "pii": true},
+        {"id": "close_date",       "kind": "date",    "label": "Expected close date",    "required": true,  "pii": false},
+        {"id": "conflict_notes",   "kind": "textarea","label": "Conflict check notes",   "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "direct_conflict",    "condition": "end_customer already in CRM as direct account",  "handle": "escalate"},
+        {"id": "duplicate_reg",      "condition": "another partner registered same end_customer",   "handle": "branch", "branch_to": "conflict_arbitration"},
+        {"id": "expired_reg",        "condition": "registration approval not completed within 90 days", "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "partner_manager", "policy": "1_of_1"},
+        {"role": "sales_manager",   "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "partner_id"},
+        {"trigger": "approved",    "channel": "email",  "audience": "partner_id"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "partner_id"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "partner_manager"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "sales_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 259200},
+      "metrics": ["deal_reg_approval_rate", "partner_sourced_revenue", "time_to_registration_decision"],
+      "compliance": ["partner_agreement_terms"],
+      "data_sensitivity": ["pii_contact", "financial"]
+    }
+  ]
+}

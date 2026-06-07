@@ -1,0 +1,406 @@
+{
+  "project": {
+    "name": "ecom",
+    "package": "flowforge_jtbd_ecom",
+    "domain": "ecom",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD", "EUR", "GBP", "AUD"]
+  },
+  "shared": {
+    "roles": ["customer", "cs_agent", "fraud_analyst", "catalog_manager", "seller", "fulfillment_ops"],
+    "permissions": ["order.read", "product.read", "return.read", "seller.read"]
+  },
+  "jtbds": [
+    {
+      "id": "process_order",
+      "title": "Process a customer order",
+      "actor": {"role": "fulfillment_ops"},
+      "situation": "customer places an order on the platform and the fulfillment pipeline must validate, reserve inventory, collect payment, and confirm",
+      "motivation": "convert a confirmed basket into a shipped parcel with zero revenue leakage",
+      "outcome": "order confirmed, payment captured, inventory reserved, fulfilment job dispatched",
+      "success_criteria": [
+        "payment authorisation obtained within 5 seconds of order submission",
+        "inventory reservation confirmed before payment capture",
+        "order confirmation email sent within 60 seconds of capture"
+      ],
+      "data_capture": [
+        {"id": "order_id",         "kind": "text",    "label": "Order ID",                "required": true,  "pii": false},
+        {"id": "customer_id",      "kind": "text",    "label": "Customer ID",             "required": true,  "pii": false},
+        {"id": "line_items",       "kind": "textarea","label": "Line items (JSON)",       "required": true,  "pii": false},
+        {"id": "order_total",      "kind": "money",   "label": "Order total",             "required": true,  "pii": false},
+        {"id": "shipping_address", "kind": "address", "label": "Shipping address",        "required": true,  "pii": true},
+        {"id": "payment_method",   "kind": "enum",    "label": "Payment method",          "required": true,  "pii": false},
+        {"id": "payment_token",    "kind": "text",    "label": "Payment token ref",       "required": true,  "pii": true},
+        {"id": "promo_code",       "kind": "text",    "label": "Promo code",              "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "out_of_stock",        "condition": "one or more line items unavailable at time of capture",  "handle": "branch", "branch_to": "partial_fulfilment_or_cancel"},
+        {"id": "payment_declined",    "condition": "payment authorisation fails",                            "handle": "branch", "branch_to": "payment_retry"},
+        {"id": "fraud_hold",          "condition": "order flagged by fraud scoring engine",                  "handle": "branch", "branch_to": "fraud_review"},
+        {"id": "address_undeliverable","condition": "shipping_address fails carrier validation",             "handle": "branch", "branch_to": "address_correction"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "customer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "customer"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "customer"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "fulfillment_ops"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 300},
+      "metrics": ["order_to_ship_time", "payment_success_rate", "order_defect_rate"],
+      "compliance": ["PCI_DSS", "consumer_protection"],
+      "data_sensitivity": ["pii_contact", "payment_card_data"]
+    },
+    {
+      "id": "handle_return",
+      "title": "Handle a customer return",
+      "actor": {"role": "cs_agent"},
+      "situation": "customer requests to return an item within the return window and expects a label, inspection, and refund or exchange",
+      "motivation": "resolve the return fairly and efficiently to preserve customer satisfaction and minimise loss",
+      "outcome": "return authorised, shipping label issued, item inspected on arrival, refund or exchange actioned",
+      "success_criteria": [
+        "return authorisation issued within 1 business day of request",
+        "return shipping label generated within 2 hours of authorisation",
+        "inspection completed within 2 business days of item arrival",
+        "refund or exchange actioned within 24 hours of inspection approval"
+      ],
+      "data_capture": [
+        {"id": "order_id",         "kind": "text",    "label": "Original order ID",       "required": true,  "pii": false},
+        {"id": "return_reason",    "kind": "enum",    "label": "Return reason",           "required": true,  "pii": false},
+        {"id": "return_items",     "kind": "textarea","label": "Items to return (JSON)",  "required": true,  "pii": false},
+        {"id": "customer_id",      "kind": "text",    "label": "Customer ID",             "required": true,  "pii": false},
+        {"id": "item_condition",   "kind": "enum",    "label": "Returned item condition", "required": false, "pii": false},
+        {"id": "resolution_type",  "kind": "enum",    "label": "Resolution (refund/exchange)","required": true,"pii": false},
+        {"id": "refund_amount",    "kind": "money",   "label": "Refund amount",           "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "outside_window",     "condition": "request date > order_date + return_window_days",   "handle": "branch", "branch_to": "goodwill_review"},
+        {"id": "high_return_rate",   "condition": "customer return rate > 30% in last 90 days",       "handle": "branch", "branch_to": "abuse_review"},
+        {"id": "counterfeit_suspected","condition": "item condition or serial differs from shipped",   "handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "customer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "customer"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "customer"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "cs_agent"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 86400},
+      "metrics": ["return_rate", "return_processing_time", "refund_cycle_time"],
+      "compliance": ["consumer_protection", "distance_selling_regulations"],
+      "data_sensitivity": ["pii_contact", "payment_card_data"]
+    },
+    {
+      "id": "manage_catalog",
+      "title": "Manage product catalog entry",
+      "actor": {"role": "catalog_manager"},
+      "situation": "a new product must be created in the catalog or an existing one updated with accurate attributes, imagery, and pricing before it goes live",
+      "motivation": "ensure accurate, compliant, and commercially optimised product data to maximise conversion",
+      "outcome": "product listing published with all required attributes validated and pricing active",
+      "success_criteria": [
+        "all mandatory product attributes populated before publish",
+        "at least 3 product images meeting minimum resolution requirements",
+        "pricing reviewed and margin check passed before activation"
+      ],
+      "data_capture": [
+        {"id": "sku",              "kind": "text",    "label": "SKU",                     "required": true,  "pii": false},
+        {"id": "product_title",    "kind": "text",    "label": "Product title",           "required": true,  "pii": false},
+        {"id": "description",      "kind": "textarea","label": "Product description",     "required": true,  "pii": false},
+        {"id": "category",         "kind": "enum",    "label": "Product category",        "required": true,  "pii": false},
+        {"id": "price",            "kind": "money",   "label": "Selling price",           "required": true,  "pii": false},
+        {"id": "cost_price",       "kind": "money",   "label": "Cost price",              "required": true,  "pii": false},
+        {"id": "images",           "kind": "file",    "label": "Product images",          "required": true,  "pii": false},
+        {"id": "barcode",          "kind": "text",    "label": "EAN/UPC barcode",         "required": false, "pii": false},
+        {"id": "weight_kg",        "kind": "number",  "label": "Weight (kg)",             "required": false, "pii": false},
+        {"id": "hazmat_flag",      "kind": "boolean", "label": "Hazardous material",      "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "negative_margin",    "condition": "price < cost_price * 1.05",                        "handle": "escalate"},
+        {"id": "hazmat_product",     "condition": "hazmat_flag == true",                               "handle": "branch", "branch_to": "hazmat_compliance_review"},
+        {"id": "duplicate_barcode",  "condition": "barcode already assigned to another SKU",           "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "catalog_manager",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "approved",    "channel": "in_app", "audience": "catalog_manager"},
+        {"trigger": "rejected",    "channel": "in_app", "audience": "catalog_manager"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "catalog_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 86400},
+      "metrics": ["catalog_accuracy_rate", "listing_activation_time", "margin_adherence_rate"],
+      "compliance": ["product_safety_regulations", "hazmat_shipping_rules"],
+      "data_sensitivity": ["financial"]
+    },
+    {
+      "id": "process_refund",
+      "title": "Process a customer refund",
+      "actor": {"role": "cs_agent"},
+      "situation": "a return is approved or a customer is entitled to a refund (price error, cancellation, failed delivery) and the credit must be issued to their original payment method",
+      "motivation": "settle the refund accurately and within the payment processor's chargeback window to avoid disputes",
+      "outcome": "refund issued to original payment method, amount reconciled against order, confirmation sent",
+      "success_criteria": [
+        "refund initiated within 24 hours of approval",
+        "refund amount matches authorised credit to the cent",
+        "customer confirmation sent within 1 hour of refund submission"
+      ],
+      "data_capture": [
+        {"id": "order_id",         "kind": "text",    "label": "Order ID",                "required": true,  "pii": false},
+        {"id": "customer_id",      "kind": "text",    "label": "Customer ID",             "required": true,  "pii": false},
+        {"id": "refund_amount",    "kind": "money",   "label": "Refund amount",           "required": true,  "pii": false},
+        {"id": "refund_reason",    "kind": "enum",    "label": "Refund reason",           "required": true,  "pii": false},
+        {"id": "payment_method",   "kind": "enum",    "label": "Original payment method", "required": true,  "pii": false},
+        {"id": "payment_ref",      "kind": "text",    "label": "Original payment ref",    "required": true,  "pii": false},
+        {"id": "processor_ref",    "kind": "text",    "label": "Processor refund ref",    "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "original_payment_expired","condition": "original card/method no longer valid",        "handle": "branch", "branch_to": "alternative_refund_method"},
+        {"id": "refund_exceeds_order",    "condition": "refund_amount > original_order_total",        "handle": "reject"},
+        {"id": "duplicate_refund",        "condition": "refund already processed for this order",     "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "cs_agent",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "approved",    "channel": "email",  "audience": "customer"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "customer"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "cs_agent"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 86400},
+      "metrics": ["refund_processing_time", "refund_accuracy_rate", "refund_to_chargeback_conversion"],
+      "compliance": ["PCI_DSS", "consumer_protection"],
+      "data_sensitivity": ["payment_card_data", "pii_contact"]
+    },
+    {
+      "id": "handle_chargeback",
+      "title": "Handle a payment chargeback",
+      "actor": {"role": "cs_agent"},
+      "situation": "a customer or issuing bank initiates a chargeback dispute with the payment processor, requiring the merchant to respond with evidence",
+      "motivation": "win the chargeback dispute with compelling evidence to recover revenue and maintain merchant account standing",
+      "outcome": "chargeback response filed within dispute window, outcome recorded, process improvements identified",
+      "success_criteria": [
+        "chargeback acknowledged within 24 hours of receipt",
+        "response with evidence package filed before dispute deadline (typically 7-10 days)",
+        "outcome recorded and fed back to fraud model"
+      ],
+      "data_capture": [
+        {"id": "chargeback_ref",   "kind": "text",    "label": "Chargeback reference",    "required": true,  "pii": false},
+        {"id": "order_id",         "kind": "text",    "label": "Order ID",                "required": true,  "pii": false},
+        {"id": "dispute_amount",   "kind": "money",   "label": "Disputed amount",         "required": true,  "pii": false},
+        {"id": "reason_code",      "kind": "enum",    "label": "Chargeback reason code",  "required": true,  "pii": false},
+        {"id": "response_deadline","kind": "date",    "label": "Response deadline",       "required": true,  "pii": false},
+        {"id": "evidence_docs",    "kind": "file",    "label": "Evidence package",        "required": false, "pii": false},
+        {"id": "outcome",          "kind": "enum",    "label": "Dispute outcome",         "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "deadline_imminent",   "condition": "response_deadline < today + 2 days",              "handle": "escalate"},
+        {"id": "friendly_fraud",      "condition": "reason_code == not_as_described and delivery_confirmed","handle": "branch", "branch_to": "friendly_fraud_response"},
+        {"id": "large_dispute",       "condition": "dispute_amount > 500",                             "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "fraud_analyst",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "cs_agent"},
+        {"trigger": "state_enter", "channel": "slack",  "audience": "fraud_analyst"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "cs_agent"},
+        {"trigger": "sla_breach",  "channel": "pagerduty","audience": "fulfillment_ops"}
+      ],
+      "sla": {"warn_pct": 60, "breach_seconds": 432000},
+      "metrics": ["chargeback_win_rate", "chargeback_rate_bps", "dispute_response_time"],
+      "compliance": ["PCI_DSS", "card_scheme_rules"],
+      "data_sensitivity": ["payment_card_data", "pii_contact"]
+    },
+    {
+      "id": "replenish_inventory",
+      "title": "Replenish inventory",
+      "actor": {"role": "fulfillment_ops"},
+      "situation": "stock level for an active SKU drops below reorder point, triggering a purchase or transfer request to maintain fulfilment capability",
+      "motivation": "prevent stockouts and lost sales while avoiding excess holding costs",
+      "outcome": "purchase order raised to supplier or transfer order created, expected receipt date confirmed",
+      "success_criteria": [
+        "replenishment triggered automatically when stock <= reorder_point",
+        "PO or transfer order created within 4 business hours of trigger",
+        "expected receipt date within lead time SLA"
+      ],
+      "data_capture": [
+        {"id": "sku",              "kind": "text",    "label": "SKU",                     "required": true,  "pii": false},
+        {"id": "current_stock",    "kind": "number",  "label": "Current stock units",     "required": true,  "pii": false},
+        {"id": "reorder_point",    "kind": "number",  "label": "Reorder point",           "required": true,  "pii": false},
+        {"id": "order_qty",        "kind": "number",  "label": "Order quantity",          "required": true,  "pii": false},
+        {"id": "supplier_id",      "kind": "text",    "label": "Preferred supplier ID",   "required": true,  "pii": false},
+        {"id": "expected_receipt", "kind": "date",    "label": "Expected receipt date",   "required": false, "pii": false},
+        {"id": "replenishment_type","kind": "enum",   "label": "Type (PO/transfer/MFG)",  "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "supplier_oos",       "condition": "supplier cannot fulfil within lead time",           "handle": "branch", "branch_to": "alternative_supplier"},
+        {"id": "discontinuation",    "condition": "SKU marked for discontinuation",                   "handle": "branch", "branch_to": "rundown_only"},
+        {"id": "excess_stock",       "condition": "current_stock > max_stock_level",                  "handle": "reject"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "supplier_id"},
+        {"trigger": "approved",    "channel": "in_app", "audience": "fulfillment_ops"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "fulfillment_ops"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 28800},
+      "metrics": ["stockout_rate", "inventory_turn_days", "fill_rate_pct"],
+      "compliance": ["hazmat_shipping_rules"],
+      "data_sensitivity": ["financial"]
+    },
+    {
+      "id": "review_fraud",
+      "title": "Review a suspected fraudulent order",
+      "actor": {"role": "fraud_analyst"},
+      "situation": "an order exceeds the risk scoring threshold and is placed in a fraud queue for manual review before fulfilment proceeds",
+      "motivation": "block fraudulent orders before goods leave the warehouse while minimising false-positive cancellations for legitimate customers",
+      "outcome": "order approved for fulfilment or cancelled with reason logged, risk model feedback submitted",
+      "success_criteria": [
+        "fraud review decision made within 4 hours of order placement",
+        "all rejection decisions documented with reason code",
+        "model feedback submitted for every manually reviewed case"
+      ],
+      "data_capture": [
+        {"id": "order_id",         "kind": "text",    "label": "Order ID",                "required": true,  "pii": false},
+        {"id": "risk_score",       "kind": "number",  "label": "Model risk score (0-100)","required": true,  "pii": false},
+        {"id": "risk_signals",     "kind": "textarea","label": "Risk signals fired",      "required": true,  "pii": false},
+        {"id": "customer_id",      "kind": "text",    "label": "Customer ID",             "required": true,  "pii": false},
+        {"id": "device_fingerprint","kind": "text",   "label": "Device fingerprint",      "required": false, "pii": false},
+        {"id": "ip_address",       "kind": "text",    "label": "IP address",              "required": false, "pii": true},
+        {"id": "analyst_decision", "kind": "enum",    "label": "Analyst decision",        "required": false, "pii": false},
+        {"id": "decision_rationale","kind": "textarea","label": "Decision rationale",     "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "confirmed_fraud",    "condition": "device or email linked to known fraud ring",       "handle": "branch", "branch_to": "account_ban_and_report"},
+        {"id": "high_value_order",   "condition": "order_total > 1000 and risk_score > 70",           "handle": "escalate"},
+        {"id": "chargeback_history", "condition": "customer has 2+ prior chargebacks",                "handle": "branch", "branch_to": "permanent_block_review"}
+      ],
+      "approvals": [
+        {"role": "fraud_analyst",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "fraud_analyst"},
+        {"trigger": "approved",    "channel": "in_app", "audience": "fulfillment_ops"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "customer"},
+        {"trigger": "sla_breach",  "channel": "pagerduty","audience": "fraud_analyst"}
+      ],
+      "sla": {"warn_pct": 60, "breach_seconds": 14400},
+      "metrics": ["fraud_detection_rate", "false_positive_rate", "review_decision_time"],
+      "compliance": ["PCI_DSS", "AML_reporting"],
+      "data_sensitivity": ["pii_contact", "payment_card_data"]
+    },
+    {
+      "id": "handle_delivery_exception",
+      "title": "Handle a delivery exception",
+      "actor": {"role": "cs_agent"},
+      "situation": "carrier reports a failed delivery attempt, lost parcel, or damaged in-transit package requiring agent intervention",
+      "motivation": "resolve the delivery failure quickly to preserve customer satisfaction and minimise reshipment cost",
+      "outcome": "parcel located and re-delivered, replacement shipped, or refund issued based on carrier investigation outcome",
+      "success_criteria": [
+        "exception acknowledged to customer within 4 business hours",
+        "carrier trace initiated within 1 business day",
+        "customer resolution (redeliver, replace, or refund) completed within 5 business days"
+      ],
+      "data_capture": [
+        {"id": "order_id",         "kind": "text",    "label": "Order ID",                "required": true,  "pii": false},
+        {"id": "tracking_number",  "kind": "text",    "label": "Tracking number",         "required": true,  "pii": false},
+        {"id": "exception_type",   "kind": "enum",    "label": "Exception type",          "required": true,  "pii": false},
+        {"id": "carrier",          "kind": "enum",    "label": "Carrier",                 "required": true,  "pii": false},
+        {"id": "last_scan",        "kind": "text",    "label": "Last carrier scan",       "required": false, "pii": false},
+        {"id": "customer_id",      "kind": "text",    "label": "Customer ID",             "required": true,  "pii": false},
+        {"id": "resolution_type",  "kind": "enum",    "label": "Resolution type",         "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "declared_lost",      "condition": "carrier confirms parcel lost",                      "handle": "branch", "branch_to": "carrier_claim_and_reship"},
+        {"id": "damaged_delivery",   "condition": "exception_type == damaged",                         "handle": "branch", "branch_to": "damage_assessment"},
+        {"id": "address_error",      "condition": "undeliverable due to incorrect address",            "handle": "branch", "branch_to": "address_correction"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "customer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "customer"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "cs_agent"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "fulfillment_ops"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 432000},
+      "metrics": ["delivery_exception_rate", "resolution_cycle_time", "carrier_claim_recovery_rate"],
+      "compliance": ["consumer_protection", "distance_selling_regulations"],
+      "data_sensitivity": ["pii_contact"]
+    },
+    {
+      "id": "onboard_seller",
+      "title": "Onboard a marketplace seller",
+      "actor": {"role": "catalog_manager"},
+      "situation": "a new third-party seller applies to list products on the marketplace and must pass identity, compliance, and quality checks before activation",
+      "motivation": "expand marketplace selection while ensuring every seller meets trust, safety, and commercial standards",
+      "outcome": "seller verified, account activated, first product listing approved",
+      "success_criteria": [
+        "identity and tax verification completed within 5 business days",
+        "seller agreement signed before account activation",
+        "first product listing reviewed and approved before visibility to buyers"
+      ],
+      "data_capture": [
+        {"id": "seller_name",      "kind": "text",    "label": "Business name",           "required": true,  "pii": false},
+        {"id": "tax_id",           "kind": "text",    "label": "Tax registration ID",     "required": true,  "pii": false},
+        {"id": "contact_name",     "kind": "text",    "label": "Primary contact",         "required": true,  "pii": true},
+        {"id": "contact_email",    "kind": "email",   "label": "Contact email",           "required": true,  "pii": true},
+        {"id": "bank_details",     "kind": "text",    "label": "Payout bank details",     "required": true,  "pii": true},
+        {"id": "product_categories","kind": "textarea","label": "Product categories",     "required": true,  "pii": false},
+        {"id": "identity_doc",     "kind": "file",    "label": "Identity document",       "required": true,  "pii": true},
+        {"id": "seller_agreement", "kind": "file",    "label": "Signed seller agreement", "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "sanctions_hit",      "condition": "seller or beneficial owner on sanctions list",      "handle": "reject"},
+        {"id": "restricted_category","condition": "product_categories includes restricted items",      "handle": "escalate"},
+        {"id": "duplicate_tax_id",   "condition": "tax_id matches existing seller account",           "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "catalog_manager",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "seller"},
+        {"trigger": "approved",    "channel": "email",  "audience": "seller"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "seller"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "catalog_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 432000},
+      "metrics": ["seller_activation_time", "seller_approval_rate", "first_listing_time"],
+      "compliance": ["OFAC_sanctions_check", "KYB_verification", "AML_reporting"],
+      "data_sensitivity": ["pii_contact", "financial", "payment_card_data"]
+    },
+    {
+      "id": "renew_subscription",
+      "title": "Process a subscription renewal",
+      "actor": {"role": "fulfillment_ops"},
+      "situation": "a recurring subscription order reaches its renewal date and the platform must re-authorise payment and dispatch the next fulfilment",
+      "motivation": "maximise subscription retention revenue by handling renewals seamlessly with minimal churn",
+      "outcome": "payment re-authorised, renewal order created, subscription period extended",
+      "success_criteria": [
+        "renewal payment attempted on the scheduled date",
+        "retry logic executed up to 3 times before failure escalation",
+        "customer notified of renewal success or failure within 30 minutes"
+      ],
+      "data_capture": [
+        {"id": "subscription_id",  "kind": "text",    "label": "Subscription ID",         "required": true,  "pii": false},
+        {"id": "customer_id",      "kind": "text",    "label": "Customer ID",             "required": true,  "pii": false},
+        {"id": "renewal_amount",   "kind": "money",   "label": "Renewal amount",          "required": true,  "pii": false},
+        {"id": "payment_token",    "kind": "text",    "label": "Stored payment token",    "required": true,  "pii": true},
+        {"id": "renewal_date",     "kind": "date",    "label": "Renewal date",            "required": true,  "pii": false},
+        {"id": "retry_count",      "kind": "number",  "label": "Payment retry count",     "required": false, "pii": false},
+        {"id": "new_period_end",   "kind": "date",    "label": "New subscription end date","required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "payment_failed_all_retries","condition": "retry_count >= 3 and payment still failed",  "handle": "branch", "branch_to": "dunning_and_cancellation"},
+        {"id": "price_change",             "condition": "renewal_amount != previous_charge_amount",    "handle": "branch", "branch_to": "price_change_notification"},
+        {"id": "subscription_paused",      "condition": "subscription is in paused state",             "handle": "reject"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "customer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "customer"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "customer"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "fulfillment_ops"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 3600},
+      "metrics": ["renewal_success_rate", "payment_retry_recovery_rate", "churn_rate"],
+      "compliance": ["PCI_DSS", "consumer_protection", "recurring_billing_regulations"],
+      "data_sensitivity": ["pii_contact", "payment_card_data"]
+    }
+  ]
+}
