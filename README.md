@@ -7,22 +7,40 @@ business applications from declarative workflow definitions and JTBD
 It gives host applications:
 
 - A JSON workflow DSL with a compiler, simulator, deterministic replay, and a
-  two-phase fire engine.
-- A pure Python core with no I/O dependencies and 14 explicit host-wired ports.
+  two-phase fire engine including **parallel fork/join** (`parallel_fork`,
+  `parallel_join` states; per-token `fire(..., token_id=...)` dispatch).
+- A pure Python core with no I/O dependencies and **15 explicit host-wired ports**
+  (tenancy, RBAC, audit, outbox, documents, money, settings, signing,
+  notifications, RLS, entity registry, metrics, tasks, grants, tracing).
 - Adapter packages for FastAPI, SQLAlchemy/Postgres, tenancy, audit, outbox,
-  RBAC, documents, signing, notifications, metrics, and related infrastructure.
+  RBAC, documents, signing, notifications, metrics, OTel, and related infrastructure.
 - A TypeScript frontend surface: form renderer, runtime client, visual workflow
-  designer, and JTBD editor.
+  designer, JTBD editor, and **JobMap swimlane component**.
 - A deterministic JTBD-to-application generator that emits backend, frontend,
-  workflow, form, tests, seed data, docs, and design-token assets.
+  workflow, form, tests, seed data, docs, design-token, i18n, and operator-manual assets.
+- **28 domain JTBD libraries** covering every major vertical (5 Tier-A with SME signoff;
+  23 Tier-B AI-authored with citation anchors).
+- **JTBD authoring CLI**: `flowforge jtbd lint|lock|fork|ai-draft|quality-score|compliance-lint`
+- **JTBD debugger**: `FaultInjector` (7 failure modes) + `WorkflowDiffer`
+- **JWT/RBAC for jtbd-hub**: `JwtPrincipalExtractor`, `RevocationList`, per-user audit identity
 
 Flowforge was extracted from UMS, but UMS is not a runtime dependency. A UMS
 checkout is used only for explicit downstream release-certification parity
 tests. Nothing under this repository should import from UMS or require UMS for
 ordinary package development.
 
-> v0.1.0 shipped 2026-05-08 as the audit-2026 release. It includes one
-> SECURITY-BREAKING change: HMAC default secrets were removed. Read
+## Version History
+
+| Version | Date | Highlights |
+|---|---|---|
+| **v0.5.0** | 2026-06-07 | FaultInjector (7 modes), WorkflowDiffer, `tutorial --domain`, 28 domain bundles |
+| v0.4.0 | 2026-06-06 | AI draft/quality/compliance CLI, JobMap component, pre-commit hook + GH Action |
+| v0.3.0 | 2026-06-04 | `forks_enabled` default-on, `jtbd lint/lock/fork` CLI, E1 linter core |
+| v0.2.0 | 2026-06-01 | Parallel fork engine, JWT/RBAC, Instance.tokens, per-fix metrics, registries |
+| v0.1.0 | 2026-05-08 | audit-2026 hardening — 77 findings closed, SECURITY-BREAKING HMAC removal |
+
+> **v0.3.0+**: `FLOWFORGE_FORKS_ENABLED` is **on by default**. Set `=0` to disable parallel fork dispatch.
+> **v0.1.0 SECURITY-BREAKING**: HMAC default secrets were removed. Read
 > [docs/audit-2026/SECURITY-NOTE.md](docs/audit-2026/SECURITY-NOTE.md) and run
 > `flowforge pre-upgrade-check` before upgrading an existing host.
 
@@ -638,13 +656,18 @@ Frequently used commands:
 
 | Command | Purpose |
 |---|---|
-| `flowforge tutorial` | Interactive JTBD-to-workflow walkthrough |
+| `flowforge tutorial [--domain <name>]` | Interactive walkthrough; `--domain` loads any installed domain bundle |
 | `flowforge new` | Scaffold a host project from a JTBD bundle |
 | `flowforge add-jtbd` | Add/refresh one JTBD in a generated project |
 | `flowforge jtbd-generate` | Deterministically generate app artifacts |
-| `flowforge jtbd lint` | Lint a JTBD bundle |
+| `flowforge jtbd lint [--strict]` | Lint bundle for lifecycle, dependency, actor-consistency issues |
+| `flowforge jtbd lock --init\|--verify` | Generate or verify a deterministic bundle lockfile |
+| `flowforge jtbd fork <src> <name>` | Fork a bundle with `parent_version_id` tracking |
+| `flowforge jtbd ai-draft "<desc>"` | Draft a JTBD from natural language (requires `ANTHROPIC_API_KEY`) |
+| `flowforge jtbd quality-score` | 0-100 rubric quality score per JTBD |
+| `flowforge jtbd compliance-lint` | 8-regime compliance linter (GDPR, HIPAA, SOX, PCI-DSS, …) |
 | `flowforge validate` | Validate workflow definitions |
-| `flowforge simulate` | Walk a workflow through events |
+| `flowforge simulate [--fault mode:state]` | Simulate events; `--fault` injects failure modes |
 | `flowforge replay` | Replay workflow events |
 | `flowforge diff` | Diff workflow/JTBD structures |
 | `flowforge pre-upgrade-check` | Check host upgrade readiness |
