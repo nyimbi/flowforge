@@ -1,6 +1,6 @@
 [project]
 name = "flowforge-tenancy"
-version = "0.2.0"
+version = "0.3.0"
 description = "flowforge-tenancy — single/multi/no tenancy resolvers for flowforge"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -31,7 +31,7 @@ classifiers = [
 
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["flowforge>=0.2.0,<0.3.0"]
+dependencies = ["flowforge>=0.3.0,<0.4.0"]
 
 [project.optional-dependencies]
 test = ["pytest>=7", "pytest-asyncio>=0.23"]

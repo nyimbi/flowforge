@@ -18,11 +18,13 @@ from .commands import (
 	bundle_diff,
 	diff,
 	generate_llmtxt,
+	jtbd_bundle_fork,
 	jtbd_desktop,
 	tutorial,
 	jtbd_fork,
 	jtbd_generate,
 	jtbd_lint,
+	jtbd_lock,
 	jtbd_migrate,
 	migrate_fork,
 	migration_safety,
@@ -73,6 +75,8 @@ audit_verify.register(audit_app)
 jtbd_fork.register(jtbd_app)
 jtbd_desktop.register(jtbd_app)
 jtbd_lint.register(jtbd_app)
+jtbd_lock.register(jtbd_app)
+jtbd_bundle_fork.register(jtbd_app)
 jtbd_migrate.register(jtbd_app)
 
 tutorial.register(app)

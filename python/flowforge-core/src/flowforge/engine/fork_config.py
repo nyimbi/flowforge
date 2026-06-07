@@ -2,14 +2,14 @@
 
 Two conditions must both be true for fork dispatch to activate:
 
-1.  Global:        ``FLOWFORGE_FORKS_ENABLED`` env-var is ``1`` / ``true`` / ``yes``
-                   (default **off** for v0.2.0; will flip to default-on in v0.3.0
-                   after soak on the v0.2.0 release branch).
+1.  Global:        ``FLOWFORGE_FORKS_ENABLED`` env-var is absent or non-zero
+                   (default **on** as of v0.3.0 — set ``FLOWFORGE_FORKS_ENABLED=0``
+                   to disable). This flipped from default-off in v0.2.0 after the
+                   v0.2.0 soak period confirmed stability on the release branch.
 
 2.  Per-workflow:  the workflow manifest's ``metadata`` dict contains
                    ``engine_features: ["parallel_fork"]`` (opt-in at authoring
-                   time so existing workflows are untouched when the global flag
-                   is later toggled).
+                   time so existing workflows are untouched by the global flag).
 """
 
 from __future__ import annotations
@@ -18,8 +18,9 @@ import os
 
 
 def forks_enabled() -> bool:
-	"""Global feature flag. Default-off in v0.2.0; default-on in v0.3.0 after soak."""
-	return os.environ.get("FLOWFORGE_FORKS_ENABLED", "0").strip().lower() in ("1", "true", "yes")
+	"""Global feature flag. Default-on in v0.3.0; set FLOWFORGE_FORKS_ENABLED=0 to disable."""
+	val = os.environ.get("FLOWFORGE_FORKS_ENABLED", "1").strip().lower()
+	return val not in ("0", "false", "no")
 
 
 def workflow_declares_fork(wd_metadata: dict) -> bool:

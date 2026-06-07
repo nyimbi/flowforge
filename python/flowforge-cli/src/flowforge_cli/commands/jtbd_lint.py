@@ -205,18 +205,29 @@ def register(app: typer.Typer) -> None:
 
 
 def jtbd_lint_cmd(
+	bundle_path: Annotated[
+		Path | None,
+		typer.Argument(
+			help="JTBD bundle JSON/YAML. Auto-detected if omitted.",
+		),
+	] = None,
 	bundle: Annotated[
 		Path | None,
 		typer.Option(
 			"--bundle",
 			dir_okay=False,
-			help="JTBD bundle JSON/YAML. Auto-detected if omitted.",
+			hidden=True,
+			help="JTBD bundle JSON/YAML (legacy option, prefer positional arg).",
 		),
 	] = None,
 	strict: Annotated[
 		bool,
-		typer.Option("--strict/--no-strict", help="Treat warnings as errors."),
+		typer.Option("--strict/--no-strict", help="Treat warnings as errors (exit 1)."),
 	] = False,
+	domain: Annotated[
+		str | None,
+		typer.Option("--domain", help="Filter issues to a specific domain."),
+	] = None,
 	warn_only: Annotated[
 		bool,
 		typer.Option("--warn-only", help="Never exit non-zero (advisory mode)."),
@@ -226,25 +237,37 @@ def jtbd_lint_cmd(
 		typer.Option("--format", help="Output format: text or json."),
 	] = "text",
 ) -> None:
-	"""Lint BUNDLE for semantic errors using the E-4 analyzer suite."""
+	"""Lint BUNDLE_PATH for semantic errors using the E-1 analyzer suite.
 
-	if bundle is None:
-		bundle = _find_default_bundle()
-		if bundle is None:
+	Exit codes: 0=clean, 1=errors (or warnings under --strict), 2=warnings only.
+	"""
+	# Positional arg takes priority; --bundle is the legacy alias.
+	if bundle_path is None:
+		bundle_path = bundle
+
+	if bundle_path is None:
+		bundle_path = _find_default_bundle()
+		if bundle_path is None:
 			typer.echo(
-				"error: no bundle file found; pass --bundle or place jtbd-bundle.json in the "
+				"error: no bundle file found; pass a path or place jtbd-bundle.json in the "
 				"current directory.",
 				err=True,
 			)
 			raise typer.Exit(1)
 
-	if not bundle.exists():
-		typer.echo(f"error: bundle not found: {bundle}", err=True)
+	if not bundle_path.exists():
+		typer.echo(f"error: bundle not found: {bundle_path}", err=True)
 		raise typer.Exit(1)
 
-	raw = load_structured(bundle)
+	raw = load_structured(bundle_path)
 	adapted = _adapt_to_lint_bundle(raw)
 	bundle_id: str = adapted.get("bundle_id") or "unknown"
+
+	# Domain filter: narrow issues to specs whose jtbd_id starts with domain prefix.
+	if domain:
+		adapted["jtbds"] = [
+			j for j in adapted.get("jtbds", []) if j.get("jtbd_id", "").startswith(domain)
+		]
 
 	linter = Linter()
 	try:
@@ -261,7 +284,12 @@ def jtbd_lint_cmd(
 	if warn_only:
 		return
 
-	if not report.ok:
+	has_errors = not report.ok
+	has_warnings = bool(report.warnings())
+
+	if has_errors:
 		raise typer.Exit(1)
-	if strict and (report.warnings()):
+	if strict and has_warnings:
 		raise typer.Exit(1)
+	if has_warnings and not strict:
+		raise typer.Exit(2)

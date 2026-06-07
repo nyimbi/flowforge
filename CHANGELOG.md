@@ -1,5 +1,37 @@
 # flowforge changelog
 
+## [0.3.0] — 2026-06-07
+
+> Third versioned release. E-1 engineering sprint: JTBD lint/lock/bundle-fork CLI
+> commands land as stable subcommands under `flowforge jtbd`. `forks_enabled`
+> flips to default-on after the v0.2.0 soak period. All 16 shipping packages
+> move from `0.2.0` to `0.3.0` in lockstep.
+
+- **[Capable]** (E-1) `flowforge jtbd lint <bundle_path>` — semantic linter for
+  JTBD bundles. Accepts a positional bundle path (legacy `--bundle` option still
+  accepted). New flags: `--strict` (warnings-as-errors, exit 1), `--domain
+  <prefix>` (filter specs by id prefix), `--format json|text`. Exit codes:
+  0=clean, 1=errors, 2=warnings-only.
+
+- **[Capable]** (E-1) `flowforge jtbd lock [--init|--verify] <bundle_path>` —
+  generate or verify a `bundle.lock.json` lockfile that pins every JTBD in the
+  bundle to its exact `(version, spec_hash)` triple via
+  `flowforge_jtbd.dsl.lockfile.JtbdLockfile`. `--init` writes the lockfile;
+  `--verify` checks that stored hashes still match the current bundle contents.
+  The `body_hash` field is computed via canonical-JSON (RFC-8785) and included in
+  the artefact for replay-determinism verification.
+
+- **[Capable]** (E-1) `flowforge jtbd bundle-fork <source_bundle> <target_name>
+  [--out <dir>]` — fork a JTBD bundle with E-1 lineage provenance. Each JTBD in
+  the forked bundle gains a `parent_version_id` field (`<name>@<version>`) so
+  the fork chain is traceable. The `fork_provenance` block at the bundle level
+  records the original `parent_bundle`, `parent_version`, and `source_path`.
+
+- **[Breaking]** (E-79 soak complete) `forks_enabled()` in
+  `flowforge.engine.fork_config` now defaults to `True`. Set
+  `FLOWFORGE_FORKS_ENABLED=0` to disable. This completes the flip announced in
+  the 0.2.0 release notes after the soak period confirmed stability.
+
 ## [0.2.0] — 2026-06-04
 
 > Second versioned release. Promotes the audit-2026 follow-on work
