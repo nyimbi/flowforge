@@ -1,11 +1,24 @@
 id: restaurants
 name: "Restaurants"
-description: "JTBD domain library for Restaurants workflows (POS, kitchen, inventory)."
+description: "JTBD domain library for restaurant and food service workflows (supplier ordering, food safety incidents, staff scheduling, vendor payments, customer complaints, franchise audits, health inspections, allergen incidents, food waste, menu changes)."
 package: flowforge-jtbd-restaurants
 version: "1.0.0"
+tier: B
+reviewer_credentials:
+  - servsafe_manager_certified
+  - food_safety_officer
+team_id: restaurants-sme
 subdomains:
-  - "POS"
-  - "kitchen"
-  - "inventory"
-regulator_hints: []
+  - "Supply Chain"
+  - "Food Safety"
+  - "Operations"
+  - "Franchise"
+  - "Menu"
+  - "Staff"
+regulator_hints:
+  - FDA_FSMA
+  - FDA_Food_Code
+  - EU_FIC_1169_2011
+  - HACCP
+  - FLSA
 phase: E4

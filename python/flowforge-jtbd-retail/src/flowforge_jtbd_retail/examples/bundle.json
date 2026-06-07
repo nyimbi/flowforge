@@ -1,0 +1,417 @@
+{
+  "project": {
+    "name": "retail-bundle",
+    "package": "flowforge_jtbd_retail",
+    "domain": "retail",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD"]
+  },
+  "shared": {
+    "roles": ["store_associate", "store_manager", "loss_prevention_officer", "merchandising_manager", "vendor_relations_manager", "training_coordinator", "loyalty_advisor"],
+    "permissions": ["transaction.read", "inventory.read", "customer.read", "vendor.read"]
+  },
+  "jtbds": [
+    {
+      "id": "process_buyback",
+      "title": "Process a trade-in / buyback",
+      "actor": {"role": "store_associate"},
+      "situation": "a customer brings in a used item for trade-in credit or cash buyback and requires evaluation, pricing, and transaction processing",
+      "motivation": "offer a fair price, complete the transaction within policy limits, and accurately receive the item into sellable or liquidation inventory",
+      "outcome": "item evaluated, offer made and accepted, payment issued or credit applied, and item received into inventory with condition code",
+      "success_criteria": [
+        "item condition assessed using standardised grading rubric",
+        "buyback price calculated from current pricing engine",
+        "customer identity verified per anti-fencing policy",
+        "item serialised and received into inventory within 1 hour of transaction"
+      ],
+      "data_capture": [
+        {"id": "customer_id",      "kind": "text",     "label": "Customer ID",            "required": false, "pii": true},
+        {"id": "customer_id_doc",  "kind": "text",     "label": "Government ID reference","required": true,  "pii": true},
+        {"id": "item_description", "kind": "text",     "label": "Item description",       "required": true,  "pii": false},
+        {"id": "item_serial",      "kind": "text",     "label": "Serial / IMEI number",   "required": false, "pii": false},
+        {"id": "condition_grade",  "kind": "enum",     "label": "Condition grade",        "required": true,  "pii": false},
+        {"id": "offer_amount",     "kind": "money",    "label": "Buyback offer",          "required": true,  "pii": false},
+        {"id": "payment_method",   "kind": "enum",     "label": "Payment method",         "required": true,  "pii": false},
+        {"id": "photos",           "kind": "file",     "label": "Item photos",            "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "stolen_property",   "condition": "serial number matches law-enforcement stolen-property database", "handle": "escalate"},
+        {"id": "above_cash_limit",  "condition": "offer_amount > cash payout threshold requiring manager override", "handle": "escalate"},
+        {"id": "blacklisted_customer","condition": "customer_id_doc matches buyback blacklist", "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "store_manager", "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "approved",     "channel": "in_app", "audience": "store_associate"},
+        {"trigger": "rejected",     "channel": "in_app", "audience": "store_associate"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "store_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 3600},
+      "metrics": ["buyback_transaction_time_minutes", "price_acceptance_rate", "serial_check_compliance_rate"],
+      "compliance": ["secondhand_dealer_regulation", "pawn_broker_ID_laws", "GDPR_ID_data_minimisation"],
+      "data_sensitivity": ["pii", "financial"]
+    },
+    {
+      "id": "manage_clienteling_session",
+      "title": "Manage a clienteling session",
+      "actor": {"role": "store_associate"},
+      "situation": "a high-value or VIP customer visits the store and the associate uses purchase history, preferences, and upcoming events to deliver a personalised service experience",
+      "motivation": "increase basket size and repeat purchase rate by making relevant, personalised product recommendations grounded in customer data",
+      "outcome": "session completed, recommendations made, purchase recorded, follow-up actions logged, and customer record updated",
+      "success_criteria": [
+        "customer profile reviewed before session starts",
+        "at least 3 personalised product recommendations made",
+        "purchase, pass, or quote outcome recorded on customer record",
+        "follow-up task (call, personalised offer) created within 24 hours"
+      ],
+      "data_capture": [
+        {"id": "customer_id",      "kind": "text",     "label": "Customer ID",            "required": true,  "pii": true},
+        {"id": "visit_date",       "kind": "datetime", "label": "Visit date/time",        "required": true,  "pii": false},
+        {"id": "associate_id",     "kind": "text",     "label": "Associate ID",           "required": true,  "pii": false},
+        {"id": "occasion",         "kind": "text",     "label": "Customer occasion/need", "required": false, "pii": false},
+        {"id": "items_shown",      "kind": "textarea", "label": "Items shown",            "required": false, "pii": false},
+        {"id": "purchase_amount",  "kind": "money",    "label": "Purchase amount",        "required": false, "pii": false},
+        {"id": "follow_up_action", "kind": "textarea", "label": "Follow-up action",       "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "customer_declines_data","condition": "customer declines personalisation data use", "handle": "branch", "branch_to": "anonymous_session"},
+        {"id": "no_purchase",          "condition": "session ends without purchase", "handle": "branch", "branch_to": "follow_up_offer"},
+        {"id": "complaint_during_visit","condition": "customer raises complaint during session", "handle": "branch", "branch_to": "complaint_handling"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "in_app", "audience": "store_associate"},
+        {"trigger": "approved",     "channel": "in_app", "audience": "store_associate"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "store_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 86400},
+      "metrics": ["clienteling_conversion_rate", "average_basket_size", "follow_up_completion_rate"],
+      "compliance": ["GDPR_Art_6_legitimate_interest", "CCPA_personalisation_opt_out"],
+      "data_sensitivity": ["pii", "confidential"]
+    },
+    {
+      "id": "enroll_loyalty",
+      "title": "Enrol a customer in the loyalty programme",
+      "actor": {"role": "loyalty_advisor"},
+      "situation": "a customer at point of sale or online requests enrolment in the loyalty programme and must consent to terms and data use",
+      "motivation": "capture customer data for personalisation and retention while meeting consent and data minimisation obligations",
+      "outcome": "customer enrolled, loyalty account created, welcome communication sent, and first points accrual triggered on current transaction",
+      "success_criteria": [
+        "explicit consent collected for data use and marketing before enrolment",
+        "loyalty account active within 5 minutes of enrolment",
+        "welcome email delivered within 30 minutes",
+        "first transaction linked to new account within 24 hours"
+      ],
+      "data_capture": [
+        {"id": "customer_name",    "kind": "text",     "label": "Full name",              "required": true,  "pii": true},
+        {"id": "customer_email",   "kind": "email",    "label": "Email",                  "required": true,  "pii": true},
+        {"id": "customer_phone",   "kind": "phone",    "label": "Mobile number",          "required": false, "pii": true},
+        {"id": "dob",              "kind": "date",     "label": "Date of birth",          "required": false, "pii": true},
+        {"id": "marketing_consent","kind": "boolean",  "label": "Marketing consent",      "required": true,  "pii": false},
+        {"id": "terms_accepted",   "kind": "boolean",  "label": "Terms accepted",         "required": true,  "pii": false},
+        {"id": "channel",          "kind": "enum",     "label": "Enrolment channel",      "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "duplicate_email",   "condition": "email already linked to existing loyalty account", "handle": "branch", "branch_to": "account_merge_or_login"},
+        {"id": "minor",             "condition": "dob indicates customer is under minimum age", "handle": "reject"},
+        {"id": "no_consent",        "condition": "terms_accepted = false", "handle": "reject"}
+      ],
+      "notifications": [
+        {"trigger": "approved",     "channel": "email",  "audience": "customer_email"},
+        {"trigger": "approved",     "channel": "sms",    "audience": "customer_phone"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "loyalty_advisor"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 300},
+      "metrics": ["enrolment_rate_at_pos", "email_deliverability_rate", "first_transaction_link_rate"],
+      "compliance": ["GDPR_Art_7_consent", "CCPA_data_collection", "CAN_SPAM_Act"],
+      "data_sensitivity": ["pii"]
+    },
+    {
+      "id": "process_return",
+      "title": "Process a customer return",
+      "actor": {"role": "store_associate"},
+      "situation": "a customer returns an item for a refund, exchange, or store credit within or outside the standard return window",
+      "motivation": "resolve the return quickly and fairly while protecting against return fraud and maintaining accurate inventory",
+      "outcome": "return eligibility confirmed, refund or exchange processed, item condition assessed, and inventory updated",
+      "success_criteria": [
+        "return eligibility verified against receipt or order record",
+        "refund or credit issued within 5 minutes of approval",
+        "item condition assessed and coded before inventory receive",
+        "refund posted to original payment method within 3-5 business days"
+      ],
+      "data_capture": [
+        {"id": "order_id",         "kind": "text",     "label": "Order / receipt number", "required": false, "pii": false},
+        {"id": "customer_id",      "kind": "text",     "label": "Customer ID",            "required": false, "pii": true},
+        {"id": "item_sku",         "kind": "text",     "label": "Item SKU",               "required": true,  "pii": false},
+        {"id": "return_reason",    "kind": "enum",     "label": "Return reason",          "required": true,  "pii": false},
+        {"id": "condition",        "kind": "enum",     "label": "Item condition",         "required": true,  "pii": false},
+        {"id": "refund_type",      "kind": "enum",     "label": "Refund type",            "required": true,  "pii": false},
+        {"id": "refund_amount",    "kind": "money",    "label": "Refund amount",          "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "outside_window",    "condition": "return outside policy window and no exception code", "handle": "reject"},
+        {"id": "fraud_indicator",   "condition": "customer return rate flag triggered by loss prevention system", "handle": "escalate"},
+        {"id": "no_receipt",        "condition": "no receipt and item cannot be verified as sold in-store", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "store_manager", "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "approved",     "channel": "email",  "audience": "store_associate"},
+        {"trigger": "rejected",     "channel": "in_app", "audience": "store_associate"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "store_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 600},
+      "metrics": ["return_processing_time_minutes", "refund_on_time_rate", "fraudulent_return_rate"],
+      "compliance": ["consumer_rights_act_UK", "FTC_return_policy_disclosure", "PSD2_refund_timeline"],
+      "data_sensitivity": ["pii", "financial"]
+    },
+    {
+      "id": "replenish_stock",
+      "title": "Replenish store stock",
+      "actor": {"role": "store_associate"},
+      "situation": "a product SKU has fallen below the store minimum stock level or been sold through and requires replenishment from back-stock or a distribution centre order",
+      "motivation": "eliminate out-of-stock gaps that reduce sales and damage customer experience",
+      "outcome": "replenishment triggered, stock received, pricing and security tags applied, and product displayed on floor",
+      "success_criteria": [
+        "out-of-stock identified and replenishment triggered within 2 hours",
+        "back-stock to floor within 1 hour for in-store available items",
+        "DC order placed within same business day for items not in back-stock",
+        "facing and merchandising standards met on replenishment"
+      ],
+      "data_capture": [
+        {"id": "sku",              "kind": "text",     "label": "SKU",                    "required": true,  "pii": false},
+        {"id": "current_stock",    "kind": "number",   "label": "Current on-hand units",  "required": true,  "pii": false},
+        {"id": "min_level",        "kind": "number",   "label": "Minimum level",          "required": true,  "pii": false},
+        {"id": "reorder_qty",      "kind": "number",   "label": "Reorder quantity",       "required": true,  "pii": false},
+        {"id": "source",           "kind": "enum",     "label": "Source (back-stock / DC)","required": true, "pii": false},
+        {"id": "replenish_date",   "kind": "date",     "label": "Replenishment date",     "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "dc_backorder",      "condition": "SKU is backordered at DC", "handle": "branch", "branch_to": "vendor_order_or_substitution"},
+        {"id": "planogram_conflict","condition": "replenishment conflicts with active planogram reset", "handle": "escalate"},
+        {"id": "high_shrink_sku",   "condition": "SKU has loss prevention lock requiring manager key", "handle": "branch", "branch_to": "lp_unlock"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "in_app", "audience": "store_associate"},
+        {"trigger": "approved",     "channel": "in_app", "audience": "store_associate"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "store_manager"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "merchandising_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 7200},
+      "metrics": ["out_of_stock_rate", "replenishment_cycle_time_hours", "dc_fill_rate"],
+      "compliance": ["internal_merchandising_standards"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "apply_price_adjustment",
+      "title": "Apply a price adjustment",
+      "actor": {"role": "merchandising_manager"},
+      "situation": "a promotional event, markdown cadence, competitive price match, or error correction requires price updates across one or more SKUs in the store",
+      "motivation": "execute price changes accurately and on schedule to protect margins, comply with advertised price rules, and avoid scanner errors",
+      "outcome": "prices updated in POS and online systems, shelf labels reprinted, markdown taken at specified time, and audit trail recorded",
+      "success_criteria": [
+        "all price changes effective by the specified start time",
+        "shelf labels reprinted and verified within 2 hours of POS update",
+        "no scanner error transactions after price change",
+        "markdown reason code and authorising party recorded for audit"
+      ],
+      "data_capture": [
+        {"id": "promotion_id",     "kind": "text",     "label": "Promotion / markdown ID","required": true,  "pii": false},
+        {"id": "skus_affected",    "kind": "textarea", "label": "Affected SKUs",          "required": true,  "pii": false},
+        {"id": "new_price",        "kind": "money",    "label": "New price",              "required": true,  "pii": false},
+        {"id": "markdown_reason",  "kind": "enum",     "label": "Markdown reason",        "required": true,  "pii": false},
+        {"id": "effective_from",   "kind": "datetime", "label": "Effective date/time",    "required": true,  "pii": false},
+        {"id": "effective_to",     "kind": "datetime", "label": "End date/time",          "required": false, "pii": false},
+        {"id": "margin_impact",    "kind": "number",   "label": "Estimated margin impact %","required": false,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "below_cost",        "condition": "new_price < landed cost (below-cost selling)", "handle": "escalate"},
+        {"id": "advertised_price_discrepancy","condition": "price does not match circular or online advertisement", "handle": "escalate"},
+        {"id": "late_label_change", "condition": "shelf labels not updated before store opening after price change", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "merchandising_manager", "policy": "1_of_1"},
+        {"role": "store_manager",         "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "approved",     "channel": "in_app", "audience": "store_associate"},
+        {"trigger": "approved",     "channel": "email",  "audience": "merchandising_manager"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "store_manager"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "merchandising_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 7200},
+      "metrics": ["price_accuracy_rate", "label_update_on_time_rate", "scanner_error_rate"],
+      "compliance": ["FTC_pricing_accuracy", "state_item_pricing_laws", "advertised_price_rules"],
+      "data_sensitivity": ["internal", "confidential"]
+    },
+    {
+      "id": "deliver_staff_training",
+      "title": "Deliver staff compliance training",
+      "actor": {"role": "training_coordinator"},
+      "situation": "a new hire, role change, or mandatory refresher cycle requires a staff member to complete assigned compliance training (AML, product knowledge, safety, harassment prevention)",
+      "motivation": "ensure all staff meet legal training requirements and are competent to perform their roles before working unsupervised",
+      "outcome": "training modules assigned, completed, and scores recorded; non-completions escalated before deadline; certificates stored",
+      "success_criteria": [
+        "training assigned within 1 business day of trigger (hire, role change, refresher date)",
+        "100% completion rate before regulatory or policy deadline",
+        "passing score recorded and certificate stored in LMS",
+        "non-completions escalated to store manager at 3 days before deadline"
+      ],
+      "data_capture": [
+        {"id": "employee_id",      "kind": "text",     "label": "Employee ID",            "required": true,  "pii": true},
+        {"id": "training_module",  "kind": "text",     "label": "Training module",        "required": true,  "pii": false},
+        {"id": "trigger_type",     "kind": "enum",     "label": "Training trigger",       "required": true,  "pii": false},
+        {"id": "deadline",         "kind": "date",     "label": "Completion deadline",    "required": true,  "pii": false},
+        {"id": "completion_date",  "kind": "date",     "label": "Completion date",        "required": false, "pii": false},
+        {"id": "score",            "kind": "number",   "label": "Assessment score %",     "required": false, "pii": false},
+        {"id": "certificate",      "kind": "file",     "label": "Completion certificate", "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "failed_assessment", "condition": "score < passing threshold on 2nd attempt", "handle": "escalate"},
+        {"id": "regulatory_overdue","condition": "compliance training past regulatory deadline", "handle": "escalate"},
+        {"id": "system_outage",     "condition": "LMS unavailable within 48h of deadline", "handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "employee_id"},
+        {"trigger": "approved",     "channel": "email",  "audience": "employee_id"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "store_manager"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "store_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 604800},
+      "metrics": ["training_completion_rate", "days_to_completion", "assessment_pass_rate"],
+      "compliance": ["OSHA_safety_training", "state_harassment_prevention_laws", "AML_training_BSA"],
+      "data_sensitivity": ["pii", "internal"]
+    },
+    {
+      "id": "negotiate_vendor_markdown",
+      "title": "Negotiate a vendor markdown",
+      "actor": {"role": "vendor_relations_manager"},
+      "situation": "slow-moving or seasonal inventory requires a markdown and the vendor must be negotiated with to share the markdown cost per contractual or relationship terms",
+      "motivation": "clear aged inventory while recovering maximum vendor markdown support to protect gross margin",
+      "outcome": "markdown agreement reached, debit memo raised, inventory marked down, and vendor credit applied to AP",
+      "success_criteria": [
+        "markdown proposal sent to vendor before markdown is applied",
+        "vendor response received within 5 business days",
+        "debit memo raised within 2 business days of agreement",
+        "AP credit matched and posted within 10 business days of memo"
+      ],
+      "data_capture": [
+        {"id": "vendor_id",        "kind": "text",     "label": "Vendor ID",              "required": true,  "pii": false},
+        {"id": "sku_list",         "kind": "textarea", "label": "SKU list",               "required": true,  "pii": false},
+        {"id": "current_stock_value","kind": "money",  "label": "Current retail stock value","required": true,"pii": false},
+        {"id": "proposed_markdown","kind": "number",   "label": "Proposed markdown %",    "required": true,  "pii": false},
+        {"id": "vendor_support_requested","kind": "money","label": "Vendor support requested","required": true,"pii": false},
+        {"id": "agreed_support",   "kind": "money",    "label": "Agreed vendor support",  "required": false, "pii": false},
+        {"id": "agreement_ref",    "kind": "text",     "label": "Agreement reference",    "required": false, "pii": false},
+        {"id": "debit_memo_ref",   "kind": "text",     "label": "Debit memo reference",   "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "vendor_declines",   "condition": "vendor declines all markdown support", "handle": "branch", "branch_to": "unilateral_markdown_decision"},
+        {"id": "contractual_cap",   "condition": "requested support exceeds vendor contract annual cap", "handle": "escalate"},
+        {"id": "slow_payment",      "condition": "vendor has outstanding AP dispute blocking debit memo", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "vendor_relations_manager", "policy": "1_of_1"},
+        {"role": "store_manager",            "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "vendor_relations_manager"},
+        {"trigger": "approved",     "channel": "email",  "audience": "vendor_relations_manager"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "vendor_relations_manager"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "store_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 432000},
+      "metrics": ["vendor_support_recovery_rate", "markdown_clearance_rate", "aged_inventory_weeks"],
+      "compliance": ["vendor_agreement_terms", "internal_audit_markdown_policy"],
+      "data_sensitivity": ["financial", "confidential"]
+    },
+    {
+      "id": "investigate_shrinkage",
+      "title": "Investigate inventory shrinkage",
+      "actor": {"role": "loss_prevention_officer"},
+      "situation": "a cycle count or stock take identifies significant unexplained variance in a product category, triggering a shrinkage investigation",
+      "motivation": "determine whether shrinkage is due to theft, process error, vendor short-ship, or administrative error, and implement controls to reduce future loss",
+      "outcome": "variance root-cause identified, evidence preserved, employee or external party actioned if theft confirmed, and process fix implemented",
+      "success_criteria": [
+        "investigation opened within 24 hours of variance identification",
+        "CCTV and transaction logs reviewed within 3 business days",
+        "root cause confirmed within 10 business days",
+        "process or personnel action completed within 5 business days of root cause"
+      ],
+      "data_capture": [
+        {"id": "location_id",      "kind": "text",     "label": "Location ID",            "required": true,  "pii": false},
+        {"id": "category",         "kind": "text",     "label": "Product category",       "required": true,  "pii": false},
+        {"id": "variance_units",   "kind": "number",   "label": "Variance units",         "required": true,  "pii": false},
+        {"id": "variance_value",   "kind": "money",    "label": "Variance value",         "required": true,  "pii": false},
+        {"id": "variance_type",    "kind": "enum",     "label": "Variance type",          "required": true,  "pii": false},
+        {"id": "cctv_reviewed",    "kind": "boolean",  "label": "CCTV reviewed",          "required": true,  "pii": false},
+        {"id": "suspect_identified","kind": "boolean", "label": "Suspect identified",     "required": false, "pii": false},
+        {"id": "police_report_ref","kind": "text",     "label": "Police report reference","required": false, "pii": false},
+        {"id": "root_cause",       "kind": "enum",     "label": "Root cause",             "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "employee_theft",    "condition": "evidence implicates current employee", "handle": "escalate"},
+        {"id": "organised_retail_crime","condition": "pattern consistent with organised retail crime", "handle": "escalate"},
+        {"id": "high_value_loss",   "condition": "variance_value > threshold requiring police report", "handle": "branch", "branch_to": "police_referral"}
+      ],
+      "approvals": [
+        {"role": "loss_prevention_officer", "policy": "1_of_1"},
+        {"role": "store_manager",           "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "loss_prevention_officer"},
+        {"trigger": "approved",     "channel": "email",  "audience": "store_manager"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "loss_prevention_officer"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "store_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 864000},
+      "metrics": ["investigation_cycle_time_days", "root_cause_identification_rate", "shrinkage_pct_of_sales"],
+      "compliance": ["state_employee_investigation_laws", "GDPR_CCTV_retention", "data_privacy_workplace_monitoring"],
+      "data_sensitivity": ["pii", "confidential", "restricted"]
+    },
+    {
+      "id": "conduct_store_audit",
+      "title": "Conduct a store operations audit",
+      "actor": {"role": "store_manager"},
+      "situation": "a periodic or triggered audit assesses store compliance with brand standards, safety requirements, labour law postings, and operational procedures",
+      "motivation": "identify compliance gaps before a regulatory or corporate visit, drive operational consistency, and coach the team on standards",
+      "outcome": "audit completed, score issued, critical findings actioned, improvement plan agreed, and report filed",
+      "success_criteria": [
+        "audit covers all required sections of the brand standards checklist",
+        "critical safety findings immediately corrected or escalated",
+        "improvement plan for non-critical items agreed within 5 business days",
+        "audit score and trending visible to regional manager"
+      ],
+      "data_capture": [
+        {"id": "location_id",      "kind": "text",     "label": "Location ID",            "required": true,  "pii": false},
+        {"id": "audit_date",       "kind": "date",     "label": "Audit date",             "required": true,  "pii": false},
+        {"id": "auditor_id",       "kind": "text",     "label": "Auditor ID",             "required": true,  "pii": false},
+        {"id": "overall_score",    "kind": "number",   "label": "Overall score (0-100)",  "required": false, "pii": false},
+        {"id": "critical_findings","kind": "textarea", "label": "Critical findings",      "required": false, "pii": false},
+        {"id": "improvement_plan", "kind": "file",     "label": "Improvement plan",       "required": false, "pii": false},
+        {"id": "audit_report",     "kind": "file",     "label": "Full audit report",      "required": false, "pii": false},
+        {"id": "safety_violations","kind": "number",   "label": "Safety violations found","required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "below_passing",      "condition": "overall_score < brand minimum (e.g. 75)", "handle": "escalate"},
+        {"id": "safety_violation",   "condition": "safety_violations > 0", "handle": "escalate"},
+        {"id": "repeat_failure",     "condition": "two consecutive audits below passing", "handle": "branch", "branch_to": "performance_improvement_plan"}
+      ],
+      "approvals": [
+        {"role": "store_manager",    "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "store_manager"},
+        {"trigger": "approved",     "channel": "email",  "audience": "store_manager"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "store_manager"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "merchandising_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["average_audit_score", "critical_finding_rate", "improvement_plan_completion_rate"],
+      "compliance": ["OSHA_general_duty_clause", "brand_standards_audit_policy", "labour_law_posting_requirements"],
+      "data_sensitivity": ["internal", "confidential"]
+    }
+  ]
+}

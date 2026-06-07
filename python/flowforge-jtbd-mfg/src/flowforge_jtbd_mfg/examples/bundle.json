@@ -1,0 +1,449 @@
+{
+  "project": {
+    "name": "mfg-bundle",
+    "package": "flowforge_jtbd_mfg",
+    "domain": "mfg",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD"]
+  },
+  "shared": {
+    "roles": ["production_engineer", "quality_engineer", "plant_manager", "procurement_specialist", "maintenance_technician", "supplier_quality_engineer", "compliance_officer"],
+    "permissions": ["bom.read", "order.read", "quality.read", "supplier.read"]
+  },
+  "jtbds": [
+    {
+      "id": "manage_BOM_change",
+      "title": "Manage a Bill of Materials change",
+      "actor": {"role": "production_engineer"},
+      "situation": "a component is obsoleted, redesigned, or substituted requiring a formal BOM revision across affected assemblies",
+      "motivation": "ensure manufacturing uses correct component revisions and downstream systems reflect the change before production",
+      "outcome": "BOM revision approved, ERP updated, affected work orders replanned, and change notice distributed",
+      "success_criteria": [
+        "change request reviewed and approved within 5 business days",
+        "all affected assemblies identified and flagged before approval",
+        "ERP BOM updated within 24h of approval",
+        "affected open work orders notified of change"
+      ],
+      "data_capture": [
+        {"id": "bom_id",           "kind": "text",     "label": "BOM identifier",         "required": true,  "pii": false},
+        {"id": "rev_from",         "kind": "text",     "label": "Revision from",           "required": true,  "pii": false},
+        {"id": "rev_to",           "kind": "text",     "label": "Revision to",             "required": true,  "pii": false},
+        {"id": "change_reason",    "kind": "enum",     "label": "Change reason",           "required": true,  "pii": false},
+        {"id": "affected_parts",   "kind": "textarea", "label": "Affected part numbers",   "required": true,  "pii": false},
+        {"id": "redline_drawing",  "kind": "file",     "label": "Redline drawing",         "required": false, "pii": false},
+        {"id": "effectivity_date", "kind": "date",     "label": "Effectivity date",        "required": true,  "pii": false},
+        {"id": "disposition",      "kind": "enum",     "label": "Inventory disposition",   "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "active_production", "condition": "affected assembly is currently in active production run", "handle": "escalate"},
+        {"id": "safety_critical",   "condition": "changed component is safety-critical per FMEA", "handle": "escalate"},
+        {"id": "supplier_sole_source", "condition": "replacement component has a single qualified supplier", "handle": "branch", "branch_to": "supplier_qualification"}
+      ],
+      "approvals": [
+        {"role": "quality_engineer",  "policy": "1_of_1"},
+        {"role": "plant_manager",     "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "production_engineer"},
+        {"trigger": "approved",     "channel": "email",  "audience": "production_engineer"},
+        {"trigger": "approved",     "channel": "in_app", "audience": "plant_manager"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "production_engineer"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "plant_manager"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "plant_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["bom_change_cycle_time", "first_pass_approval_rate", "erp_sync_latency_hours"],
+      "compliance": ["ISO_9001_clause_8_5_6", "AS9100D_change_control"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "process_production_order",
+      "title": "Process a production order",
+      "actor": {"role": "production_engineer"},
+      "situation": "a sales order or forecast demand triggers creation of a production order to manufacture a finished good",
+      "motivation": "translate demand into a scheduled, resourced manufacturing plan with full traceability",
+      "outcome": "production order confirmed, materials reserved, work centre scheduled, and order released to shop floor",
+      "success_criteria": [
+        "materials availability confirmed before order release",
+        "work centre capacity allocated within planning horizon",
+        "order released to MES within 1 business day of confirmation",
+        "serialised lot number assigned for traceability"
+      ],
+      "data_capture": [
+        {"id": "product_code",    "kind": "text",     "label": "Product code",           "required": true,  "pii": false},
+        {"id": "quantity",        "kind": "number",   "label": "Order quantity",          "required": true,  "pii": false},
+        {"id": "uom",             "kind": "enum",     "label": "Unit of measure",         "required": true,  "pii": false},
+        {"id": "due_date",        "kind": "date",     "label": "Required by date",        "required": true,  "pii": false},
+        {"id": "work_centre",     "kind": "text",     "label": "Work centre",             "required": true,  "pii": false},
+        {"id": "lot_number",      "kind": "text",     "label": "Lot / batch number",      "required": false, "pii": false},
+        {"id": "routing_version", "kind": "text",     "label": "Routing revision",        "required": true,  "pii": false},
+        {"id": "priority",        "kind": "enum",     "label": "Priority",                "required": true,  "pii": false},
+        {"id": "notes",           "kind": "textarea", "label": "Special instructions",    "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "material_shortage",  "condition": "one or more BOM components are below required stock level", "handle": "branch", "branch_to": "material_requisition"},
+        {"id": "capacity_overload",  "condition": "work centre utilisation > 100% in planning window", "handle": "escalate"},
+        {"id": "expired_routing",    "condition": "routing revision is not current", "handle": "reject"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "in_app", "audience": "production_engineer"},
+        {"trigger": "approved",     "channel": "email",  "audience": "production_engineer"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "plant_manager"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "plant_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 86400},
+      "metrics": ["order_release_cycle_time", "material_availability_rate", "on_time_start_rate"],
+      "compliance": ["ISO_9001_clause_8_5"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "handle_quality_deviation",
+      "title": "Handle a quality deviation",
+      "actor": {"role": "quality_engineer"},
+      "situation": "in-process inspection or final QC identifies a non-conformance requiring formal disposition before product can proceed",
+      "motivation": "contain non-conforming material, determine root cause, and prevent recurrence without halting production unnecessarily",
+      "outcome": "NCR raised, material quarantined, disposition decided (use-as-is / rework / scrap / return), and CAPA initiated",
+      "success_criteria": [
+        "non-conforming material physically quarantined within 2 hours of detection",
+        "initial disposition decision within 1 business day",
+        "CAPA initiated within 5 business days for repeat defects",
+        "disposition recorded with authorised signature"
+      ],
+      "data_capture": [
+        {"id": "ncr_number",      "kind": "text",     "label": "NCR number",             "required": true,  "pii": false},
+        {"id": "defect_code",     "kind": "enum",     "label": "Defect code",            "required": true,  "pii": false},
+        {"id": "defect_description","kind": "textarea","label": "Defect description",    "required": true,  "pii": false},
+        {"id": "quantity_affected","kind": "number",  "label": "Quantity affected",      "required": true,  "pii": false},
+        {"id": "lot_number",      "kind": "text",     "label": "Affected lot/batch",     "required": true,  "pii": false},
+        {"id": "detection_stage", "kind": "enum",     "label": "Detection stage",        "required": true,  "pii": false},
+        {"id": "photos",          "kind": "file",     "label": "Evidence photos",        "required": false, "pii": false},
+        {"id": "disposition",     "kind": "enum",     "label": "Disposition",            "required": true,  "pii": false},
+        {"id": "capa_required",   "kind": "boolean",  "label": "CAPA required",          "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "customer_shipment_risk", "condition": "affected lot has already shipped to customer", "handle": "escalate"},
+        {"id": "regulatory_device",      "condition": "product is regulated medical or aerospace device", "handle": "escalate"},
+        {"id": "repeat_defect",          "condition": "same defect code appeared in last 30 days", "handle": "branch", "branch_to": "capa_escalation"}
+      ],
+      "approvals": [
+        {"role": "quality_engineer",  "policy": "1_of_1"},
+        {"role": "plant_manager",     "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "quality_engineer"},
+        {"trigger": "approved",     "channel": "email",  "audience": "production_engineer"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "quality_engineer"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "quality_engineer"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "plant_manager"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 86400},
+      "metrics": ["ncr_closure_cycle_time", "repeat_defect_rate", "capa_on_time_rate", "cost_of_poor_quality"],
+      "compliance": ["ISO_9001_clause_8_7", "AS9100D_nonconformance"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "qualify_supplier",
+      "title": "Qualify a new supplier",
+      "actor": {"role": "supplier_quality_engineer"},
+      "situation": "procurement identifies a new vendor for a critical component or material requiring formal quality qualification before approved supplier list entry",
+      "motivation": "ensure supplier meets quality, delivery, and regulatory requirements before production dependency is established",
+      "outcome": "supplier assessed, audited, sample parts evaluated, and conditionally or fully approved on ASL",
+      "success_criteria": [
+        "supplier self-assessment questionnaire returned within 10 business days",
+        "on-site audit completed within 60 days of nomination",
+        "first article inspection (PPAP/FAI) passed before production approval",
+        "ASL entry created with risk tier assigned"
+      ],
+      "data_capture": [
+        {"id": "supplier_name",     "kind": "text",    "label": "Supplier name",          "required": true,  "pii": false},
+        {"id": "supplier_id",       "kind": "text",    "label": "Supplier ID",            "required": false, "pii": false},
+        {"id": "commodity",         "kind": "text",    "label": "Commodity / category",   "required": true,  "pii": false},
+        {"id": "certifications",    "kind": "file",    "label": "Quality certifications", "required": true,  "pii": false},
+        {"id": "self_assessment",   "kind": "file",    "label": "Self-assessment form",   "required": true,  "pii": false},
+        {"id": "audit_date",        "kind": "date",    "label": "Planned audit date",     "required": false, "pii": false},
+        {"id": "audit_score",       "kind": "number",  "label": "Audit score (0-100)",    "required": false, "pii": false},
+        {"id": "ppap_level",        "kind": "enum",    "label": "PPAP submission level",  "required": true,  "pii": false},
+        {"id": "risk_tier",         "kind": "enum",    "label": "Risk tier (A/B/C)",      "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "low_audit_score",    "condition": "audit_score < 70", "handle": "reject"},
+        {"id": "expired_cert",       "condition": "ISO 9001 certificate expired or expiring within 90 days", "handle": "escalate"},
+        {"id": "single_source_risk", "condition": "commodity has no other qualified supplier", "handle": "branch", "branch_to": "dual_source_plan"}
+      ],
+      "approvals": [
+        {"role": "supplier_quality_engineer", "policy": "1_of_1"},
+        {"role": "procurement_specialist",    "policy": "1_of_1"},
+        {"role": "plant_manager",             "policy": "authority_tier", "tier": 3}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "supplier_quality_engineer"},
+        {"trigger": "approved",     "channel": "email",  "audience": "procurement_specialist"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "supplier_quality_engineer"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "supplier_quality_engineer"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "plant_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 5184000},
+      "metrics": ["supplier_approval_cycle_time", "ppap_first_pass_rate", "audit_score_average"],
+      "compliance": ["ISO_9001_clause_8_4", "IATF_16949_supplier_development"],
+      "data_sensitivity": ["internal", "confidential"]
+    },
+    {
+      "id": "request_tooling",
+      "title": "Request new or replacement tooling",
+      "actor": {"role": "production_engineer"},
+      "situation": "tooling is worn beyond limits, broken, or a new product requires custom tooling that must be procured or fabricated",
+      "motivation": "restore or establish production capability without line stoppage or quality degradation",
+      "outcome": "tooling request approved, PO raised, tooling received, inspected, and qualified for production use",
+      "success_criteria": [
+        "tool qualification inspection completed before first production use",
+        "tool life counter reset in MES after qualification",
+        "backup tooling strategy documented for critical tools"
+      ],
+      "data_capture": [
+        {"id": "tool_id",          "kind": "text",    "label": "Tool ID / drawing number","required": true,  "pii": false},
+        {"id": "tool_type",        "kind": "enum",    "label": "Tool type",               "required": true,  "pii": false},
+        {"id": "reason",           "kind": "enum",    "label": "Request reason",          "required": true,  "pii": false},
+        {"id": "urgency",          "kind": "enum",    "label": "Urgency",                 "required": true,  "pii": false},
+        {"id": "estimated_cost",   "kind": "money",   "label": "Estimated cost",          "required": true,  "pii": false},
+        {"id": "preferred_vendor", "kind": "text",    "label": "Preferred vendor",        "required": false, "pii": false},
+        {"id": "lead_time_days",   "kind": "number",  "label": "Expected lead time (days)","required": true, "pii": false},
+        {"id": "drawing",          "kind": "file",    "label": "Tool drawing",            "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "line_down",        "condition": "tool failure has caused production line stoppage", "handle": "escalate"},
+        {"id": "budget_exceeded",  "condition": "estimated_cost exceeds departmental capital threshold", "handle": "branch", "branch_to": "capex_approval"},
+        {"id": "sole_source",      "condition": "only one qualified tool vendor exists", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "plant_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "production_engineer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "production_engineer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "procurement_specialist"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "plant_manager"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "plant_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 172800},
+      "metrics": ["tooling_approval_cycle_time", "unplanned_downtime_minutes", "tooling_cost_variance"],
+      "compliance": ["ISO_9001_clause_7_1_3"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "schedule_maintenance",
+      "title": "Schedule preventive maintenance",
+      "actor": {"role": "maintenance_technician"},
+      "situation": "equipment reaches its PM interval or predictive sensor data triggers a maintenance work order",
+      "motivation": "prevent unplanned downtime by executing maintenance within the scheduled production window",
+      "outcome": "PM work order completed, equipment signed off as fit for production, and maintenance records updated",
+      "success_criteria": [
+        "PM completed within scheduled maintenance window without overrunning into production time",
+        "all checklist items signed off by qualified technician",
+        "equipment condition rating recorded post-PM",
+        "next PM date calculated and scheduled in CMMS"
+      ],
+      "data_capture": [
+        {"id": "equipment_id",     "kind": "text",     "label": "Equipment ID",           "required": true,  "pii": false},
+        {"id": "pm_type",          "kind": "enum",     "label": "PM type",                "required": true,  "pii": false},
+        {"id": "scheduled_date",   "kind": "datetime", "label": "Scheduled start",        "required": true,  "pii": false},
+        {"id": "duration_hours",   "kind": "number",   "label": "Estimated duration (h)", "required": true,  "pii": false},
+        {"id": "checklist",        "kind": "file",     "label": "PM checklist",           "required": true,  "pii": false},
+        {"id": "parts_required",   "kind": "textarea", "label": "Spare parts required",   "required": false, "pii": false},
+        {"id": "technician_id",    "kind": "text",     "label": "Assigned technician",    "required": true,  "pii": false},
+        {"id": "condition_rating", "kind": "enum",     "label": "Post-PM condition",      "required": true,  "pii": false},
+        {"id": "actual_duration",  "kind": "number",   "label": "Actual duration (h)",    "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "parts_unavailable", "condition": "required spare parts not in stock", "handle": "branch", "branch_to": "emergency_procurement"},
+        {"id": "unexpected_damage", "condition": "technician discovers damage beyond PM scope", "handle": "branch", "branch_to": "corrective_maintenance"},
+        {"id": "production_conflict", "condition": "scheduled window conflicts with urgent production run", "handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "in_app", "audience": "maintenance_technician"},
+        {"trigger": "state_enter",  "channel": "email",  "audience": "plant_manager"},
+        {"trigger": "approved",     "channel": "in_app", "audience": "maintenance_technician"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "maintenance_technician"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "plant_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 604800},
+      "metrics": ["pm_compliance_rate", "mtbf_hours", "mttr_hours", "planned_vs_unplanned_ratio"],
+      "compliance": ["ISO_55001_asset_management"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "execute_recall",
+      "title": "Execute a product recall",
+      "actor": {"role": "quality_engineer"},
+      "situation": "a safety defect, regulatory notification, or customer field failure triggers a formal product recall or field action",
+      "motivation": "remove affected product from the field, protect end users, meet regulatory notification deadlines, and limit liability",
+      "outcome": "all affected serial/lot numbers identified, customers notified, product quarantined or returned, regulator notified within deadline",
+      "success_criteria": [
+        "affected population identified within 4 hours of recall decision",
+        "customer notifications sent within 24 hours",
+        "regulatory authority notified within statutory deadline",
+        "100% of recalled units accounted for within 30 days"
+      ],
+      "data_capture": [
+        {"id": "recall_id",          "kind": "text",     "label": "Recall / field action ID","required": true,  "pii": false},
+        {"id": "product_codes",      "kind": "textarea", "label": "Affected product codes",  "required": true,  "pii": false},
+        {"id": "lot_range",          "kind": "textarea", "label": "Affected lot range",      "required": true,  "pii": false},
+        {"id": "defect_description", "kind": "textarea", "label": "Defect / hazard description","required": true,"pii": false},
+        {"id": "recall_class",       "kind": "enum",     "label": "Recall class (I/II/III)", "required": true,  "pii": false},
+        {"id": "regulatory_body",    "kind": "text",     "label": "Notifying regulator",     "required": false, "pii": false},
+        {"id": "notification_deadline","kind": "date",   "label": "Regulatory deadline",     "required": false, "pii": false},
+        {"id": "customer_letter",    "kind": "file",     "label": "Customer notification letter","required": true,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "class_one_recall",  "condition": "recall_class = I (risk of serious injury or death)", "handle": "escalate"},
+        {"id": "international_product","condition": "affected units distributed across multiple jurisdictions", "handle": "escalate"},
+        {"id": "media_coverage",    "condition": "recall has active media coverage", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "quality_engineer",    "policy": "1_of_1"},
+        {"role": "plant_manager",       "policy": "1_of_1"},
+        {"role": "compliance_officer",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "slack",  "audience": "plant_manager"},
+        {"trigger": "state_enter",  "channel": "email",  "audience": "compliance_officer"},
+        {"trigger": "approved",     "channel": "email",  "audience": "quality_engineer"},
+        {"trigger": "sla_warn",     "channel": "slack",  "audience": "compliance_officer"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "plant_manager"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 14400},
+      "metrics": ["recall_notification_time_hours", "field_recovery_rate_pct", "regulatory_deadline_compliance"],
+      "compliance": ["21_CFR_Part_7", "EU_2017_745_MDR", "ISO_13485_recall"],
+      "data_sensitivity": ["confidential", "regulated"]
+    },
+    {
+      "id": "plan_capacity",
+      "title": "Plan production capacity",
+      "actor": {"role": "production_engineer"},
+      "situation": "demand forecast or master production schedule requires a capacity planning review to confirm feasibility across work centres",
+      "motivation": "identify capacity gaps or surpluses in advance to allow staffing, tooling, or subcontracting decisions before the planning horizon",
+      "outcome": "capacity plan approved, constraints identified, resource actions raised, and S&OP sync completed",
+      "success_criteria": [
+        "capacity plan covers rolling 13-week horizon",
+        "all work centres with utilisation > 90% flagged for action",
+        "subcontracting decisions approved before lead-time cutoff",
+        "plan version controlled and accessible to shift supervisors"
+      ],
+      "data_capture": [
+        {"id": "plan_period",      "kind": "text",    "label": "Planning period (ISO week)", "required": true,  "pii": false},
+        {"id": "demand_source",    "kind": "enum",    "label": "Demand source",              "required": true,  "pii": false},
+        {"id": "utilisation_data", "kind": "file",    "label": "Work centre utilisation",    "required": true,  "pii": false},
+        {"id": "bottleneck_wc",    "kind": "textarea","label": "Bottleneck work centres",    "required": false, "pii": false},
+        {"id": "headcount_req",    "kind": "number",  "label": "Required headcount delta",   "required": false, "pii": false},
+        {"id": "subcon_required",  "kind": "boolean", "label": "Subcontracting required",    "required": true,  "pii": false},
+        {"id": "approved_by",      "kind": "text",    "label": "Approved by",                "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "demand_spike",       "condition": "demand increase > 30% vs prior period", "handle": "escalate"},
+        {"id": "subcon_needed",      "condition": "subcon_required = true", "handle": "branch", "branch_to": "subcontracting_approval"},
+        {"id": "constraint_unresolved","condition": "bottleneck cannot be resolved within planning horizon", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "plant_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "in_app", "audience": "production_engineer"},
+        {"trigger": "approved",     "channel": "email",  "audience": "production_engineer"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "plant_manager"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "plant_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 259200},
+      "metrics": ["capacity_plan_accuracy_pct", "utilisation_vs_plan", "subcon_spend"],
+      "compliance": ["ISO_9001_clause_8_1"],
+      "data_sensitivity": ["internal", "confidential"]
+    },
+    {
+      "id": "resolve_complaint",
+      "title": "Resolve a customer quality complaint",
+      "actor": {"role": "quality_engineer"},
+      "situation": "a customer reports a product quality failure in the field and expects a formal 8D or structured response within a contractual timeline",
+      "motivation": "restore customer confidence, prevent recurrence, and meet contractual response commitments",
+      "outcome": "8D report completed, root cause confirmed, containment verified, and corrective action implemented and monitored",
+      "success_criteria": [
+        "D3 containment confirmed within 24 hours of complaint receipt",
+        "D5 root cause agreed with customer within 10 business days",
+        "D7 corrective action implemented within 30 days",
+        "8D report accepted and closed by customer"
+      ],
+      "data_capture": [
+        {"id": "complaint_ref",    "kind": "text",     "label": "Customer complaint reference","required": true,  "pii": false},
+        {"id": "customer_name",    "kind": "text",     "label": "Customer name",               "required": true,  "pii": false},
+        {"id": "product_code",     "kind": "text",     "label": "Product code",                "required": true,  "pii": false},
+        {"id": "failure_description","kind": "textarea","label": "Failure description",        "required": true,  "pii": false},
+        {"id": "quantity_rejected","kind": "number",   "label": "Quantity rejected",           "required": true,  "pii": false},
+        {"id": "lot_number",       "kind": "text",     "label": "Lot number",                  "required": false, "pii": false},
+        {"id": "customer_photos",  "kind": "file",     "label": "Customer photos / evidence",  "required": false, "pii": false},
+        {"id": "d3_containment",   "kind": "textarea", "label": "D3 interim containment",      "required": true,  "pii": false},
+        {"id": "eight_d_report",   "kind": "file",     "label": "8D report",                   "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "safety_claim",     "condition": "complaint includes personal injury or property damage claim", "handle": "escalate"},
+        {"id": "contractual_penalty","condition": "complaint triggers chargeback or contractual penalty clause", "handle": "escalate"},
+        {"id": "repeat_complaint", "condition": "same failure mode in last 12 months from same customer", "handle": "branch", "branch_to": "major_corrective_action"}
+      ],
+      "approvals": [
+        {"role": "quality_engineer", "policy": "1_of_1"},
+        {"role": "plant_manager",    "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "quality_engineer"},
+        {"trigger": "approved",     "channel": "email",  "audience": "quality_engineer"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "quality_engineer"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "plant_manager"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 86400},
+      "metrics": ["d3_response_time_hours", "customer_complaint_closure_days", "repeat_complaint_rate"],
+      "compliance": ["IATF_16949_customer_focus", "VDA_6_3"],
+      "data_sensitivity": ["confidential"]
+    },
+    {
+      "id": "conduct_ISO_audit",
+      "title": "Conduct an internal ISO quality audit",
+      "actor": {"role": "compliance_officer"},
+      "situation": "the annual internal audit schedule requires an ISO 9001 clause audit of a manufacturing process or support function",
+      "motivation": "verify conformance to the QMS, identify improvement opportunities, and prepare evidence for external certification body audit",
+      "outcome": "audit completed, findings categorised (major NC / minor NC / OFI), corrective actions raised, and management review briefed",
+      "success_criteria": [
+        "audit plan issued to auditee 5 business days in advance",
+        "audit completed within scheduled timebox",
+        "all major NCs have corrective action plans within 10 business days",
+        "audit report issued within 5 business days of close"
+      ],
+      "data_capture": [
+        {"id": "audit_number",     "kind": "text",     "label": "Audit number",           "required": true,  "pii": false},
+        {"id": "scope_clauses",    "kind": "textarea", "label": "ISO clauses in scope",   "required": true,  "pii": false},
+        {"id": "auditee_dept",     "kind": "text",     "label": "Auditee department",     "required": true,  "pii": false},
+        {"id": "lead_auditor",     "kind": "text",     "label": "Lead auditor",           "required": true,  "pii": false},
+        {"id": "audit_date",       "kind": "date",     "label": "Audit date",             "required": true,  "pii": false},
+        {"id": "audit_checklist",  "kind": "file",     "label": "Audit checklist",        "required": true,  "pii": false},
+        {"id": "major_nc_count",   "kind": "number",   "label": "Major NCs found",        "required": false, "pii": false},
+        {"id": "minor_nc_count",   "kind": "number",   "label": "Minor NCs found",        "required": false, "pii": false},
+        {"id": "audit_report",     "kind": "file",     "label": "Audit report",           "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "major_systemic_nc", "condition": "major_nc_count >= 3", "handle": "escalate"},
+        {"id": "auditor_conflict",  "condition": "lead auditor is from same department being audited", "handle": "reject"},
+        {"id": "cert_at_risk",      "condition": "findings would jeopardise certification scope", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "compliance_officer", "policy": "1_of_1"},
+        {"role": "plant_manager",      "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "compliance_officer"},
+        {"trigger": "approved",     "channel": "email",  "audience": "plant_manager"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "compliance_officer"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "plant_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["audit_schedule_adherence", "nc_closure_rate", "major_nc_recurrence_rate"],
+      "compliance": ["ISO_9001_clause_9_2", "AS9100D_internal_audit"],
+      "data_sensitivity": ["internal", "confidential"]
+    }
+  ]
+}

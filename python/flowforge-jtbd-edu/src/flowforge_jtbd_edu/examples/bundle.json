@@ -1,0 +1,443 @@
+{
+  "project": {
+    "name": "edu-bundle",
+    "package": "flowforge_jtbd_edu",
+    "domain": "edu",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD"]
+  },
+  "shared": {
+    "roles": ["admissions_officer", "registrar", "financial_aid_advisor", "faculty_member", "student", "dean", "compliance_officer", "hr_coordinator"],
+    "permissions": ["student.read", "course.read", "financial_aid.read", "faculty.read"]
+  },
+  "jtbds": [
+    {
+      "id": "process_admissions",
+      "title": "Process a student admission application",
+      "actor": {"role": "admissions_officer"},
+      "situation": "a prospective student submits an application for an undergraduate or graduate programme and requires formal evaluation and decision",
+      "motivation": "evaluate academic merit, fit, and capacity constraints to make a timely and defensible admission decision",
+      "outcome": "application reviewed, decision made (admit / waitlist / deny), applicant notified, and enrollment deposit collected for admits",
+      "success_criteria": [
+        "application completeness verified within 3 business days of receipt",
+        "admission decision communicated within programme deadline",
+        "acceptance letter issued within 24 hours of decision",
+        "enrollment deposit deadline set and tracked"
+      ],
+      "data_capture": [
+        {"id": "applicant_name",    "kind": "text",     "label": "Full name",              "required": true,  "pii": true},
+        {"id": "applicant_email",   "kind": "email",    "label": "Email",                  "required": true,  "pii": true},
+        {"id": "dob",               "kind": "date",     "label": "Date of birth",          "required": true,  "pii": true},
+        {"id": "programme",         "kind": "text",     "label": "Programme applied",      "required": true,  "pii": false},
+        {"id": "entry_term",        "kind": "enum",     "label": "Entry term",             "required": true,  "pii": false},
+        {"id": "gpa",               "kind": "number",   "label": "GPA (4.0 scale)",        "required": true,  "pii": false},
+        {"id": "test_scores",       "kind": "textarea", "label": "Test scores (SAT/GRE)", "required": false, "pii": false},
+        {"id": "transcripts",       "kind": "file",     "label": "Official transcripts",   "required": true,  "pii": true},
+        {"id": "personal_statement","kind": "file",     "label": "Personal statement",     "required": false, "pii": false},
+        {"id": "letters_of_rec",    "kind": "file",     "label": "Letters of recommendation","required": false,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "incomplete_application", "condition": "required documents missing at deadline", "handle": "reject"},
+        {"id": "under_age",              "condition": "applicant is under 17 at entry term start", "handle": "escalate"},
+        {"id": "prior_discipline",       "condition": "applicant disclosed prior academic misconduct", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "admissions_officer", "policy": "1_of_1"},
+        {"role": "dean",               "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "applicant_name"},
+        {"trigger": "approved",     "channel": "email",  "audience": "applicant_name"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "applicant_name"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "admissions_officer"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "dean"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 1209600},
+      "metrics": ["application_to_decision_days", "yield_rate", "waitlist_conversion_rate"],
+      "compliance": ["FERPA", "Title_IX", "ADA_Section_504"],
+      "data_sensitivity": ["pii", "confidential"]
+    },
+    {
+      "id": "manage_financial_aid",
+      "title": "Manage a financial aid award",
+      "actor": {"role": "financial_aid_advisor"},
+      "situation": "a student applies for or requires review of federal, institutional, or merit-based financial aid for the upcoming academic year",
+      "motivation": "determine eligibility, package an appropriate award, and disburse funds in compliance with Title IV regulations",
+      "outcome": "aid eligibility determined, award package communicated, student accepts/declines, and disbursement scheduled",
+      "success_criteria": [
+        "FAFSA verification completed within 15 business days of submission",
+        "award letter issued before enrollment deposit deadline",
+        "all Title IV disbursements timed to meet 30-day payment windows",
+        "satisfactory academic progress (SAP) check passed before disbursement"
+      ],
+      "data_capture": [
+        {"id": "student_id",       "kind": "text",     "label": "Student ID",             "required": true,  "pii": true},
+        {"id": "fafsa_efc",        "kind": "number",   "label": "EFC / SAI from FAFSA",   "required": true,  "pii": false},
+        {"id": "cost_of_attendance","kind": "money",   "label": "Cost of attendance",     "required": true,  "pii": false},
+        {"id": "grant_amount",     "kind": "money",    "label": "Grant award",            "required": false, "pii": false},
+        {"id": "loan_amount",      "kind": "money",    "label": "Loan offer",             "required": false, "pii": false},
+        {"id": "work_study",       "kind": "money",    "label": "Work-study offer",       "required": false, "pii": false},
+        {"id": "verification_docs","kind": "file",     "label": "Verification documents", "required": false, "pii": true},
+        {"id": "sap_status",       "kind": "enum",     "label": "SAP status",             "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "sap_failure",       "condition": "sap_status = failing", "handle": "branch", "branch_to": "sap_appeal"},
+        {"id": "verification_flag", "condition": "FAFSA selected for verification", "handle": "branch", "branch_to": "verification_process"},
+        {"id": "over_award",        "condition": "total aid exceeds cost of attendance", "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "financial_aid_advisor", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "student"},
+        {"trigger": "approved",     "channel": "email",  "audience": "student"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "student"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "financial_aid_advisor"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "dean"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 1296000},
+      "metrics": ["verification_cycle_time", "disbursement_on_time_rate", "over_award_incidents"],
+      "compliance": ["Title_IV_HEA", "FERPA", "34_CFR_668_SAP"],
+      "data_sensitivity": ["pii", "regulated", "confidential"]
+    },
+    {
+      "id": "handle_grade_appeal",
+      "title": "Handle a student grade appeal",
+      "actor": {"role": "student"},
+      "situation": "a student believes a final grade was awarded in error or in violation of the academic policy and submits a formal appeal",
+      "motivation": "ensure grade accuracy and procedural fairness while protecting faculty academic freedom",
+      "outcome": "appeal reviewed, grade affirmed or changed, student and faculty notified, and registrar updated if grade changes",
+      "success_criteria": [
+        "appeal acknowledged within 3 business days of submission",
+        "faculty response collected within 10 business days",
+        "committee decision issued within 15 business days of appeal filing",
+        "registrar notified of grade change within 2 business days of decision"
+      ],
+      "data_capture": [
+        {"id": "student_id",       "kind": "text",     "label": "Student ID",             "required": true,  "pii": true},
+        {"id": "course_id",        "kind": "text",     "label": "Course section",         "required": true,  "pii": false},
+        {"id": "term",             "kind": "enum",     "label": "Academic term",          "required": true,  "pii": false},
+        {"id": "current_grade",    "kind": "text",     "label": "Current grade",          "required": true,  "pii": false},
+        {"id": "requested_grade",  "kind": "text",     "label": "Requested grade",        "required": true,  "pii": false},
+        {"id": "grounds",          "kind": "enum",     "label": "Grounds for appeal",     "required": true,  "pii": false},
+        {"id": "statement",        "kind": "textarea", "label": "Student statement",      "required": true,  "pii": false},
+        {"id": "supporting_docs",  "kind": "file",     "label": "Supporting documents",   "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "late_appeal",      "condition": "appeal filed after 30-day window from grade posting", "handle": "reject"},
+        {"id": "misconduct_claim", "condition": "appeal alleges faculty misconduct or bias", "handle": "escalate"},
+        {"id": "grade_change_approved", "condition": "committee approves grade change", "handle": "branch", "branch_to": "registrar_update"}
+      ],
+      "approvals": [
+        {"role": "faculty_member", "policy": "1_of_1"},
+        {"role": "dean",           "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "student"},
+        {"trigger": "state_enter",  "channel": "email",  "audience": "faculty_member"},
+        {"trigger": "approved",     "channel": "email",  "audience": "student"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "student"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "dean"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "dean"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 1296000},
+      "metrics": ["appeal_cycle_time_days", "grade_change_rate", "appeals_per_term"],
+      "compliance": ["FERPA", "institutional_grade_appeal_policy"],
+      "data_sensitivity": ["pii", "confidential"]
+    },
+    {
+      "id": "register_course",
+      "title": "Register a student for a course",
+      "actor": {"role": "registrar"},
+      "situation": "a student selects courses during the registration period and the system must verify eligibility, enforce capacity, and confirm enrollment",
+      "motivation": "ensure students enroll in courses they are eligible for while managing section capacity and compliance requirements",
+      "outcome": "student enrolled in requested sections, schedule conflicts resolved, fees assessed, and enrollment confirmed",
+      "success_criteria": [
+        "prerequisite and co-requisite checks completed at point of registration",
+        "waitlist position assigned when section is at capacity",
+        "enrollment confirmation sent to student within 1 hour",
+        "tuition and fees assessed to student account within 24 hours"
+      ],
+      "data_capture": [
+        {"id": "student_id",       "kind": "text",     "label": "Student ID",             "required": true,  "pii": true},
+        {"id": "term",             "kind": "enum",     "label": "Term",                   "required": true,  "pii": false},
+        {"id": "course_sections",  "kind": "textarea", "label": "Requested course sections","required": true, "pii": false},
+        {"id": "credit_hours",     "kind": "number",   "label": "Total credit hours",     "required": false, "pii": false},
+        {"id": "advisor_hold",     "kind": "boolean",  "label": "Advisor hold cleared",   "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "prerequisite_fail", "condition": "student lacks prerequisite for requested course", "handle": "reject"},
+        {"id": "overload_request",  "condition": "credit_hours exceeds standard maximum load", "handle": "branch", "branch_to": "overload_approval"},
+        {"id": "advisor_hold",      "condition": "advisor_hold = false", "handle": "reject"},
+        {"id": "section_full",      "condition": "requested section at capacity", "handle": "branch", "branch_to": "waitlist"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "student"},
+        {"trigger": "approved",     "channel": "email",  "audience": "student"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "student"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "registrar"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 3600},
+      "metrics": ["registration_success_rate", "waitlist_fill_rate", "holds_at_registration_pct"],
+      "compliance": ["FERPA", "Title_IV_enrollment_reporting"],
+      "data_sensitivity": ["pii"]
+    },
+    {
+      "id": "investigate_misconduct",
+      "title": "Investigate academic misconduct",
+      "actor": {"role": "compliance_officer"},
+      "situation": "a faculty member or proctoring system flags a student for potential academic dishonesty (plagiarism, cheating, fabrication)",
+      "motivation": "conduct a fair, timely investigation, protect academic integrity, and apply consistent sanctions per policy",
+      "outcome": "investigation completed, finding issued (responsible / not responsible), sanction applied if responsible, appeal window opened",
+      "success_criteria": [
+        "student notified of allegation within 5 business days",
+        "investigation meeting held within 15 business days",
+        "finding issued within 5 business days of meeting",
+        "sanction proportionate to violation severity and student history"
+      ],
+      "data_capture": [
+        {"id": "student_id",        "kind": "text",     "label": "Student ID",             "required": true,  "pii": true},
+        {"id": "course_id",         "kind": "text",     "label": "Course",                 "required": true,  "pii": false},
+        {"id": "violation_type",    "kind": "enum",     "label": "Violation type",         "required": true,  "pii": false},
+        {"id": "description",       "kind": "textarea", "label": "Description of violation","required": true,  "pii": false},
+        {"id": "evidence",          "kind": "file",     "label": "Evidence files",         "required": true,  "pii": false},
+        {"id": "prior_violations",  "kind": "number",   "label": "Prior violation count",  "required": true,  "pii": false},
+        {"id": "finding",           "kind": "enum",     "label": "Finding",                "required": false, "pii": false},
+        {"id": "sanction",          "kind": "enum",     "label": "Sanction imposed",       "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "repeat_offender",   "condition": "prior_violations >= 2", "handle": "escalate"},
+        {"id": "dismissal_required","condition": "sanction = expulsion", "handle": "branch", "branch_to": "president_review"},
+        {"id": "criminal_matter",   "condition": "evidence suggests criminal fraud", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "compliance_officer", "policy": "1_of_1"},
+        {"role": "dean",               "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "student"},
+        {"trigger": "state_enter",  "channel": "email",  "audience": "faculty_member"},
+        {"trigger": "approved",     "channel": "email",  "audience": "student"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "compliance_officer"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "dean"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 1296000},
+      "metrics": ["investigation_cycle_time_days", "finding_appeal_rate", "sanction_consistency_score"],
+      "compliance": ["FERPA", "institutional_academic_integrity_policy", "Title_IX_if_applicable"],
+      "data_sensitivity": ["pii", "confidential", "restricted"]
+    },
+    {
+      "id": "process_accommodation",
+      "title": "Process a disability accommodation request",
+      "actor": {"role": "compliance_officer"},
+      "situation": "a student with a documented disability requests academic accommodations under ADA/Section 504 for examinations, classroom access, or housing",
+      "motivation": "ensure equitable access to education by providing legally required accommodations in a timely, confidential manner",
+      "outcome": "documentation reviewed, accommodations determined, faculty and student notified, and accommodation letters issued",
+      "success_criteria": [
+        "initial meeting with student completed within 10 business days of request",
+        "accommodation decision issued within 15 business days",
+        "accommodation letter sent to relevant faculty before next assessment",
+        "housing accommodations coordinated with residential services within 5 business days"
+      ],
+      "data_capture": [
+        {"id": "student_id",        "kind": "text",     "label": "Student ID",             "required": true,  "pii": true},
+        {"id": "disability_type",   "kind": "enum",     "label": "Disability category",    "required": true,  "pii": true},
+        {"id": "documentation",     "kind": "file",     "label": "Medical/psych documentation","required": true,"pii": true},
+        {"id": "requested_acc",     "kind": "textarea", "label": "Requested accommodations","required": true,  "pii": false},
+        {"id": "approved_acc",      "kind": "textarea", "label": "Approved accommodations", "required": false, "pii": false},
+        {"id": "renewal",           "kind": "boolean",  "label": "Annual renewal",          "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "insufficient_docs",  "condition": "documentation does not meet clinical standards", "handle": "branch", "branch_to": "additional_docs_request"},
+        {"id": "housing_needed",     "condition": "accommodation requires residential placement", "handle": "branch", "branch_to": "housing_coordination"},
+        {"id": "faculty_dispute",    "condition": "faculty contests accommodation feasibility", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "compliance_officer", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "student"},
+        {"trigger": "approved",     "channel": "email",  "audience": "student"},
+        {"trigger": "approved",     "channel": "email",  "audience": "faculty_member"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "compliance_officer"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "dean"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 1296000},
+      "metrics": ["accommodation_cycle_time_days", "renewal_on_time_rate", "faculty_dispute_rate"],
+      "compliance": ["ADA_Title_II", "Section_504_Rehab_Act", "FERPA"],
+      "data_sensitivity": ["pii", "health", "restricted"]
+    },
+    {
+      "id": "request_transcript",
+      "title": "Process a transcript request",
+      "actor": {"role": "registrar"},
+      "situation": "a student or alumnus requests an official transcript to be sent to an employer, graduate school, or licensing body",
+      "motivation": "fulfill the request accurately and promptly while maintaining FERPA compliance and record integrity",
+      "outcome": "transcript generated, student consent verified, transcript dispatched via requested delivery method, and delivery confirmed",
+      "success_criteria": [
+        "consent verified before any transcript release",
+        "transcript issued within 3 business days for standard requests",
+        "electronic transcript delivery confirmed with receipt timestamp",
+        "holds preventing transcript release communicated to student before processing"
+      ],
+      "data_capture": [
+        {"id": "student_id",        "kind": "text",     "label": "Student ID",             "required": true,  "pii": true},
+        {"id": "recipient_name",    "kind": "text",     "label": "Recipient name",         "required": true,  "pii": false},
+        {"id": "recipient_address", "kind": "address",  "label": "Recipient address",      "required": false, "pii": false},
+        {"id": "recipient_email",   "kind": "email",    "label": "Recipient email",        "required": false, "pii": false},
+        {"id": "delivery_method",   "kind": "enum",     "label": "Delivery method",        "required": true,  "pii": false},
+        {"id": "urgency",           "kind": "enum",     "label": "Urgency",                "required": true,  "pii": false},
+        {"id": "consent_signature", "kind": "signature","label": "Student consent",        "required": true,  "pii": true},
+        {"id": "fee_paid",          "kind": "boolean",  "label": "Transcript fee paid",    "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "financial_hold",    "condition": "student account has financial hold blocking transcripts", "handle": "reject"},
+        {"id": "third_party_request","condition": "request initiated by third party without proper FERPA consent", "handle": "reject"},
+        {"id": "rush_request",      "condition": "urgency = same_day and after 2pm", "handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "student"},
+        {"trigger": "approved",     "channel": "email",  "audience": "student"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "student"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "registrar"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 259200},
+      "metrics": ["transcript_turnaround_hours", "holds_blocking_pct", "electronic_delivery_rate"],
+      "compliance": ["FERPA_section_99_30", "institutional_records_policy"],
+      "data_sensitivity": ["pii", "confidential"]
+    },
+    {
+      "id": "hire_faculty",
+      "title": "Hire a faculty member",
+      "actor": {"role": "dean"},
+      "situation": "a department has an approved faculty line and must conduct a national search, evaluate candidates, and extend an offer through shared governance",
+      "motivation": "recruit the strongest candidate through a rigorous, equitable search process that satisfies accreditor and affirmative action requirements",
+      "outcome": "search conducted, candidate selected and approved by provost, offer extended and accepted, and onboarding initiated",
+      "success_criteria": [
+        "position advertisement meets EEO/affirmative action posting requirements",
+        "search committee membership approved by dean before review begins",
+        "finalist reference checks completed before offer",
+        "offer letter reflects approved compensation band"
+      ],
+      "data_capture": [
+        {"id": "position_title",    "kind": "text",     "label": "Position title",         "required": true,  "pii": false},
+        {"id": "department",        "kind": "text",     "label": "Department",             "required": true,  "pii": false},
+        {"id": "rank",              "kind": "enum",     "label": "Rank",                   "required": true,  "pii": false},
+        {"id": "tenure_track",      "kind": "boolean",  "label": "Tenure-track",           "required": true,  "pii": false},
+        {"id": "candidate_name",    "kind": "text",     "label": "Selected candidate",     "required": false, "pii": true},
+        {"id": "candidate_cv",      "kind": "file",     "label": "Candidate CV",           "required": false, "pii": true},
+        {"id": "base_salary",       "kind": "money",    "label": "Offered base salary",    "required": false, "pii": false},
+        {"id": "start_date",        "kind": "date",     "label": "Start date",             "required": false, "pii": false},
+        {"id": "search_report",     "kind": "file",     "label": "EEO search report",      "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "failed_search",      "condition": "no acceptable candidate identified", "handle": "branch", "branch_to": "search_extension_or_closure"},
+        {"id": "counter_offer",      "condition": "candidate negotiates above approved band", "handle": "escalate"},
+        {"id": "eeo_complaint",      "condition": "search committee member files EEO objection", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "dean",            "policy": "1_of_1"},
+        {"role": "hr_coordinator",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "hr_coordinator"},
+        {"trigger": "approved",     "channel": "email",  "audience": "dean"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "dean"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "dean"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "dean"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 7776000},
+      "metrics": ["search_cycle_time_days", "offer_acceptance_rate", "diversity_hire_pct"],
+      "compliance": ["Title_VII_EEO", "AAUP_shared_governance", "affirmative_action_plan"],
+      "data_sensitivity": ["pii", "confidential"]
+    },
+    {
+      "id": "review_research_compliance",
+      "title": "Review research compliance (IRB/IACUC)",
+      "actor": {"role": "compliance_officer"},
+      "situation": "a faculty or student researcher submits a protocol for human subjects or animal research requiring committee review before work begins",
+      "motivation": "protect research participants, ensure ethical standards, and maintain federal assurance for research funding eligibility",
+      "outcome": "protocol reviewed, determination issued (exempt / expedited / full board / disapproved), and researcher notified with conditions",
+      "success_criteria": [
+        "protocol acknowledged within 5 business days",
+        "exempt determination within 10 business days",
+        "full board review scheduled within 30 days",
+        "researcher receives written determination before any subject contact"
+      ],
+      "data_capture": [
+        {"id": "pi_id",             "kind": "text",     "label": "Principal investigator ID","required": true, "pii": true},
+        {"id": "protocol_title",    "kind": "text",     "label": "Protocol title",          "required": true,  "pii": false},
+        {"id": "review_type",       "kind": "enum",     "label": "Review type",             "required": true,  "pii": false},
+        {"id": "research_category", "kind": "enum",     "label": "Research category",       "required": true,  "pii": false},
+        {"id": "protocol_document", "kind": "file",     "label": "Protocol document",       "required": true,  "pii": false},
+        {"id": "consent_forms",     "kind": "file",     "label": "Consent forms",           "required": false, "pii": false},
+        {"id": "funding_source",    "kind": "text",     "label": "Funding source",          "required": false, "pii": false},
+        {"id": "determination",     "kind": "enum",     "label": "Committee determination", "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "greater_than_minimal_risk","condition": "protocol involves greater than minimal risk to subjects", "handle": "branch", "branch_to": "full_board_review"},
+        {"id": "vulnerable_population",   "condition": "subjects include prisoners, children, or pregnant women", "handle": "escalate"},
+        {"id": "research_already_started","condition": "researcher began subject contact before approval", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "compliance_officer", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "faculty_member"},
+        {"trigger": "approved",     "channel": "email",  "audience": "faculty_member"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "faculty_member"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "compliance_officer"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "dean"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 2592000},
+      "metrics": ["protocol_review_cycle_days", "exemption_determination_rate", "full_board_approval_rate"],
+      "compliance": ["45_CFR_46_Common_Rule", "FDA_21_CFR_50_56", "OHRP_federal_assurance"],
+      "data_sensitivity": ["confidential", "regulated"]
+    },
+    {
+      "id": "audit_graduation",
+      "title": "Audit a student for graduation",
+      "actor": {"role": "registrar"},
+      "situation": "a student applies to graduate and the registrar must verify all degree requirements, residency, and financial clearance are met",
+      "motivation": "certify that all academic and administrative requirements are complete before the institution confers the degree",
+      "outcome": "graduation audit complete, deficiencies communicated, all requirements verified, degree conferred, and diploma ordered",
+      "success_criteria": [
+        "initial audit completed within 15 business days of application",
+        "all deficiencies communicated to student with clear remedy instructions",
+        "final audit cleared at least 2 weeks before commencement",
+        "diploma order submitted to vendor within 5 business days of conferral"
+      ],
+      "data_capture": [
+        {"id": "student_id",        "kind": "text",     "label": "Student ID",             "required": true,  "pii": true},
+        {"id": "programme",         "kind": "text",     "label": "Programme",              "required": true,  "pii": false},
+        {"id": "expected_grad_term","kind": "enum",     "label": "Expected graduation term","required": true,  "pii": false},
+        {"id": "total_credits",     "kind": "number",   "label": "Total credits earned",   "required": true,  "pii": false},
+        {"id": "gpa",               "kind": "number",   "label": "Cumulative GPA",         "required": true,  "pii": false},
+        {"id": "deficiencies",      "kind": "textarea", "label": "Identified deficiencies", "required": false, "pii": false},
+        {"id": "financial_clearance","kind": "boolean", "label": "Financial clearance",    "required": true,  "pii": false},
+        {"id": "diploma_name",      "kind": "text",     "label": "Name for diploma",       "required": true,  "pii": true}
+      ],
+      "edge_cases": [
+        {"id": "gpa_below_min",      "condition": "gpa < programme minimum graduation GPA", "handle": "escalate"},
+        {"id": "outstanding_hold",   "condition": "financial_clearance = false", "handle": "reject"},
+        {"id": "missing_credits",    "condition": "total_credits < degree requirement", "handle": "branch", "branch_to": "deficiency_remediation"}
+      ],
+      "approvals": [
+        {"role": "registrar",  "policy": "1_of_1"},
+        {"role": "dean",       "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "student"},
+        {"trigger": "approved",     "channel": "email",  "audience": "student"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "student"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "registrar"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "dean"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 1296000},
+      "metrics": ["audit_cycle_time_days", "deficiency_rate", "on_time_graduation_rate"],
+      "compliance": ["FERPA", "SACSCOC_accreditation", "institutional_degree_policy"],
+      "data_sensitivity": ["pii", "confidential"]
+    }
+  ]
+}

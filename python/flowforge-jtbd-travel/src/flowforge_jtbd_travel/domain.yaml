@@ -1,11 +1,25 @@
 id: travel
 name: "Travel"
-description: "JTBD domain library for Travel workflows (Booking, itinerary, loyalty)."
+description: "JTBD domain library for travel industry workflows (bookings, cancellations, itinerary changes, loyalty redemption, overbooking, refund claims, group bookings, special assistance, visa documents, insurance claims)."
 package: flowforge-jtbd-travel
 version: "1.0.0"
+tier: B
+reviewer_credentials:
+  - iata_certified_agent
+  - travel_compliance_officer
+team_id: travel-sme
 subdomains:
-  - "Booking"
-  - "itinerary"
-  - "loyalty"
-regulator_hints: []
+  - "Reservations"
+  - "Customer Service"
+  - "Loyalty"
+  - "Revenue Management"
+  - "Special Services"
+  - "Insurance"
+regulator_hints:
+  - EU_261_2004
+  - DOT_14_CFR_250
+  - Montreal_Convention
+  - GDPR
+  - IATA_resolution_890
+  - PSD2
 phase: E4

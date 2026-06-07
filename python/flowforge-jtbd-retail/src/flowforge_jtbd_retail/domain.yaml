@@ -1,11 +1,25 @@
-id: retail-store
-name: "Retail Store"
-description: "JTBD domain library for Retail Store workflows (Clientelling, buyback, loyalty)."
+id: retail
+name: "Retail"
+description: "JTBD domain library for retail store workflows (buyback/trade-in, clienteling, loyalty enrolment, returns, stock replenishment, price adjustments, staff training, vendor markdowns, shrinkage investigation, store audits)."
 package: flowforge-jtbd-retail
 version: "1.0.0"
+tier: B
+reviewer_credentials:
+  - retail_operations_director
+  - loss_prevention_certified
+team_id: retail-sme
 subdomains:
-  - "Clientelling"
-  - "buyback"
-  - "loyalty"
-regulator_hints: []
+  - "Loss Prevention"
+  - "Merchandising"
+  - "Loyalty"
+  - "Operations"
+  - "Vendor Relations"
+  - "Training"
+regulator_hints:
+  - FTC_pricing_accuracy
+  - OSHA_general_duty
+  - GDPR
+  - CCPA
+  - FLSA
+  - state_predictive_scheduling
 phase: E4

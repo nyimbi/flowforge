@@ -1,11 +1,25 @@
 id: education
 name: "Education"
-description: "JTBD domain library for Education workflows (Admissions, grading, LMS)."
+description: "JTBD domain library for Higher Education workflows (admissions, financial aid, grade appeals, registration, misconduct, accommodation, transcripts, faculty hiring, research compliance, graduation audit)."
 package: flowforge-jtbd-edu
 version: "1.0.0"
+tier: B
+reviewer_credentials:
+  - ferpa_compliance_officer
+  - higher_ed_registrar
+team_id: education-sme
 subdomains:
   - "Admissions"
-  - "grading"
-  - "LMS"
-regulator_hints: []
+  - "Financial Aid"
+  - "Registrar"
+  - "Student Conduct"
+  - "Disability Services"
+  - "Faculty HR"
+  - "Research Compliance"
+regulator_hints:
+  - FERPA
+  - Title_IV_HEA
+  - ADA_Section_504
+  - 45_CFR_46_Common_Rule
+  - SACSCOC
 phase: E4

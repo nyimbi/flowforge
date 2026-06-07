@@ -1,11 +1,25 @@
 id: gaming
 name: "Gaming"
-description: "JTBD domain library for Gaming workflows (Matchmaking, economy, moderation)."
+description: "JTBD domain library for online gaming platform workflows (abuse investigation, ban appeals, tournaments, item disputes, refunds, content moderation, account recovery, virtual currency audit, loot box compliance, anti-cheat)."
 package: flowforge-jtbd-gaming
 version: "1.0.0"
+tier: B
+reviewer_credentials:
+  - trust_safety_lead
+  - gaming_compliance_officer
+team_id: gaming-sme
 subdomains:
-  - "Matchmaking"
-  - "economy"
-  - "moderation"
-regulator_hints: []
+  - "Trust & Safety"
+  - "Billing"
+  - "Tournament"
+  - "Moderation"
+  - "Compliance"
+  - "Anti-Cheat"
+regulator_hints:
+  - DSA
+  - COPPA
+  - FATF_virtual_assets
+  - EU_AMLD5
+  - Belgium_Gaming_Act
+  - Netherlands_KSA
 phase: E4

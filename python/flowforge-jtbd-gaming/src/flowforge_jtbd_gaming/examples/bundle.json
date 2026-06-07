@@ -1,0 +1,424 @@
+{
+  "project": {
+    "name": "gaming-bundle",
+    "package": "flowforge_jtbd_gaming",
+    "domain": "gaming",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD"]
+  },
+  "shared": {
+    "roles": ["trust_safety_agent", "senior_moderator", "tournament_admin", "billing_agent", "compliance_officer", "player", "community_manager"],
+    "permissions": ["player.read", "report.read", "transaction.read", "tournament.read"]
+  },
+  "jtbds": [
+    {
+      "id": "investigate_report",
+      "title": "Investigate a player abuse report",
+      "actor": {"role": "trust_safety_agent"},
+      "situation": "a player submits a report of harassment, hate speech, or abusive behaviour against another player",
+      "motivation": "determine whether a policy violation occurred and take proportionate action to maintain a safe environment",
+      "outcome": "report triaged, evidence reviewed, finding issued, action taken or dismissed, and reporter notified of outcome",
+      "success_criteria": [
+        "report triaged within 24 hours of submission",
+        "investigation completed within 5 business days for standard reports",
+        "action applied within 1 hour of finding",
+        "reporter notified of outcome (without disclosing action specifics)"
+      ],
+      "data_capture": [
+        {"id": "report_id",        "kind": "text",     "label": "Report ID",              "required": true,  "pii": false},
+        {"id": "reporter_id",      "kind": "text",     "label": "Reporter player ID",     "required": true,  "pii": true},
+        {"id": "reported_id",      "kind": "text",     "label": "Reported player ID",     "required": true,  "pii": true},
+        {"id": "category",         "kind": "enum",     "label": "Violation category",     "required": true,  "pii": false},
+        {"id": "description",      "kind": "textarea", "label": "Report description",     "required": true,  "pii": false},
+        {"id": "chat_logs",        "kind": "file",     "label": "Chat log excerpt",       "required": false, "pii": false},
+        {"id": "replay_id",        "kind": "text",     "label": "Match/replay ID",        "required": false, "pii": false},
+        {"id": "finding",          "kind": "enum",     "label": "Finding",                "required": false, "pii": false},
+        {"id": "action_taken",     "kind": "enum",     "label": "Action taken",           "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "minor_reporter",    "condition": "reporter account flagged as minor (<18)", "handle": "escalate"},
+        {"id": "legal_threat",      "condition": "report contains credible threat of violence or self-harm", "handle": "escalate"},
+        {"id": "repeat_offender",   "condition": "reported player has 3+ prior violations in 90 days", "handle": "branch", "branch_to": "senior_review"}
+      ],
+      "approvals": [
+        {"role": "senior_moderator", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "in_app", "audience": "trust_safety_agent"},
+        {"trigger": "approved",     "channel": "in_app", "audience": "reporter_id"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "senior_moderator"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "senior_moderator"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 432000},
+      "metrics": ["report_triage_time_hours", "investigation_cycle_time_days", "false_positive_rate", "action_appeal_rate"],
+      "compliance": ["DSA_Art_16", "COPPA_if_minor_involved", "platform_community_guidelines"],
+      "data_sensitivity": ["pii", "internal"]
+    },
+    {
+      "id": "process_ban_appeal",
+      "title": "Process a ban appeal",
+      "actor": {"role": "senior_moderator"},
+      "situation": "a banned or suspended player submits a formal appeal disputing the action taken against their account",
+      "motivation": "ensure enforcement decisions are defensible, review edge cases, and correct erroneous bans while maintaining policy integrity",
+      "outcome": "appeal reviewed, decision affirmed or reversed, account restored or ban maintained, and player notified with final reasoning",
+      "success_criteria": [
+        "appeal acknowledged within 48 hours",
+        "review completed within 10 business days",
+        "decision communicated with reasoning to player",
+        "account restored within 2 hours if appeal upheld"
+      ],
+      "data_capture": [
+        {"id": "player_id",        "kind": "text",     "label": "Player ID",              "required": true,  "pii": true},
+        {"id": "ban_reference",    "kind": "text",     "label": "Ban case reference",     "required": true,  "pii": false},
+        {"id": "appeal_statement", "kind": "textarea", "label": "Appeal statement",       "required": true,  "pii": false},
+        {"id": "appeal_evidence",  "kind": "file",     "label": "Supporting evidence",    "required": false, "pii": false},
+        {"id": "ban_type",         "kind": "enum",     "label": "Ban type",               "required": true,  "pii": false},
+        {"id": "ban_duration",     "kind": "text",     "label": "Original ban duration",  "required": true,  "pii": false},
+        {"id": "outcome",          "kind": "enum",     "label": "Appeal outcome",         "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "hardware_ban",      "condition": "original ban is a hardware/IP ban", "handle": "escalate"},
+        {"id": "fraud_linked",      "condition": "account linked to confirmed fraud case", "handle": "reject"},
+        {"id": "duplicate_appeal",  "condition": "player submitted appeal within 30 days of previous dismissed appeal", "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "senior_moderator", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "player"},
+        {"trigger": "approved",     "channel": "email",  "audience": "player"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "player"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "senior_moderator"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "senior_moderator"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 864000},
+      "metrics": ["appeal_overturn_rate", "appeal_cycle_time_days", "repeat_appeal_rate"],
+      "compliance": ["DSA_Art_17_redress", "consumer_protection_EU_2019_770"],
+      "data_sensitivity": ["pii", "internal"]
+    },
+    {
+      "id": "register_tournament",
+      "title": "Register and validate a tournament",
+      "actor": {"role": "tournament_admin"},
+      "situation": "a player or organisation submits a registration for a competitive tournament with prize money or ranking implications",
+      "motivation": "ensure all participants meet eligibility requirements, teams are correctly formed, and prize distribution rules are set before the event starts",
+      "outcome": "registration validated, entry fee collected, bracket seeded, participants confirmed, and event published",
+      "success_criteria": [
+        "eligibility checks completed for all registrants before bracket lock",
+        "entry fee collected or waived before bracket publication",
+        "bracket seeded and published at least 24 hours before start",
+        "prize pool terms accepted by all participants"
+      ],
+      "data_capture": [
+        {"id": "tournament_id",    "kind": "text",     "label": "Tournament ID",          "required": true,  "pii": false},
+        {"id": "player_id",        "kind": "text",     "label": "Player/team ID",         "required": true,  "pii": true},
+        {"id": "region",           "kind": "enum",     "label": "Region",                 "required": true,  "pii": false},
+        {"id": "rank_tier",        "kind": "enum",     "label": "Rank tier",              "required": true,  "pii": false},
+        {"id": "entry_fee",        "kind": "money",    "label": "Entry fee",              "required": false, "pii": false},
+        {"id": "age_confirmed",    "kind": "boolean",  "label": "Age eligibility confirmed","required": true, "pii": false},
+        {"id": "prize_consent",    "kind": "boolean",  "label": "Prize terms accepted",   "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "rank_ineligible",   "condition": "player rank is outside tournament tier range", "handle": "reject"},
+        {"id": "age_ineligible",    "condition": "age_confirmed = false and prize pool > 0", "handle": "reject"},
+        {"id": "ban_active",        "condition": "player has active competitive ban", "handle": "reject"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "player"},
+        {"trigger": "approved",     "channel": "email",  "audience": "player"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "player"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "tournament_admin"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 86400},
+      "metrics": ["registration_fill_rate", "eligibility_rejection_rate", "entry_fee_collection_rate"],
+      "compliance": ["gambling_regulations_if_prize_applicable", "COPPA_age_verification", "consumer_contest_laws"],
+      "data_sensitivity": ["pii"]
+    },
+    {
+      "id": "resolve_item_dispute",
+      "title": "Resolve a virtual item dispute",
+      "actor": {"role": "billing_agent"},
+      "situation": "a player reports a missing, incorrect, or corrupted virtual item from a purchase, reward, or trade",
+      "motivation": "restore player inventory to the correct state quickly to preserve trust in the economy and prevent chargeback escalations",
+      "outcome": "dispute investigated, item grant, correction, or denial issued, and player economy log updated",
+      "success_criteria": [
+        "dispute acknowledged within 24 hours",
+        "transaction log reviewed within 2 business days",
+        "item correction applied or denial communicated within 5 business days",
+        "grant logged to economy audit trail with reason code"
+      ],
+      "data_capture": [
+        {"id": "player_id",        "kind": "text",     "label": "Player ID",              "required": true,  "pii": true},
+        {"id": "item_id",          "kind": "text",     "label": "Item ID",                "required": true,  "pii": false},
+        {"id": "transaction_id",   "kind": "text",     "label": "Related transaction ID", "required": false, "pii": false},
+        {"id": "dispute_reason",   "kind": "enum",     "label": "Dispute reason",         "required": true,  "pii": false},
+        {"id": "item_value_usd",   "kind": "money",    "label": "Item USD value",         "required": true,  "pii": false},
+        {"id": "screenshot",       "kind": "file",     "label": "Screenshot evidence",    "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "high_value_item",   "condition": "item_value_usd > 100", "handle": "escalate"},
+        {"id": "chargeback_risk",   "condition": "player has pending payment chargeback", "handle": "branch", "branch_to": "chargeback_review"},
+        {"id": "duplicate_claim",   "condition": "same item dispute filed within 7 days", "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "senior_moderator", "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "in_app", "audience": "player"},
+        {"trigger": "approved",     "channel": "in_app", "audience": "player"},
+        {"trigger": "rejected",     "channel": "in_app", "audience": "player"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "billing_agent"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "senior_moderator"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 432000},
+      "metrics": ["dispute_resolution_time_days", "grant_rate", "chargeback_conversion_rate"],
+      "compliance": ["consumer_protection_directive", "virtual_currency_economy_audit"],
+      "data_sensitivity": ["pii", "financial"]
+    },
+    {
+      "id": "process_refund",
+      "title": "Process a payment refund",
+      "actor": {"role": "billing_agent"},
+      "situation": "a player requests a refund for a purchase of in-game currency, DLC, or subscription that falls within the refund policy window",
+      "motivation": "fulfil legal and policy obligations while preventing refund fraud and minimising chargebacks",
+      "outcome": "refund eligibility assessed, approved or denied, payment reversed to original method, and purchase revoked if applicable",
+      "success_criteria": [
+        "refund eligibility determined within 24 hours",
+        "approved refund processed to payment provider within 48 hours",
+        "virtual items purchased with refunded funds revoked before refund completes",
+        "decision communicated to player with policy reference"
+      ],
+      "data_capture": [
+        {"id": "player_id",        "kind": "text",     "label": "Player ID",              "required": true,  "pii": true},
+        {"id": "order_id",         "kind": "text",     "label": "Order ID",               "required": true,  "pii": false},
+        {"id": "purchase_date",    "kind": "date",     "label": "Purchase date",          "required": true,  "pii": false},
+        {"id": "refund_reason",    "kind": "enum",     "label": "Refund reason",          "required": true,  "pii": false},
+        {"id": "amount",           "kind": "money",    "label": "Refund amount",          "required": true,  "pii": false},
+        {"id": "payment_method",   "kind": "enum",     "label": "Original payment method","required": true,  "pii": false},
+        {"id": "items_consumed",   "kind": "boolean",  "label": "Items/content consumed", "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "outside_window",    "condition": "purchase_date outside refund policy window", "handle": "reject"},
+        {"id": "content_consumed",  "condition": "items_consumed = true and reason not defect", "handle": "reject"},
+        {"id": "fraud_indicator",   "condition": "player account flagged for refund abuse pattern", "handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "player"},
+        {"trigger": "approved",     "channel": "email",  "audience": "player"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "player"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "billing_agent"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "senior_moderator"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 172800},
+      "metrics": ["refund_approval_rate", "processing_time_hours", "chargeback_deflection_rate"],
+      "compliance": ["EU_consumer_rights_directive_14_day", "Apple_App_Store_refund_policy", "Google_Play_refund_policy"],
+      "data_sensitivity": ["pii", "financial"]
+    },
+    {
+      "id": "moderate_community",
+      "title": "Moderate community content",
+      "actor": {"role": "community_manager"},
+      "situation": "user-generated content (forum post, screenshot, video clip) is flagged by automated detection or community report for policy review",
+      "motivation": "remove harmful content promptly while preserving legitimate community expression and avoiding over-moderation",
+      "outcome": "content reviewed, action taken (approved / edited / removed / escalated), and poster notified per policy",
+      "success_criteria": [
+        "tier-1 flagged content reviewed within 4 hours",
+        "CSAM or credible threat content escalated to law enforcement within 1 hour",
+        "moderation decision logged with policy reference",
+        "poster appeal pathway communicated on any removal"
+      ],
+      "data_capture": [
+        {"id": "content_id",       "kind": "text",     "label": "Content ID",             "required": true,  "pii": false},
+        {"id": "poster_id",        "kind": "text",     "label": "Poster player ID",       "required": true,  "pii": true},
+        {"id": "content_type",     "kind": "enum",     "label": "Content type",           "required": true,  "pii": false},
+        {"id": "flag_source",      "kind": "enum",     "label": "Flag source",            "required": true,  "pii": false},
+        {"id": "policy_category",  "kind": "enum",     "label": "Policy category",        "required": true,  "pii": false},
+        {"id": "severity",         "kind": "enum",     "label": "Severity tier",          "required": true,  "pii": false},
+        {"id": "action",           "kind": "enum",     "label": "Moderation action",      "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "csam_detected",     "condition": "content matches CSAM hash", "handle": "escalate"},
+        {"id": "violence_threat",   "condition": "content contains credible offline threat", "handle": "escalate"},
+        {"id": "newscasting_fair_use","condition": "flagged content may be legitimate news or satire", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "senior_moderator", "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "approved",     "channel": "in_app", "audience": "poster_id"},
+        {"trigger": "rejected",     "channel": "in_app", "audience": "poster_id"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "community_manager"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "senior_moderator"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 14400},
+      "metrics": ["content_review_time_hours", "false_positive_rate", "appeals_per_removal"],
+      "compliance": ["DSA_Art_16_17", "NetzDG", "NCMEC_reporting"],
+      "data_sensitivity": ["pii", "sensitive"]
+    },
+    {
+      "id": "recover_account",
+      "title": "Recover a compromised player account",
+      "actor": {"role": "trust_safety_agent"},
+      "situation": "a player reports their account has been accessed without authorisation, often accompanied by virtual currency theft or social engineering",
+      "motivation": "restore the legitimate owner's access, reverse fraudulent transactions where possible, and secure the account against re-compromise",
+      "outcome": "account ownership verified, access restored, fraudulent activity reversed, and security hardening applied",
+      "success_criteria": [
+        "account access suspended pending verification within 1 hour of report",
+        "ownership verified within 2 business days",
+        "access restored within 4 hours of verification",
+        "fraudulent virtual currency transactions reviewed for reversal within 5 business days"
+      ],
+      "data_capture": [
+        {"id": "player_id",        "kind": "text",     "label": "Player ID",              "required": true,  "pii": true},
+        {"id": "email_on_file",    "kind": "email",    "label": "Email on account",       "required": true,  "pii": true},
+        {"id": "report_type",      "kind": "enum",     "label": "Report type",            "required": true,  "pii": false},
+        {"id": "last_access_ip",   "kind": "text",     "label": "Last known IP",          "required": false, "pii": true},
+        {"id": "identity_proof",   "kind": "file",     "label": "Identity document",      "required": false, "pii": true},
+        {"id": "fraud_transactions","kind": "textarea","label": "Suspected fraudulent transactions","required": false,"pii": false},
+        {"id": "new_email",        "kind": "email",    "label": "Recovery email",         "required": false, "pii": true}
+      ],
+      "edge_cases": [
+        {"id": "social_engineering_scam","condition": "account transfer appears to be voluntary social-engineering gift", "handle": "escalate"},
+        {"id": "payment_fraud",    "condition": "compromised account used for fraudulent purchases", "handle": "branch", "branch_to": "payment_fraud_review"},
+        {"id": "identity_unverifiable","condition": "player cannot provide any matching verification factor", "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "senior_moderator", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "player"},
+        {"trigger": "approved",     "channel": "email",  "audience": "player"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "player"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "trust_safety_agent"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "senior_moderator"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 172800},
+      "metrics": ["account_recovery_time_hours", "fraud_reversal_rate", "re_compromise_rate"],
+      "compliance": ["GDPR_Art_32_security", "CCPA_breach_notification"],
+      "data_sensitivity": ["pii", "confidential"]
+    },
+    {
+      "id": "audit_virtual_currency",
+      "title": "Audit virtual currency issuance",
+      "actor": {"role": "compliance_officer"},
+      "situation": "a scheduled or triggered compliance audit reviews virtual currency grants, purchases, and redemptions for anomalies or policy violations",
+      "motivation": "detect economy manipulation, duplication exploits, or money-laundering signals before they erode trust or attract regulatory action",
+      "outcome": "audit period reviewed, anomalies flagged, suspicious accounts escalated, and economy health report issued",
+      "success_criteria": [
+        "audit covers all currency events in the period without sampling bias",
+        "anomaly threshold breaches investigated within 5 business days",
+        "suspicious accounts suspended pending review within 24 hours",
+        "audit report delivered to compliance lead within 10 business days"
+      ],
+      "data_capture": [
+        {"id": "audit_period",     "kind": "text",     "label": "Audit period (ISO dates)","required": true,  "pii": false},
+        {"id": "currency_type",    "kind": "enum",     "label": "Currency type",           "required": true,  "pii": false},
+        {"id": "total_issued",     "kind": "number",   "label": "Total units issued",      "required": true,  "pii": false},
+        {"id": "total_spent",      "kind": "number",   "label": "Total units spent",       "required": true,  "pii": false},
+        {"id": "anomaly_count",    "kind": "number",   "label": "Anomalies detected",      "required": false, "pii": false},
+        {"id": "audit_report",     "kind": "file",     "label": "Audit report",            "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "duplication_exploit","condition": "currency supply increased anomalously due to server exploit", "handle": "escalate"},
+        {"id": "aml_signal",        "condition": "accounts converting virtual currency to real money at suspicious velocity", "handle": "escalate"},
+        {"id": "audit_system_error","condition": "economy ledger gaps detected during audit period", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "compliance_officer", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "compliance_officer"},
+        {"trigger": "approved",     "channel": "email",  "audience": "compliance_officer"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "compliance_officer"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "compliance_officer"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 864000},
+      "metrics": ["audit_coverage_pct", "anomaly_false_positive_rate", "exploit_detection_latency_hours"],
+      "compliance": ["FATF_virtual_asset_guidance", "EU_AMLD5", "MAS_PS_Act"],
+      "data_sensitivity": ["financial", "confidential", "regulated"]
+    },
+    {
+      "id": "comply_loot_box_regulation",
+      "title": "Comply with loot box regulation",
+      "actor": {"role": "compliance_officer"},
+      "situation": "a jurisdiction enacts or updates loot box / randomised reward legislation requiring disclosure, odds publication, or feature modification",
+      "motivation": "achieve compliance before regulatory deadline to avoid fines, platform removal, or market exclusion",
+      "outcome": "regulation analysed, product changes scoped, odds disclosed, age gates implemented, and compliance attestation filed",
+      "success_criteria": [
+        "regulation impact assessment completed within 10 business days of enactment",
+        "odds disclosure published in-game at least 30 days before deadline",
+        "age verification gate deployed before deadline",
+        "compliance attestation submitted to regulatory body on time"
+      ],
+      "data_capture": [
+        {"id": "jurisdiction",     "kind": "text",     "label": "Jurisdiction",           "required": true,  "pii": false},
+        {"id": "regulation_ref",   "kind": "text",     "label": "Regulation reference",   "required": true,  "pii": false},
+        {"id": "effective_date",   "kind": "date",     "label": "Effective date",         "required": true,  "pii": false},
+        {"id": "affected_features","kind": "textarea", "label": "Affected game features", "required": true,  "pii": false},
+        {"id": "odds_document",    "kind": "file",     "label": "Published odds document","required": false, "pii": false},
+        {"id": "age_gate_spec",    "kind": "file",     "label": "Age gate implementation spec","required": false,"pii": false},
+        {"id": "attestation",      "kind": "file",     "label": "Compliance attestation", "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "market_withdrawal", "condition": "compliance cost exceeds market revenue", "handle": "escalate"},
+        {"id": "retroactive_rule",  "condition": "regulation applies to existing purchased items", "handle": "escalate"},
+        {"id": "conflicting_rules", "condition": "two jurisdictions impose mutually exclusive requirements", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "compliance_officer", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "compliance_officer"},
+        {"trigger": "approved",     "channel": "email",  "audience": "compliance_officer"},
+        {"trigger": "sla_warn",     "channel": "slack",  "audience": "compliance_officer"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "compliance_officer"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 2592000},
+      "metrics": ["deadline_compliance_rate", "jurisdictions_covered", "odds_disclosure_accuracy"],
+      "compliance": ["Belgium_Gaming_Act", "Netherlands_KSA_loot_box", "UK_GC_technical_standards", "Belgian_GC"],
+      "data_sensitivity": ["regulated", "confidential"]
+    },
+    {
+      "id": "investigate_cheating",
+      "title": "Investigate cheating / hacking",
+      "actor": {"role": "trust_safety_agent"},
+      "situation": "anti-cheat telemetry or player reports indicate a player may be using unauthorised software, exploiting game mechanics, or manipulating competitive outcomes",
+      "motivation": "confirm the violation with sufficient evidence to withstand appeal, apply a proportionate sanction, and preserve ranked integrity",
+      "outcome": "evidence reviewed, cheating confirmed or dismissed, account actioned (ban / stat reset / competitive ban), and detection signal fed back to anti-cheat team",
+      "success_criteria": [
+        "automated anti-cheat flags reviewed within 48 hours",
+        "manual evidence review completed within 5 business days",
+        "sanction applied within 1 hour of confirmed finding",
+        "false positive rate tracked and kept below 0.5%"
+      ],
+      "data_capture": [
+        {"id": "player_id",        "kind": "text",     "label": "Player ID",              "required": true,  "pii": true},
+        {"id": "detection_source", "kind": "enum",     "label": "Detection source",       "required": true,  "pii": false},
+        {"id": "match_ids",        "kind": "textarea", "label": "Flagged match IDs",      "required": true,  "pii": false},
+        {"id": "telemetry_report", "kind": "file",     "label": "Anti-cheat telemetry",   "required": false, "pii": false},
+        {"id": "replay_analysis",  "kind": "file",     "label": "Replay analysis",        "required": false, "pii": false},
+        {"id": "cheat_type",       "kind": "enum",     "label": "Suspected cheat type",   "required": true,  "pii": false},
+        {"id": "confidence",       "kind": "enum",     "label": "Detection confidence",   "required": true,  "pii": false},
+        {"id": "sanction",         "kind": "enum",     "label": "Sanction applied",       "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "pro_player",        "condition": "player is professional or content partner with commercial contract", "handle": "escalate"},
+        {"id": "shared_device",     "condition": "cheat evidence on shared/family device", "handle": "escalate"},
+        {"id": "false_positive_risk","condition": "confidence = low and no corroborating evidence", "handle": "branch", "branch_to": "extended_monitoring"}
+      ],
+      "approvals": [
+        {"role": "senior_moderator", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "approved",     "channel": "in_app", "audience": "player"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "trust_safety_agent"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "senior_moderator"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 432000},
+      "metrics": ["false_positive_rate_pct", "detection_to_ban_hours", "appeal_overturn_rate"],
+      "compliance": ["platform_competitive_integrity_policy", "ESIC_anti_cheat_standards"],
+      "data_sensitivity": ["pii", "internal"]
+    }
+  ]
+}

@@ -1,0 +1,413 @@
+{
+  "project": {
+    "name": "travel-bundle",
+    "package": "flowforge_jtbd_travel",
+    "domain": "travel",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD", "EUR", "GBP"]
+  },
+  "shared": {
+    "roles": ["reservations_agent", "customer_service_agent", "revenue_manager", "loyalty_agent", "special_services_agent", "compliance_officer", "traveller"],
+    "permissions": ["booking.read", "loyalty.read", "itinerary.read", "payment.read"]
+  },
+  "jtbds": [
+    {
+      "id": "process_booking",
+      "title": "Process a travel booking",
+      "actor": {"role": "reservations_agent"},
+      "situation": "a traveller or travel agent initiates a booking for air, hotel, car, or multi-segment itinerary requiring availability confirmation and payment collection",
+      "motivation": "confirm availability, price the itinerary accurately, collect payment, and deliver a confirmed booking record within a competitive response window",
+      "outcome": "booking confirmed, PNR or reservation number issued, payment captured, and confirmation sent to traveller",
+      "success_criteria": [
+        "availability confirmed in real time from inventory system",
+        "total price including taxes and fees shown before payment",
+        "booking confirmed and confirmation email sent within 5 minutes of payment",
+        "PNR or reservation number unique and auditable"
+      ],
+      "data_capture": [
+        {"id": "traveller_name",   "kind": "text",     "label": "Full name (as on ID)",   "required": true,  "pii": true},
+        {"id": "traveller_email",  "kind": "email",    "label": "Email",                  "required": true,  "pii": true},
+        {"id": "traveller_phone",  "kind": "phone",    "label": "Mobile phone",           "required": false, "pii": true},
+        {"id": "origin",           "kind": "text",     "label": "Origin",                 "required": true,  "pii": false},
+        {"id": "destination",      "kind": "text",     "label": "Destination",            "required": true,  "pii": false},
+        {"id": "travel_dates",     "kind": "text",     "label": "Travel dates",           "required": true,  "pii": false},
+        {"id": "product_type",     "kind": "enum",     "label": "Product type",           "required": true,  "pii": false},
+        {"id": "cabin_class",      "kind": "enum",     "label": "Cabin/room class",       "required": false, "pii": false},
+        {"id": "loyalty_number",   "kind": "text",     "label": "Loyalty number",         "required": false, "pii": false},
+        {"id": "payment_ref",      "kind": "text",     "label": "Payment reference",      "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "inventory_sold_out", "condition": "preferred inventory sold out before payment completion", "handle": "branch", "branch_to": "alternative_offer"},
+        {"id": "price_change",       "condition": "price changed between quote and payment", "handle": "branch", "branch_to": "price_reconfirmation"},
+        {"id": "sanctions_hit",      "condition": "traveller name matches sanctions screening list", "handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "approved",     "channel": "email",  "audience": "traveller"},
+        {"trigger": "approved",     "channel": "sms",    "audience": "traveller"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "traveller"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "reservations_agent"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 300},
+      "metrics": ["booking_confirmation_time_seconds", "abandonment_rate", "payment_success_rate"],
+      "compliance": ["PSD2_SCA", "GDPR_Art_6", "IATA_resolution_890"],
+      "data_sensitivity": ["pii", "financial"]
+    },
+    {
+      "id": "handle_cancellation",
+      "title": "Handle a booking cancellation",
+      "actor": {"role": "customer_service_agent"},
+      "situation": "a traveller requests cancellation of a confirmed booking before departure, with refund eligibility depending on fare rules or policy",
+      "motivation": "process the cancellation correctly per fare conditions, calculate and issue any applicable refund, and release inventory for resale",
+      "outcome": "booking cancelled, cancellation penalty assessed, refund calculated and initiated, and traveller notified with timeline",
+      "success_criteria": [
+        "fare rules applied accurately before cancellation confirmation",
+        "refund amount communicated before finalising cancellation",
+        "refund initiated to original payment method within 7 business days",
+        "inventory released back to sellable pool within 15 minutes"
+      ],
+      "data_capture": [
+        {"id": "booking_ref",      "kind": "text",     "label": "Booking reference",      "required": true,  "pii": false},
+        {"id": "traveller_email",  "kind": "email",    "label": "Email",                  "required": true,  "pii": true},
+        {"id": "cancel_reason",    "kind": "enum",     "label": "Cancellation reason",    "required": true,  "pii": false},
+        {"id": "fare_rule",        "kind": "text",     "label": "Applicable fare rule",   "required": true,  "pii": false},
+        {"id": "penalty_amount",   "kind": "money",    "label": "Cancellation penalty",   "required": false, "pii": false},
+        {"id": "refund_amount",    "kind": "money",    "label": "Refund amount",          "required": false, "pii": false},
+        {"id": "refund_method",    "kind": "enum",     "label": "Refund method",          "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "force_majeure",     "condition": "cancel_reason = death / serious illness / government restriction", "handle": "branch", "branch_to": "goodwill_waiver"},
+        {"id": "non_refundable",    "condition": "fare is non-refundable and no waiver applies", "handle": "branch", "branch_to": "credit_note_offer"},
+        {"id": "airline_initiated", "condition": "cancellation caused by carrier schedule change", "handle": "branch", "branch_to": "full_refund"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "traveller"},
+        {"trigger": "approved",     "channel": "email",  "audience": "traveller"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "customer_service_agent"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "customer_service_agent"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 604800},
+      "metrics": ["cancellation_processing_time_hours", "refund_on_time_rate", "credit_note_uptake_rate"],
+      "compliance": ["EU_261_2004", "DOT_refund_rules_US", "GDPR_data_handling"],
+      "data_sensitivity": ["pii", "financial"]
+    },
+    {
+      "id": "manage_itinerary_change",
+      "title": "Manage an itinerary change",
+      "actor": {"role": "customer_service_agent"},
+      "situation": "a traveller needs to change flight times, hotel dates, or connecting segments on an existing confirmed booking",
+      "motivation": "rebook the traveller in the most cost-effective available alternative while respecting fare change rules and minimising disruption",
+      "outcome": "change applied, any fare difference or fee collected, updated itinerary issued, and downstream segments revalidated",
+      "success_criteria": [
+        "availability confirmed on new segments before committing change",
+        "fare difference calculated and presented to traveller before collection",
+        "new itinerary document issued within 15 minutes of change confirmation",
+        "downstream loyalty accruals recalculated"
+      ],
+      "data_capture": [
+        {"id": "booking_ref",      "kind": "text",     "label": "Booking reference",      "required": true,  "pii": false},
+        {"id": "traveller_email",  "kind": "email",    "label": "Email",                  "required": true,  "pii": true},
+        {"id": "change_type",      "kind": "enum",     "label": "Change type",            "required": true,  "pii": false},
+        {"id": "new_dates",        "kind": "text",     "label": "New travel dates",       "required": false, "pii": false},
+        {"id": "new_routing",      "kind": "text",     "label": "New routing",            "required": false, "pii": false},
+        {"id": "change_fee",       "kind": "money",    "label": "Change fee",             "required": false, "pii": false},
+        {"id": "fare_difference",  "kind": "money",    "label": "Fare difference",        "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "misconnect_risk",   "condition": "revised connection time below minimum connection time", "handle": "reject"},
+        {"id": "fare_expired",      "condition": "new date outside original fare validity", "handle": "branch", "branch_to": "full_reprice"},
+        {"id": "sold_out_alt",      "condition": "preferred alternative unavailable", "handle": "branch", "branch_to": "waitlist_or_alternatives"}
+      ],
+      "notifications": [
+        {"trigger": "approved",     "channel": "email",  "audience": "traveller"},
+        {"trigger": "approved",     "channel": "sms",    "audience": "traveller"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "traveller"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "customer_service_agent"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 3600},
+      "metrics": ["change_processing_time_minutes", "same_day_change_success_rate", "fee_waiver_rate"],
+      "compliance": ["EU_261_2004_rerouting", "IATA_ticketing_rules"],
+      "data_sensitivity": ["pii", "financial"]
+    },
+    {
+      "id": "redeem_loyalty",
+      "title": "Redeem loyalty points",
+      "actor": {"role": "loyalty_agent"},
+      "situation": "a loyalty programme member requests a points or miles redemption for a flight award, hotel stay, upgrade, or partner reward",
+      "motivation": "fulfil the redemption accurately, deduct correct points, and book the reward inventory without exposing the programme to fraud",
+      "outcome": "redemption validated, award booked, points deducted, confirmation issued, and redemption recorded in loyalty ledger",
+      "success_criteria": [
+        "points balance verified before award booking",
+        "award inventory confirmed at quoted points cost",
+        "confirmation sent within 5 minutes of redemption",
+        "points deducted from ledger atomically with booking confirmation"
+      ],
+      "data_capture": [
+        {"id": "member_id",        "kind": "text",     "label": "Loyalty member ID",      "required": true,  "pii": true},
+        {"id": "redemption_type",  "kind": "enum",     "label": "Redemption type",        "required": true,  "pii": false},
+        {"id": "award_product",    "kind": "text",     "label": "Award product",          "required": true,  "pii": false},
+        {"id": "points_required",  "kind": "number",   "label": "Points required",        "required": true,  "pii": false},
+        {"id": "points_balance",   "kind": "number",   "label": "Current points balance", "required": true,  "pii": false},
+        {"id": "travel_dates",     "kind": "text",     "label": "Travel dates",           "required": false, "pii": false},
+        {"id": "co_payment",       "kind": "money",    "label": "Cash co-payment",        "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "insufficient_points","condition": "points_balance < points_required", "handle": "reject"},
+        {"id": "points_expiring",   "condition": "points expire within 30 days", "handle": "branch", "branch_to": "expiry_extension_offer"},
+        {"id": "fraud_velocity",    "condition": "multiple redemption attempts in < 1 hour", "handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "approved",     "channel": "email",  "audience": "traveller"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "traveller"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "loyalty_agent"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 300},
+      "metrics": ["redemption_success_rate", "average_points_per_redemption", "fraud_block_rate"],
+      "compliance": ["consumer_protection_loyalty_terms", "GDPR_Art_6"],
+      "data_sensitivity": ["pii", "financial"]
+    },
+    {
+      "id": "manage_overbooking",
+      "title": "Manage an overbooking situation",
+      "actor": {"role": "revenue_manager"},
+      "situation": "a flight or hotel reaches a confirmed overbooked state at or near departure/check-in and involuntary or voluntary denied boarding must be managed",
+      "motivation": "minimise regulatory liability, fairly select affected travellers, and rebook them with minimum disruption while optimising compensation costs",
+      "outcome": "volunteers solicited, compensation offered, affected travellers rebooked, and EU/DOT denied boarding compensation issued where required",
+      "success_criteria": [
+        "voluntary denied boarding solicited before involuntary selection",
+        "all rebooked travellers confirmed on alternative within 4 hours",
+        "EU 261 / DOT compensation calculated and offered at gate",
+        "incident fully logged for regulatory reporting"
+      ],
+      "data_capture": [
+        {"id": "flight_or_property_id","kind": "text",  "label": "Flight/property ID",    "required": true,  "pii": false},
+        {"id": "departure_date",    "kind": "datetime","label": "Departure/check-in",     "required": true,  "pii": false},
+        {"id": "oversold_count",    "kind": "number",  "label": "Oversold seats/rooms",   "required": true,  "pii": false},
+        {"id": "volunteer_offers",  "kind": "number",  "label": "Volunteer offers accepted","required": false,"pii": false},
+        {"id": "compensation_type", "kind": "enum",    "label": "Compensation type",      "required": true,  "pii": false},
+        {"id": "compensation_amount","kind": "money",  "label": "Compensation amount",    "required": false, "pii": false},
+        {"id": "reaccommodation_ref","kind": "text",   "label": "Reaccommodation booking","required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "no_volunteers",     "condition": "zero voluntary denied boarding offers accepted before departure", "handle": "escalate"},
+        {"id": "unaccompanied_minor","condition": "affected passenger is unaccompanied minor", "handle": "escalate"},
+        {"id": "medical_passenger", "condition": "affected passenger has medical assistance request on booking", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "revenue_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "sms",    "audience": "traveller"},
+        {"trigger": "approved",     "channel": "email",  "audience": "traveller"},
+        {"trigger": "sla_warn",     "channel": "slack",  "audience": "revenue_manager"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "revenue_manager"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 14400},
+      "metrics": ["involuntary_denied_boarding_rate", "avg_compensation_usd", "reaccommodation_same_day_rate"],
+      "compliance": ["EU_261_2004_Art_7", "DOT_14_CFR_250", "IATA_overbooking_guidelines"],
+      "data_sensitivity": ["pii", "financial"]
+    },
+    {
+      "id": "process_refund_claim",
+      "title": "Process a refund claim",
+      "actor": {"role": "customer_service_agent"},
+      "situation": "a traveller submits a claim for a refund due to an airline/hotel failure, significant delay, or denied service entitling them to compensation under contract or regulation",
+      "motivation": "assess the claim accurately against entitlements, pay the correct amount promptly, and close the claim within regulatory timelines",
+      "outcome": "claim assessed, entitlement calculated, payment issued, and claim closed with reference number",
+      "success_criteria": [
+        "claim acknowledged within 48 hours",
+        "entitlement assessed within 10 business days",
+        "payment issued within 7 business days of approval",
+        "all supporting evidence verified before payment"
+      ],
+      "data_capture": [
+        {"id": "booking_ref",      "kind": "text",     "label": "Booking reference",      "required": true,  "pii": false},
+        {"id": "traveller_name",   "kind": "text",     "label": "Traveller name",         "required": true,  "pii": true},
+        {"id": "traveller_email",  "kind": "email",    "label": "Email",                  "required": true,  "pii": true},
+        {"id": "claim_type",       "kind": "enum",     "label": "Claim type",             "required": true,  "pii": false},
+        {"id": "incident_date",    "kind": "date",     "label": "Incident date",          "required": true,  "pii": false},
+        {"id": "claimed_amount",   "kind": "money",    "label": "Amount claimed",         "required": true,  "pii": false},
+        {"id": "receipts",         "kind": "file",     "label": "Receipts / evidence",    "required": false, "pii": false},
+        {"id": "approved_amount",  "kind": "money",    "label": "Approved amount",        "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "duplicate_claim",   "condition": "same booking_ref has existing open claim", "handle": "reject"},
+        {"id": "statute_of_limitations","condition": "incident_date > 2 years ago (EU) or 1 year (domestic)", "handle": "reject"},
+        {"id": "insurance_covered", "condition": "traveller has travel insurance that covers claim", "handle": "branch", "branch_to": "insurance_referral"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "traveller"},
+        {"trigger": "approved",     "channel": "email",  "audience": "traveller"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "traveller"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "customer_service_agent"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "customer_service_agent"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 864000},
+      "metrics": ["claim_cycle_time_days", "payment_on_time_rate", "denial_appeal_rate"],
+      "compliance": ["EU_261_2004", "Montreal_Convention_Art_19", "DOT_consumer_protection"],
+      "data_sensitivity": ["pii", "financial"]
+    },
+    {
+      "id": "create_group_booking",
+      "title": "Create a group booking",
+      "actor": {"role": "reservations_agent"},
+      "situation": "a corporate client or travel organiser needs to book 10 or more travellers on the same itinerary with group contract pricing and name-list flexibility",
+      "motivation": "secure blocked inventory at group rates, allow name changes until departure, and manage deposit and final payment schedules",
+      "outcome": "group contract confirmed, seats/rooms blocked, deposit collected, name-list deadline set, and group PNR created",
+      "success_criteria": [
+        "group block confirmed within 2 business days of request",
+        "contract with terms sent to organiser within 24 hours of block confirmation",
+        "name-list deadline at least 14 days before departure",
+        "final payment collected before name-list deadline"
+      ],
+      "data_capture": [
+        {"id": "organiser_name",   "kind": "text",     "label": "Group organiser",        "required": true,  "pii": true},
+        {"id": "organiser_email",  "kind": "email",    "label": "Organiser email",        "required": true,  "pii": true},
+        {"id": "group_size",       "kind": "number",   "label": "Group size",             "required": true,  "pii": false},
+        {"id": "itinerary",        "kind": "textarea", "label": "Itinerary details",      "required": true,  "pii": false},
+        {"id": "travel_dates",     "kind": "text",     "label": "Travel dates",           "required": true,  "pii": false},
+        {"id": "cabin_class",      "kind": "enum",     "label": "Cabin/room class",       "required": true,  "pii": false},
+        {"id": "group_rate",       "kind": "money",    "label": "Negotiated group rate",  "required": false, "pii": false},
+        {"id": "deposit_amount",   "kind": "money",    "label": "Deposit amount",         "required": true,  "pii": false},
+        {"id": "name_list_deadline","kind": "date",    "label": "Name list deadline",     "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "insufficient_availability","condition": "block request exceeds available group inventory", "handle": "branch", "branch_to": "waitlist_or_split_routing"},
+        {"id": "deposit_not_received",    "condition": "deposit not received within 48h of contract", "handle": "branch", "branch_to": "block_release"},
+        {"id": "size_increase",           "condition": "organiser requests > 10% more seats after block confirmation", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "revenue_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "organiser_name"},
+        {"trigger": "approved",     "channel": "email",  "audience": "organiser_name"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "reservations_agent"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "revenue_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 172800},
+      "metrics": ["group_block_confirmation_time_hours", "name_list_on_time_rate", "group_no_show_rate"],
+      "compliance": ["IATA_group_ticketing", "GDPR_passenger_name_records"],
+      "data_sensitivity": ["pii", "financial", "confidential"]
+    },
+    {
+      "id": "arrange_special_assistance",
+      "title": "Arrange special assistance for a traveller",
+      "actor": {"role": "special_services_agent"},
+      "situation": "a traveller with a disability, medical condition, or special need requests assistance (wheelchair, oxygen, MAAS escort, nut-free meal) that must be pre-arranged with the carrier or property",
+      "motivation": "ensure the traveller receives required assistance at every touch point without gaps, in compliance with accessibility regulations",
+      "outcome": "assistance requirements confirmed, services booked across all segments, supplier confirmations received, and traveller briefed on what to expect",
+      "success_criteria": [
+        "assistance request recorded on all PNR segments within 24 hours",
+        "supplier confirmation received for each segment at least 48 hours before departure",
+        "traveller briefed on arrival and check-in procedure",
+        "service gap follow-up completed post-journey"
+      ],
+      "data_capture": [
+        {"id": "booking_ref",      "kind": "text",     "label": "Booking reference",      "required": true,  "pii": false},
+        {"id": "traveller_name",   "kind": "text",     "label": "Traveller name",         "required": true,  "pii": true},
+        {"id": "assistance_type",  "kind": "enum",     "label": "Assistance type (SSR code)","required": true,"pii": false},
+        {"id": "medical_clearance","kind": "file",     "label": "Medical clearance form", "required": false, "pii": true},
+        {"id": "equipment",        "kind": "textarea", "label": "Equipment details (e.g. wheelchair specs)","required": false,"pii": false},
+        {"id": "supplier_conf",    "kind": "textarea", "label": "Supplier confirmations", "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "oxygen_required",   "condition": "assistance_type = MEDA with in-flight oxygen", "handle": "escalate"},
+        {"id": "stretcher_needed",  "condition": "assistance_type = STCR (stretcher)", "handle": "escalate"},
+        {"id": "supplier_no_service","condition": "one segment supplier cannot accommodate request", "handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "traveller"},
+        {"trigger": "approved",     "channel": "email",  "audience": "traveller"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "special_services_agent"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "special_services_agent"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 172800},
+      "metrics": ["assistance_confirmation_rate", "service_gap_incidents", "supplier_response_time_hours"],
+      "compliance": ["EC_1107_2006_disabled_air_passengers", "ADA_air_carrier_access_act", "IATA_SSR_standards"],
+      "data_sensitivity": ["pii", "health"]
+    },
+    {
+      "id": "collect_visa_docs",
+      "title": "Collect visa and travel document requirements",
+      "actor": {"role": "customer_service_agent"},
+      "situation": "a traveller needs to determine and provide documentation for a visa or entry requirement for their destination country",
+      "motivation": "ensure the traveller is fully documented before departure to avoid denied boarding or entry refusal",
+      "outcome": "entry requirements confirmed, documentation checklist issued, documents verified, and travel clearance confirmed",
+      "success_criteria": [
+        "entry requirements checked for all nationalities on the booking",
+        "document checklist issued to traveller at least 10 days before departure",
+        "passport validity confirmed as meeting destination requirements",
+        "visa or ETA confirmation attached to booking record"
+      ],
+      "data_capture": [
+        {"id": "booking_ref",      "kind": "text",     "label": "Booking reference",      "required": true,  "pii": false},
+        {"id": "nationality",      "kind": "text",     "label": "Traveller nationality",  "required": true,  "pii": true},
+        {"id": "destination",      "kind": "text",     "label": "Destination country",    "required": true,  "pii": false},
+        {"id": "passport_expiry",  "kind": "date",     "label": "Passport expiry",        "required": true,  "pii": true},
+        {"id": "passport_copy",    "kind": "file",     "label": "Passport scan",          "required": false, "pii": true},
+        {"id": "visa_type",        "kind": "enum",     "label": "Visa type required",     "required": false, "pii": false},
+        {"id": "visa_confirmation","kind": "file",     "label": "Visa / ETA confirmation","required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "passport_expired",  "condition": "passport_expiry < departure_date + 6 months", "handle": "reject"},
+        {"id": "visa_refused",      "condition": "traveller's previous visa refused for destination", "handle": "escalate"},
+        {"id": "sanctioned_country","condition": "traveller passport from country with travel restriction", "handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "traveller"},
+        {"trigger": "approved",     "channel": "email",  "audience": "traveller"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "traveller"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "customer_service_agent"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 864000},
+      "metrics": ["doc_collection_cycle_time_days", "denied_boarding_rate", "visa_refusal_advance_rate"],
+      "compliance": ["GDPR_passport_data", "ICAO_Doc_9303", "IATA_TIMATIC"],
+      "data_sensitivity": ["pii", "confidential"]
+    },
+    {
+      "id": "process_insurance_claim",
+      "title": "Process a travel insurance claim",
+      "actor": {"role": "customer_service_agent"},
+      "situation": "a traveller submits a claim under a travel insurance policy for trip cancellation, medical expense, lost baggage, or travel delay",
+      "motivation": "validate coverage, verify the claim against policy terms, and pay or decline with clear reasoning within regulatory timelines",
+      "outcome": "claim received, coverage confirmed, supporting documents verified, payment issued or claim declined with appeal pathway",
+      "success_criteria": [
+        "claim acknowledgement within 48 hours",
+        "coverage determination within 10 business days",
+        "approved payment issued within 15 business days",
+        "declined claims include written reason and appeal process"
+      ],
+      "data_capture": [
+        {"id": "policy_number",    "kind": "text",     "label": "Policy number",          "required": true,  "pii": false},
+        {"id": "claimant_name",    "kind": "text",     "label": "Claimant name",          "required": true,  "pii": true},
+        {"id": "claimant_email",   "kind": "email",    "label": "Email",                  "required": true,  "pii": true},
+        {"id": "claim_type",       "kind": "enum",     "label": "Claim type",             "required": true,  "pii": false},
+        {"id": "incident_date",    "kind": "date",     "label": "Incident date",          "required": true,  "pii": false},
+        {"id": "claimed_amount",   "kind": "money",    "label": "Amount claimed",         "required": true,  "pii": false},
+        {"id": "supporting_docs",  "kind": "file",     "label": "Supporting documents",   "required": true,  "pii": false},
+        {"id": "medical_report",   "kind": "file",     "label": "Medical report",         "required": false, "pii": true},
+        {"id": "approved_amount",  "kind": "money",    "label": "Approved amount",        "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "pre_existing_condition","condition": "medical claim relates to pre-existing condition excluded by policy", "handle": "reject"},
+        {"id": "documentation_incomplete","condition": "required evidence not provided within 30 days", "handle": "reject"},
+        {"id": "large_claim",       "condition": "claimed_amount > policy single-event limit", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "compliance_officer", "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "traveller"},
+        {"trigger": "approved",     "channel": "email",  "audience": "traveller"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "traveller"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "customer_service_agent"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "compliance_officer"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 1296000},
+      "metrics": ["claim_cycle_time_days", "approval_rate", "dispute_rate"],
+      "compliance": ["EU_insurance_distribution_directive", "FCA_ICOBS", "GDPR_health_data"],
+      "data_sensitivity": ["pii", "health", "financial", "confidential"]
+    }
+  ]
+}

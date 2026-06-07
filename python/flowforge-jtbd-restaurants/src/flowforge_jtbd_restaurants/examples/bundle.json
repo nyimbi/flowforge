@@ -1,0 +1,422 @@
+{
+  "project": {
+    "name": "restaurants-bundle",
+    "package": "flowforge_jtbd_restaurants",
+    "domain": "restaurants",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD"]
+  },
+  "shared": {
+    "roles": ["operations_manager", "head_chef", "food_safety_officer", "general_manager", "staff_scheduler", "franchise_auditor", "procurement_officer"],
+    "permissions": ["order.read", "supplier.read", "staff.read", "menu.read", "incident.read"]
+  },
+  "jtbds": [
+    {
+      "id": "order_from_supplier",
+      "title": "Order from a food supplier",
+      "actor": {"role": "procurement_officer"},
+      "situation": "daily or weekly par-level review identifies items below reorder point requiring a purchase order to an approved supplier",
+      "motivation": "maintain continuous product availability while controlling food cost and minimising over-ordering waste",
+      "outcome": "purchase order created, sent to supplier, delivery date confirmed, and GRN matched on receipt",
+      "success_criteria": [
+        "order placed with minimum 48-hour lead time for standard items",
+        "order quantity within approved par-level tolerance",
+        "delivery confirmation received within 4 hours of order",
+        "received goods match order within 2% weight/count variance"
+      ],
+      "data_capture": [
+        {"id": "supplier_id",      "kind": "text",     "label": "Supplier ID",            "required": true,  "pii": false},
+        {"id": "po_number",        "kind": "text",     "label": "PO number",              "required": true,  "pii": false},
+        {"id": "items",            "kind": "textarea", "label": "Item list and quantities","required": true,  "pii": false},
+        {"id": "delivery_date",    "kind": "date",     "label": "Required delivery date", "required": true,  "pii": false},
+        {"id": "total_cost",       "kind": "money",    "label": "Estimated total cost",   "required": true,  "pii": false},
+        {"id": "received_qty",     "kind": "textarea", "label": "Received quantities",    "required": false, "pii": false},
+        {"id": "temperature_log",  "kind": "file",     "label": "Delivery temp log",      "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "temp_out_of_range", "condition": "delivery temperature log shows cold chain breach", "handle": "reject"},
+        {"id": "substitute_item",   "condition": "supplier sends substitution not on approved list", "handle": "escalate"},
+        {"id": "invoice_mismatch",  "condition": "invoice total differs from PO by > 5%", "handle": "branch", "branch_to": "accounts_payable_dispute"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "procurement_officer"},
+        {"trigger": "approved",     "channel": "email",  "audience": "procurement_officer"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "operations_manager"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "operations_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 172800},
+      "metrics": ["order_fill_rate", "delivery_on_time_rate", "food_cost_variance_pct"],
+      "compliance": ["FDA_Food_Safety_Modernization_Act", "HACCP_supplier_approval"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "manage_food_safety_incident",
+      "title": "Manage a food safety incident",
+      "actor": {"role": "food_safety_officer"},
+      "situation": "a potential foodborne illness complaint, contamination discovery, or temperature violation requires immediate escalation and containment",
+      "motivation": "protect guests and staff, meet regulatory reporting obligations, prevent further harm, and preserve brand integrity",
+      "outcome": "incident contained, implicated product quarantined, regulatory authority notified if required, root cause identified, and corrective action implemented",
+      "success_criteria": [
+        "implicated product quarantined within 1 hour of incident identification",
+        "health authority notified within statutory deadline if illness cluster confirmed",
+        "root cause investigation completed within 5 business days",
+        "corrective actions implemented and verified within 10 business days"
+      ],
+      "data_capture": [
+        {"id": "incident_id",      "kind": "text",     "label": "Incident ID",            "required": true,  "pii": false},
+        {"id": "incident_type",    "kind": "enum",     "label": "Incident type",          "required": true,  "pii": false},
+        {"id": "description",      "kind": "textarea", "label": "Incident description",   "required": true,  "pii": false},
+        {"id": "products_affected","kind": "textarea", "label": "Affected products/lots", "required": true,  "pii": false},
+        {"id": "complainants",     "kind": "number",   "label": "Number of complainants", "required": false, "pii": false},
+        {"id": "illness_symptoms", "kind": "textarea", "label": "Reported symptoms",      "required": false, "pii": false},
+        {"id": "authority_ref",    "kind": "text",     "label": "Health authority reference","required": false,"pii": false},
+        {"id": "photos",           "kind": "file",     "label": "Evidence photos",        "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "hospitalisation",   "condition": "one or more guests hospitalised", "handle": "escalate"},
+        {"id": "multi_location",    "condition": "complaints span multiple restaurant locations", "handle": "escalate"},
+        {"id": "media_inquiry",     "condition": "media outlet has contacted restaurant about incident", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "food_safety_officer", "policy": "1_of_1"},
+        {"role": "general_manager",     "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "slack",  "audience": "general_manager"},
+        {"trigger": "state_enter",  "channel": "email",  "audience": "food_safety_officer"},
+        {"trigger": "sla_warn",     "channel": "slack",  "audience": "general_manager"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "general_manager"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 3600},
+      "metrics": ["containment_time_minutes", "regulatory_notification_on_time", "recurrence_rate"],
+      "compliance": ["FDA_FSMA_Sec_103", "CDC_foodborne_illness_reporting", "local_health_dept_notification"],
+      "data_sensitivity": ["confidential", "regulated"]
+    },
+    {
+      "id": "schedule_staff",
+      "title": "Schedule restaurant staff",
+      "actor": {"role": "staff_scheduler"},
+      "situation": "the upcoming week's demand forecast requires building a staff schedule that meets labour laws, covers required roles, and stays within labour cost budget",
+      "motivation": "minimise labour cost while ensuring service standards are met and all compliance obligations are honoured",
+      "outcome": "schedule published, staff notified, labour budget variance within target, and coverage gaps resolved before shift start",
+      "success_criteria": [
+        "schedule published at least 72 hours before first shift",
+        "all required roles covered for each time slot",
+        "labour cost within ±5% of budgeted target",
+        "no employee scheduled below required rest period between shifts"
+      ],
+      "data_capture": [
+        {"id": "week_start",       "kind": "date",     "label": "Schedule week start",    "required": true,  "pii": false},
+        {"id": "location_id",      "kind": "text",     "label": "Location ID",            "required": true,  "pii": false},
+        {"id": "forecast_covers",  "kind": "number",   "label": "Forecast covers",        "required": true,  "pii": false},
+        {"id": "labour_budget",    "kind": "money",    "label": "Labour budget",          "required": true,  "pii": false},
+        {"id": "schedule_file",    "kind": "file",     "label": "Schedule document",      "required": false, "pii": false},
+        {"id": "actual_labour_cost","kind": "money",   "label": "Actual labour cost",     "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "understaffed_shift","condition": "coverage gaps remain 48h before shift", "handle": "escalate"},
+        {"id": "overtime_breach",   "condition": "any employee would exceed weekly overtime threshold", "handle": "reject"},
+        {"id": "labour_law_conflict","condition": "schedule violates minor work permit hours", "handle": "reject"}
+      ],
+      "notifications": [
+        {"trigger": "approved",     "channel": "sms",    "audience": "staff_scheduler"},
+        {"trigger": "approved",     "channel": "email",  "audience": "staff_scheduler"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "operations_manager"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "operations_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 259200},
+      "metrics": ["schedule_publish_lead_time_hours", "labour_cost_variance_pct", "shift_coverage_rate"],
+      "compliance": ["FLSA_overtime", "state_predictive_scheduling_laws", "minor_work_permit_regulations"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "pay_vendor_invoice",
+      "title": "Pay a vendor invoice",
+      "actor": {"role": "operations_manager"},
+      "situation": "a supplier invoice has been received and matched against a purchase order, requiring approval and payment within terms",
+      "motivation": "maintain supplier relationships, capture early payment discounts, and ensure accurate AP record for food cost accounting",
+      "outcome": "invoice verified, approved, payment authorised, and reconciled against PO and GRN",
+      "success_criteria": [
+        "three-way match (PO / GRN / invoice) completed before approval",
+        "payment initiated before invoice due date",
+        "early payment discount captured if within discount window",
+        "invoice posted to correct cost centre"
+      ],
+      "data_capture": [
+        {"id": "invoice_number",   "kind": "text",     "label": "Invoice number",         "required": true,  "pii": false},
+        {"id": "supplier_id",      "kind": "text",     "label": "Supplier ID",            "required": true,  "pii": false},
+        {"id": "invoice_amount",   "kind": "money",    "label": "Invoice amount",         "required": true,  "pii": false},
+        {"id": "due_date",         "kind": "date",     "label": "Payment due date",       "required": true,  "pii": false},
+        {"id": "po_reference",     "kind": "text",     "label": "PO reference",           "required": true,  "pii": false},
+        {"id": "grn_reference",    "kind": "text",     "label": "GRN reference",          "required": true,  "pii": false},
+        {"id": "cost_centre",      "kind": "text",     "label": "Cost centre",            "required": true,  "pii": false},
+        {"id": "invoice_file",     "kind": "file",     "label": "Invoice document",       "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "three_way_mismatch","condition": "invoice amount does not match GRN or PO within tolerance", "handle": "branch", "branch_to": "dispute_resolution"},
+        {"id": "duplicate_invoice", "condition": "invoice_number already exists in AP system", "handle": "reject"},
+        {"id": "amount_above_threshold","condition": "invoice_amount > single-approval limit", "handle": "branch", "branch_to": "dual_approval"}
+      ],
+      "approvals": [
+        {"role": "operations_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "approved",     "channel": "email",  "audience": "procurement_officer"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "procurement_officer"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "operations_manager"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "general_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["payment_on_time_rate", "early_payment_discount_capture_rate", "three_way_mismatch_rate"],
+      "compliance": ["SOX_AP_controls_if_public", "IRS_1099_vendor_reporting"],
+      "data_sensitivity": ["financial", "confidential"]
+    },
+    {
+      "id": "handle_customer_complaint",
+      "title": "Handle a customer service complaint",
+      "actor": {"role": "general_manager"},
+      "situation": "a guest complains about food quality, service, or a billing issue and expects a timely, empathetic resolution",
+      "motivation": "retain the customer, protect brand reputation, and identify service failures that require operational correction",
+      "outcome": "complaint logged, root cause identified, guest compensated or acknowledged, and operational follow-up triggered if systemic",
+      "success_criteria": [
+        "complaint acknowledged within 1 hour for in-person or online submissions",
+        "resolution offered within 24 hours",
+        "compensation within policy guidelines and logged to CRM",
+        "systemic issues escalated to operations within 2 business days"
+      ],
+      "data_capture": [
+        {"id": "guest_name",       "kind": "text",     "label": "Guest name",             "required": false, "pii": true},
+        {"id": "guest_email",      "kind": "email",    "label": "Guest email",            "required": false, "pii": true},
+        {"id": "complaint_channel","kind": "enum",     "label": "Complaint channel",      "required": true,  "pii": false},
+        {"id": "complaint_category","kind": "enum",    "label": "Complaint category",     "required": true,  "pii": false},
+        {"id": "description",      "kind": "textarea", "label": "Complaint description",  "required": true,  "pii": false},
+        {"id": "visit_date",       "kind": "date",     "label": "Visit date",             "required": false, "pii": false},
+        {"id": "resolution_type",  "kind": "enum",     "label": "Resolution type",        "required": false, "pii": false},
+        {"id": "compensation",     "kind": "money",    "label": "Compensation value",     "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "illness_complaint", "condition": "complaint involves food poisoning or allergy reaction", "handle": "escalate"},
+        {"id": "social_media_post", "condition": "complaint includes viral social media post", "handle": "escalate"},
+        {"id": "legal_threat",      "condition": "complaint includes threat of legal action", "handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "general_manager"},
+        {"trigger": "approved",     "channel": "email",  "audience": "general_manager"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "general_manager"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "operations_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 86400},
+      "metrics": ["complaint_resolution_time_hours", "guest_satisfaction_recovery_rate", "repeat_complaint_rate"],
+      "compliance": ["consumer_protection_act", "GDPR_complaint_logging"],
+      "data_sensitivity": ["pii", "confidential"]
+    },
+    {
+      "id": "audit_franchise",
+      "title": "Conduct a franchise operations audit",
+      "actor": {"role": "franchise_auditor"},
+      "situation": "the franchisee's annual or triggered operations audit assesses compliance with brand standards, food safety, and financial reporting obligations",
+      "motivation": "protect brand equity, ensure food safety consistency, and identify franchisees at risk of non-renewal",
+      "outcome": "audit completed, score issued, critical findings actioned, improvement plan agreed, and audit report filed in franchisor system",
+      "success_criteria": [
+        "audit schedule communicated 2 weeks in advance",
+        "audit completed in one visit without rescheduling",
+        "critical findings escalated within 24 hours",
+        "improvement plan agreed and signed within 10 business days"
+      ],
+      "data_capture": [
+        {"id": "location_id",      "kind": "text",     "label": "Franchise location ID",  "required": true,  "pii": false},
+        {"id": "franchisee_name",  "kind": "text",     "label": "Franchisee name",        "required": true,  "pii": false},
+        {"id": "audit_date",       "kind": "date",     "label": "Audit date",             "required": true,  "pii": false},
+        {"id": "auditor_id",       "kind": "text",     "label": "Auditor ID",             "required": true,  "pii": false},
+        {"id": "overall_score",    "kind": "number",   "label": "Overall score (0-100)",  "required": false, "pii": false},
+        {"id": "critical_findings","kind": "textarea", "label": "Critical findings",      "required": false, "pii": false},
+        {"id": "improvement_plan", "kind": "file",     "label": "Improvement plan",       "required": false, "pii": false},
+        {"id": "audit_report",     "kind": "file",     "label": "Full audit report",      "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "below_passing",     "condition": "overall_score < 70 (brand minimum)", "handle": "escalate"},
+        {"id": "food_safety_critical","condition": "critical food safety violation identified", "handle": "escalate"},
+        {"id": "repeat_failure",    "condition": "second consecutive audit below passing", "handle": "branch", "branch_to": "franchise_termination_review"}
+      ],
+      "approvals": [
+        {"role": "franchise_auditor", "policy": "1_of_1"},
+        {"role": "operations_manager","policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "franchise_auditor"},
+        {"trigger": "approved",     "channel": "email",  "audience": "operations_manager"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "franchise_auditor"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "operations_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 864000},
+      "metrics": ["average_audit_score", "critical_finding_rate", "improvement_plan_completion_rate"],
+      "compliance": ["franchise_agreement_standards", "FDA_food_safety_audit_requirements"],
+      "data_sensitivity": ["confidential", "internal"]
+    },
+    {
+      "id": "prepare_health_inspection",
+      "title": "Prepare for a health inspection",
+      "actor": {"role": "food_safety_officer"},
+      "situation": "a routine or unannounced health department inspection is scheduled or imminent and the team must ensure full compliance with food safety codes",
+      "motivation": "achieve a passing score, avoid critical violations that trigger closure, and document remediation of any prior findings",
+      "outcome": "pre-inspection self-audit completed, deficiencies corrected, team briefed, and inspection passed with no critical violations",
+      "success_criteria": [
+        "self-audit checklist completed at least 3 days before scheduled inspection",
+        "all identified deficiencies corrected before inspection",
+        "temperature logs, pest control records, and training certificates available for inspector",
+        "no critical violations on inspection report"
+      ],
+      "data_capture": [
+        {"id": "location_id",      "kind": "text",     "label": "Location ID",            "required": true,  "pii": false},
+        {"id": "inspection_date",  "kind": "date",     "label": "Inspection date",        "required": false, "pii": false},
+        {"id": "self_audit_score", "kind": "number",   "label": "Self-audit score",       "required": true,  "pii": false},
+        {"id": "deficiencies",     "kind": "textarea", "label": "Identified deficiencies","required": false, "pii": false},
+        {"id": "temp_logs",        "kind": "file",     "label": "Temperature logs (30d)", "required": true,  "pii": false},
+        {"id": "pest_control_cert","kind": "file",     "label": "Pest control certificate","required": true,  "pii": false},
+        {"id": "training_records", "kind": "file",     "label": "Food handler training records","required": true,"pii": false},
+        {"id": "inspection_score", "kind": "number",   "label": "Official inspection score","required": false,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "critical_violation", "condition": "self-audit finds critical violation (imminent health hazard)", "handle": "escalate"},
+        {"id": "failed_inspection",  "condition": "inspection_score < passing threshold", "handle": "escalate"},
+        {"id": "closure_order",      "condition": "inspector issues immediate closure order", "handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "food_safety_officer"},
+        {"trigger": "approved",     "channel": "email",  "audience": "general_manager"},
+        {"trigger": "sla_warn",     "channel": "slack",  "audience": "general_manager"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "operations_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 259200},
+      "metrics": ["self_audit_to_inspection_gap_days", "critical_violation_rate", "inspection_pass_rate"],
+      "compliance": ["FDA_Food_Code", "local_health_dept_regulations", "ServSafe_certification"],
+      "data_sensitivity": ["internal", "regulated"]
+    },
+    {
+      "id": "handle_allergen_incident",
+      "title": "Handle an allergen incident",
+      "actor": {"role": "food_safety_officer"},
+      "situation": "a guest reports an allergic reaction or a staff error is discovered that may have exposed a guest to an undisclosed allergen",
+      "motivation": "ensure immediate medical safety, document the incident for regulatory purposes, prevent recurrence, and manage liability",
+      "outcome": "incident documented, guest assisted, kitchen allergen controls reviewed, regulatory report filed if required, and training gap addressed",
+      "success_criteria": [
+        "emergency services called immediately if guest shows anaphylaxis symptoms",
+        "incident documented within 1 hour including implicated dish and lot numbers",
+        "regulatory authority notified within statutory deadline if hospitalisation occurs",
+        "root cause (mislabelling, cross-contact, order error) identified within 24 hours"
+      ],
+      "data_capture": [
+        {"id": "incident_id",      "kind": "text",     "label": "Incident ID",            "required": true,  "pii": false},
+        {"id": "guest_name",       "kind": "text",     "label": "Guest name",             "required": false, "pii": true},
+        {"id": "allergen_type",    "kind": "enum",     "label": "Allergen involved",      "required": true,  "pii": false},
+        {"id": "dish_name",        "kind": "text",     "label": "Dish served",            "required": true,  "pii": false},
+        {"id": "reaction_severity","kind": "enum",     "label": "Reaction severity",      "required": true,  "pii": false},
+        {"id": "emergency_called", "kind": "boolean",  "label": "Emergency services called","required": true,"pii": false},
+        {"id": "root_cause",       "kind": "enum",     "label": "Root cause",             "required": false, "pii": false},
+        {"id": "corrective_action","kind": "textarea", "label": "Corrective action taken","required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "anaphylaxis",       "condition": "reaction_severity = anaphylaxis", "handle": "escalate"},
+        {"id": "hospitalisation",   "condition": "guest transported to hospital", "handle": "escalate"},
+        {"id": "menu_labelling_error","condition": "root_cause = incorrect menu allergen declaration", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "food_safety_officer", "policy": "1_of_1"},
+        {"role": "general_manager",     "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "slack",  "audience": "general_manager"},
+        {"trigger": "state_enter",  "channel": "email",  "audience": "food_safety_officer"},
+        {"trigger": "sla_warn",     "channel": "slack",  "audience": "operations_manager"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "operations_manager"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 3600},
+      "metrics": ["incident_documentation_time_minutes", "regulatory_notification_on_time", "recurrence_rate"],
+      "compliance": ["EU_FIC_1169_2011_allergen_labelling", "FDA_FASTER_Act", "local_health_notification"],
+      "data_sensitivity": ["pii", "health", "confidential", "regulated"]
+    },
+    {
+      "id": "reduce_food_waste",
+      "title": "Execute a food waste reduction review",
+      "actor": {"role": "head_chef"},
+      "situation": "end-of-week waste tracking shows a category exceeding the waste budget threshold, requiring root cause analysis and menu or ordering adjustments",
+      "motivation": "reduce food cost, achieve sustainability targets, and identify operational inefficiencies in prep or ordering",
+      "outcome": "waste data reviewed, top categories identified, ordering or prep changes implemented, and waste savings measured in the following week",
+      "success_criteria": [
+        "weekly waste log reviewed within 1 business day of week close",
+        "top 3 waste categories actioned within 3 business days",
+        "ordering or portioning adjustments visible in next week's procurement",
+        "waste percentage improvement tracked against baseline"
+      ],
+      "data_capture": [
+        {"id": "week_start",       "kind": "date",     "label": "Review week",            "required": true,  "pii": false},
+        {"id": "location_id",      "kind": "text",     "label": "Location ID",            "required": true,  "pii": false},
+        {"id": "total_waste_kg",   "kind": "number",   "label": "Total waste (kg)",       "required": true,  "pii": false},
+        {"id": "waste_cost",       "kind": "money",    "label": "Waste cost",             "required": true,  "pii": false},
+        {"id": "top_categories",   "kind": "textarea", "label": "Top waste categories",   "required": true,  "pii": false},
+        {"id": "root_cause",       "kind": "enum",     "label": "Primary root cause",     "required": true,  "pii": false},
+        {"id": "action_plan",      "kind": "textarea", "label": "Action plan",            "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "waste_spike",       "condition": "total_waste_kg > 2x weekly average", "handle": "escalate"},
+        {"id": "equipment_failure", "condition": "root_cause = refrigeration failure", "handle": "branch", "branch_to": "equipment_maintenance"},
+        {"id": "supplier_issue",    "condition": "root_cause = supplier quality / short-dated delivery", "handle": "branch", "branch_to": "supplier_complaint"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "in_app", "audience": "head_chef"},
+        {"trigger": "approved",     "channel": "email",  "audience": "operations_manager"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "operations_manager"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "general_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 259200},
+      "metrics": ["waste_pct_of_food_cost", "waste_reduction_week_on_week", "top_category_reoccurrence"],
+      "compliance": ["EPA_food_waste_reduction_goals", "sustainability_reporting_targets"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "approve_menu_change",
+      "title": "Approve a menu change",
+      "actor": {"role": "head_chef"},
+      "situation": "a new dish, seasonal special, or price update requires formal approval covering nutritional accuracy, allergen labelling, supplier sourcing, and margin review",
+      "motivation": "ensure new items are profitable, safe, compliant with allergen laws, and operationally executable before being published",
+      "outcome": "menu item approved, recipe card finalised, allergen matrix updated, POS programmed, and staff trained before launch",
+      "success_criteria": [
+        "nutritional and allergen information verified before menu publication",
+        "food cost for new item within target margin",
+        "POS and online ordering system updated before service on launch date",
+        "staff trained on new item at least 24 hours before launch"
+      ],
+      "data_capture": [
+        {"id": "item_name",        "kind": "text",     "label": "Menu item name",         "required": true,  "pii": false},
+        {"id": "category",         "kind": "enum",     "label": "Menu category",          "required": true,  "pii": false},
+        {"id": "recipe_card",      "kind": "file",     "label": "Recipe card",            "required": true,  "pii": false},
+        {"id": "allergen_matrix",  "kind": "file",     "label": "Allergen matrix update", "required": true,  "pii": false},
+        {"id": "food_cost_pct",    "kind": "number",   "label": "Food cost %",            "required": true,  "pii": false},
+        {"id": "sell_price",       "kind": "money",    "label": "Proposed sell price",    "required": true,  "pii": false},
+        {"id": "launch_date",      "kind": "date",     "label": "Launch date",            "required": true,  "pii": false},
+        {"id": "nutritional_info", "kind": "file",     "label": "Nutritional information","required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "margin_below_target","condition": "food_cost_pct > brand maximum", "handle": "reject"},
+        {"id": "new_allergen",      "condition": "dish introduces allergen not currently on menu", "handle": "escalate"},
+        {"id": "supplier_unavailable","condition": "key ingredient has no confirmed approved supplier", "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "head_chef",         "policy": "1_of_1"},
+        {"role": "operations_manager","policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "head_chef"},
+        {"trigger": "approved",     "channel": "email",  "audience": "head_chef"},
+        {"trigger": "rejected",     "channel": "email",  "audience": "head_chef"},
+        {"trigger": "sla_warn",     "channel": "in_app", "audience": "operations_manager"},
+        {"trigger": "sla_breach",   "channel": "slack",  "audience": "general_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["menu_approval_cycle_time_days", "first_pass_approval_rate", "launch_delay_rate"],
+      "compliance": ["EU_FIC_1169_2011_allergen_labelling", "FDA_menu_labelling_rule_2018", "calorie_disclosure_requirements"],
+      "data_sensitivity": ["internal"]
+    }
+  ]
+}

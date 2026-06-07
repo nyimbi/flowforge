@@ -1,11 +1,24 @@
 id: manufacturing
 name: "Manufacturing"
-description: "JTBD domain library for Manufacturing workflows (BOM, MES, QC)."
+description: "JTBD domain library for Manufacturing workflows (BOM, production orders, quality, supplier qualification, tooling, maintenance, recall, capacity, complaint resolution, ISO audit)."
 package: flowforge-jtbd-mfg
 version: "1.0.0"
+tier: B
+reviewer_credentials:
+  - iso_9001_lead_auditor
+  - iatf_16949_qualified
+team_id: manufacturing-sme
 subdomains:
   - "BOM"
   - "MES"
   - "QC"
-regulator_hints: []
+  - "Supplier"
+  - "Maintenance"
+  - "Recall"
+  - "Capacity"
+regulator_hints:
+  - ISO_9001
+  - IATF_16949
+  - AS9100D
+  - ISO_55001
 phase: E4
