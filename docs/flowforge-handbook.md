@@ -39,6 +39,23 @@ project generator. Three roles use it:
 Flowforge gives every role a different surface — JTBDEditor / Designer /
 Runtime — over the same underlying spec.
 
+Since v0.1.0 three additional surfaces have shipped and are now stable at
+**v0.5.0**:
+
+- **JTBD debugger surface** — `FaultInjector` and `WorkflowDiffer` let
+  operators inject faults into a running simulation and compare two
+  workflow definition versions side-by-side. Both are accessible via the
+  Designer simulation panel and the CLI (`flowforge simulate --fault`,
+  `flowforge diff`).
+- **AI authoring surface** — `flowforge ai-draft` emits a JTBD bundle from
+  a natural-language description; `flowforge jtbd quality-score` rates
+  bundle completeness; `flowforge jtbd compliance-lint` validates against
+  a configurable rule catalogue. The LLM is opt-in and only emits
+  reviewable diffs (see ADR-3).
+- **28 domain JTBD libraries** — pre-built JTBD bundles for common
+  vertical domains (see §1.7). Each is a `flowforge-jtbd-<domain>`
+  package usable as a starting point or shipped as-is.
+
 ### 1.2 Top-Level Topology
 
 ```mermaid
@@ -129,7 +146,7 @@ framework/
 | `@flowforge/runtime-client` | `framework/js/flowforge-runtime-client/` | REST + WS client, `useTenantQueryKey`-style hook (host-pluggable) |
 | `@flowforge/step-adapters` | `framework/js/flowforge-step-adapters/` | Generic step components (`ManualReviewStep`, `FormStep`, `DocumentReviewStep`) |
 
-### 1.5 Ports (the 14 ABCs)
+### 1.5 Ports (the 15 ABCs)
 
 | # | Port | Purpose | Default impl |
 |---|---|---|---|
@@ -147,6 +164,7 @@ framework/
 | 12 | `MetricsPort` | `emit(name, value, labels)` | `flowforge-metrics-prometheus`, `flowforge-metrics-noop` |
 | 13 | `TaskTrackerPort` | `create_task(kind, ref, note)` | `flowforge-tasks-noop` |
 | 14 | `AccessGrantPort` | `grant(rel, until)`, `revoke(rel)` | `flowforge-grants-spicedb`, `flowforge-grants-noop` |
+| 15 | `TracingPort` | OTEL span management — `start_span`, `end_span`, `add_event`, `set_attribute` | `NoopTracing` (default), `flowforge-otel` |
 
 ### 1.6 Generated Artefacts (per JTBD)
 
@@ -171,6 +189,48 @@ totalling ≈ 600 LOC of host code:
 For a bundle of N JTBDs the generator additionally emits 4-6
 cross-cutting files (permission seeds, RBAC seed test, navigation
 index, JTBD glossary, audit taxonomy enum, frontend wiring).
+
+### 1.7 Domain JTBD Libraries
+
+28 domain JTBD libraries ship as `flowforge-jtbd-<domain>` packages
+(Tier-2, `package = true`, pinned at `0.1.0` in lockstep with Tier-1).
+Each package contains a curated JTBD bundle, generated scaffold, and
+Playwright smoke spec. Domains:
+
+| # | Package suffix | Domain |
+|---|---|---|
+| 1 | `insurance-claims` | P&C claims intake and adjudication |
+| 2 | `insurance-underwriting` | Commercial lines underwriting |
+| 3 | `insurance-broker-portal` | Broker submission and quote management |
+| 4 | `mortgage-origination` | Residential mortgage application |
+| 5 | `mortgage-servicing` | Loan modification and escrow workflows |
+| 6 | `trade-finance` | Letter of credit and documentary collections |
+| 7 | `kyc-onboarding` | Individual and entity KYC / CDD |
+| 8 | `aml-screening` | Transaction monitoring and SAR filing |
+| 9 | `regulatory-reporting` | Periodic regulatory submission |
+| 10 | `procurement` | Purchase requisition to PO approval |
+| 11 | `vendor-onboarding` | Supplier registration and risk review |
+| 12 | `contract-management` | Drafting, redline, execution, renewal |
+| 13 | `hr-hiring` | Requisition through offer letter |
+| 14 | `hr-onboarding` | Day-1 provisioning through 90-day check-in |
+| 15 | `hr-offboarding` | Separation, access revocation, exit interview |
+| 16 | `hr-performance` | Goal setting, mid-year, year-end review |
+| 17 | `leave-management` | Request, approval, and accrual adjustment |
+| 18 | `expense-management` | Submission, approval, and reimbursement |
+| 19 | `building-permit` | Application, inspection scheduling, certificate |
+| 20 | `planning-permission` | Council planning application and appeal |
+| 21 | `environmental-permit` | EIA, public notice, permit issuance |
+| 22 | `grants-management` | Application, review, disbursement, reporting |
+| 23 | `clinical-trial` | Protocol, IRB, site activation, close-out |
+| 24 | `medical-device-approval` | 510(k) / PMA submission workflow |
+| 25 | `drug-safety-reporting` | ADR / SUSAR collection and submission |
+| 26 | `change-management` | RFC, impact assessment, CAB approval |
+| 27 | `incident-response` | Detection, triage, remediation, PIR |
+| 28 | `audit-findings` | Finding, remediation plan, evidence, closure |
+
+Tier designation: all 28 are Tier-2. Flip to `package = true` requires
+gate E-48a (rebrand to `*-starter`) or E-48b (real-content SME review).
+See §1.4 Package Inventory for the full gate description.
 
 ---
 
@@ -221,7 +281,7 @@ document storage (S3, GCS, file system).
 sister projects off-platform within weeks. Vendor-as-submodule
 accretes host-specific patches that diverge.
 
-**What we did.** Extracted 14 ports (see §1.5). Each port is admitted
+**What we did.** Extracted 15 ports (see §1.5). Each port is admitted
 under the rule: "a port is justified only when ≥ 2 hosts need a
 different impl." UMS-only behaviour stays in UMS, not the framework.
 
@@ -904,7 +964,7 @@ instance = await fire.start_instance(
 result = await fire.fire(
     session,
     instance_id=instance.id,
-    token_id=None,                        # None → root token
+    token_id=None,                        # None → root token; pass a UUID to target a forked token
     event="submit",
     external_event_id="my-key-1",
     payload={"intake": {...}},
@@ -913,13 +973,63 @@ result = await fire.fire(
 # result: TransitionResult { from_state, to_state, audit_event_id, ... }
 ```
 
-| Function | Purpose |
+| Function / parameter | Purpose |
 |---|---|
 | `fire.start_instance(...)` | Create new instance + root token; idempotent on `external_event_id`. |
-| `fire.fire(...)` | Plan → commit a single transition; idempotent on `external_event_id`. |
+| `fire.fire(wd, instance, event, *, token_id=None, ...)` | Plan → commit a single transition; idempotent on `external_event_id`. `token_id` selects a specific forked token when the instance has active parallel branches; `None` targets the root token. |
 | `fire.cancel_instance(...)` | Mark instance as `cancelled`; cancels all active tokens. |
 | `fire.pause_token(...)` | Pause a token with reason; pause-aware timers stop. |
 | `fire.resume_token(...)` | Resume a token; pause-aware timers re-arm. |
+
+#### Module: `flowforge.engine.fault_injector`
+
+`FaultInjector` lets tests and the Designer simulation panel inject
+controlled faults into a workflow simulation without touching production
+state.
+
+```python
+from flowforge.engine.fault_injector import FaultInjector, FaultSpec
+
+fi = FaultInjector(workflow_def=wd)
+fi.add_fault(FaultSpec(state="under_review", kind="timeout"))
+fi.add_fault(FaultSpec(transition_id="t-approve", kind="guard_fail"))
+
+result = await fi.simulate(
+    initial_state="draft",
+    events=["submit", "review", "approve"],
+)
+# result: SimulationTrace — list of SimulationStep with injected fault markers
+```
+
+| Method | Purpose |
+|---|---|
+| `FaultInjector(workflow_def)` | Construct injector bound to a `WorkflowDef`. |
+| `add_fault(FaultSpec)` | Register a fault to apply during simulation. |
+| `clear_faults()` | Remove all registered faults. |
+| `simulate(initial_state, events, *, context=None)` | Run the workflow through the event sequence, applying faults; returns a `SimulationTrace`. |
+
+#### Module: `flowforge.engine.diff`
+
+`WorkflowDiffer` compares two `WorkflowDef` versions and returns a
+structured diff suitable for display in the Designer diff viewer.
+
+```python
+from flowforge.engine.diff import WorkflowDiffer, diff_workflows
+
+old_wd = WorkflowDef.model_validate(json.loads(old_json))
+new_wd = WorkflowDef.model_validate(json.loads(new_json))
+
+diff = diff_workflows(old_wd, new_wd)
+# diff: WorkflowDiff { added_states, removed_states, modified_states,
+#                      added_transitions, removed_transitions,
+#                      modified_transitions, breaking_changes }
+```
+
+| Symbol | Purpose |
+|---|---|
+| `diff_workflows(old, new) -> WorkflowDiff` | Module-level convenience wrapper; equivalent to `WorkflowDiffer(old, new).diff()`. |
+| `WorkflowDiffer(old, new)` | Class form; exposes `.diff()`, `.breaking_changes()`, `.summary()`. |
+| `WorkflowDiff` | Pydantic model with `added_states`, `removed_states`, `modified_states`, `added_transitions`, `removed_transitions`, `modified_transitions`, `breaking_changes` (list of human-readable strings flagging removals or guard tightenings that could strand live instances). |
 
 #### Module: `flowforge.engine.tokens`
 
