@@ -1,0 +1,452 @@
+{
+  "project": {
+    "name": "accounting-example",
+    "package": "accounting_example",
+    "domain": "accounting",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD"]
+  },
+  "shared": {
+    "roles": [
+      "staff_accountant", "senior_accountant", "accounting_manager",
+      "controller", "cfo", "accounts_payable_clerk", "accounts_receivable_clerk",
+      "treasury_analyst", "fixed_asset_accountant", "consolidation_accountant",
+      "tax_accountant", "internal_auditor", "external_auditor", "approver"
+    ],
+    "permissions": [
+      "acct.journal.post", "acct.ap.invoice", "acct.ar.invoice",
+      "acct.expense.approve", "acct.period.close", "acct.bank.reconcile",
+      "acct.asset.record", "acct.depreciation.run", "acct.ic.eliminate",
+      "acct.fx.revalue"
+    ]
+  },
+  "jtbds": [
+    {
+      "id": "post_journal_entry",
+      "title": "Post general ledger journal entry",
+      "actor": {"role": "staff_accountant"},
+      "situation": "accountant needs to record an accounting transaction not captured by sub-ledger automation; must prepare, review, approve, and post a balanced journal entry with adequate supporting documentation",
+      "motivation": "maintain an accurate and complete general ledger that reflects economic reality and withstands audit scrutiny",
+      "outcome": "journal entry posted to GL, supporting documentation attached, entry locked after period close",
+      "success_criteria": [
+        "debits equal credits (entry is balanced)",
+        "each line has a valid account code and cost centre",
+        "supporting documentation attached before approval",
+        "recurring entries auto-reverse on correct date",
+        "entries > $100K require controller approval"
+      ],
+      "data_capture": [
+        {"id": "je_reference",        "kind": "text",    "label": "Journal entry reference","required": true,  "pii": false},
+        {"id": "je_date",             "kind": "date",    "label": "Accounting date",        "required": true,  "pii": false},
+        {"id": "description",         "kind": "textarea","label": "Entry description",      "required": true,  "pii": false},
+        {"id": "debit_account",       "kind": "text",    "label": "Debit account code",     "required": true,  "pii": false},
+        {"id": "credit_account",      "kind": "text",    "label": "Credit account code",    "required": true,  "pii": false},
+        {"id": "amount",              "kind": "money",   "label": "Entry amount",           "required": true,  "pii": false},
+        {"id": "cost_centre",         "kind": "text",    "label": "Cost centre",            "required": true,  "pii": false},
+        {"id": "supporting_doc",      "kind": "file",    "label": "Supporting documentation","required": true,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "unbalanced_entry",    "condition": "debit_total != credit_total",             "handle": "reject"},
+        {"id": "closed_period",       "condition": "je_date in closed_period",               "handle": "reject"},
+        {"id": "large_entry",         "condition": "amount > 100000",                        "handle": "escalate"},
+        {"id": "intercompany",        "condition": "entities_involved > 1",                  "handle": "branch", "branch_to": "intercompany_entry"}
+      ],
+      "approvals": [
+        {"role": "accounting_manager", "policy": "1_of_1"},
+        {"role": "controller",         "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "staff_accountant"},
+        {"trigger": "approved",    "channel": "in_app", "audience": "staff_accountant"},
+        {"trigger": "rejected",    "channel": "in_app", "audience": "staff_accountant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "accounting_manager"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "controller"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 86400},
+      "metrics": ["posting_error_rate", "approval_turnaround_hours", "manual_je_volume", "unsupported_je_rate"],
+      "compliance": ["GAAP_ASC_general", "SOX_302_906", "IFRS_IAS1", "audit_trail_requirements"],
+      "data_sensitivity": ["financial", "confidential_business"]
+    },
+    {
+      "id": "process_AP_invoice",
+      "title": "Process accounts payable invoice",
+      "actor": {"role": "accounts_payable_clerk"},
+      "situation": "vendor submits invoice for goods or services; AP clerk must match to PO/receipt, resolve discrepancies, obtain approval, and schedule payment within terms",
+      "motivation": "capture early payment discounts, avoid late payment penalties, and maintain accurate accruals without paying duplicate or fraudulent invoices",
+      "outcome": "invoice matched, approved, and scheduled for payment; payment made on discount date where applicable",
+      "success_criteria": [
+        "three-way match completed (invoice / PO / receiving report)",
+        "discrepancies resolved within 5 business days",
+        "invoices with 2/10 net 30 terms approved before day 9",
+        "duplicate invoice check passed before payment release",
+        "1099-reportable vendors flagged"
+      ],
+      "data_capture": [
+        {"id": "invoice_number",      "kind": "text",  "label": "Vendor invoice number",   "required": true,  "pii": false},
+        {"id": "vendor_id",           "kind": "text",  "label": "Vendor ID",               "required": true,  "pii": false},
+        {"id": "invoice_date",        "kind": "date",  "label": "Invoice date",            "required": true,  "pii": false},
+        {"id": "due_date",            "kind": "date",  "label": "Payment due date",        "required": true,  "pii": false},
+        {"id": "invoice_amount",      "kind": "money", "label": "Invoice amount",          "required": true,  "pii": false},
+        {"id": "po_number",           "kind": "text",  "label": "Purchase order number",   "required": false, "pii": false},
+        {"id": "gl_account",          "kind": "text",  "label": "GL account code",         "required": true,  "pii": false},
+        {"id": "invoice_file",        "kind": "file",  "label": "Invoice document",        "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "three_way_mismatch",  "condition": "po_match_result = mismatch",             "handle": "branch", "branch_to": "discrepancy_resolution"},
+        {"id": "duplicate_invoice",   "condition": "duplicate_check = match",               "handle": "reject"},
+        {"id": "no_po",               "condition": "po_number IS NULL AND amount > 5000",   "handle": "escalate"},
+        {"id": "discount_deadline",   "condition": "discount_deadline_in_days <= 2",        "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "accounting_manager", "policy": "1_of_1"},
+        {"role": "controller",         "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "accounts_payable_clerk"},
+        {"trigger": "rejected",    "channel": "in_app", "audience": "accounts_payable_clerk"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "accounts_payable_clerk"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "accounting_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 432000},
+      "metrics": ["straight_through_rate", "discount_capture_rate", "invoice_processing_cost", "duplicate_rejection_rate"],
+      "compliance": ["GAAP_ASC_420", "SOX_itgc", "IRS_1099", "state_prompt_payment_acts"],
+      "data_sensitivity": ["financial", "confidential_business"]
+    },
+    {
+      "id": "process_AR_invoice",
+      "title": "Issue and collect accounts receivable invoice",
+      "actor": {"role": "accounts_receivable_clerk"},
+      "situation": "goods shipped or services delivered; AR clerk must generate invoice, send to customer, apply receipts, and escalate to collections on overdue balances",
+      "motivation": "minimize days sales outstanding and bad debt expense while maintaining accurate revenue records",
+      "outcome": "invoice sent, payment applied, account reconciled, collections action initiated for overdue amounts",
+      "success_criteria": [
+        "invoice sent within 2 business days of revenue recognition trigger",
+        "cash application completed within 1 business day of receipt",
+        "first collection notice sent at 30 days overdue",
+        "credit hold applied at 60 days overdue per policy"
+      ],
+      "data_capture": [
+        {"id": "customer_id",         "kind": "text",  "label": "Customer ID",             "required": true,  "pii": false},
+        {"id": "invoice_number",      "kind": "text",  "label": "Invoice number",          "required": true,  "pii": false},
+        {"id": "invoice_date",        "kind": "date",  "label": "Invoice date",            "required": true,  "pii": false},
+        {"id": "due_date",            "kind": "date",  "label": "Payment due date",        "required": true,  "pii": false},
+        {"id": "invoice_amount",      "kind": "money", "label": "Invoice amount",          "required": true,  "pii": false},
+        {"id": "gl_account",          "kind": "text",  "label": "Revenue GL account",      "required": true,  "pii": false},
+        {"id": "payment_amount",      "kind": "money", "label": "Payment received",        "required": false, "pii": false},
+        {"id": "aging_bucket",        "kind": "enum",  "label": "Aging bucket",            "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "short_payment",       "condition": "payment_amount < invoice_amount * 0.98","handle": "branch", "branch_to": "short_pay_dispute"},
+        {"id": "unapplied_cash",      "condition": "payment_not_matched_to_invoice",       "handle": "escalate"},
+        {"id": "credit_hold",         "condition": "days_overdue >= 60",                   "handle": "branch", "branch_to": "credit_hold_process"}
+      ],
+      "approvals": [
+        {"role": "accounting_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "accounts_receivable_clerk"},
+        {"trigger": "approved",    "channel": "email",  "audience": "accounts_receivable_clerk"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "accounts_receivable_clerk"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "accounting_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 172800},
+      "metrics": ["days_sales_outstanding", "cash_application_timeliness", "collection_rate", "bad_debt_pct"],
+      "compliance": ["GAAP_ASC_606", "SOX_revenue_recognition", "IFRS_15", "state_usury_laws"],
+      "data_sensitivity": ["financial", "confidential_business"]
+    },
+    {
+      "id": "submit_expense_report",
+      "title": "Submit and approve employee expense report",
+      "actor": {"role": "staff_accountant"},
+      "situation": "employee submits expense report for business travel or purchases; manager and finance must verify policy compliance, approve, and reimburse within SLA",
+      "motivation": "reimburse employees promptly for legitimate business expenses while enforcing travel policy and preventing fraudulent claims",
+      "outcome": "expense report approved, reimbursement processed in next payroll or EFT cycle, receipts archived",
+      "success_criteria": [
+        "receipts attached for all expenses above $25",
+        "expenses submitted within 30 days of incurrence",
+        "per diem rates validated against GSA schedule",
+        "reimbursement issued within 5 business days of approval"
+      ],
+      "data_capture": [
+        {"id": "employee_id",         "kind": "text",    "label": "Employee ID",            "required": true,  "pii": false},
+        {"id": "report_period",       "kind": "text",    "label": "Report period",          "required": true,  "pii": false},
+        {"id": "total_amount",        "kind": "money",   "label": "Total claimed",          "required": true,  "pii": false},
+        {"id": "expense_lines",       "kind": "textarea","label": "Expense line details",   "required": true,  "pii": false},
+        {"id": "receipts",            "kind": "file",    "label": "Receipt images",         "required": true,  "pii": false},
+        {"id": "business_purpose",    "kind": "textarea","label": "Business purpose",       "required": true,  "pii": false},
+        {"id": "approved_amount",     "kind": "money",   "label": "Approved amount",        "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "policy_violation",    "condition": "expense_exceeds_policy_limit",           "handle": "escalate"},
+        {"id": "late_submission",     "condition": "submission_days_after_incurrence > 30",  "handle": "escalate"},
+        {"id": "missing_receipt",     "condition": "receipt_missing AND amount > 25",        "handle": "reject"},
+        {"id": "duplicate_claim",     "condition": "duplicate_check = match",               "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "approver",           "policy": "1_of_1"},
+        {"role": "accounting_manager", "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "staff_accountant"},
+        {"trigger": "approved",    "channel": "email",  "audience": "staff_accountant"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "staff_accountant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "approver"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "accounting_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["approval_cycle_time", "reimbursement_timeliness", "policy_exception_rate", "fraud_detection_rate"],
+      "compliance": ["IRS_accountable_plan_62A3_1", "SOX_T&E_controls", "GSA_per_diem_rates"],
+      "data_sensitivity": ["financial", "pii"]
+    },
+    {
+      "id": "close_period",
+      "title": "Execute monthly / quarterly period close",
+      "actor": {"role": "controller"},
+      "situation": "accounting period end; controller must execute close checklist, ensure all sub-ledgers post, record accruals, review variances, and certify trial balance",
+      "motivation": "produce accurate, timely financial statements that close on schedule without material errors or post-close adjustments",
+      "outcome": "period closed, trial balance certified, financial statements issued, comparative variance documented",
+      "success_criteria": [
+        "all sub-ledger feeds closed within T+2 business days",
+        "accruals recorded by T+3",
+        "variance analysis completed by T+5",
+        "trial balance certified and period locked by T+5",
+        "zero post-close journal entries without CFO approval"
+      ],
+      "data_capture": [
+        {"id": "period",              "kind": "text",    "label": "Closing period",         "required": true,  "pii": false},
+        {"id": "close_checklist",     "kind": "file",    "label": "Close checklist",        "required": true,  "pii": false},
+        {"id": "trial_balance",       "kind": "file",    "label": "Trial balance extract",  "required": true,  "pii": false},
+        {"id": "variance_analysis",   "kind": "file",    "label": "Variance analysis",      "required": true,  "pii": false},
+        {"id": "open_items",          "kind": "textarea","label": "Open items",             "required": false, "pii": false},
+        {"id": "certification",       "kind": "signature","label": "Controller certification","required": true,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "subledger_late",      "condition": "subledger_not_closed_by_T2",             "handle": "escalate"},
+        {"id": "large_variance",      "condition": "budget_variance_pct > 10",               "handle": "escalate"},
+        {"id": "post_close_je",       "condition": "journal_entry_date_in_closed_period",   "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "controller", "policy": "1_of_1"},
+        {"role": "cfo",        "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "controller"},
+        {"trigger": "approved",    "channel": "slack",  "audience": "controller"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "controller"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "cfo"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["close_cycle_days", "post_close_je_count", "variance_unexplained_pct", "certification_timeliness"],
+      "compliance": ["GAAP_ASC_205", "SOX_302_906_certifications", "IFRS_IAS1", "SEC_10Q_10K_deadlines"],
+      "data_sensitivity": ["financial", "confidential_business"]
+    },
+    {
+      "id": "reconcile_bank",
+      "title": "Reconcile bank account",
+      "actor": {"role": "senior_accountant"},
+      "situation": "end of period; accountant must compare bank statement to GL cash balance, identify and clear reconciling items, and certify the reconciliation",
+      "motivation": "detect misappropriation of cash, bank errors, and unrecorded transactions before financial statements are issued",
+      "outcome": "bank reconciliation completed, reconciling items cleared or aged, reconciliation certified by reviewer",
+      "success_criteria": [
+        "reconciliation completed within 3 business days of statement receipt",
+        "outstanding checks older than 90 days reviewed and stale-dated",
+        "all reconciling items have documented explanations",
+        "reconciliation reviewed by someone who did not prepare it"
+      ],
+      "data_capture": [
+        {"id": "account_number",      "kind": "text",  "label": "Bank account number",     "required": true,  "pii": false},
+        {"id": "statement_date",      "kind": "date",  "label": "Bank statement date",     "required": true,  "pii": false},
+        {"id": "bank_balance",        "kind": "money", "label": "Bank statement balance",  "required": true,  "pii": false},
+        {"id": "gl_balance",          "kind": "money", "label": "GL cash balance",         "required": true,  "pii": false},
+        {"id": "reconciling_items",   "kind": "textarea","label": "Reconciling items",     "required": true,  "pii": false},
+        {"id": "reconciliation_file", "kind": "file",  "label": "Reconciliation workpaper","required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "unreconciled_diff",   "condition": "bank_balance - gl_balance != sum_reconciling_items", "handle": "escalate"},
+        {"id": "stale_check",         "condition": "outstanding_check_age_days > 90",                    "handle": "branch", "branch_to": "stale_check_review"},
+        {"id": "fraud_indicator",     "condition": "unexplained_debit_detected = true",                  "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "accounting_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "senior_accountant"},
+        {"trigger": "approved",    "channel": "in_app", "audience": "senior_accountant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "senior_accountant"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "controller"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 259200},
+      "metrics": ["reconciliation_timeliness", "unreconciled_item_age", "stale_check_rate", "error_detection_rate"],
+      "compliance": ["SOX_ITGC_cash", "GAAP_ASC_305", "internal_control_framework_COSO"],
+      "data_sensitivity": ["financial", "confidential_business"]
+    },
+    {
+      "id": "record_fixed_asset",
+      "title": "Record acquisition of fixed asset",
+      "actor": {"role": "fixed_asset_accountant"},
+      "situation": "capital expenditure approved and asset placed in service; accountant must capitalize, assign asset tag, set up depreciation, and update fixed asset register",
+      "motivation": "correctly distinguish capex from opex, ensure assets are on the balance sheet at cost, and begin depreciation from the correct in-service date",
+      "outcome": "asset recorded in fixed asset register with assigned number, depreciation schedule created, AP invoice cleared to asset account",
+      "success_criteria": [
+        "capitalization threshold policy applied consistently",
+        "depreciation start date = in-service date",
+        "physical asset tag assigned and location recorded",
+        "useful life and salvage value consistent with GAAP guidance",
+        "AP invoice cleared to asset account within 5 business days of receipt"
+      ],
+      "data_capture": [
+        {"id": "asset_description",   "kind": "text",  "label": "Asset description",       "required": true,  "pii": false},
+        {"id": "asset_category",      "kind": "enum",  "label": "Asset category",          "required": true,  "pii": false},
+        {"id": "acquisition_cost",    "kind": "money", "label": "Acquisition cost",        "required": true,  "pii": false},
+        {"id": "in_service_date",     "kind": "date",  "label": "In-service date",         "required": true,  "pii": false},
+        {"id": "useful_life_months",  "kind": "number","label": "Useful life (months)",    "required": true,  "pii": false},
+        {"id": "salvage_value",       "kind": "money", "label": "Estimated salvage value", "required": true,  "pii": false},
+        {"id": "asset_tag",           "kind": "text",  "label": "Physical asset tag",      "required": true,  "pii": false},
+        {"id": "location",            "kind": "text",  "label": "Asset location",          "required": true,  "pii": false},
+        {"id": "po_invoice_ref",      "kind": "text",  "label": "PO / invoice reference",  "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "below_threshold",     "condition": "acquisition_cost < capitalization_threshold", "handle": "reject"},
+        {"id": "component_accounting","condition": "asset_has_significant_components = true",     "handle": "branch", "branch_to": "component_capitalization"},
+        {"id": "lease_asset",         "condition": "acquisition_type = finance_lease",            "handle": "branch", "branch_to": "asc842_right_of_use"}
+      ],
+      "approvals": [
+        {"role": "accounting_manager", "policy": "1_of_1"},
+        {"role": "controller",         "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "fixed_asset_accountant"},
+        {"trigger": "approved",    "channel": "in_app", "audience": "fixed_asset_accountant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "fixed_asset_accountant"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "controller"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["capitalization_accuracy", "tagging_rate", "time_to_asset_setup", "below_threshold_error_rate"],
+      "compliance": ["GAAP_ASC_360", "GAAP_ASC_842", "IRS_MACRS", "SOX_PP_E_controls"],
+      "data_sensitivity": ["financial", "confidential_business"]
+    },
+    {
+      "id": "calculate_depreciation",
+      "title": "Calculate and post periodic depreciation",
+      "actor": {"role": "fixed_asset_accountant"},
+      "situation": "period close; accountant must run the depreciation calculation engine, review for anomalies, post the depreciation journal, and reconcile accumulated depreciation balances",
+      "motivation": "systematically allocate asset cost over useful life in accordance with GAAP/IFRS to produce accurate net book values and income statement charges",
+      "outcome": "depreciation journal posted, accumulated depreciation reconciled to fixed asset roll, impairment indicators reviewed",
+      "success_criteria": [
+        "depreciation run completed before close cutoff",
+        "variance from prior period > 5% explained",
+        "fully depreciated assets reviewed for disposal or extension",
+        "accumulated depreciation reconciled to fixed asset sub-ledger",
+        "impairment indicators reviewed annually per ASC 360-10-35"
+      ],
+      "data_capture": [
+        {"id": "period",              "kind": "text",  "label": "Depreciation period",     "required": true,  "pii": false},
+        {"id": "total_depreciation",  "kind": "money", "label": "Total depreciation charge","required": true, "pii": false},
+        {"id": "depreciation_by_category","kind": "file","label": "Depreciation by category","required": true,"pii": false},
+        {"id": "anomaly_notes",       "kind": "textarea","label": "Variance explanation",  "required": false, "pii": false},
+        {"id": "je_reference",        "kind": "text",  "label": "Posted JE reference",     "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "large_variance",      "condition": "period_depreciation_variance_pct > 5",       "handle": "escalate"},
+        {"id": "negative_nbv",        "condition": "net_book_value < 0",                         "handle": "escalate"},
+        {"id": "impairment_trigger",  "condition": "impairment_indicator_detected = true",       "handle": "branch", "branch_to": "impairment_test"}
+      ],
+      "approvals": [
+        {"role": "accounting_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "fixed_asset_accountant"},
+        {"trigger": "approved",    "channel": "in_app", "audience": "fixed_asset_accountant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "fixed_asset_accountant"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "controller"}
+      ],
+      "sla": {"warn_pct": 85, "breach_seconds": 172800},
+      "metrics": ["depreciation_run_timeliness", "variance_to_prior_pct", "fully_depreciated_asset_review_rate"],
+      "compliance": ["GAAP_ASC_360", "GAAP_ASC_350_impairment", "IFRS_IAS16", "SOX_PP_E_controls"],
+      "data_sensitivity": ["financial", "confidential_business"]
+    },
+    {
+      "id": "eliminate_intercompany",
+      "title": "Eliminate intercompany transactions in consolidation",
+      "actor": {"role": "consolidation_accountant"},
+      "situation": "consolidation close; accountant must identify all intercompany balances, confirm agreement between entities, post eliminations, and certify consolidated financial statements",
+      "motivation": "prevent double-counting of revenue and assets in consolidated statements, which would mislead external users and violate GAAP/IFRS",
+      "outcome": "all intercompany balances confirmed and eliminated, consolidation trial balance certified, minority interest and equity method adjustments posted",
+      "success_criteria": [
+        "all intercompany receivables / payables agree between entities before elimination",
+        "intercompany revenue / cost eliminations zero net consolidated profit",
+        "unrealised intercompany profit in inventory eliminated",
+        "consolidation complete by T+7 from period end",
+        "FX translation adjustments posted to OCI correctly"
+      ],
+      "data_capture": [
+        {"id": "period",              "kind": "text",    "label": "Consolidation period",   "required": true,  "pii": false},
+        {"id": "entity_pairs",        "kind": "textarea","label": "Entity pair balances",   "required": true,  "pii": false},
+        {"id": "ic_mismatch_amount",  "kind": "money",   "label": "IC mismatch amount",     "required": false, "pii": false},
+        {"id": "elimination_je_ref",  "kind": "text",    "label": "Elimination JE reference","required": false,"pii": false},
+        {"id": "consolidation_file",  "kind": "file",    "label": "Consolidation workpaper","required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "ic_mismatch",         "condition": "ic_mismatch_amount > 1000",               "handle": "escalate"},
+        {"id": "timing_difference",   "condition": "ic_timing_difference_period_end",         "handle": "branch", "branch_to": "cutoff_je"},
+        {"id": "fx_exposure",         "condition": "intercompany_fx_amount > 100000",         "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "controller", "policy": "1_of_1"},
+        {"role": "cfo",        "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "consolidation_accountant"},
+        {"trigger": "approved",    "channel": "slack",  "audience": "controller"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "consolidation_accountant"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "cfo"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 604800},
+      "metrics": ["ic_elimination_timeliness", "mismatch_rate", "consolidation_adjustment_count"],
+      "compliance": ["GAAP_ASC_810_consolidation", "IFRS_10", "SEC_Reg_SX_3A", "SOX_financial_reporting"],
+      "data_sensitivity": ["financial", "confidential_business"]
+    },
+    {
+      "id": "revalue_FX",
+      "title": "Revalue foreign currency monetary items",
+      "actor": {"role": "treasury_analyst"},
+      "situation": "period end; analyst must identify all monetary assets and liabilities denominated in foreign currencies, apply closing exchange rates, post FX gain/loss entries, and update FX roll-forward schedule",
+      "motivation": "reflect current economic value of foreign currency positions on the balance sheet and income statement in accordance with ASC 830 / IAS 21",
+      "outcome": "FX revaluation entries posted, FX gain/loss reported on income statement, balance sheet monetary items restated at closing rate, OCI updated for translation adjustments",
+      "success_criteria": [
+        "closing exchange rates sourced from approved provider on period-end date",
+        "all foreign currency monetary accounts identified and revalued",
+        "FX gain/loss entry posted before period close cutoff",
+        "FX roll-forward schedule reconciled to GL balances",
+        "OCI translation adjustment reconciled for consolidated subsidiaries"
+      ],
+      "data_capture": [
+        {"id": "period",              "kind": "text",    "label": "Revaluation period",     "required": true,  "pii": false},
+        {"id": "fx_rates_source",     "kind": "text",    "label": "Exchange rate source",   "required": true,  "pii": false},
+        {"id": "total_gain_loss",     "kind": "money",   "label": "Net FX gain/(loss)",     "required": true,  "pii": false},
+        {"id": "revaluation_schedule","kind": "file",    "label": "FX revaluation schedule","required": true,  "pii": false},
+        {"id": "je_reference",        "kind": "text",    "label": "Revaluation JE reference","required": false,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "rate_source_unavailable","condition": "approved_rate_not_published_by_close","handle": "escalate"},
+        {"id": "large_fx_movement",   "condition": "abs(total_gain_loss) > 50000",            "handle": "escalate"},
+        {"id": "oci_allocation",      "condition": "subsidiary_functional_currency != USD",   "handle": "branch", "branch_to": "oci_translation_adjustment"}
+      ],
+      "approvals": [
+        {"role": "accounting_manager", "policy": "1_of_1"},
+        {"role": "controller",         "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "treasury_analyst"},
+        {"trigger": "approved",    "channel": "in_app", "audience": "treasury_analyst"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "treasury_analyst"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "controller"}
+      ],
+      "sla": {"warn_pct": 85, "breach_seconds": 172800},
+      "metrics": ["fx_revaluation_timeliness", "rate_sourcing_accuracy", "fx_gain_loss_variance_to_forecast"],
+      "compliance": ["GAAP_ASC_830", "IFRS_IAS21", "SOX_treasury_controls", "hedge_accounting_ASC_815"],
+      "data_sensitivity": ["financial", "confidential_business"]
+    }
+  ]
+}

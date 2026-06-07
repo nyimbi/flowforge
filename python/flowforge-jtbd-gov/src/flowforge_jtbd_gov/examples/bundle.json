@@ -1,0 +1,464 @@
+{
+  "project": {
+    "name": "gov-example",
+    "package": "gov_example",
+    "domain": "gov",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD"]
+  },
+  "shared": {
+    "roles": [
+      "citizen", "applicant", "permit_technician", "plan_reviewer",
+      "licensing_officer", "benefits_examiner", "foia_officer",
+      "procurement_officer", "appeals_officer", "code_inspector",
+      "hearing_officer", "grants_manager", "department_director",
+      "legal_counsel", "public_information_officer"
+    ],
+    "permissions": [
+      "gov.permit.process", "gov.license.renew", "gov.comment.manage",
+      "gov.benefit.process", "gov.foia.handle", "gov.procurement.manage",
+      "gov.tax.appeal", "gov.violation.handle", "gov.hearing.manage",
+      "gov.grant.process"
+    ]
+  },
+  "jtbds": [
+    {
+      "id": "process_permit",
+      "title": "Process building or land-use permit application",
+      "actor": {"role": "permit_technician"},
+      "situation": "property owner or contractor submits a permit application; technician must check completeness, route to reviewers, collect fees, and issue or deny the permit",
+      "motivation": "ensure construction and land use comply with zoning and building codes while meeting statutory processing deadlines",
+      "outcome": "permit issued with approved plans and inspection schedule, or denial issued with written deficiency notice",
+      "success_criteria": [
+        "completeness check within 5 business days",
+        "plan review completed within statutory period (typically 30-60 days)",
+        "permit fees collected before issuance",
+        "denied applications receive written deficiencies within 5 days of determination"
+      ],
+      "data_capture": [
+        {"id": "applicant_name",      "kind": "text",  "label": "Applicant legal name",    "required": true,  "pii": true},
+        {"id": "property_address",    "kind": "address","label": "Property address",       "required": true,  "pii": false},
+        {"id": "parcel_number",       "kind": "text",  "label": "APN / parcel number",     "required": true,  "pii": false},
+        {"id": "permit_type",         "kind": "enum",  "label": "Permit type",             "required": true,  "pii": false},
+        {"id": "project_description", "kind": "textarea","label": "Project description",   "required": true,  "pii": false},
+        {"id": "project_valuation",   "kind": "money", "label": "Project valuation",       "required": true,  "pii": false},
+        {"id": "plans",               "kind": "file",  "label": "Construction plans (PDF)","required": true,  "pii": false},
+        {"id": "fee_paid",            "kind": "money", "label": "Permit fee paid",         "required": true,  "pii": false},
+        {"id": "permit_number",       "kind": "text",  "label": "Assigned permit number",  "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "incomplete_application","condition": "completeness_check = failed",          "handle": "reject"},
+        {"id": "ceqa_required",       "condition": "project_triggers_ceqa = true",          "handle": "branch", "branch_to": "environmental_review"},
+        {"id": "historic_district",   "condition": "property_in_historic_district = true",  "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "plan_reviewer",        "policy": "1_of_1"},
+        {"role": "department_director",  "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "applicant"},
+        {"trigger": "approved",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "permit_technician"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "department_director"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 2592000},
+      "metrics": ["permit_processing_time", "first_review_pass_rate", "fee_collection_rate", "appeal_rate"],
+      "compliance": ["IBC_2021", "ADA_accessibility", "CEQA", "state_building_code", "local_zoning_ordinance"],
+      "data_sensitivity": ["pii", "public_record"]
+    },
+    {
+      "id": "renew_license",
+      "title": "Renew a professional or business license",
+      "actor": {"role": "licensing_officer"},
+      "situation": "licensee submits renewal application before expiration; officer must verify continuing education credits, check for violations, collect fee, and issue renewed license",
+      "motivation": "maintain a current registry of qualified licensees and prevent unlicensed practice",
+      "outcome": "license renewed with updated expiration date, certificate issued, renewal record archived",
+      "success_criteria": [
+        "renewal notice sent 90 days before expiration",
+        "continuing education verified against CE provider records",
+        "renewal processed within 5 business days of complete application",
+        "disciplinary holds checked before issuance"
+      ],
+      "data_capture": [
+        {"id": "licensee_name",       "kind": "text",  "label": "Licensee name",           "required": true,  "pii": true},
+        {"id": "license_number",      "kind": "text",  "label": "License number",          "required": true,  "pii": false},
+        {"id": "license_type",        "kind": "enum",  "label": "License type",            "required": true,  "pii": false},
+        {"id": "expiration_date",     "kind": "date",  "label": "Current expiration",      "required": true,  "pii": false},
+        {"id": "ce_credits_claimed",  "kind": "number","label": "CE credits claimed",      "required": true,  "pii": false},
+        {"id": "ce_certificates",     "kind": "file",  "label": "CE certificates",         "required": true,  "pii": false},
+        {"id": "renewal_fee",         "kind": "money", "label": "Renewal fee paid",        "required": true,  "pii": false},
+        {"id": "disciplinary_hold",   "kind": "boolean","label": "Disciplinary hold flag", "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "ce_deficit",          "condition": "ce_credits_verified < ce_required",    "handle": "reject"},
+        {"id": "disciplinary_hold",   "condition": "disciplinary_hold = true",             "handle": "escalate"},
+        {"id": "late_renewal",        "condition": "application_date > expiration_date",   "handle": "branch", "branch_to": "late_penalty_assessment"}
+      ],
+      "approvals": [
+        {"role": "licensing_officer", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "applicant"},
+        {"trigger": "approved",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "licensing_officer"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["renewal_processing_time", "ce_verification_accuracy", "lapsed_license_rate"],
+      "compliance": ["state_occupational_licensing_statutes", "NCSL_model_occupational_licensing", "ADA"],
+      "data_sensitivity": ["pii", "public_record"]
+    },
+    {
+      "id": "manage_public_comment",
+      "title": "Manage public comment period",
+      "actor": {"role": "public_information_officer"},
+      "situation": "agency publishes a draft rule, EIS, or project proposal; PIO must open comment period, accept and log all comments, respond to substantive comments, and publish final disposition",
+      "motivation": "meet APA and NEPA obligations to receive and consider public input before final agency action",
+      "outcome": "all comments logged, substantive comments responded to in record, final response document published",
+      "success_criteria": [
+        "comment period open for statutory minimum (typically 30-60 days)",
+        "all comments acknowledged within 5 business days of receipt",
+        "substantive comments individually responded to in final record",
+        "comment response document published before agency final action"
+      ],
+      "data_capture": [
+        {"id": "docket_id",           "kind": "text",    "label": "Docket / project ID",   "required": true,  "pii": false},
+        {"id": "notice_type",         "kind": "enum",    "label": "Notice type",           "required": true,  "pii": false},
+        {"id": "comment_period_open", "kind": "date",    "label": "Comment period opens",  "required": true,  "pii": false},
+        {"id": "comment_period_close","kind": "date",    "label": "Comment period closes", "required": true,  "pii": false},
+        {"id": "commenter_name",      "kind": "text",    "label": "Commenter name",        "required": false, "pii": true},
+        {"id": "comment_text",        "kind": "textarea","label": "Comment text",          "required": true,  "pii": false},
+        {"id": "comment_file",        "kind": "file",    "label": "Comment attachment",    "required": false, "pii": false},
+        {"id": "substantive_flag",    "kind": "boolean", "label": "Substantive comment",   "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "late_comment",        "condition": "comment_received_after_close_date",    "handle": "branch", "branch_to": "late_comment_discretion"},
+        {"id": "voluminous_comments", "condition": "comment_count > 1000",                "handle": "escalate"},
+        {"id": "ex_parte",            "condition": "commenter_is_regulated_party_in_adjudication", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "department_director", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "applicant"},
+        {"trigger": "approved",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "public_information_officer"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "department_director"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 5184000},
+      "metrics": ["comment_receipt_rate", "substantive_response_rate", "rulemaking_cycle_time"],
+      "compliance": ["APA_5USC553", "NEPA_42USC4332", "E_Rulemaking_federal_register", "state_APA"],
+      "data_sensitivity": ["pii", "public_record"]
+    },
+    {
+      "id": "process_benefits_claim",
+      "title": "Process public benefits claim",
+      "actor": {"role": "benefits_examiner"},
+      "situation": "resident applies for a public benefit (unemployment, housing assistance, food assistance, disability); examiner must verify eligibility, adjudicate, and issue determination",
+      "motivation": "ensure eligible residents receive benefits quickly while maintaining program integrity and preventing fraud",
+      "outcome": "benefits approved and issued, or denial sent with appeal rights notice",
+      "success_criteria": [
+        "initial determination made within statutory timeframe",
+        "notice of decision includes specific reason for denial and appeal rights",
+        "emergency benefits issued within 24 hours for qualifying hardship",
+        "fraud referrals made within 5 business days of indicator"
+      ],
+      "data_capture": [
+        {"id": "applicant_name",      "kind": "text",    "label": "Applicant name",        "required": true,  "pii": true},
+        {"id": "ssn_ref",             "kind": "text",    "label": "SSN reference",         "required": true,  "pii": true},
+        {"id": "benefit_type",        "kind": "enum",    "label": "Benefit type",          "required": true,  "pii": false},
+        {"id": "household_size",      "kind": "number",  "label": "Household size",        "required": true,  "pii": false},
+        {"id": "monthly_income",      "kind": "money",   "label": "Monthly gross income",  "required": true,  "pii": false},
+        {"id": "income_verification", "kind": "file",    "label": "Income verification",   "required": true,  "pii": true},
+        {"id": "residency_proof",     "kind": "file",    "label": "Residency verification","required": true,  "pii": true},
+        {"id": "determination",       "kind": "enum",    "label": "Eligibility determination","required": true,"pii": false},
+        {"id": "benefit_amount",      "kind": "money",   "label": "Monthly benefit amount","required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "emergency_need",      "condition": "applicant_declares_emergency_hardship",  "handle": "escalate"},
+        {"id": "income_over_limit",   "condition": "monthly_income > program_income_limit",  "handle": "reject"},
+        {"id": "fraud_indicator",     "condition": "fraud_score > 70",                       "handle": "branch", "branch_to": "program_integrity_review"}
+      ],
+      "approvals": [
+        {"role": "benefits_examiner", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "applicant"},
+        {"trigger": "approved",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "benefits_examiner"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "department_director"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 1814400},
+      "metrics": ["processing_time", "denial_rate", "appeal_overturn_rate", "error_rate"],
+      "compliance": ["Social_Security_Act", "SNAP_7CFR273", "state_public_benefits_law", "ADA_accessibility", "DUE_PROCESS_14th_amendment"],
+      "data_sensitivity": ["pii", "phi", "financial", "sensitive"]
+    },
+    {
+      "id": "handle_FOIA_request",
+      "title": "Handle Freedom of Information Act request",
+      "actor": {"role": "foia_officer"},
+      "situation": "requestor submits FOIA request for agency records; officer must search, review for exemptions, redact if needed, and respond within statutory timeframes",
+      "motivation": "fulfill transparency obligations while protecting legitimately exempt information (privacy, law enforcement, deliberative process)",
+      "outcome": "responsive records produced with exemption log, or proper denial/redaction with appeal rights notice",
+      "success_criteria": [
+        "acknowledgement letter sent within 20 business days",
+        "determination letter sent within 20 business days (with extension if complex)",
+        "Vaughn index provided for withheld documents",
+        "fee estimate provided before extensive search if fees exceed $25"
+      ],
+      "data_capture": [
+        {"id": "requestor_name",      "kind": "text",    "label": "Requestor name",        "required": true,  "pii": true},
+        {"id": "requestor_email",     "kind": "email",   "label": "Requestor email",       "required": true,  "pii": true},
+        {"id": "records_description", "kind": "textarea","label": "Records description",   "required": true,  "pii": false},
+        {"id": "date_range",          "kind": "text",    "label": "Date range",            "required": false, "pii": false},
+        {"id": "fee_category",        "kind": "enum",    "label": "Fee category",          "required": true,  "pii": false},
+        {"id": "exemptions_applied",  "kind": "text",    "label": "Exemptions applied",    "required": false, "pii": false},
+        {"id": "pages_produced",      "kind": "number",  "label": "Pages produced",        "required": false, "pii": false},
+        {"id": "fee_collected",       "kind": "money",   "label": "Fee collected",         "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "complex_request",     "condition": "estimated_search_hours > 20",           "handle": "branch", "branch_to": "complex_track"},
+        {"id": "privacy_act_overlap", "condition": "request_involves_personal_records",     "handle": "branch", "branch_to": "privacy_act_review"},
+        {"id": "litigation_hold",     "condition": "requestor_has_pending_litigation",      "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "foia_officer",   "policy": "1_of_1"},
+        {"role": "legal_counsel",  "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "applicant"},
+        {"trigger": "approved",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "foia_officer"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "department_director"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 1728000},
+      "metrics": ["foia_response_timeliness", "pages_per_request", "exemption_rate", "appeal_rate"],
+      "compliance": ["FOIA_5USC552", "Privacy_Act_5USC552a", "OMB_FOIA_guidelines", "state_public_records_laws"],
+      "data_sensitivity": ["pii", "law_enforcement", "deliberative", "public_record"]
+    },
+    {
+      "id": "manage_procurement_bid",
+      "title": "Manage competitive procurement bid",
+      "actor": {"role": "procurement_officer"},
+      "situation": "agency needs goods or services above competitive threshold; procurement officer must publish solicitation, evaluate proposals, award contract, and document selection",
+      "motivation": "achieve best value for taxpayers through fair and transparent competition while meeting procurement law requirements",
+      "outcome": "contract awarded to highest-rated responsive and responsible vendor, award notice published, debriefs offered",
+      "success_criteria": [
+        "solicitation published in required channels at least 21 days before response due date",
+        "all proposals evaluated against published criteria",
+        "award decision documented with scoring for each evaluator",
+        "debrief offered to unsuccessful offerors within 3 days of request"
+      ],
+      "data_capture": [
+        {"id": "solicitation_number", "kind": "text",    "label": "Solicitation number",   "required": true,  "pii": false},
+        {"id": "procurement_type",    "kind": "enum",    "label": "Procurement type",      "required": true,  "pii": false},
+        {"id": "estimated_value",     "kind": "money",   "label": "Estimated contract value","required": true,"pii": false},
+        {"id": "evaluation_criteria", "kind": "textarea","label": "Evaluation criteria",   "required": true,  "pii": false},
+        {"id": "vendor_name",         "kind": "text",    "label": "Awarded vendor",        "required": false, "pii": false},
+        {"id": "award_amount",        "kind": "money",   "label": "Award amount",          "required": false, "pii": false},
+        {"id": "evaluation_report",   "kind": "file",    "label": "Evaluation report",     "required": true,  "pii": false},
+        {"id": "dbe_utilization",     "kind": "number",  "label": "DBE utilization %",     "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "sole_source",         "condition": "procurement_type = sole_source",         "handle": "escalate"},
+        {"id": "protest_filed",       "condition": "bid_protest_filed = true",               "handle": "branch", "branch_to": "protest_review"},
+        {"id": "no_responsive_bids",  "condition": "responsive_bid_count = 0",               "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "procurement_officer",  "policy": "1_of_1"},
+        {"role": "department_director",  "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "applicant"},
+        {"trigger": "approved",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "procurement_officer"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "department_director"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 7776000},
+      "metrics": ["procurement_cycle_time", "competitive_award_rate", "protest_rate", "dbe_utilization_pct"],
+      "compliance": ["FAR_48CFR", "state_procurement_code", "DBE_49CFR26", "Buy_American_Act", "CARES_reporting"],
+      "data_sensitivity": ["financial", "confidential_business", "public_record"]
+    },
+    {
+      "id": "process_tax_appeal",
+      "title": "Process property tax assessment appeal",
+      "actor": {"role": "appeals_officer"},
+      "situation": "property owner appeals assessed value; appeals officer must schedule hearing, collect evidence, issue decision, and update assessment roll if warranted",
+      "motivation": "provide fair hearing process and accurate assessments while managing hearing docket within statutory timeframes",
+      "outcome": "hearing conducted, written decision issued, assessment roll updated if value changed, refund issued if overpaid",
+      "success_criteria": [
+        "hearing scheduled within 90 days of appeal filing",
+        "written decision issued within 30 days of hearing",
+        "assessment roll updated within 5 business days of final decision",
+        "refund (if owed) issued within 60 days of final decision"
+      ],
+      "data_capture": [
+        {"id": "parcel_number",       "kind": "text",    "label": "APN / parcel number",   "required": true,  "pii": false},
+        {"id": "owner_name",          "kind": "text",    "label": "Property owner",        "required": true,  "pii": true},
+        {"id": "assessed_value",      "kind": "money",   "label": "Assessed value",        "required": true,  "pii": false},
+        {"id": "appealed_value",      "kind": "money",   "label": "Appealed (claimed) value","required": true,"pii": false},
+        {"id": "appeal_reason",       "kind": "textarea","label": "Basis for appeal",      "required": true,  "pii": false},
+        {"id": "comparable_sales",    "kind": "file",    "label": "Comparable sales evidence","required": false,"pii": false},
+        {"id": "decision",            "kind": "enum",    "label": "Hearing decision",      "required": false, "pii": false},
+        {"id": "adjusted_value",      "kind": "money",   "label": "Adjusted assessed value","required": false,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "large_reduction",     "condition": "appealed_value < assessed_value * 0.70", "handle": "escalate"},
+        {"id": "further_appeal",      "condition": "petitioner_appeals_to_state_board",      "handle": "branch", "branch_to": "state_board_transfer"},
+        {"id": "refund_owed",         "condition": "overpaid_taxes > 0",                     "handle": "branch", "branch_to": "refund_process"}
+      ],
+      "approvals": [
+        {"role": "appeals_officer",      "policy": "1_of_1"},
+        {"role": "department_director",  "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "applicant"},
+        {"trigger": "approved",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "appeals_officer"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "department_director"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 7776000},
+      "metrics": ["appeal_disposition_time", "reduction_grant_rate", "refund_timeliness", "second_appeal_rate"],
+      "compliance": ["state_property_tax_code", "due_process_14th", "DOR_assessment_guidelines"],
+      "data_sensitivity": ["pii", "financial", "public_record"]
+    },
+    {
+      "id": "handle_code_violation",
+      "title": "Handle municipal code violation",
+      "actor": {"role": "code_inspector"},
+      "situation": "inspector observes or receives complaint about code violation (building, zoning, housing, health); must document, notice, and track compliance to abatement",
+      "motivation": "protect public health and safety and neighborhood character by achieving timely voluntary compliance before resorting to citations",
+      "outcome": "violation corrected, re-inspection passed, case closed; or citation issued and fine collected for non-compliance",
+      "success_criteria": [
+        "initial inspection within 5 business days of complaint",
+        "notice of violation issued within 3 business days of inspection",
+        "re-inspection scheduled within 30 days of compliance deadline",
+        "emergency violations abated within 24 hours"
+      ],
+      "data_capture": [
+        {"id": "complaint_number",    "kind": "text",    "label": "Complaint number",       "required": true,  "pii": false},
+        {"id": "property_address",    "kind": "address", "label": "Property address",       "required": true,  "pii": false},
+        {"id": "owner_name",          "kind": "text",    "label": "Property owner",         "required": true,  "pii": true},
+        {"id": "violation_type",      "kind": "enum",    "label": "Violation type",         "required": true,  "pii": false},
+        {"id": "violation_description","kind": "textarea","label": "Violation description", "required": true,  "pii": false},
+        {"id": "inspection_photos",   "kind": "file",    "label": "Inspection photos",      "required": true,  "pii": false},
+        {"id": "compliance_deadline", "kind": "date",    "label": "Compliance deadline",    "required": true,  "pii": false},
+        {"id": "fine_amount",         "kind": "money",   "label": "Citation fine amount",   "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "emergency_hazard",    "condition": "violation_severity = imminent_hazard",   "handle": "escalate"},
+        {"id": "repeat_violation",    "condition": "prior_violation_count > 2",              "handle": "branch", "branch_to": "administrative_hearing"},
+        {"id": "absentee_owner",      "condition": "notice_undeliverable = true",            "handle": "branch", "branch_to": "legal_notice_publication"}
+      ],
+      "approvals": [
+        {"role": "code_inspector", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "applicant"},
+        {"trigger": "approved",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "code_inspector"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "department_director"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 2592000},
+      "metrics": ["voluntary_compliance_rate", "first_inspection_time", "repeat_violation_rate", "case_closure_time"],
+      "compliance": ["local_municipal_code", "IBC_2021", "IFC_2021", "fair_housing_act", "due_process_14th"],
+      "data_sensitivity": ["pii", "public_record"]
+    },
+    {
+      "id": "manage_public_hearing",
+      "title": "Manage public hearing",
+      "actor": {"role": "hearing_officer"},
+      "situation": "agency schedules public hearing for zoning, rate-setting, or adjudicatory matter; hearing officer must notice, conduct hearing, take testimony, and issue decision",
+      "motivation": "provide legally adequate public process that satisfies due process, open meetings law, and rulemaking requirements",
+      "outcome": "hearing conducted on record, all testimony received, decision or recommendation issued within required timeframe",
+      "success_criteria": [
+        "public notice published at least 10 days before hearing",
+        "ADA-accessible venue secured",
+        "all parties served with notice at least 10 days before",
+        "verbatim transcript or recording completed",
+        "decision issued within 30 days of record closure"
+      ],
+      "data_capture": [
+        {"id": "hearing_docket",      "kind": "text",    "label": "Hearing docket number", "required": true,  "pii": false},
+        {"id": "matter_type",         "kind": "enum",    "label": "Matter type",           "required": true,  "pii": false},
+        {"id": "hearing_date",        "kind": "datetime","label": "Hearing date/time",     "required": true,  "pii": false},
+        {"id": "hearing_location",    "kind": "text",    "label": "Hearing location",      "required": true,  "pii": false},
+        {"id": "parties",             "kind": "textarea","label": "Parties of record",     "required": true,  "pii": false},
+        {"id": "testimony_summary",   "kind": "textarea","label": "Testimony summary",     "required": true,  "pii": false},
+        {"id": "transcript",          "kind": "file",    "label": "Hearing transcript",    "required": true,  "pii": false},
+        {"id": "decision",            "kind": "file",    "label": "Hearing decision",      "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "continuance_requested","condition": "party_requests_continuance",            "handle": "branch", "branch_to": "continuance_scheduling"},
+        {"id": "quorum_failure",      "condition": "required_quorum_not_present",            "handle": "reject"},
+        {"id": "ex_parte_contact",    "condition": "adjudicatory_matter AND prohibited_ex_parte_contact", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "hearing_officer",     "policy": "1_of_1"},
+        {"role": "department_director", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "applicant"},
+        {"trigger": "approved",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "hearing_officer"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "department_director"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 2592000},
+      "metrics": ["notice_timeliness", "decision_timeliness", "appeal_rate", "continuance_rate"],
+      "compliance": ["APA_5USC554", "open_meetings_act", "ADA_accessibility", "state_administrative_procedure_act"],
+      "data_sensitivity": ["pii", "public_record", "legal"]
+    },
+    {
+      "id": "process_grant_application",
+      "title": "Process grant application",
+      "actor": {"role": "grants_manager"},
+      "situation": "organization or individual applies for a government grant; grants manager must review eligibility, score application, make award recommendation, and issue grant agreement",
+      "motivation": "fund highest-impact projects within statutory purpose and ensure compliance with federal/state grant management requirements",
+      "outcome": "grant awarded with signed agreement and reporting schedule, or denial with written rationale",
+      "success_criteria": [
+        "eligibility determination within 5 business days of complete application",
+        "scoring completed before award recommendations",
+        "award announced within statutory timeline",
+        "grant agreement executed before any disbursement",
+        "SAM.gov / debarment check completed before award"
+      ],
+      "data_capture": [
+        {"id": "applicant_org",       "kind": "text",    "label": "Applicant organization", "required": true,  "pii": false},
+        {"id": "duns_uei",            "kind": "text",    "label": "UEI (SAM.gov)",          "required": true,  "pii": false},
+        {"id": "grant_program",       "kind": "text",    "label": "Grant program name",     "required": true,  "pii": false},
+        {"id": "requested_amount",    "kind": "money",   "label": "Amount requested",       "required": true,  "pii": false},
+        {"id": "project_narrative",   "kind": "file",    "label": "Project narrative",      "required": true,  "pii": false},
+        {"id": "budget_detail",       "kind": "file",    "label": "Budget detail",          "required": true,  "pii": false},
+        {"id": "debarment_check",     "kind": "text",    "label": "SAM debarment result",   "required": true,  "pii": false},
+        {"id": "score",               "kind": "number",  "label": "Review panel score",     "required": false, "pii": false},
+        {"id": "award_amount",        "kind": "money",   "label": "Award amount",           "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "debarred_applicant",  "condition": "debarment_check = debarred",              "handle": "reject"},
+        {"id": "indirect_rate_missing","condition": "indirect_cost_rate_not_negotiated",      "handle": "escalate"},
+        {"id": "below_score_threshold","condition": "score < min_fundable_score",             "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "grants_manager",      "policy": "1_of_1"},
+        {"role": "department_director", "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "applicant"},
+        {"trigger": "approved",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "grants_manager"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "department_director"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 5184000},
+      "metrics": ["award_cycle_time", "funded_project_success_rate", "debarment_check_rate", "reporting_compliance_rate"],
+      "compliance": ["2CFR200_uniform_guidance", "federal_grant_statutes", "SAM_debarment_check", "FFATA", "state_grant_regulations"],
+      "data_sensitivity": ["financial", "pii", "public_record"]
+    }
+  ]
+}

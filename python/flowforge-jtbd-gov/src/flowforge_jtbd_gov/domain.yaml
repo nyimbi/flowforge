@@ -21,6 +21,8 @@ regulator_hints:
   - "FAR (48 CFR Subchapter D)"
   - "Federal Records Act (44 USC 3101)"
   - "NIST SP 800-53"
+tier: A
+team_id: team-gov
 phase: E4
 signoff:
   signer: sme-gov

@@ -10,4 +10,7 @@ subdomains:
   - "payroll"
   - "tax"
 regulator_hints: []
+tier: B
+team_id: team-accounting
+reviewer_credentials: "domain-sme(accounting)"
 phase: E2

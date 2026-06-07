@@ -20,6 +20,8 @@ regulator_hints:
   - "OFAC sanctions screening (31 CFR §501)"
   - "Reg 114 Trust (NY 11 NYCRR §126)"
   - "GDPR / CCPA"
+tier: A
+team_id: team-insurance
 phase: E2
 signoff:
   signer: sme-insurance

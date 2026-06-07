@@ -8,4 +8,7 @@ subdomains:
   - "deposit"
   - "cards"
 regulator_hints: []
+tier: A
+team_id: team-banking
+reviewer_credentials: "domain-sme(banking)"
 phase: E2

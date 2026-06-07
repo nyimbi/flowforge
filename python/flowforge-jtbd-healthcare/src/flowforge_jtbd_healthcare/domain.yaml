@@ -18,6 +18,8 @@ regulator_hints:
   - "FDA REMS"
   - "42 CFR Part 2"
   - GINA
+tier: A
+team_id: team-healthcare
 phase: E4
 data_sensitivity:
   - PHI

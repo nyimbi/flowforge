@@ -9,4 +9,7 @@ subdomains:
   - "leave"
   - "performance"
 regulator_hints: []
+tier: A
+team_id: team-hr
+reviewer_credentials: "domain-sme(hr)"
 phase: E2

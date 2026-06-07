@@ -1,0 +1,452 @@
+{
+  "project": {
+    "name": "banking-example",
+    "package": "banking_example",
+    "domain": "banking",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD"]
+  },
+  "shared": {
+    "roles": [
+      "applicant", "loan_officer", "credit_analyst", "underwriter",
+      "operations_specialist", "compliance_officer", "aml_analyst",
+      "fraud_analyst", "branch_manager", "treasury_analyst",
+      "trade_finance_specialist", "dispute_analyst", "kyc_analyst",
+      "bsa_officer", "cfo"
+    ],
+    "permissions": [
+      "bank.loan.originate", "bank.wire.authorize", "bank.customer.onboard",
+      "bank.dispute.handle", "bank.overdraft.manage", "bank.account.close",
+      "bank.aml.investigate", "bank.trade.originate", "bank.treasury.settle",
+      "bank.sar.file"
+    ]
+  },
+  "jtbds": [
+    {
+      "id": "originate_loan",
+      "title": "Originate a commercial or consumer loan",
+      "actor": {"role": "loan_officer"},
+      "situation": "applicant requests credit; loan officer must collect application, order credit reports, underwrite risk, obtain approvals, and fund disbursement",
+      "motivation": "book quality loans within target yield while meeting fair lending obligations and closing before competitor",
+      "outcome": "loan approved, documented, and funded; adverse action notice sent if declined",
+      "success_criteria": [
+        "credit decision rendered within 3 business days of complete application",
+        "adverse action notice sent within 30 days of denial",
+        "TILA disclosures delivered before consummation",
+        "HMDA data captured for reportable loans"
+      ],
+      "data_capture": [
+        {"id": "applicant_name",      "kind": "text",  "label": "Applicant legal name",   "required": true,  "pii": true},
+        {"id": "applicant_ssn_ref",   "kind": "text",  "label": "SSN reference",          "required": true,  "pii": true},
+        {"id": "loan_amount",         "kind": "money", "label": "Loan amount requested",  "required": true,  "pii": false},
+        {"id": "loan_purpose",        "kind": "enum",  "label": "Loan purpose",           "required": true,  "pii": false},
+        {"id": "credit_score",        "kind": "number","label": "Credit score",           "required": true,  "pii": false},
+        {"id": "dti_ratio",           "kind": "number","label": "Debt-to-income ratio",   "required": true,  "pii": false},
+        {"id": "collateral_value",    "kind": "money", "label": "Collateral appraised value","required": false,"pii": false},
+        {"id": "interest_rate",       "kind": "number","label": "Interest rate (APR)",    "required": true,  "pii": false},
+        {"id": "loan_term_months",    "kind": "number","label": "Term (months)",          "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "thin_file",           "condition": "credit_score < 580",                   "handle": "branch", "branch_to": "manual_underwrite"},
+        {"id": "high_dti",            "condition": "dti_ratio > 0.43",                     "handle": "escalate"},
+        {"id": "ofac_hit",            "condition": "ofac_screening = match",               "handle": "reject"},
+        {"id": "large_loan",          "condition": "loan_amount > lending_authority",      "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "credit_analyst",   "policy": "1_of_1"},
+        {"role": "branch_manager",   "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "applicant"},
+        {"trigger": "approved",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "loan_officer"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "branch_manager"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 259200},
+      "metrics": ["time_to_decision", "approval_rate", "adverse_action_timeliness", "loan_quality_score"],
+      "compliance": ["ECOA_RegB", "TILA_RegZ", "HMDA_RegC", "CRA", "OFAC_31CFR501", "FCRA"],
+      "data_sensitivity": ["pii", "financial", "credit"]
+    },
+    {
+      "id": "process_wire_transfer",
+      "title": "Process and authorize wire transfer",
+      "actor": {"role": "operations_specialist"},
+      "situation": "customer or internal desk initiates a wire transfer; specialist must verify authentication, screen against sanctions, obtain dual approval, and execute settlement",
+      "motivation": "process transfers accurately within Fedwire/SWIFT deadlines while preventing fraud and sanctions violations",
+      "outcome": "wire executed and confirmed, SWIFT/Fedwire confirmation archived, correspondent credited",
+      "success_criteria": [
+        "OFAC/SDN screening completed before execution",
+        "dual approval obtained for wires above threshold",
+        "Fedwire submitted before 5:00 PM ET cutoff",
+        "SWIFT MT103 confirmation archived within 2 hours"
+      ],
+      "data_capture": [
+        {"id": "originator_account",  "kind": "text",  "label": "Originator account",      "required": true,  "pii": false},
+        {"id": "beneficiary_name",    "kind": "text",  "label": "Beneficiary name",        "required": true,  "pii": true},
+        {"id": "beneficiary_account", "kind": "text",  "label": "Beneficiary account",     "required": true,  "pii": false},
+        {"id": "beneficiary_bank",    "kind": "text",  "label": "Beneficiary bank (BIC/ABA)","required": true,"pii": false},
+        {"id": "amount",              "kind": "money", "label": "Transfer amount",         "required": true,  "pii": false},
+        {"id": "currency",            "kind": "enum",  "label": "Currency",                "required": true,  "pii": false},
+        {"id": "value_date",          "kind": "date",  "label": "Value date",              "required": true,  "pii": false},
+        {"id": "ofac_screening_ref",  "kind": "text",  "label": "OFAC screening reference","required": true,  "pii": false},
+        {"id": "swift_ref",           "kind": "text",  "label": "SWIFT/Fedwire reference", "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "ofac_hit",            "condition": "ofac_result = potential_match",           "handle": "reject"},
+        {"id": "cutoff_risk",         "condition": "submission_time > 16:00_ET",              "handle": "escalate"},
+        {"id": "fx_exposure",         "condition": "currency != USD",                         "handle": "branch", "branch_to": "fx_conversion"},
+        {"id": "fraud_pattern",       "condition": "wire_fraud_score > 75",                   "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "operations_specialist", "policy": "1_of_1"},
+        {"role": "branch_manager",        "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "applicant"},
+        {"trigger": "approved",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "operations_specialist"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "branch_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 28800},
+      "metrics": ["wire_accuracy_rate", "ofac_screen_time", "same_day_settlement_pct", "fraud_prevention_rate"],
+      "compliance": ["BSA_31USC5318", "OFAC_31CFR501", "Fedwire_rules", "SWIFT_compliance", "UCC_Article4A"],
+      "data_sensitivity": ["financial", "pii", "sensitive"]
+    },
+    {
+      "id": "onboard_business_customer",
+      "title": "Onboard a business banking customer (KYB/KYC)",
+      "actor": {"role": "kyc_analyst"},
+      "situation": "business applies for banking relationship; analyst must verify business identity, collect beneficial ownership, assess risk, and open accounts",
+      "motivation": "establish profitable banking relationship while meeting BSA/AML CDD/EDD requirements and preventing financial crime",
+      "outcome": "customer onboarded with CDD file complete, risk rating assigned, accounts opened",
+      "success_criteria": [
+        "beneficial ownership at >= 25% threshold collected and verified",
+        "OFAC and adverse media screening cleared",
+        "CDD risk rating assigned within 5 business days",
+        "FinCEN CDD Rule certification on file",
+        "EDD initiated for high-risk customers"
+      ],
+      "data_capture": [
+        {"id": "business_name",       "kind": "text",  "label": "Legal business name",    "required": true,  "pii": false},
+        {"id": "ein",                 "kind": "text",  "label": "EIN",                    "required": true,  "pii": true},
+        {"id": "business_type",       "kind": "enum",  "label": "Entity type",            "required": true,  "pii": false},
+        {"id": "naics_code",          "kind": "text",  "label": "NAICS code",             "required": true,  "pii": false},
+        {"id": "beneficial_owners",   "kind": "file",  "label": "Beneficial ownership certification","required": true,"pii": true},
+        {"id": "articles_of_incorp",  "kind": "file",  "label": "Articles of incorporation","required": true,"pii": false},
+        {"id": "ofac_result",         "kind": "text",  "label": "OFAC screening result",  "required": true,  "pii": false},
+        {"id": "cdd_risk_rating",     "kind": "enum",  "label": "CDD risk rating",        "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "high_risk_rating",    "condition": "cdd_risk_rating = high",                "handle": "branch", "branch_to": "edd_review"},
+        {"id": "ofac_hit",            "condition": "ofac_result = match",                   "handle": "reject"},
+        {"id": "complex_ownership",   "condition": "ownership_layers > 2",                  "handle": "escalate"},
+        {"id": "pep_identified",      "condition": "beneficial_owner_is_pep = true",        "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "kyc_analyst",        "policy": "1_of_1"},
+        {"role": "compliance_officer", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "applicant"},
+        {"trigger": "approved",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "kyc_analyst"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "bsa_officer"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 432000},
+      "metrics": ["onboarding_cycle_time", "cdd_completion_rate", "edd_escalation_rate", "false_positive_rate"],
+      "compliance": ["BSA_AML_31USC5318", "FinCEN_CDD_Rule", "PATRIOT_Act_314b", "OFAC_31CFR501", "GDPR"],
+      "data_sensitivity": ["pii", "financial", "regulatory", "sensitive"]
+    },
+    {
+      "id": "handle_dispute",
+      "title": "Handle customer payment dispute",
+      "actor": {"role": "dispute_analyst"},
+      "situation": "customer disputes a transaction (card, ACH, wire); analyst must investigate, determine validity, apply provisional credit, and resolve within Reg E/Z timeframes",
+      "motivation": "resolve disputes fairly within statutory deadlines to avoid regulatory penalties and preserve customer trust",
+      "outcome": "dispute resolved, final credit or debit posted, chargeback filed with network if warranted, Reg E/Z notice sent",
+      "success_criteria": [
+        "provisional credit applied within 5 business days for Reg E (10 for new accounts)",
+        "investigation completed within 45 business days",
+        "final determination letter sent within 3 business days of resolution",
+        "chargeback filed within network time limits"
+      ],
+      "data_capture": [
+        {"id": "customer_account",    "kind": "text",  "label": "Customer account",        "required": true,  "pii": false},
+        {"id": "disputed_amount",     "kind": "money", "label": "Disputed amount",         "required": true,  "pii": false},
+        {"id": "transaction_date",    "kind": "date",  "label": "Transaction date",        "required": true,  "pii": false},
+        {"id": "merchant_name",       "kind": "text",  "label": "Merchant name",           "required": false, "pii": false},
+        {"id": "dispute_reason",      "kind": "enum",  "label": "Dispute reason code",     "required": true,  "pii": false},
+        {"id": "customer_statement",  "kind": "textarea","label": "Customer statement",    "required": true,  "pii": false},
+        {"id": "provisional_credit",  "kind": "money", "label": "Provisional credit amount","required": false,"pii": false},
+        {"id": "resolution",          "kind": "enum",  "label": "Dispute resolution",      "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "reg_e_deadline",      "condition": "days_since_transaction > 40",              "handle": "escalate"},
+        {"id": "fraud_confirmed",     "condition": "transaction_type = unauthorized_fraud",    "handle": "branch", "branch_to": "fraud_case"},
+        {"id": "chargeback_expired",  "condition": "network_chargeback_window_expired = true", "handle": "branch", "branch_to": "bank_loss_write_off"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "applicant"},
+        {"trigger": "approved",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "dispute_analyst"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "branch_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 3456000},
+      "metrics": ["dispute_resolution_time", "provisional_credit_timeliness", "chargeback_recovery_rate", "reg_e_compliance_pct"],
+      "compliance": ["Reg_E_12CFR205", "Reg_Z_12CFR226", "VISA_chargeback_rules", "Mastercard_dispute_rules", "FCBA"],
+      "data_sensitivity": ["pii", "financial"]
+    },
+    {
+      "id": "manage_overdraft",
+      "title": "Manage overdraft authorization and fee assessment",
+      "actor": {"role": "operations_specialist"},
+      "situation": "customer account balance would go negative; system must apply overdraft policy, optionally transfer from linked account, assess fee, and notify customer",
+      "motivation": "maximize fee revenue within opt-in rules while preventing regulatory action for unauthorized overdraft fees",
+      "outcome": "transaction approved or declined per policy, fee assessed if applicable, customer notified, opt-in status confirmed",
+      "success_criteria": [
+        "opt-in status verified before assessing ATM/one-time debit overdraft fee",
+        "continuous overdraft fee disclosed in advance per Reg E",
+        "daily fee cap applied per account agreement",
+        "linked account sweep attempted before overdraft"
+      ],
+      "data_capture": [
+        {"id": "account_number",      "kind": "text",  "label": "Account number",          "required": true,  "pii": false},
+        {"id": "transaction_amount",  "kind": "money", "label": "Transaction amount",      "required": true,  "pii": false},
+        {"id": "available_balance",   "kind": "money", "label": "Available balance",       "required": true,  "pii": false},
+        {"id": "overdraft_opt_in",    "kind": "boolean","label": "Overdraft opt-in status","required": true,  "pii": false},
+        {"id": "linked_account",      "kind": "text",  "label": "Linked account for sweep","required": false, "pii": false},
+        {"id": "fee_amount",          "kind": "money", "label": "Overdraft fee",           "required": false, "pii": false},
+        {"id": "decision",            "kind": "enum",  "label": "Approve/decline",         "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "not_opted_in",        "condition": "overdraft_opt_in = false AND transaction_type = atm_or_debit", "handle": "reject"},
+        {"id": "daily_cap_reached",   "condition": "daily_od_fee_total >= daily_fee_cap",                         "handle": "branch", "branch_to": "waive_fee"},
+        {"id": "extended_overdraft",  "condition": "days_overdrawn > 5",                                          "handle": "branch", "branch_to": "extended_od_fee"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "sms",   "audience": "applicant"},
+        {"trigger": "approved",    "channel": "sms",   "audience": "applicant"},
+        {"trigger": "rejected",    "channel": "sms",   "audience": "applicant"},
+        {"trigger": "sla_warn",    "channel": "in_app","audience": "operations_specialist"}
+      ],
+      "sla": {"warn_pct": 90, "breach_seconds": 300},
+      "metrics": ["overdraft_fee_revenue", "opt_in_rate", "overdraft_decline_rate", "regulatory_finding_rate"],
+      "compliance": ["Reg_E_12CFR205_17", "CFPB_overdraft_guidance", "UDAAP"],
+      "data_sensitivity": ["pii", "financial"]
+    },
+    {
+      "id": "close_account",
+      "title": "Process account closure",
+      "actor": {"role": "operations_specialist"},
+      "situation": "customer requests account closure or bank initiates for-cause closure; specialist must resolve open items, issue remaining balance, and complete reporting",
+      "motivation": "close account cleanly without residual liability, meet dormancy/escheatment rules, and preserve the customer relationship if possible",
+      "outcome": "account closed, balance disbursed, 1099-INT issued if applicable, dormancy review completed",
+      "success_criteria": [
+        "balance disbursed within 5 business days of closure",
+        "all recurring transactions cancelled before closure date",
+        "dormancy review and unclaimed property report filed if applicable",
+        "1099-INT prepared for interest-bearing accounts"
+      ],
+      "data_capture": [
+        {"id": "account_number",      "kind": "text",  "label": "Account number",           "required": true,  "pii": false},
+        {"id": "closure_reason",      "kind": "enum",  "label": "Closure reason",           "required": true,  "pii": false},
+        {"id": "remaining_balance",   "kind": "money", "label": "Remaining balance",        "required": true,  "pii": false},
+        {"id": "disbursement_method", "kind": "enum",  "label": "Disbursement method",      "required": true,  "pii": false},
+        {"id": "open_items",          "kind": "textarea","label": "Open items checklist",   "required": true,  "pii": false},
+        {"id": "for_cause",           "kind": "boolean","label": "Bank-initiated for cause","required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "negative_balance",    "condition": "remaining_balance < 0",                 "handle": "branch", "branch_to": "collections"},
+        {"id": "for_cause_closure",   "condition": "for_cause = true",                      "handle": "branch", "branch_to": "for_cause_review"},
+        {"id": "dormant_account",     "condition": "last_customer_activity > dormancy_threshold", "handle": "branch", "branch_to": "escheatment"}
+      ],
+      "approvals": [
+        {"role": "branch_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "applicant"},
+        {"trigger": "approved",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "operations_specialist"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["closure_cycle_time", "balance_disbursement_timeliness", "escheatment_compliance_rate"],
+      "compliance": ["UCC_Article4", "state_unclaimed_property_laws", "IRS_1099", "BSA"],
+      "data_sensitivity": ["pii", "financial"]
+    },
+    {
+      "id": "handle_AML_alert",
+      "title": "Investigate AML transaction monitoring alert",
+      "actor": {"role": "aml_analyst"},
+      "situation": "transaction monitoring system generates an AML alert; analyst must review, gather evidence, determine true positive or dismiss, and escalate to SAR if warranted",
+      "motivation": "identify and report suspicious activity to FinCEN while minimizing false positive burden",
+      "outcome": "alert closed as false positive with documentation, or SAR filing initiated with 30-day completion",
+      "success_criteria": [
+        "alert reviewed within 5 business days of generation",
+        "true positive escalated to BSA officer within 24 hours",
+        "SAR filed within 30 days of determination",
+        "documentation of disposition retained for 5 years"
+      ],
+      "data_capture": [
+        {"id": "alert_id",            "kind": "text",    "label": "Alert ID",               "required": true,  "pii": false},
+        {"id": "alert_type",          "kind": "enum",    "label": "Alert scenario type",    "required": true,  "pii": false},
+        {"id": "subject_account",     "kind": "text",    "label": "Subject account",        "required": true,  "pii": false},
+        {"id": "transaction_summary", "kind": "textarea","label": "Transaction summary",    "required": true,  "pii": false},
+        {"id": "risk_score",          "kind": "number",  "label": "Model risk score",       "required": true,  "pii": false},
+        {"id": "disposition",         "kind": "enum",    "label": "Disposition",            "required": true,  "pii": false},
+        {"id": "narrative",           "kind": "textarea","label": "Analyst narrative",      "required": true,  "pii": false},
+        {"id": "sar_reference",       "kind": "text",    "label": "SAR reference (if filed)","required": false,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "tipping_off_risk",    "condition": "customer_contacted_about_alert = true",  "handle": "escalate"},
+        {"id": "law_enforcement_request","condition": "leo_request_311_received = true",     "handle": "branch", "branch_to": "leo_response"},
+        {"id": "batch_pattern",       "condition": "alert_linked_to_prior_sar = true",       "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "bsa_officer", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "aml_analyst"},
+        {"trigger": "approved",    "channel": "in_app", "audience": "aml_analyst"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "aml_analyst"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "bsa_officer"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 432000},
+      "metrics": ["alert_closure_rate", "true_positive_rate", "sar_filing_timeliness", "false_positive_rate"],
+      "compliance": ["BSA_31USC5318", "FinCEN_SAR_rules", "PATRIOT_Act_314a", "FATF_40_recs"],
+      "data_sensitivity": ["financial", "pii", "regulatory", "sensitive"]
+    },
+    {
+      "id": "originate_trade_finance",
+      "title": "Originate trade finance transaction (LC/BG)",
+      "actor": {"role": "trade_finance_specialist"},
+      "situation": "corporate customer requests issuance of letter of credit or bank guarantee to support an import/export transaction; specialist must assess credit, draft instrument, and issue via SWIFT",
+      "motivation": "support customer trade activity, earn fee income, and limit bank exposure within credit appetite",
+      "outcome": "LC or BG issued via SWIFT MT700/MT760, collateral booked, customer charged fees",
+      "success_criteria": [
+        "OFAC and sanctions screening on all parties before issuance",
+        "credit limit verified before issuance",
+        "UCP 600 / URDG 758 terms applied correctly",
+        "SWIFT message authenticated and sent within 2 business days of approval"
+      ],
+      "data_capture": [
+        {"id": "applicant_name",      "kind": "text",  "label": "Applicant name",          "required": true,  "pii": true},
+        {"id": "beneficiary_name",    "kind": "text",  "label": "Beneficiary name",        "required": true,  "pii": true},
+        {"id": "instrument_type",     "kind": "enum",  "label": "LC or BG",                "required": true,  "pii": false},
+        {"id": "instrument_amount",   "kind": "money", "label": "Instrument amount",       "required": true,  "pii": false},
+        {"id": "expiry_date",         "kind": "date",  "label": "Expiry date",             "required": true,  "pii": false},
+        {"id": "underlying_contract", "kind": "file",  "label": "Underlying contract",     "required": true,  "pii": false},
+        {"id": "ofac_result",         "kind": "text",  "label": "OFAC screening result",   "required": true,  "pii": false},
+        {"id": "swift_reference",     "kind": "text",  "label": "SWIFT reference",         "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "ofac_hit",            "condition": "ofac_result = match",                   "handle": "reject"},
+        {"id": "credit_excess",       "condition": "instrument_amount > available_credit_line", "handle": "escalate"},
+        {"id": "restricted_country",  "condition": "country_risk_rating = high",            "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "trade_finance_specialist", "policy": "1_of_1"},
+        {"role": "compliance_officer",       "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "applicant"},
+        {"trigger": "approved",    "channel": "email",  "audience": "applicant"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "trade_finance_specialist"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "cfo"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 172800},
+      "metrics": ["instrument_issuance_time", "document_examination_accuracy", "fee_income_per_instrument"],
+      "compliance": ["UCP_600", "URDG_758", "OFAC_31CFR501", "BSA", "ICC_banking_rules"],
+      "data_sensitivity": ["financial", "pii", "confidential_business"]
+    },
+    {
+      "id": "settle_treasury",
+      "title": "Settle treasury/investment security transaction",
+      "actor": {"role": "treasury_analyst"},
+      "situation": "treasury desk trades a security (T-bill, repo, swap); analyst must confirm trade details, ensure pre-settlement funding, and settle via DTC/Fedwire Securities on value date",
+      "motivation": "achieve clean settlement to avoid fails charges, maintain liquidity ratios, and earn positive carry",
+      "outcome": "security delivered-vs-payment settled, confirmation archived, position updated in treasury system",
+      "success_criteria": [
+        "trade confirmed with counterparty before T+1 noon",
+        "funding verified in nostro before settlement cutoff",
+        "DTC/Fedwire settlement confirmed on value date",
+        "FRTB risk data captured by EOD"
+      ],
+      "data_capture": [
+        {"id": "trade_id",            "kind": "text",  "label": "Trade ID",                "required": true,  "pii": false},
+        {"id": "security_isin",       "kind": "text",  "label": "Security ISIN",           "required": true,  "pii": false},
+        {"id": "counterparty",        "kind": "text",  "label": "Counterparty",            "required": true,  "pii": false},
+        {"id": "notional_amount",     "kind": "money", "label": "Notional amount",         "required": true,  "pii": false},
+        {"id": "settlement_date",     "kind": "date",  "label": "Settlement date",         "required": true,  "pii": false},
+        {"id": "settlement_instruction","kind": "text","label": "Settlement instruction",  "required": true,  "pii": false},
+        {"id": "settlement_ref",      "kind": "text",  "label": "Settlement reference",    "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "funding_shortfall",   "condition": "nostro_balance < settlement_amount",    "handle": "escalate"},
+        {"id": "fail_risk",           "condition": "settlement_time > cutoff - 30min",      "handle": "escalate"},
+        {"id": "counterparty_default","condition": "counterparty_credit_event = true",      "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "cfo", "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "treasury_analyst"},
+        {"trigger": "approved",    "channel": "email",  "audience": "treasury_analyst"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "treasury_analyst"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "cfo"}
+      ],
+      "sla": {"warn_pct": 85, "breach_seconds": 86400},
+      "metrics": ["settlement_fail_rate", "nostro_reconciliation_time", "counterparty_confirmation_rate"],
+      "compliance": ["Reg_W_12CFR223", "SEC_Rule_15c3_3", "DTC_settlement_rules", "FRTB", "Basel_III_LCR"],
+      "data_sensitivity": ["financial", "confidential_business"]
+    },
+    {
+      "id": "file_SAR",
+      "title": "File Suspicious Activity Report (SAR)",
+      "actor": {"role": "bsa_officer"},
+      "situation": "AML investigation concludes suspicious activity; BSA officer must prepare, review, and electronically file SAR with FinCEN within mandatory timeframes",
+      "motivation": "fulfill legal reporting obligation, protect bank from criminal liability, and contribute to law enforcement investigations",
+      "outcome": "SAR filed on FinCEN BSA E-Filing system, confirmation archived, subject file updated without tipping off",
+      "success_criteria": [
+        "SAR filed within 30 days of initial suspicious activity determination (60 if suspect unknown)",
+        "narrative meets FinCEN 'five Ws' standard",
+        "continuation SAR filed if activity continues beyond 90 days",
+        "SAR and supporting documentation retained for 5 years",
+        "subject account not tipped off about filing"
+      ],
+      "data_capture": [
+        {"id": "investigation_ref",   "kind": "text",    "label": "Investigation reference","required": true,  "pii": false},
+        {"id": "subject_name",        "kind": "text",    "label": "Subject name",           "required": false, "pii": true},
+        {"id": "subject_account",     "kind": "text",    "label": "Subject account(s)",     "required": true,  "pii": false},
+        {"id": "suspicious_activity", "kind": "textarea","label": "SAR narrative",          "required": true,  "pii": false},
+        {"id": "amount_involved",     "kind": "money",   "label": "Dollar amount involved", "required": true,  "pii": false},
+        {"id": "activity_start",      "kind": "date",    "label": "Activity start date",    "required": true,  "pii": false},
+        {"id": "activity_end",        "kind": "date",    "label": "Activity end date",      "required": true,  "pii": false},
+        {"id": "fincen_confirmation", "kind": "text",    "label": "FinCEN confirmation #",  "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "law_enforcement_request","condition": "leo_section_314a_request = true",    "handle": "escalate"},
+        {"id": "continuation_sar",    "condition": "activity_ongoing_at_90_days = true",    "handle": "branch", "branch_to": "continuation_sar"},
+        {"id": "voluntary_disclosure","condition": "bank_self_reports_compliance_failure",   "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "bsa_officer",       "policy": "1_of_1"},
+        {"role": "compliance_officer","policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "bsa_officer"},
+        {"trigger": "approved",    "channel": "in_app", "audience": "bsa_officer"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "bsa_officer"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "bsa_officer"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 2592000},
+      "metrics": ["sar_filing_timeliness", "sar_quality_score", "continuation_sar_rate", "false_positive_sar_rate"],
+      "compliance": ["BSA_31USC5318g", "FinCEN_SAR_rules_31CFR1020_320", "PATRIOT_Act_314a", "FATF_40"],
+      "data_sensitivity": ["financial", "pii", "regulatory", "law_enforcement", "sensitive"]
+    }
+  ]
+}
