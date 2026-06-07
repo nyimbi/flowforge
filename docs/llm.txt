@@ -1,6 +1,6 @@
-# Flowforge LLM Quickstart
+# Flowforge LLM Quickstart — v0.5.0 (2026-06-07)
 
-The canonical AI-agent entrypoint is now [../llm.txt](../llm.txt).
+The canonical AI-agent entrypoint is [../llm.txt](../llm.txt).
 
 Use this file only as a compatibility pointer for tools that scan `docs/`
 before the repository root.
@@ -8,7 +8,7 @@ before the repository root.
 ## Current Repository Paths
 
 - `README.md`: human overview, setup, JTBD grammar, generation, editor, gates.
-- `llm.txt`: concise AI-agent operating guide.
+- `llm.txt`: concise AI-agent operating guide (canonical).
 - `docs/jtbd-user-guide.md`: full JTBD authoring and editor usage guide.
 - `docs/jtbd-generation.md`: generator behavior and emitted files.
 - `docs/flowforge-handbook.md`: deeper architecture.
@@ -24,16 +24,25 @@ before the repository root.
 
 ```bash
 make setup
-uv run flowforge jtbd lint --bundle examples/insurance_claim/jtbd-bundle.json --warn-only
+uv run flowforge jtbd lint <bundle.json> [--strict]
+uv run flowforge jtbd lock --verify <bundle.json>
 uv run flowforge jtbd-generate --jtbd examples/insurance_claim/jtbd-bundle.json --out /tmp/flowforge-insurance --force
 uv run flowforge validate --def /tmp/flowforge-insurance/workflows/claim_intake/definition.json
 uv run flowforge simulate --def /tmp/flowforge-insurance/workflows/claim_intake/definition.json --events submit
 ```
 
-Rules:
+## New in v0.5.0
+
+- Parallel fork/join engine: `fire(..., token_id=str)`, join collapses when all tokens drain.
+- `FLOWFORGE_FORKS_ENABLED=0` disables fork (default on since v0.3.0).
+- Fault injection: `--fault gate_fail:review` flag on `simulate`; `FaultInjector` API.
+- New CLI: `jtbd lint --strict`, `jtbd lock`, `jtbd fork`, `jtbd ai-draft`, `jtbd quality-score`, `jtbd compliance-lint`, `tutorial --domain`.
+- JWT/RBAC hub: `flowforge_jtbd_hub.jwt_extractor`.
+- 28 domain packages; Tier-A (SME-reviewed): insurance, healthcare, banking, hr, gov.
+
+## Rules
 
 - Do not add UMS as a Flowforge dependency.
-- Regenerate generated output from the JTBD bundle instead of editing generated
-  files by hand.
+- Regenerate generated output from the JTBD bundle instead of editing generated files by hand.
 - Validate and simulate workflow definitions after generation.
 - Keep external release certification separate from normal package checks.

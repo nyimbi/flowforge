@@ -1,4 +1,4 @@
-# Flowforge LLM Guide
+# Flowforge LLM Guide — v0.5.0 (2026-06-07)
 
 This file is the root entrypoint for AI agents working with Flowforge. Prefer
 this file first, then [README.md](README.md), then
@@ -21,6 +21,60 @@ applications. It has:
 
 UMS is not a Flowforge dependency. Use UMS only when an explicit downstream
 release-certification task asks for UMS parity.
+
+## Engine Capabilities (v0.5.0)
+
+### Parallel Fork / Join
+
+`fire()` accepts an optional `token_id` to advance a named branch token:
+
+```python
+from flowforge.engine import fire
+
+# advance branch "branch_a" independently
+await fire(wd, instance, event="approve", payload={}, token_id="branch_a")
+# when all branch tokens drain, instance.state collapses to join state
+```
+
+Fork is enabled by default in v0.3.0+. To disable:
+
+```bash
+FLOWFORGE_FORKS_ENABLED=0 uv run flowforge ...
+```
+
+Or check at runtime:
+
+```python
+from flowforge.engine import forks_enabled
+assert forks_enabled() is True  # default
+```
+
+### Fault Injection
+
+```python
+from flowforge.replay.fault import FaultInjector, FaultMode, FaultSpec
+
+injector = FaultInjector([
+    FaultSpec(mode=FaultMode.gate_fail, target_state="review")
+])
+result = await injector.simulate(wd, events=[("approve", {})])
+```
+
+CLI equivalent:
+
+```bash
+uv run flowforge simulate --def definition.json --fault gate_fail:review
+```
+
+### JWT / RBAC (hub)
+
+```python
+from flowforge_jtbd_hub.jwt_extractor import JwtPrincipalExtractor, make_jwt_extractor
+
+extractor = make_jwt_extractor(signing)
+token = await extractor.aissue_token(user_id, roles=["hub_admin"])
+principal = await extractor(request)  # verifies + checks revocation
+```
 
 ## Setup
 
@@ -50,10 +104,19 @@ published PyPI install target.
 
 ```bash
 uv run flowforge tutorial --out /tmp/flowforge-demo --no-pause
+uv run flowforge tutorial --domain insurance               # domain-specific walkthrough
 uv run flowforge jtbd lint --bundle examples/insurance_claim/jtbd-bundle.json --warn-only
+uv run flowforge jtbd lint <bundle.json> [--strict]        # v0.5.0: strict mode
+uv run flowforge jtbd lock --init <bundle.json>            # create lockfile
+uv run flowforge jtbd lock --verify <bundle.json>          # verify lockfile matches
+uv run flowforge jtbd fork <src> <name>                    # fork a JTBD bundle
+uv run flowforge jtbd ai-draft "<description>" [--domain <d>]  # requires ANTHROPIC_API_KEY
+uv run flowforge jtbd quality-score <bundle.json>          # score bundle quality
+uv run flowforge jtbd compliance-lint <bundle.json> [--regime GDPR|HIPAA|SOX]
 uv run flowforge jtbd-generate --jtbd examples/insurance_claim/jtbd-bundle.json --out /tmp/flowforge-insurance --force
 uv run flowforge validate --def /tmp/flowforge-insurance/workflows/claim_intake/definition.json
 uv run flowforge simulate --def /tmp/flowforge-insurance/workflows/claim_intake/definition.json --events submit
+uv run flowforge simulate --def definition.json --fault gate_fail:review  # fault injection
 ```
 
 Quality gates:
@@ -333,6 +396,21 @@ project:
 
 Regenerate after token changes. Host apps embedding the designer should map
 these values to their own app shell and CSS variables.
+
+## Domain Libraries (v0.5.0)
+
+28 domain packages installed under `python/flowforge-jtbd-<domain>/`.
+
+**Tier-A** (SME-reviewed, `package = true`):
+- `flowforge-jtbd-insurance`
+- `flowforge-jtbd-healthcare`
+- `flowforge-jtbd-banking`
+- `flowforge-jtbd-hr`
+- `flowforge-jtbd-gov`
+
+**Tier-B** (AI-authored, `package = false` until E-48a/E-48b gate): 23 additional domains.
+
+Do not flip a Tier-B package to `package = true` without SME sign-off (E-48a rebrand or E-48b content review).
 
 ## Code Map
 
