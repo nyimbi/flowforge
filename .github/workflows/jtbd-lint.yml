@@ -104,3 +104,27 @@ jobs:
       - name: No bundles found
         if: steps.find-bundles.outputs.count == '0'
         run: echo "No JTBD bundles found — nothing to lint."
+
+      # v0.4.0 E2: quality-score all bundles (advisory — never blocks CI).
+      - name: Quality-score bundles
+        if: steps.find-bundles.outputs.count != '0'
+        working-directory: .
+        run: |
+          while IFS= read -r bundle; do
+            [ -z "$bundle" ] && continue
+            echo "::group::quality-score $bundle"
+            uv run flowforge jtbd quality-score "$bundle" --json || true
+            echo "::endgroup::"
+          done <<< "${{ steps.find-bundles.outputs.bundles }}"
+
+      # v0.4.0 E2: compliance-lint all bundles (advisory — never blocks CI).
+      - name: Compliance-lint bundles
+        if: steps.find-bundles.outputs.count != '0'
+        working-directory: .
+        run: |
+          while IFS= read -r bundle; do
+            [ -z "$bundle" ] && continue
+            echo "::group::compliance-lint $bundle"
+            uv run flowforge jtbd compliance-lint "$bundle" || true
+            echo "::endgroup::"
+          done <<< "${{ steps.find-bundles.outputs.bundles }}"

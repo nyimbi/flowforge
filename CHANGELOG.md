@@ -1,5 +1,39 @@
 # flowforge changelog
 
+## [0.4.0] — 2026-06-07
+
+> Fourth versioned release. v0.4.0 E2 Python engineering sprint: AI-assisted JTBD
+> drafting, quality scoring, compliance linting, pre-commit hook, and GitHub Actions
+> CI integration land as stable subcommands under `flowforge jtbd`. All 16 shipping
+> packages move from `0.3.0` to `0.4.0` in lockstep.
+
+- **[Capable]** (E-14) `flowforge jtbd ai-draft "<description>" [--domain <d>] [--out <path>] [--commit]` —
+  AI-assisted JTBD spec draft generator. Uses `NlToJtbdGenerator` with `LlmProviderClaude`
+  (Claude API). Runs `JtbdLinter` on the draft and prints warnings before writing.
+  Requires `ANTHROPIC_API_KEY` in environment; fails closed without it (exit 1).
+  Prompt-injection guards (direct + indirect) are inherited from the NL→JTBD pipeline.
+
+- **[Capable]** (E-16) `flowforge jtbd quality-score <bundle_path> [--json] [--threshold N]` —
+  Quality scorer for JTBD bundles. Runs the deterministic four-dimension rubric
+  (clarity, actionability, solution-decoupling, measurable-outcome) and prints per-spec
+  0-100 scores with dimension breakdowns. `--json` emits machine-readable output.
+  Exits 1 when any spec falls below the threshold (default 60).
+
+- **[Capable]** (E-23) `flowforge jtbd compliance-lint <bundle_path> [--regime GDPR|HIPAA|SOX|PCI-DSS] [--strict]` —
+  Compliance linter for JTBD bundles. Two rules: `sensitivity_implies_regime` (specs
+  that declare PHI/PCI must declare the corresponding regime) and
+  `compliance_missing_required_job` (regimes require specified JTBD job ids in bundle).
+  `--regime` filters to a single regime. `--strict` treats warnings as errors (exit 1).
+
+- **[DevX]** (E2 CI hooks) `scripts/ci/jtbd-precommit.sh` — pre-commit hook that runs
+  `flowforge jtbd lint --strict` on all staged `jtbd-bundle.json` files. Install with
+  `cp scripts/ci/jtbd-precommit.sh .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit`
+  or via the pre-commit framework.
+
+- **[DevX]** (E2 CI hooks) `.github/workflows/jtbd-lint.yml` updated with `quality-score`
+  and `compliance-lint` steps on every push/PR that touches bundle files (advisory,
+  never blocks CI). JS JobMap component referenced in JS workspace.
+
 ## [0.3.0] — 2026-06-07
 
 > Third versioned release. E-1 engineering sprint: JTBD lint/lock/bundle-fork CLI

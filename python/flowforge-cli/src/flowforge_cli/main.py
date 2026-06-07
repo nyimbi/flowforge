@@ -18,7 +18,9 @@ from .commands import (
 	bundle_diff,
 	diff,
 	generate_llmtxt,
+	jtbd_ai_draft,
 	jtbd_bundle_fork,
+	jtbd_compliance_lint,
 	jtbd_desktop,
 	tutorial,
 	jtbd_fork,
@@ -26,6 +28,7 @@ from .commands import (
 	jtbd_lint,
 	jtbd_lock,
 	jtbd_migrate,
+	jtbd_quality_score,
 	migrate_fork,
 	migration_safety,
 	new,
@@ -78,6 +81,9 @@ jtbd_lint.register(jtbd_app)
 jtbd_lock.register(jtbd_app)
 jtbd_bundle_fork.register(jtbd_app)
 jtbd_migrate.register(jtbd_app)
+jtbd_ai_draft.register(jtbd_app)
+jtbd_quality_score.register(jtbd_app)
+jtbd_compliance_lint.register(jtbd_app)
 
 tutorial.register(app)
 

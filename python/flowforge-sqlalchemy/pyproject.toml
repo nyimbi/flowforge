@@ -1,6 +1,6 @@
 [project]
 name = "flowforge-sqlalchemy"
-version = "0.3.0"
+version = "0.4.0"
 description = "flowforge-sqlalchemy — async SQLAlchemy 2.x storage adapter for the flowforge engine"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -32,7 +32,7 @@ classifiers = [
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "flowforge>=0.3.0,<0.4.0",
+    "flowforge>=0.4.0,<0.5.0",
     "sqlalchemy[asyncio]>=2.0",
     "alembic>=1.13",
 ]

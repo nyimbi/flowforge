@@ -1,6 +1,6 @@
 [project]
 name = "flowforge-cli"
-version = "0.3.0"
+version = "0.4.0"
 description = "flowforge-cli — typer-based CLI for the flowforge framework (new, validate, simulate, regen-catalog, add-jtbd, migrate, ...)"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -32,9 +32,9 @@ classifiers = [
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-	"flowforge>=0.3.0,<0.4.0",
-	"flowforge-audit-pg>=0.3.0,<0.4.0",
-	"flowforge-jtbd>=0.3.0,<0.4.0",
+	"flowforge>=0.4.0,<0.5.0",
+	"flowforge-audit-pg>=0.4.0,<0.5.0",
+	"flowforge-jtbd>=0.4.0,<0.5.0",
 	"typer>=0.12",
 	"jinja2>=3.1",
 	"pyyaml>=6.0",
