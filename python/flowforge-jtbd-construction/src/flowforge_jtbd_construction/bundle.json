@@ -1,0 +1,400 @@
+{
+  "project": {
+    "name": "construction",
+    "package": "flowforge_jtbd_construction",
+    "domain": "construction",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD"]
+  },
+  "shared": {
+    "roles": ["estimator", "project_manager", "site_superintendent", "procurement_manager", "safety_officer", "subcontractor_admin", "owner_rep", "legal_counsel"],
+    "permissions": ["project.read", "bid.read", "procurement.read", "safety.read"]
+  },
+  "jtbds": [
+    {
+      "id": "submit_bid",
+      "title": "Submit a construction bid",
+      "actor": {"role": "estimator"},
+      "situation": "owner issues an Invitation to Tender (ITT) or RFP for a construction project and the firm must prepare and submit a competitive bid",
+      "motivation": "win the contract at a margin that covers risk while remaining competitive against rivals",
+      "outcome": "bid assembled, reviewed, signed, and submitted before ITT deadline",
+      "success_criteria": [
+        "quantity take-off completed and reviewed within 60% of bid preparation window",
+        "bid submitted at least 2 hours before ITT deadline",
+        "risk register completed covering top 5 project risks"
+      ],
+      "data_capture": [
+        {"id": "project_id",       "kind": "text",    "label": "Project reference",         "required": true,  "pii": false},
+        {"id": "bid_amount",       "kind": "money",   "label": "Total bid amount (USD)",    "required": true,  "pii": false},
+        {"id": "margin_pct",       "kind": "number",  "label": "Target margin (%)",         "required": true,  "pii": false},
+        {"id": "duration_days",    "kind": "number",  "label": "Proposed duration (days)",  "required": true,  "pii": false},
+        {"id": "qualifications",   "kind": "textarea","label": "Bid qualifications/exclusions","required": true,"pii": false},
+        {"id": "bid_bond",         "kind": "file",    "label": "Bid bond document",         "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "margin_below_floor","condition": "margin_pct < minimum approved margin floor",             "handle": "escalate"},
+        {"id": "prequalification",  "condition": "owner requires prequalification not yet obtained",        "handle": "reject"},
+        {"id": "late_addendum",     "condition": "owner issues addendum within 48 hours of deadline",       "handle": "branch", "branch_to": "addendum_repricing"}
+      ],
+      "approvals": [
+        {"role": "estimator",        "policy": "1_of_1"},
+        {"role": "project_manager",  "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "estimator"},
+        {"trigger": "approved",    "channel": "email",  "audience": "estimator"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "estimator"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "project_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 172800},
+      "metrics": ["bid_win_rate", "bid_cycle_time", "margin_variance_pct"],
+      "compliance": ["AIA-A701", "FAR-15"],
+      "data_sensitivity": ["confidential", "financial"]
+    },
+    {
+      "id": "onboard_subcontractor",
+      "title": "Onboard a new subcontractor",
+      "actor": {"role": "procurement_manager"},
+      "situation": "a trade package requires a subcontractor not yet on the approved vendor list; the firm must qualify and onboard them before issuing a subcontract",
+      "motivation": "ensure the subcontractor meets insurance, licensing, and safety requirements before they arrive on site",
+      "outcome": "subcontractor qualified, insurance certificates on file, subcontract executed, site induction scheduled",
+      "success_criteria": [
+        "qualification documentation complete and reviewed before subcontract execution",
+        "insurance certificates verified as current and meeting project minimums",
+        "signed subcontract in document management system before first mobilisation date"
+      ],
+      "data_capture": [
+        {"id": "sub_company_name",  "kind": "text",   "label": "Subcontractor company",     "required": true,  "pii": false},
+        {"id": "trade_package",     "kind": "enum",   "label": "Trade package",             "required": true,  "pii": false},
+        {"id": "license_number",    "kind": "text",   "label": "Contractor licence number", "required": true,  "pii": false},
+        {"id": "gl_cert_url",       "kind": "url",    "label": "General liability cert URL","required": true,  "pii": false},
+        {"id": "wc_cert_url",       "kind": "url",    "label": "Workers comp cert URL",     "required": true,  "pii": false},
+        {"id": "signed_sub_url",    "kind": "url",    "label": "Executed subcontract URL",  "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "insurance_expired", "condition": "GL or WC certificate expiry date < project end date",   "handle": "reject"},
+        {"id": "debarment_check",   "condition": "subcontractor appears on federal debarment list",        "handle": "reject"},
+        {"id": "sole_source",       "condition": "only one qualified bidder for the trade package",        "handle": "branch", "branch_to": "sole_source_justification"}
+      ],
+      "approvals": [
+        {"role": "procurement_manager", "policy": "1_of_1"},
+        {"role": "legal_counsel",       "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "procurement_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "subcontractor_admin"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "subcontractor_admin"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "procurement_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["onboarding_cycle_time", "insurance_deficiency_rate", "subcontractor_default_rate"],
+      "compliance": ["FAR-52.209-6", "OSHA-29-CFR-1926", "Davis-Bacon-Act"],
+      "data_sensitivity": ["confidential"]
+    },
+    {
+      "id": "process_change_order",
+      "title": "Process a contract change order",
+      "actor": {"role": "project_manager"},
+      "situation": "scope, schedule, or site condition change requires formal modification to the prime contract or a subcontract",
+      "motivation": "capture legitimate cost and time impacts in writing before work proceeds to protect lien rights and profit margin",
+      "outcome": "change order priced, negotiated, signed by owner, and reflected in project budget and schedule",
+      "success_criteria": [
+        "change order request submitted to owner within 10 calendar days of triggering event",
+        "signed change order received before changed work commences (except emergencies)",
+        "approved CO cost and schedule impact entered in project controls system same day"
+      ],
+      "data_capture": [
+        {"id": "co_number",        "kind": "text",    "label": "Change order number",       "required": true,  "pii": false},
+        {"id": "trigger_event",    "kind": "textarea","label": "Trigger event description", "required": true,  "pii": false},
+        {"id": "cost_impact",      "kind": "money",   "label": "Cost impact (USD)",         "required": true,  "pii": false},
+        {"id": "schedule_days",    "kind": "number",  "label": "Schedule impact (days)",    "required": true,  "pii": false},
+        {"id": "supporting_docs",  "kind": "file",    "label": "Supporting documentation",  "required": true,  "pii": false},
+        {"id": "owner_signed_url", "kind": "url",     "label": "Owner-signed CO URL",       "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "owner_dispute",    "condition": "owner disputes entitlement to time or cost",              "handle": "branch", "branch_to": "dispute_resolution"},
+        {"id": "emergency_work",   "condition": "change involves imminent safety risk requiring immediate action","handle": "branch", "branch_to": "emergency_directive"},
+        {"id": "over_threshold",   "condition": "cost_impact > 5% of original contract value",            "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "project_manager", "policy": "1_of_1"},
+        {"role": "owner_rep",       "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "project_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "project_manager"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "project_manager"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "project_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 864000},
+      "metrics": ["co_cycle_time", "co_approval_rate", "cost_growth_pct"],
+      "compliance": ["AIA-G701", "FAR-43", "ConsensusDocs-200"],
+      "data_sensitivity": ["confidential", "financial"]
+    },
+    {
+      "id": "schedule_inspection",
+      "title": "Schedule and pass a regulatory inspection",
+      "actor": {"role": "site_superintendent"},
+      "situation": "construction has reached a milestone requiring a mandatory building department, fire marshal, or special inspection before work can proceed",
+      "motivation": "pass inspection on the first attempt to avoid rework costs and schedule slippage",
+      "outcome": "inspection scheduled, passed, signed inspection card updated, and building department record current",
+      "success_criteria": [
+        "inspection requested within 1 business day of reaching inspection milestone",
+        "site prepared and ready-for-inspection checklist completed before inspector arrives",
+        "inspection result recorded in project management system same day"
+      ],
+      "data_capture": [
+        {"id": "inspection_type",  "kind": "enum",    "label": "Inspection type",           "required": true,  "pii": false},
+        {"id": "permit_number",    "kind": "text",    "label": "Building permit number",    "required": true,  "pii": false},
+        {"id": "requested_date",   "kind": "date",    "label": "Requested inspection date", "required": true,  "pii": false},
+        {"id": "inspector_name",   "kind": "text",    "label": "Inspector name",            "required": false, "pii": true},
+        {"id": "result",           "kind": "enum",    "label": "Inspection result",         "required": false, "pii": false},
+        {"id": "correction_notes", "kind": "textarea","label": "Correction items (if failed)","required": false,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "failed_inspection","condition": "result is fail",                                         "handle": "branch", "branch_to": "rework_and_re_inspection"},
+        {"id": "stop_work_order",  "condition": "inspector issues stop-work order",                       "handle": "escalate"},
+        {"id": "third_party_required","condition": "inspection requires certified special inspector",     "handle": "branch", "branch_to": "special_inspector_scheduling"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "site_superintendent"},
+        {"trigger": "approved",    "channel": "in_app", "audience": "project_manager"},
+        {"trigger": "rejected",    "channel": "slack",  "audience": "project_manager"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "site_superintendent"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 86400},
+      "metrics": ["first_pass_inspection_rate", "inspection_cycle_time", "stop_work_order_count"],
+      "compliance": ["IBC-2021", "OSHA-29-CFR-1926", "AHJ-local"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "procure_materials",
+      "title": "Procure bulk construction materials",
+      "actor": {"role": "procurement_manager"},
+      "situation": "project schedule requires major material buys (structural steel, concrete, MEP equipment) with long lead times",
+      "motivation": "lock in material pricing and delivery dates before schedule float is consumed",
+      "outcome": "purchase orders issued, delivery dates confirmed, materials tracked to site on schedule",
+      "success_criteria": [
+        "long-lead items ordered at least 30% before required-on-site date",
+        "minimum 3 quotes obtained for any single purchase >$25,000",
+        "delivery confirmations received and matched to POs within 1 business day of delivery"
+      ],
+      "data_capture": [
+        {"id": "material_code",    "kind": "text",    "label": "Material specification code","required": true, "pii": false},
+        {"id": "quantity",         "kind": "number",  "label": "Quantity (project units)",  "required": true,  "pii": false},
+        {"id": "unit_cost",        "kind": "money",   "label": "Unit cost (USD)",           "required": true,  "pii": false},
+        {"id": "supplier_id",      "kind": "text",    "label": "Supplier vendor ID",        "required": true,  "pii": false},
+        {"id": "required_on_site", "kind": "date",    "label": "Required-on-site date",     "required": true,  "pii": false},
+        {"id": "po_number",        "kind": "text",    "label": "Purchase order number",     "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "single_source",    "condition": "fewer than 3 quotes due to proprietary specification",   "handle": "branch", "branch_to": "single_source_justification"},
+        {"id": "budget_overrun",   "condition": "total cost exceeds approved material budget by >5%",     "handle": "escalate"},
+        {"id": "delivery_delay",   "condition": "supplier notifies delay >7 days past required-on-site",  "handle": "branch", "branch_to": "schedule_impact_assessment"}
+      ],
+      "approvals": [
+        {"role": "procurement_manager", "policy": "1_of_1"},
+        {"role": "project_manager",     "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "procurement_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "procurement_manager"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "procurement_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 259200},
+      "metrics": ["procurement_lead_time", "budget_variance_pct", "on_time_delivery_rate"],
+      "compliance": ["FAR-52.246", "AIA-A201-§9"],
+      "data_sensitivity": ["confidential", "financial"]
+    },
+    {
+      "id": "report_safety_incident",
+      "title": "Report and investigate a safety incident",
+      "actor": {"role": "safety_officer"},
+      "situation": "a workplace injury, near-miss, or property damage incident occurs on the construction site",
+      "motivation": "comply with OSHA recordkeeping and reporting obligations and prevent recurrence through root cause analysis",
+      "outcome": "incident reported, investigated, corrective actions assigned, and OSHA 300 log updated",
+      "success_criteria": [
+        "initial incident report submitted within 2 hours of incident",
+        "OSHA-reportable incidents reported to authority within 24 hours (hospitalisation) or 8 hours (fatality)",
+        "root cause analysis completed and corrective actions assigned within 5 business days"
+      ],
+      "data_capture": [
+        {"id": "incident_type",    "kind": "enum",    "label": "Incident type",             "required": true,  "pii": false},
+        {"id": "injured_worker",   "kind": "text",    "label": "Injured worker name",       "required": false, "pii": true},
+        {"id": "body_part",        "kind": "enum",    "label": "Body part affected",        "required": false, "pii": false},
+        {"id": "incident_time",    "kind": "datetime","label": "Date and time of incident", "required": true,  "pii": false},
+        {"id": "root_cause",       "kind": "textarea","label": "Root cause analysis",       "required": false, "pii": false},
+        {"id": "corrective_actions","kind": "textarea","label": "Corrective actions",       "required": true,  "pii": false},
+        {"id": "osha_reportable",  "kind": "boolean", "label": "OSHA recordable/reportable","required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "fatality",         "condition": "incident_type is fatality",                              "handle": "escalate"},
+        {"id": "hospitalisation",  "condition": "injured worker hospitalised overnight",                  "handle": "branch", "branch_to": "osha_24hr_notification"},
+        {"id": "media_inquiry",    "condition": "media contacts site about incident",                     "handle": "branch", "branch_to": "communications_response"}
+      ],
+      "approvals": [
+        {"role": "safety_officer", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "safety_officer"},
+        {"trigger": "state_enter",  "channel": "slack",  "audience": "project_manager"},
+        {"trigger": "approved",     "channel": "email",  "audience": "safety_officer"},
+        {"trigger": "sla_breach",   "channel": "pagerduty", "audience": "safety_officer"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 7200},
+      "metrics": ["trir", "dart_rate", "near_miss_reporting_rate", "corrective_action_closure_rate"],
+      "compliance": ["OSHA-29-CFR-1904", "OSHA-29-CFR-1926", "ISO-45001"],
+      "data_sensitivity": ["pii", "restricted"]
+    },
+    {
+      "id": "release_lien_waiver",
+      "title": "Issue and collect lien waivers",
+      "actor": {"role": "project_manager"},
+      "situation": "a progress payment is due to a subcontractor or supplier and conditional/unconditional lien waivers must be exchanged",
+      "motivation": "protect the owner and prime contractor from mechanic's lien claims on the property",
+      "outcome": "lien waiver executed by payee, exchanged for payment, and filed in project lien log",
+      "success_criteria": [
+        "conditional waiver presented to subcontractor before payment release",
+        "executed unconditional waiver received within 5 business days of payment clearing",
+        "waiver filed in project document management system within 1 business day of receipt"
+      ],
+      "data_capture": [
+        {"id": "payee_id",         "kind": "text",    "label": "Payee vendor ID",           "required": true,  "pii": false},
+        {"id": "payment_amount",   "kind": "money",   "label": "Payment amount (USD)",      "required": true,  "pii": false},
+        {"id": "through_date",     "kind": "date",    "label": "Waiver through date",       "required": true,  "pii": false},
+        {"id": "waiver_type",      "kind": "enum",    "label": "Waiver type (cond/uncond)", "required": true,  "pii": false},
+        {"id": "signed_waiver_url","kind": "url",     "label": "Executed waiver URL",       "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "lien_filed",       "condition": "payee has filed a mechanics lien before waiver exchange",     "handle": "escalate"},
+        {"id": "joint_check",      "condition": "payment involves joint check agreement with sub-subcontractor","handle": "branch", "branch_to": "joint_check_issuance"}
+      ],
+      "approvals": [
+        {"role": "project_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "subcontractor_admin"},
+        {"trigger": "approved",    "channel": "email",  "audience": "project_manager"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "project_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["waiver_collection_rate", "lien_claim_count", "waiver_cycle_time"],
+      "compliance": ["UCC-Art9", "State-Mechanics-Lien-Laws", "AIA-G702"],
+      "data_sensitivity": ["confidential", "financial"]
+    },
+    {
+      "id": "manage_punch_list",
+      "title": "Manage the project punch list to substantial completion",
+      "actor": {"role": "site_superintendent"},
+      "situation": "project approaches substantial completion and owner/architect issues a punch list of outstanding items to be corrected",
+      "motivation": "close out all punch items to achieve substantial and then final completion, triggering final payment",
+      "outcome": "all punch items corrected, owner/architect sign-off obtained, certificate of substantial completion issued",
+      "success_criteria": [
+        "initial punch list walkthrough scheduled within 3 days of owner/architect readiness notification",
+        "all major punch items (category A) resolved within 30 days of list issuance",
+        "certificate of substantial completion signed within 5 days of final punch item sign-off"
+      ],
+      "data_capture": [
+        {"id": "item_id",          "kind": "text",    "label": "Punch item ID",             "required": true,  "pii": false},
+        {"id": "location",         "kind": "text",    "label": "Location description",      "required": true,  "pii": false},
+        {"id": "category",         "kind": "enum",    "label": "Category (A/B/C)",          "required": true,  "pii": false},
+        {"id": "responsible_trade","kind": "text",    "label": "Responsible trade",         "required": true,  "pii": false},
+        {"id": "resolution_date",  "kind": "date",    "label": "Resolved date",             "required": false, "pii": false},
+        {"id": "verified_by",      "kind": "text",    "label": "Verified by",               "required": false, "pii": true}
+      ],
+      "edge_cases": [
+        {"id": "disputed_item",    "condition": "subcontractor disputes responsibility for punch item",    "handle": "escalate"},
+        {"id": "latent_defect",    "condition": "punch item reveals latent structural or systems defect",  "handle": "branch", "branch_to": "defect_investigation"},
+        {"id": "owner_adds_items", "condition": "owner adds new items after original list issuance",       "handle": "branch", "branch_to": "punch_list_change_order"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "site_superintendent"},
+        {"trigger": "approved",    "channel": "email",  "audience": "project_manager"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "site_superintendent"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 2592000},
+      "metrics": ["punch_item_closure_rate", "days_to_substantial_completion", "category_a_overdue_count"],
+      "compliance": ["AIA-A201-§9.8", "State-Contractor-Licensing"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "handle_warranty_claim",
+      "title": "Handle a post-completion warranty claim",
+      "actor": {"role": "project_manager"},
+      "situation": "owner submits a warranty claim for a defect discovered after project handover within the contractual warranty period",
+      "motivation": "investigate and remedy genuine warranty defects promptly to maintain client relationship and avoid litigation",
+      "outcome": "claim investigated, responsible subcontractor identified, remediation completed, and owner sign-off obtained",
+      "success_criteria": [
+        "warranty claim acknowledged within 2 business days of receipt",
+        "site investigation completed within 5 business days",
+        "remediation completed within 30 days unless scope requires longer with owner agreement"
+      ],
+      "data_capture": [
+        {"id": "claim_number",     "kind": "text",    "label": "Warranty claim number",     "required": true,  "pii": false},
+        {"id": "defect_description","kind": "textarea","label": "Defect description",       "required": true,  "pii": false},
+        {"id": "discovery_date",   "kind": "date",    "label": "Discovery date",            "required": true,  "pii": false},
+        {"id": "responsible_trade","kind": "text",    "label": "Responsible subcontractor", "required": false, "pii": false},
+        {"id": "remedy_cost",      "kind": "money",   "label": "Estimated remedy cost",     "required": true,  "pii": false},
+        {"id": "owner_signoff_url","kind": "url",     "label": "Owner sign-off document",   "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "out_of_warranty",  "condition": "discovery_date is after warranty expiry date",            "handle": "reject"},
+        {"id": "sub_denies",       "condition": "responsible subcontractor denies warranty obligation",    "handle": "branch", "branch_to": "warranty_dispute_resolution"},
+        {"id": "insurance_claim",  "condition": "defect cost exceeds $100,000 and may be insurable",      "handle": "branch", "branch_to": "insurance_notification"}
+      ],
+      "approvals": [
+        {"role": "project_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "project_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "owner_rep"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "project_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 172800},
+      "metrics": ["warranty_claim_volume", "remedy_cycle_time", "warranty_cost_per_project"],
+      "compliance": ["AIA-A201-§3.5", "UCC-Art2"],
+      "data_sensitivity": ["confidential"]
+    },
+    {
+      "id": "close_out_project",
+      "title": "Complete project close-out",
+      "actor": {"role": "project_manager"},
+      "situation": "construction is complete, final payment is pending, and all close-out deliverables must be assembled and handed over to the owner",
+      "motivation": "release retained funds and formally transfer liability by completing all contractual close-out obligations",
+      "outcome": "all as-built drawings, O&M manuals, warranties, and certificates delivered; final payment received; project closed in systems",
+      "success_criteria": [
+        "as-built drawing set submitted to owner within 30 days of substantial completion",
+        "all subcontractor final lien releases collected before final payment application",
+        "project closed in financial system within 10 business days of final payment receipt"
+      ],
+      "data_capture": [
+        {"id": "substantial_completion_date","kind": "date","label": "Substantial completion date","required": true,"pii": false},
+        {"id": "asbuilt_submitted", "kind": "boolean","label": "As-builts submitted",             "required": true,  "pii": false},
+        {"id": "om_manuals_url",    "kind": "url",    "label": "O&M manuals bundle URL",          "required": true,  "pii": false},
+        {"id": "final_payment_amount","kind": "money","label": "Final payment amount (USD)",      "required": true,  "pii": false},
+        {"id": "retainage_released","kind": "money",  "label": "Retainage released (USD)",        "required": true,  "pii": false},
+        {"id": "final_payment_date","kind": "date",   "label": "Final payment received date",     "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "outstanding_lien",  "condition": "any subcontractor has not provided final lien release",  "handle": "branch", "branch_to": "lien_resolution"},
+        {"id": "punch_incomplete",  "condition": "open category-A punch items remain",                     "handle": "reject"},
+        {"id": "final_payment_dispute","condition": "owner disputes final payment amount",                 "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "project_manager", "policy": "1_of_1"},
+        {"role": "owner_rep",       "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "project_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "project_manager"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "project_manager"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "project_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 2592000},
+      "metrics": ["closeout_cycle_time", "retainage_release_days", "final_cost_variance_pct"],
+      "compliance": ["AIA-A201-§9.10", "FAR-52.232-5", "State-Prompt-Payment-Act"],
+      "data_sensitivity": ["confidential", "financial"]
+    }
+  ]
+}

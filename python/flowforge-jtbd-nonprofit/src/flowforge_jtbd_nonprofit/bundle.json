@@ -1,0 +1,403 @@
+{
+  "project": {
+    "name": "nonprofit",
+    "package": "flowforge_jtbd_nonprofit",
+    "domain": "nonprofit",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD"]
+  },
+  "shared": {
+    "roles": ["program_officer", "development_officer", "volunteer_coordinator", "board_member", "executive_director", "compliance_officer", "communications_manager"],
+    "permissions": ["grant.read", "donor.read", "program.read", "board.read", "volunteer.read"]
+  },
+  "jtbds": [
+    {
+      "id": "apply_for_grant",
+      "title": "Apply for a foundation or government grant",
+      "actor": {"role": "development_officer"},
+      "situation": "a funding opportunity aligned with organisational mission opens an application window",
+      "motivation": "secure restricted programme funding to expand service delivery without diluting general operating reserves",
+      "outcome": "grant application submitted before deadline with full compliance documentation and letter of support",
+      "success_criteria": [
+        "letters of intent or eligibility check completed within 5 business days of opportunity identification",
+        "application submitted at least 2 business days before funder deadline",
+        "budget narrative reviewed and approved by executive director before submission"
+      ],
+      "data_capture": [
+        {"id": "funder_name",       "kind": "text",     "label": "Funder name",               "required": true,  "pii": false},
+        {"id": "grant_amount_req",  "kind": "money",    "label": "Amount requested (USD)",    "required": true,  "pii": false},
+        {"id": "project_period",    "kind": "text",     "label": "Grant project period",      "required": true,  "pii": false},
+        {"id": "narrative_url",     "kind": "url",      "label": "Narrative document URL",    "required": true,  "pii": false},
+        {"id": "budget_url",        "kind": "url",      "label": "Budget document URL",       "required": true,  "pii": false},
+        {"id": "submission_receipt","kind": "text",     "label": "Funder submission reference","required": false,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "indirect_rate_issue","condition": "funder does not allow indirect cost recovery at org rate","handle": "branch", "branch_to": "negotiated_rate_review"},
+        {"id": "restricted_purpose","condition": "grant purpose conflicts with board-approved mission scope", "handle": "reject"},
+        {"id": "matching_required", "condition": "funder requires >25% match and match sources not confirmed", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "development_officer",  "policy": "1_of_1"},
+        {"role": "executive_director",   "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "development_officer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "development_officer"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "development_officer"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "executive_director"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 172800},
+      "metrics": ["grant_success_rate", "application_cycle_time", "restricted_revenue_pct"],
+      "compliance": ["OMB-Uniform-Guidance-2-CFR-200", "IRS-Form-990-Schedule-O"],
+      "data_sensitivity": ["confidential", "financial"]
+    },
+    {
+      "id": "steward_donor",
+      "title": "Steward a major donor relationship",
+      "actor": {"role": "development_officer"},
+      "situation": "a major donor (cumulative gifts >$10,000) requires personalised stewardship to maintain and deepen their relationship with the organisation",
+      "motivation": "retain major donors and increase their lifetime value through authentic relationship management",
+      "outcome": "stewardship touchpoints completed on schedule, impact reporting delivered, renewal conversation initiated",
+      "success_criteria": [
+        "at least 4 personalised touchpoints per year for each major donor",
+        "impact report customised to donor interests delivered within 60 days of grant anniversary",
+        "renewal ask or pledge upgrade conversation documented in CRM"
+      ],
+      "data_capture": [
+        {"id": "donor_id",         "kind": "text",     "label": "Donor CRM ID",              "required": true,  "pii": false},
+        {"id": "touchpoint_type",  "kind": "enum",     "label": "Touchpoint type",           "required": true,  "pii": false},
+        {"id": "touchpoint_date",  "kind": "date",     "label": "Touchpoint date",           "required": true,  "pii": false},
+        {"id": "notes",            "kind": "textarea", "label": "Interaction notes",         "required": true,  "pii": false},
+        {"id": "impact_report_url","kind": "url",      "label": "Impact report URL",         "required": false, "pii": false},
+        {"id": "next_ask_amount",  "kind": "money",    "label": "Next ask amount (USD)",     "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "donor_dissatisfied","condition": "donor expresses dissatisfaction with programme outcomes",  "handle": "escalate"},
+        {"id": "deceased_donor",   "condition": "donor is deceased — estate/bequest follow-up required",   "handle": "branch", "branch_to": "planned_giving_stewardship"},
+        {"id": "gdpr_erasure",     "condition": "donor requests erasure of personal data",                  "handle": "branch", "branch_to": "dsar_process"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "development_officer"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "development_officer"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 7776000},
+      "metrics": ["major_donor_retention_rate", "touchpoint_completion_rate", "average_gift_upgrade_pct"],
+      "compliance": ["GDPR-Art6", "CCPA-1798.100", "AFP-Code-of-Ethical-Standards"],
+      "data_sensitivity": ["pii", "confidential"]
+    },
+    {
+      "id": "onboard_volunteer",
+      "title": "Onboard a new volunteer",
+      "actor": {"role": "volunteer_coordinator"},
+      "situation": "a prospective volunteer completes an expression of interest and must be screened, trained, and placed into an active role",
+      "motivation": "deploy volunteers quickly to programme delivery while meeting safeguarding and liability requirements",
+      "outcome": "volunteer background-checked, orientation completed, role assigned, and hours tracking activated",
+      "success_criteria": [
+        "background check initiated within 3 business days of application",
+        "orientation completed before volunteer's first assignment",
+        "volunteer record created in VMS with role and availability confirmed"
+      ],
+      "data_capture": [
+        {"id": "volunteer_name",   "kind": "text",     "label": "Volunteer full name",       "required": true,  "pii": true},
+        {"id": "volunteer_email",  "kind": "email",    "label": "Volunteer email",           "required": true,  "pii": true},
+        {"id": "skills",           "kind": "textarea", "label": "Skills and interests",      "required": true,  "pii": false},
+        {"id": "availability",     "kind": "textarea", "label": "Availability",              "required": true,  "pii": false},
+        {"id": "bgcheck_status",   "kind": "enum",     "label": "Background check status",   "required": true,  "pii": false},
+        {"id": "role_assigned",    "kind": "text",     "label": "Programme role assigned",   "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "bgcheck_adverse",  "condition": "background check returns adverse finding",                "handle": "branch", "branch_to": "individual_assessment_review"},
+        {"id": "minor_applicant",  "condition": "volunteer is under 18 years of age",                     "handle": "branch", "branch_to": "youth_volunteer_protocol"},
+        {"id": "restricted_role",  "condition": "role requires enhanced DBS / level-2 background check",  "handle": "branch", "branch_to": "enhanced_check_process"}
+      ],
+      "approvals": [
+        {"role": "volunteer_coordinator", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "volunteer_email"},
+        {"trigger": "approved",    "channel": "email",  "audience": "volunteer_email"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "volunteer_email"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "volunteer_coordinator"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 432000},
+      "metrics": ["volunteer_activation_cycle_time", "bgcheck_pass_rate", "volunteer_retention_rate"],
+      "compliance": ["DBS-Code-of-Practice", "GDPR-Art6", "Safeguarding-Vulnerable-Groups-Act"],
+      "data_sensitivity": ["pii", "restricted"]
+    },
+    {
+      "id": "evaluate_program",
+      "title": "Evaluate programme outcomes",
+      "actor": {"role": "program_officer"},
+      "situation": "a grant period is ending or an annual review cycle requires systematic collection and analysis of programme outcome data",
+      "motivation": "demonstrate impact to funders and board to justify continued investment and inform programme improvement",
+      "outcome": "outcome data collected, analysed, and synthesised into an evaluation report shared with board and funders",
+      "success_criteria": [
+        "data collection instruments deployed to all programme participants within 2 weeks of evaluation window open",
+        "minimum 70% participant response rate achieved",
+        "final evaluation report approved by programme officer and executive director before distribution"
+      ],
+      "data_capture": [
+        {"id": "program_id",        "kind": "text",    "label": "Programme ID",              "required": true,  "pii": false},
+        {"id": "evaluation_period", "kind": "text",    "label": "Evaluation period",         "required": true,  "pii": false},
+        {"id": "sample_size",       "kind": "number",  "label": "Participant sample size",   "required": true,  "pii": false},
+        {"id": "response_rate_pct", "kind": "number",  "label": "Response rate (%)",         "required": true,  "pii": false},
+        {"id": "primary_outcome",   "kind": "textarea","label": "Primary outcome summary",   "required": true,  "pii": false},
+        {"id": "report_url",        "kind": "url",     "label": "Evaluation report URL",     "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "low_response",      "condition": "response_rate_pct < 50%",                               "handle": "branch", "branch_to": "response_boost_protocol"},
+        {"id": "negative_outcomes", "condition": "primary outcome shows deterioration vs baseline",        "handle": "escalate"},
+        {"id": "funder_reporting",  "condition": "evaluation results must accompany grant renewal request","handle": "branch", "branch_to": "grant_report_integration"}
+      ],
+      "approvals": [
+        {"role": "program_officer",    "policy": "1_of_1"},
+        {"role": "executive_director", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "program_officer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "development_officer"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "program_officer"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 1209600},
+      "metrics": ["outcome_achievement_rate", "data_collection_response_rate", "funder_report_timeliness"],
+      "compliance": ["OMB-2-CFR-200.301", "IRS-Form-990-PartIII"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "manage_board_governance",
+      "title": "Manage board meeting governance cycle",
+      "actor": {"role": "executive_director"},
+      "situation": "quarterly board meeting requires agenda preparation, board materials distribution, meeting facilitation, and post-meeting minute approval",
+      "motivation": "maintain rigorous governance documentation to satisfy IRS, charity regulators, and creditor requirements",
+      "outcome": "board meeting conducted, resolutions passed, minutes approved, and action items tracked",
+      "success_criteria": [
+        "board pack circulated at least 5 business days before meeting",
+        "quorum achieved and all scheduled resolutions voted on",
+        "draft minutes distributed within 5 business days of meeting; approved at next meeting"
+      ],
+      "data_capture": [
+        {"id": "meeting_date",      "kind": "datetime","label": "Meeting date/time",         "required": true,  "pii": false},
+        {"id": "quorum_count",      "kind": "number",  "label": "Members present (quorum)",  "required": true,  "pii": false},
+        {"id": "agenda_url",        "kind": "url",     "label": "Agenda document URL",       "required": true,  "pii": false},
+        {"id": "resolutions_passed","kind": "textarea","label": "Resolutions passed",        "required": true,  "pii": false},
+        {"id": "minutes_url",       "kind": "url",     "label": "Draft minutes URL",         "required": false, "pii": false},
+        {"id": "action_items",      "kind": "textarea","label": "Action items with owners",  "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "no_quorum",         "condition": "fewer members present than quorum threshold",             "handle": "branch", "branch_to": "adjourned_meeting"},
+        {"id": "conflict_of_interest","condition": "board member declares conflict on agenda item",         "handle": "branch", "branch_to": "conflict_management_protocol"},
+        {"id": "contested_resolution","condition": "resolution passes on casting vote only",               "handle": "branch", "branch_to": "dissent_recording"}
+      ],
+      "approvals": [
+        {"role": "executive_director", "policy": "1_of_1"},
+        {"role": "board_member",       "policy": "majority"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "board_member"},
+        {"trigger": "approved",    "channel": "email",  "audience": "executive_director"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "executive_director"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 432000},
+      "metrics": ["quorum_achievement_rate", "action_item_closure_rate", "minutes_approval_lag_days"],
+      "compliance": ["IRS-Form-990-PartVI", "Charities-Act-2011", "State-Nonprofit-Corporation-Act"],
+      "data_sensitivity": ["restricted"]
+    },
+    {
+      "id": "resolve_donation_dispute",
+      "title": "Resolve a donation dispute or refund request",
+      "actor": {"role": "development_officer"},
+      "situation": "a donor contacts the organisation to dispute a charge, claim a duplicate payment, or request a refund for a recent donation",
+      "motivation": "resolve the dispute fairly, maintain donor trust, and ensure accurate financial records",
+      "outcome": "dispute investigated, refund issued if warranted, donor notified, and financial records corrected",
+      "success_criteria": [
+        "dispute acknowledged within 2 business days of receipt",
+        "investigation completed within 10 business days",
+        "refund processed within 14 days if upheld; donor receipt reissued if required"
+      ],
+      "data_capture": [
+        {"id": "donor_id",          "kind": "text",    "label": "Donor CRM ID",              "required": true,  "pii": false},
+        {"id": "transaction_ref",   "kind": "text",    "label": "Transaction reference",     "required": true,  "pii": false},
+        {"id": "disputed_amount",   "kind": "money",   "label": "Disputed amount (USD)",     "required": true,  "pii": false},
+        {"id": "dispute_reason",    "kind": "enum",    "label": "Dispute reason",            "required": true,  "pii": false},
+        {"id": "resolution",        "kind": "enum",    "label": "Resolution (refund/denied/goodwill)","required": true,"pii": false},
+        {"id": "refund_amount",     "kind": "money",   "label": "Refund issued (0 if none)", "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "chargeback_filed",  "condition": "donor has initiated a credit card chargeback",            "handle": "branch", "branch_to": "chargeback_response"},
+        {"id": "tax_receipt_issue", "condition": "donor requires corrected tax receipt for prior year",    "handle": "branch", "branch_to": "amended_receipt_issuance"},
+        {"id": "fraud_suspicion",   "condition": "transaction pattern suggests fraudulent activity",        "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "development_officer",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "development_officer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "donor_id"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "development_officer"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 864000},
+      "metrics": ["dispute_resolution_cycle_time", "refund_rate", "chargeback_rate"],
+      "compliance": ["GDPR-Art6", "IRS-Rev-Proc-2011-54", "PCI-DSS-Req9"],
+      "data_sensitivity": ["pii", "financial"]
+    },
+    {
+      "id": "prepare_annual_report",
+      "title": "Prepare and publish the annual report",
+      "actor": {"role": "executive_director"},
+      "situation": "fiscal year close triggers preparation of the annual report for board approval, charity regulator submission, and public disclosure",
+      "motivation": "demonstrate accountability to donors, regulators, and the public with a credible, on-time report",
+      "outcome": "annual report approved by board, IRS Form 990/charity return filed, and public version published",
+      "success_criteria": [
+        "audited financial statements incorporated within 30 days of audit completion",
+        "Form 990 / charity annual return filed with regulator before statutory deadline",
+        "public-facing annual report published to website within 5 business days of board approval"
+      ],
+      "data_capture": [
+        {"id": "fiscal_year",       "kind": "text",    "label": "Fiscal year",               "required": true,  "pii": false},
+        {"id": "audit_completion",  "kind": "date",    "label": "Audit completion date",     "required": true,  "pii": false},
+        {"id": "regulatory_deadline","kind": "date",   "label": "Regulatory filing deadline","required": true,  "pii": false},
+        {"id": "total_revenue",     "kind": "money",   "label": "Total revenue (USD)",       "required": true,  "pii": false},
+        {"id": "programme_expense_pct","kind": "number","label": "Programme expense pct",   "required": true,  "pii": false},
+        {"id": "form_990_url",      "kind": "url",     "label": "Filed Form 990 URL",        "required": false, "pii": false},
+        {"id": "public_report_url", "kind": "url",     "label": "Public annual report URL",  "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "audit_qualified",   "condition": "auditor issues qualified or adverse opinion",             "handle": "escalate"},
+        {"id": "late_filing_risk",  "condition": "projected filing date is after statutory deadline",       "handle": "branch", "branch_to": "extension_request"},
+        {"id": "ceo_change",        "condition": "executive director changed during reporting year",         "handle": "branch", "branch_to": "transition_disclosure"}
+      ],
+      "approvals": [
+        {"role": "executive_director", "policy": "1_of_1"},
+        {"role": "board_member",       "policy": "majority"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "executive_director"},
+        {"trigger": "approved",    "channel": "email",  "audience": "compliance_officer"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "compliance_officer"},
+        {"trigger": "sla_breach",  "channel": "pagerduty","audience": "executive_director"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 2592000},
+      "metrics": ["filing_timeliness", "programme_expense_ratio", "audit_opinion_type"],
+      "compliance": ["IRS-Form-990", "Charities-Act-2011-Sec.162", "FASB-ASC-958"],
+      "data_sensitivity": ["confidential", "financial"]
+    },
+    {
+      "id": "run_fundraising_campaign",
+      "title": "Run a fundraising campaign",
+      "actor": {"role": "development_officer"},
+      "situation": "development calendar triggers a major annual campaign (year-end appeal, giving day, gala) requiring cross-team coordination",
+      "motivation": "maximise net revenue from the campaign while deepening donor engagement and acquisition",
+      "outcome": "campaign executed on schedule, pledges fulfilled, LYBUNT/SYBUNT segments stewarded, and results reported to board",
+      "success_criteria": [
+        "campaign plan and budget approved at least 60 days before launch",
+        "gift processing lag ≤2 business days from receipt to CRM entry during campaign peak",
+        "final campaign report delivered to board within 30 days of close"
+      ],
+      "data_capture": [
+        {"id": "campaign_name",     "kind": "text",    "label": "Campaign name",             "required": true,  "pii": false},
+        {"id": "campaign_goal",     "kind": "money",   "label": "Revenue goal (USD)",        "required": true,  "pii": false},
+        {"id": "launch_date",       "kind": "date",    "label": "Campaign launch date",      "required": true,  "pii": false},
+        {"id": "close_date",        "kind": "date",    "label": "Campaign close date",       "required": true,  "pii": false},
+        {"id": "actual_raised",     "kind": "money",   "label": "Actual raised (USD)",       "required": false, "pii": false},
+        {"id": "donor_count",       "kind": "number",  "label": "Unique donors",             "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "goal_shortfall",    "condition": "projected revenue at campaign midpoint <70% of goal",    "handle": "branch", "branch_to": "campaign_pivot_review"},
+        {"id": "platform_outage",   "condition": "giving platform experiences downtime during peak",        "handle": "branch", "branch_to": "alternative_giving_channel"},
+        {"id": "restricted_gift",   "condition": "major gift received with restrictions not matching campaign purpose","handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "development_officer",  "policy": "1_of_1"},
+        {"role": "executive_director",   "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "development_officer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "communications_manager"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "development_officer"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 5184000},
+      "metrics": ["campaign_roi", "donor_acquisition_count", "average_gift_size", "donor_retention_rate"],
+      "compliance": ["State-Solicitation-Reg", "GDPR-Art6", "AFP-Code-of-Ethical-Standards"],
+      "data_sensitivity": ["pii", "financial"]
+    },
+    {
+      "id": "conduct_compliance_audit",
+      "title": "Conduct an internal compliance audit",
+      "actor": {"role": "compliance_officer"},
+      "situation": "annual compliance calendar requires audit of grant reporting compliance, financial controls, data protection practices, and regulatory filings",
+      "motivation": "identify compliance gaps before they are discovered by funders, regulators, or external auditors",
+      "outcome": "audit completed, findings triaged by risk, corrective action plan approved and tracked",
+      "success_criteria": [
+        "audit scope and schedule approved by executive director at least 30 days before fieldwork",
+        "audit report with findings and recommendations delivered within 10 business days of fieldwork completion",
+        "all high-priority findings assigned owners and target dates within 5 business days of report"
+      ],
+      "data_capture": [
+        {"id": "audit_year",        "kind": "text",    "label": "Audit year",                "required": true,  "pii": false},
+        {"id": "scope_areas",       "kind": "textarea","label": "Audit scope areas",         "required": true,  "pii": false},
+        {"id": "findings_count",    "kind": "number",  "label": "Total findings count",      "required": true,  "pii": false},
+        {"id": "high_risk_findings","kind": "number",  "label": "High-risk findings",        "required": true,  "pii": false},
+        {"id": "report_url",        "kind": "url",     "label": "Audit report URL",          "required": true,  "pii": false},
+        {"id": "cap_url",           "kind": "url",     "label": "Corrective action plan URL","required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "material_breach",   "condition": "finding reveals potential grant misuse",                "handle": "escalate"},
+        {"id": "funder_notification","condition": "material breach requires mandatory funder notification","handle": "branch", "branch_to": "funder_incident_notification"},
+        {"id": "data_breach",       "condition": "audit uncovers personal data breach",                   "handle": "branch", "branch_to": "data_breach_response"}
+      ],
+      "approvals": [
+        {"role": "compliance_officer",  "policy": "1_of_1"},
+        {"role": "executive_director",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "compliance_officer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "executive_director"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "compliance_officer"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 864000},
+      "metrics": ["finding_closure_rate", "repeat_finding_rate", "high_risk_remediation_days"],
+      "compliance": ["OMB-2-CFR-200.514", "GDPR-Art5", "IRS-Form-990-PartVI", "Charities-Act-2011"],
+      "data_sensitivity": ["restricted"]
+    },
+    {
+      "id": "enroll_beneficiary",
+      "title": "Enroll a programme beneficiary",
+      "actor": {"role": "program_officer"},
+      "situation": "a prospective beneficiary applies to receive services and must be screened for eligibility, consented, and enrolled in the programme",
+      "motivation": "enroll eligible individuals quickly to maximise programme reach while maintaining funder-mandated eligibility records",
+      "outcome": "beneficiary screened, eligibility confirmed, informed consent obtained, and services commenced",
+      "success_criteria": [
+        "eligibility determination completed within 5 business days of application",
+        "informed consent form signed before first service delivery",
+        "beneficiary record created in case management system before commencement"
+      ],
+      "data_capture": [
+        {"id": "applicant_name",    "kind": "text",     "label": "Applicant full name",       "required": true,  "pii": true},
+        {"id": "applicant_dob",     "kind": "date",     "label": "Date of birth",             "required": true,  "pii": true},
+        {"id": "eligibility_score", "kind": "number",   "label": "Eligibility score (0-100)", "required": true,  "pii": false},
+        {"id": "consent_signed",    "kind": "boolean",  "label": "Informed consent signed",   "required": true,  "pii": false},
+        {"id": "service_start",     "kind": "date",     "label": "Service commencement date", "required": false, "pii": false},
+        {"id": "referral_source",   "kind": "enum",     "label": "Referral source",           "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "ineligible",        "condition": "eligibility_score < programme threshold",               "handle": "reject"},
+        {"id": "waitlist",          "condition": "programme capacity is full at time of eligibility confirmation","handle": "branch", "branch_to": "waitlist_management"},
+        {"id": "vulnerable_adult",  "condition": "applicant is a vulnerable adult requiring additional safeguarding","handle": "branch", "branch_to": "safeguarding_assessment"}
+      ],
+      "approvals": [
+        {"role": "program_officer", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "program_officer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "program_officer"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "program_officer"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "program_officer"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["enrollment_cycle_time", "eligibility_approval_rate", "beneficiary_waitlist_count"],
+      "compliance": ["GDPR-Art6", "HIPAA-if-applicable", "Safeguarding-Vulnerable-Groups-Act", "OMB-2-CFR-200"],
+      "data_sensitivity": ["pii", "restricted"]
+    }
+  ]
+}

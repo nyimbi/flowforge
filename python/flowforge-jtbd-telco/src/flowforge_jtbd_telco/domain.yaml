@@ -1,11 +1,26 @@
 id: telco
 name: "Telco"
-description: "JTBD domain library for Telco workflows (Provisioning, billing, churn)."
+description: "JTBD domain library for telecommunications workflows (provisioning, churn, porting, outage, billing, roaming, MVNO)."
 package: flowforge-jtbd-telco
 version: "1.0.0"
+tier: B
+reviewer_credentials:
+  - telco_network_architect
+  - regulatory_compliance_lead
+team_id: telco-core
 subdomains:
-  - "Provisioning"
-  - "billing"
-  - "churn"
-regulator_hints: []
+  - "ServiceProvisioning"
+  - "ChurnManagement"
+  - "NumberPorting"
+  - "NetworkOperations"
+  - "BillingDisputes"
+  - "RoamingServices"
+  - "WholesaleSettlement"
+  - "MVNOManagement"
+regulator_hints:
+  - OFCOM
+  - FCC
+  - ETSI
+  - GDPR
+  - EU-Roaming-Regulation
 phase: E4

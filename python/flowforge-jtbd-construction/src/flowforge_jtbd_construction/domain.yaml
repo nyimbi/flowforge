@@ -1,11 +1,28 @@
 id: construction
 name: "Construction"
-description: "JTBD domain library for Construction workflows (Bid, build, inspect)."
+description: "JTBD domain library for construction project workflows (bidding, subcontractor management, change orders, inspections, safety, lien management, closeout)."
 package: flowforge-jtbd-construction
 version: "1.0.0"
+tier: B
+reviewer_credentials:
+  - construction_pm_lead
+  - safety_compliance_officer
+team_id: construction-core
 subdomains:
-  - "Bid"
-  - "build"
-  - "inspect"
-regulator_hints: []
+  - "Bidding"
+  - "SubcontractorManagement"
+  - "ChangeOrders"
+  - "Inspections"
+  - "MaterialProcurement"
+  - "SafetyManagement"
+  - "LienManagement"
+  - "PunchList"
+  - "WarrantyClaims"
+  - "ProjectCloseout"
+regulator_hints:
+  - OSHA
+  - IBC
+  - AIA
+  - FAR
+  - Davis-Bacon-Act
 phase: E4

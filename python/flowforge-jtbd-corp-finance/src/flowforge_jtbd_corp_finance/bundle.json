@@ -1,0 +1,408 @@
+{
+  "project": {
+    "name": "corp-finance",
+    "package": "flowforge_jtbd_corp_finance",
+    "domain": "corp_finance",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD", "EUR", "GBP", "JPY"]
+  },
+  "shared": {
+    "roles": ["finance_director", "treasurer", "cfo", "board_member", "auditor", "ir_officer", "tax_counsel", "m_and_a_analyst"],
+    "permissions": ["budget.read", "treasury.read", "forex.read", "board.read", "audit.read"]
+  },
+  "jtbds": [
+    {
+      "id": "approve_capex",
+      "title": "Approve a capital expenditure request",
+      "actor": {"role": "finance_director"},
+      "situation": "a business unit submits a capital expenditure request exceeding the operating budget delegation and requiring CFO/Board approval",
+      "motivation": "allocate scarce capital to highest-IRR projects while maintaining liquidity ratios within debt covenant limits",
+      "outcome": "capex approved or rejected with documented rationale, approved amount committed in capital budget, project code assigned",
+      "success_criteria": [
+        "initial financial review completed within 5 business days of submission",
+        "approved capex reflected in capital budget system within 2 business days of decision",
+        "NPV/IRR analysis attached for any request >$500k"
+      ],
+      "data_capture": [
+        {"id": "project_name",     "kind": "text",    "label": "Project name",              "required": true,  "pii": false},
+        {"id": "requested_amount", "kind": "money",   "label": "Requested amount (USD)",    "required": true,  "pii": false},
+        {"id": "irr_pct",          "kind": "number",  "label": "Expected IRR (%)",          "required": true,  "pii": false},
+        {"id": "payback_years",    "kind": "number",  "label": "Payback period (years)",    "required": true,  "pii": false},
+        {"id": "business_case_url","kind": "url",     "label": "Business case document",    "required": true,  "pii": false},
+        {"id": "asset_class",      "kind": "enum",    "label": "Asset class",               "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "irr_below_hurdle", "condition": "irr_pct < company hurdle rate",                           "handle": "escalate"},
+        {"id": "covenant_impact",  "condition": "approval would breach debt-to-EBITDA covenant",           "handle": "reject"},
+        {"id": "board_threshold",  "condition": "requested_amount > $5M board approval threshold",        "handle": "branch", "branch_to": "board_approval"}
+      ],
+      "approvals": [
+        {"role": "finance_director", "policy": "1_of_1"},
+        {"role": "cfo",              "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "finance_director"},
+        {"trigger": "approved",    "channel": "email",  "audience": "finance_director"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "finance_director"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "finance_director"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 432000},
+      "metrics": ["capex_approval_cycle_time", "capex_utilisation_rate", "post_implementation_irr_variance"],
+      "compliance": ["IAS-16", "ASC-360", "SOX-ITGC"],
+      "data_sensitivity": ["confidential", "financial"]
+    },
+    {
+      "id": "forecast_treasury",
+      "title": "Produce monthly treasury forecast",
+      "actor": {"role": "treasurer"},
+      "situation": "end of month requires a 13-week rolling cash flow forecast incorporating actual bank balances, receivables, payables, and committed facilities",
+      "motivation": "ensure the company maintains minimum liquidity buffer while optimising short-term investment of surplus cash",
+      "outcome": "13-week cash flow forecast approved by CFO, funding gaps identified and mitigated, surplus invested",
+      "success_criteria": [
+        "forecast submitted to CFO by close-of-business on the 3rd business day of each month",
+        "forecast accuracy against actuals within ±5% at the 4-week horizon",
+        "liquidity buffer maintained above board-approved minimum at all forecast dates"
+      ],
+      "data_capture": [
+        {"id": "forecast_month",   "kind": "text",    "label": "Forecast base month",       "required": true,  "pii": false},
+        {"id": "opening_cash",     "kind": "money",   "label": "Opening cash balance (USD)","required": true,  "pii": false},
+        {"id": "min_liquidity",    "kind": "money",   "label": "Board minimum liquidity",   "required": true,  "pii": false},
+        {"id": "forecast_url",     "kind": "url",     "label": "Forecast model URL",        "required": true,  "pii": false},
+        {"id": "surplus_deployed", "kind": "money",   "label": "Surplus deployed (USD)",    "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "liquidity_gap",    "condition": "forecast breaches minimum liquidity buffer in any week",   "handle": "escalate"},
+        {"id": "facility_draw",    "condition": "RCF draw required to cover gap",                          "handle": "branch", "branch_to": "facility_draw_request"}
+      ],
+      "approvals": [
+        {"role": "treasurer", "policy": "1_of_1"},
+        {"role": "cfo",       "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "treasurer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "cfo"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "treasurer"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 259200},
+      "metrics": ["forecast_accuracy_pct", "days_cash_on_hand", "liquidity_buffer_utilisation"],
+      "compliance": ["IAS-7", "ASC-230", "SOX-302"],
+      "data_sensitivity": ["restricted", "financial"]
+    },
+    {
+      "id": "execute_FX_hedge",
+      "title": "Execute a foreign exchange hedge",
+      "actor": {"role": "treasurer"},
+      "situation": "material FX exposure identified in the treasury forecast requiring hedging via forward contract, option, or natural hedge",
+      "motivation": "reduce earnings volatility from currency movements to within board-approved tolerance bands",
+      "outcome": "hedge instrument executed with approved counterparty, documented per hedge accounting requirements, and recorded in TMS",
+      "success_criteria": [
+        "hedge proposal with exposure analysis approved by CFO before execution",
+        "instrument executed with counterparty rated ≥A- by S&P",
+        "hedge documentation (IAS 39 / ASC 815) completed within 5 business days of execution"
+      ],
+      "data_capture": [
+        {"id": "currency_pair",    "kind": "text",    "label": "Currency pair (e.g. EUR/USD)","required": true, "pii": false},
+        {"id": "notional_usd",     "kind": "money",   "label": "Notional value (USD)",        "required": true, "pii": false},
+        {"id": "instrument_type",  "kind": "enum",    "label": "Instrument type",             "required": true, "pii": false},
+        {"id": "maturity_date",    "kind": "date",    "label": "Maturity/expiry date",        "required": true, "pii": false},
+        {"id": "counterparty_id",  "kind": "text",    "label": "Counterparty bank ID",        "required": true, "pii": false},
+        {"id": "strike_rate",      "kind": "number",  "label": "Strike/forward rate",        "required": false,"pii": false},
+        {"id": "tms_trade_id",     "kind": "text",    "label": "TMS trade reference",        "required": false,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "counterparty_risk","condition": "counterparty credit rating below A-",                     "handle": "reject"},
+        {"id": "speculative",      "condition": "notional exceeds 110% of underlying exposure",            "handle": "escalate"},
+        {"id": "hedge_ineffective","condition": "retrospective hedge effectiveness test fails 80-125% band","handle": "branch", "branch_to": "dedesignation_review"}
+      ],
+      "approvals": [
+        {"role": "treasurer",    "policy": "1_of_1"},
+        {"role": "cfo",          "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "treasurer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "treasurer"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "treasurer"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 86400},
+      "metrics": ["hedge_ratio_pct", "hedge_effectiveness_pct", "fx_volatility_reduction"],
+      "compliance": ["IAS-39", "ASC-815", "EMIR", "Dodd-Frank-VII"],
+      "data_sensitivity": ["restricted", "financial"]
+    },
+    {
+      "id": "declare_dividend",
+      "title": "Declare and pay a shareholder dividend",
+      "actor": {"role": "cfo"},
+      "situation": "board has authorised a dividend declaration and the finance team must execute the payment to all registered shareholders within statutory deadlines",
+      "motivation": "distribute returns to shareholders on schedule while maintaining solvency test compliance and transfer agent SLAs",
+      "outcome": "dividend declared by board, record date and payment date set, payment instruction issued to transfer agent, tax withholding remitted",
+      "success_criteria": [
+        "solvency test completed and documented before board resolution",
+        "transfer agent instructed at least 5 business days before payment date",
+        "withholding tax remitted to revenue authority within statutory deadline"
+      ],
+      "data_capture": [
+        {"id": "dividend_per_share","kind": "money",  "label": "Dividend per share (USD)", "required": true,  "pii": false},
+        {"id": "record_date",      "kind": "date",   "label": "Record date",              "required": true,  "pii": false},
+        {"id": "payment_date",     "kind": "date",   "label": "Payment date",             "required": true,  "pii": false},
+        {"id": "total_payout",     "kind": "money",  "label": "Total dividend payout",    "required": true,  "pii": false},
+        {"id": "solvency_cert_url","kind": "url",    "label": "Solvency certificate URL", "required": true,  "pii": false},
+        {"id": "board_resolution", "kind": "file",   "label": "Board resolution PDF",     "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "solvency_fail",    "condition": "solvency test fails — dividend would render company insolvent","handle": "reject"},
+        {"id": "covenant_breach",  "condition": "dividend would breach restricted payments covenant",         "handle": "escalate"},
+        {"id": "tax_treaty",       "condition": "significant non-resident shareholder base requires treaty analysis","handle": "branch", "branch_to": "withholding_tax_review"}
+      ],
+      "approvals": [
+        {"role": "cfo",          "policy": "1_of_1"},
+        {"role": "board_member", "policy": "majority"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "cfo"},
+        {"trigger": "approved",    "channel": "email",  "audience": "ir_officer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "cfo"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "treasurer"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 432000},
+      "metrics": ["dividend_payout_ratio", "payout_timeliness", "withholding_tax_accuracy"],
+      "compliance": ["Companies-Act-2006", "DGCL-170", "IAS-10", "IRS-Reg-1.1441"],
+      "data_sensitivity": ["restricted", "financial"]
+    },
+    {
+      "id": "monitor_debt_covenant",
+      "title": "Monitor and certify debt covenant compliance",
+      "actor": {"role": "finance_director"},
+      "situation": "quarterly covenant testing date requires calculation and certification of financial covenants to lenders under the credit facility",
+      "motivation": "certify compliance on time to avoid technical default events and maintain lender confidence",
+      "outcome": "covenant calculations prepared, reviewed by CFO, certificate delivered to agent bank within contractual deadline",
+      "success_criteria": [
+        "preliminary covenant calculation completed 7 days before certificate deadline",
+        "compliance certificate delivered to agent bank by contractual deadline",
+        "any headroom <10% flagged to CFO with action plan"
+      ],
+      "data_capture": [
+        {"id": "testing_date",     "kind": "date",   "label": "Covenant testing date",     "required": true,  "pii": false},
+        {"id": "leverage_ratio",   "kind": "number", "label": "Net leverage ratio (x)",    "required": true,  "pii": false},
+        {"id": "interest_cover",   "kind": "number", "label": "Interest cover ratio (x)",  "required": true,  "pii": false},
+        {"id": "ebitda_usd",       "kind": "money",  "label": "LTM EBITDA (USD)",          "required": true,  "pii": false},
+        {"id": "net_debt_usd",     "kind": "money",  "label": "Net debt (USD)",            "required": true,  "pii": false},
+        {"id": "certificate_url",  "kind": "url",    "label": "Compliance certificate URL","required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "covenant_breach",  "condition": "any covenant ratio breaches threshold",                   "handle": "escalate"},
+        {"id": "cure_period",      "condition": "breach is within permitted cure period",                  "handle": "branch", "branch_to": "lender_waiver_negotiation"},
+        {"id": "material_uncertain","condition": "EBITDA includes material one-off adjustments >15%",      "handle": "branch", "branch_to": "auditor_confirmation"}
+      ],
+      "approvals": [
+        {"role": "finance_director", "policy": "1_of_1"},
+        {"role": "cfo",              "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "finance_director"},
+        {"trigger": "approved",    "channel": "email",  "audience": "finance_director"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "cfo"},
+        {"trigger": "sla_breach",  "channel": "pagerduty","audience": "cfo"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 604800},
+      "metrics": ["covenant_headroom_pct", "certificate_delivery_lag_days", "breach_count"],
+      "compliance": ["IFRS-9", "ASC-470", "LMA-Standard-Facility"],
+      "data_sensitivity": ["restricted", "financial"]
+    },
+    {
+      "id": "conduct_acquisition_DD",
+      "title": "Conduct financial due diligence on an acquisition target",
+      "actor": {"role": "m_and_a_analyst"},
+      "situation": "board has approved entry into exclusivity on a potential acquisition and financial due diligence must be completed within the exclusivity window",
+      "motivation": "surface material financial risks and confirm valuation assumptions before signing a binding purchase agreement",
+      "outcome": "financial DD report delivered, material issues quantified, adjusted EBITDA and net debt confirmed for pricing",
+      "success_criteria": [
+        "DD scope agreed with CFO within 3 days of exclusivity commencement",
+        "financial DD report delivered to investment committee within exclusivity window",
+        "all top-10 DD issues tracked to resolution or risk acceptance before signing"
+      ],
+      "data_capture": [
+        {"id": "target_name",      "kind": "text",    "label": "Target company name",       "required": true,  "pii": false},
+        {"id": "enterprise_value", "kind": "money",   "label": "Indicative EV (USD)",       "required": true,  "pii": false},
+        {"id": "exclusivity_end",  "kind": "date",    "label": "Exclusivity end date",      "required": true,  "pii": false},
+        {"id": "dd_scope_url",     "kind": "url",     "label": "DD scope document URL",     "required": true,  "pii": false},
+        {"id": "dd_report_url",    "kind": "url",     "label": "Financial DD report URL",   "required": false, "pii": false},
+        {"id": "adjusted_ebitda",  "kind": "money",   "label": "Adjusted EBITDA (USD)",     "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "material_issue",   "condition": "DD identifies financial misstatement >5% of EBITDA",      "handle": "escalate"},
+        {"id": "exclusivity_lapse","condition": "DD cannot be completed within exclusivity window",         "handle": "branch", "branch_to": "exclusivity_extension_request"},
+        {"id": "tax_exposure",     "condition": "unquantified tax exposure identified requiring specialist","handle": "branch", "branch_to": "tax_dd_escalation"}
+      ],
+      "approvals": [
+        {"role": "m_and_a_analyst", "policy": "1_of_1"},
+        {"role": "cfo",             "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email", "audience": "m_and_a_analyst"},
+        {"trigger": "approved",    "channel": "email", "audience": "cfo"},
+        {"trigger": "sla_warn",    "channel": "slack", "audience": "cfo"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 1209600},
+      "metrics": ["dd_cycle_time", "issues_identified_count", "ebitda_adjustment_pct"],
+      "compliance": ["GAAP-ASC-805", "IFRS-3", "HSR-Act", "EU-Merger-Reg"],
+      "data_sensitivity": ["restricted", "financial"]
+    },
+    {
+      "id": "get_board_approval",
+      "title": "Obtain board approval for a material transaction",
+      "actor": {"role": "cfo"},
+      "situation": "a material transaction (acquisition, disposal, major financing, dividend, or capex above threshold) requires formal board resolution",
+      "motivation": "obtain valid board authority before committing the company, ensuring governance trail withstands shareholder and regulatory scrutiny",
+      "outcome": "board paper circulated, resolution passed, minutes signed, and approval documented in corporate records",
+      "success_criteria": [
+        "board paper circulated at least 5 business days before meeting or written resolution deadline",
+        "quorum achieved and resolution validly passed per company articles",
+        "signed minutes or written resolution filed in corporate secretarial system within 3 business days"
+      ],
+      "data_capture": [
+        {"id": "transaction_type", "kind": "enum",    "label": "Transaction type",          "required": true,  "pii": false},
+        {"id": "value_usd",        "kind": "money",   "label": "Transaction value (USD)",   "required": true,  "pii": false},
+        {"id": "board_paper_url",  "kind": "url",     "label": "Board paper URL",           "required": true,  "pii": false},
+        {"id": "resolution_type",  "kind": "enum",    "label": "Ordinary or special resolution","required": true,"pii": false},
+        {"id": "vote_result",      "kind": "enum",    "label": "Vote result",               "required": false, "pii": false},
+        {"id": "signed_minutes_url","kind": "url",    "label": "Signed minutes URL",        "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "no_quorum",        "condition": "quorum not achieved at scheduled meeting",                 "handle": "branch", "branch_to": "adjourned_meeting"},
+        {"id": "director_conflict","condition": "one or more directors declare conflict of interest",       "handle": "branch", "branch_to": "conflict_management"},
+        {"id": "regulatory_filing","condition": "resolution triggers mandatory regulatory filing",          "handle": "branch", "branch_to": "regulatory_notification"}
+      ],
+      "approvals": [
+        {"role": "cfo",          "policy": "1_of_1"},
+        {"role": "board_member", "policy": "majority"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "board_member"},
+        {"trigger": "approved",    "channel": "email",  "audience": "cfo"},
+        {"trigger": "rejected",    "channel": "email",  "audience": "cfo"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "cfo"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 432000},
+      "metrics": ["board_cycle_time", "quorum_achievement_rate", "resolution_challenge_rate"],
+      "compliance": ["Companies-Act-2006", "DGCL-141", "LSE-DTR", "SEC-Reg-14A"],
+      "data_sensitivity": ["restricted"]
+    },
+    {
+      "id": "respond_to_audit_committee",
+      "title": "Respond to an audit committee finding",
+      "actor": {"role": "finance_director"},
+      "situation": "external or internal auditors raise a finding or management letter point requiring a formal management response and remediation plan",
+      "motivation": "satisfy audit committee and external auditors that findings are acknowledged and remediation is credible within timelines",
+      "outcome": "management response drafted, remediation plan approved, progress tracked to closure",
+      "success_criteria": [
+        "management response to audit finding submitted within 10 business days of finding issuance",
+        "remediation plan approved by CFO and audit committee within 15 business days",
+        "finding closed with evidence within agreed timeline"
+      ],
+      "data_capture": [
+        {"id": "finding_ref",      "kind": "text",    "label": "Audit finding reference",   "required": true,  "pii": false},
+        {"id": "severity",         "kind": "enum",    "label": "Severity (critical/significant/deficiency)","required": true,"pii": false},
+        {"id": "management_response","kind": "textarea","label": "Management response",     "required": true,  "pii": false},
+        {"id": "remediation_owner","kind": "text",    "label": "Remediation owner name",    "required": true,  "pii": true},
+        {"id": "target_close_date","kind": "date",    "label": "Target closure date",       "required": true,  "pii": false},
+        {"id": "evidence_url",     "kind": "url",     "label": "Closure evidence URL",      "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "material_weakness","condition": "finding is classified as material weakness",              "handle": "escalate"},
+        {"id": "restatement_risk", "condition": "finding may require prior period restatement",            "handle": "escalate"},
+        {"id": "repeated_finding", "condition": "same finding issued in two or more consecutive audits",   "handle": "branch", "branch_to": "root_cause_deep_dive"}
+      ],
+      "approvals": [
+        {"role": "finance_director", "policy": "1_of_1"},
+        {"role": "cfo",              "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "finance_director"},
+        {"trigger": "approved",    "channel": "email",  "audience": "auditor"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "finance_director"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 864000},
+      "metrics": ["finding_response_cycle_time", "remediation_on_time_rate", "repeat_finding_rate"],
+      "compliance": ["SOX-302", "SOX-404", "PCAOB-AS2201", "IFAC-ISA-265"],
+      "data_sensitivity": ["restricted"]
+    },
+    {
+      "id": "handle_investor_inquiry",
+      "title": "Handle an investor or analyst inquiry",
+      "actor": {"role": "ir_officer"},
+      "situation": "a shareholder, bond investor, or sell-side analyst submits a formal inquiry requiring a financial or strategic response",
+      "motivation": "respond accurately within Regulation FD / MAR constraints while supporting the stock's liquidity and analyst coverage",
+      "outcome": "inquiry triaged, response drafted and legal-cleared, delivered to investor within committed timeline",
+      "success_criteria": [
+        "inquiry acknowledged within 1 business day",
+        "draft response reviewed by legal for Reg FD compliance before delivery",
+        "substantive response delivered within 5 business days of receipt"
+      ],
+      "data_capture": [
+        {"id": "investor_name",    "kind": "text",    "label": "Investor/analyst name",     "required": true,  "pii": true},
+        {"id": "inquiry_type",     "kind": "enum",    "label": "Inquiry type",              "required": true,  "pii": false},
+        {"id": "inquiry_text",     "kind": "textarea","label": "Inquiry text",              "required": true,  "pii": false},
+        {"id": "response_draft",   "kind": "textarea","label": "Response draft",            "required": true,  "pii": false},
+        {"id": "material_info",    "kind": "boolean", "label": "Contains material non-public info","required": true,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "material_npsi",    "condition": "material_info is true",                                   "handle": "escalate"},
+        {"id": "activist_investor","condition": "inquiry is from known activist investor",                  "handle": "branch", "branch_to": "activist_response_protocol"},
+        {"id": "media_inquiry",    "condition": "inquiry comes via financial press rather than direct",     "handle": "branch", "branch_to": "communications_team_routing"}
+      ],
+      "approvals": [
+        {"role": "ir_officer",   "policy": "1_of_1"},
+        {"role": "tax_counsel",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email", "audience": "ir_officer"},
+        {"trigger": "approved",    "channel": "email", "audience": "ir_officer"},
+        {"trigger": "sla_warn",    "channel": "slack", "audience": "ir_officer"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["response_cycle_time", "reg_fd_violation_count", "investor_satisfaction_score"],
+      "compliance": ["SEC-Reg-FD", "EU-MAR-596/2014", "IOSCO-Principles"],
+      "data_sensitivity": ["restricted", "pii"]
+    },
+    {
+      "id": "review_transfer_pricing",
+      "title": "Conduct annual transfer pricing review",
+      "actor": {"role": "tax_counsel"},
+      "situation": "year-end approach requires review and documentation of intercompany transactions to ensure arm's length pricing and BEPS compliance",
+      "motivation": "defend intercompany pricing against tax authority challenges and avoid penalties for non-documentation",
+      "outcome": "transfer pricing documentation updated, benchmarking study completed, and local file submitted per country-by-country requirements",
+      "success_criteria": [
+        "benchmarking study commissioned and completed before fiscal year-end",
+        "local file documentation for each material jurisdiction finalised within 9 months of year-end",
+        "master file updated to reflect current group structure and value chain"
+      ],
+      "data_capture": [
+        {"id": "fiscal_year",      "kind": "text",    "label": "Fiscal year",               "required": true,  "pii": false},
+        {"id": "jurisdictions",    "kind": "textarea","label": "In-scope jurisdictions",    "required": true,  "pii": false},
+        {"id": "aggregate_ic_value","kind": "money",  "label": "Aggregate IC transaction value","required": true,"pii": false},
+        {"id": "benchmarking_url", "kind": "url",     "label": "Benchmarking study URL",    "required": true,  "pii": false},
+        {"id": "local_file_urls",  "kind": "textarea","label": "Local file document URLs",  "required": false, "pii": false},
+        {"id": "cbcr_filed",       "kind": "boolean", "label": "CbCR filed with HQ authority","required": true,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "audit_challenge",  "condition": "tax authority opens audit on prior year TP",              "handle": "escalate"},
+        {"id": "restructuring",    "condition": "group restructure changes value chain during year",        "handle": "branch", "branch_to": "restructuring_tp_analysis"},
+        {"id": "penalty_risk",     "condition": "any jurisdiction has insufficient documentation",          "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "tax_counsel",      "policy": "1_of_1"},
+        {"role": "finance_director", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "tax_counsel"},
+        {"trigger": "approved",    "channel": "email",  "audience": "finance_director"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "tax_counsel"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 7776000},
+      "metrics": ["tp_documentation_coverage_pct", "audit_adjustment_rate", "penalty_exposure_usd"],
+      "compliance": ["OECD-BEPS-Action-13", "EU-DAC4", "IRC-482", "ITPR-2017"],
+      "data_sensitivity": ["restricted", "financial"]
+    }
+  ]
+}

@@ -1,11 +1,30 @@
-id: corporate-finance
+id: corp-finance
 name: "Corporate Finance"
-description: "JTBD domain library for Corporate Finance workflows (Treasury, budget, forecast)."
+description: "JTBD domain library for corporate finance workflows (capex approval, treasury, FX hedging, dividends, debt covenants, M&A due diligence, board governance, investor relations, transfer pricing)."
 package: flowforge-jtbd-corp-finance
 version: "1.0.0"
+tier: B
+reviewer_credentials:
+  - cfo_delegate
+  - external_audit_partner
+team_id: corp-finance-core
 subdomains:
-  - "Treasury"
-  - "budget"
-  - "forecast"
-regulator_hints: []
-phase: E2
+  - "CapitalAllocation"
+  - "TreasuryManagement"
+  - "FXRiskManagement"
+  - "ShareholderReturns"
+  - "DebtManagement"
+  - "MergersAndAcquisitions"
+  - "BoardGovernance"
+  - "AuditCompliance"
+  - "InvestorRelations"
+  - "TaxCompliance"
+regulator_hints:
+  - SOX
+  - SEC
+  - IFRS
+  - GAAP
+  - EMIR
+  - OECD-BEPS
+  - EU-MAR
+phase: E4

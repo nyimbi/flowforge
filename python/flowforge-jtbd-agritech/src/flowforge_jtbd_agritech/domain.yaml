@@ -1,11 +1,28 @@
 id: agritech
 name: "Agritech"
-description: "JTBD domain library for Agritech workflows (Farm, supply, yield)."
+description: "JTBD domain library for agricultural technology workflows (crop planning, yield reporting, pest response, irrigation, procurement, certification, subsidy)."
 package: flowforge-jtbd-agritech
 version: "1.0.0"
+tier: B
+reviewer_credentials:
+  - agronomist_lead
+  - sustainability_auditor
+team_id: agritech-core
 subdomains:
-  - "Farm"
-  - "supply"
-  - "yield"
-regulator_hints: []
+  - "CropManagement"
+  - "YieldReporting"
+  - "PestAndDisease"
+  - "IrrigationManagement"
+  - "InputProcurement"
+  - "HarvestCoordination"
+  - "Certification"
+  - "SubsidyClaims"
+  - "EquipmentMaintenance"
+  - "Sustainability"
+regulator_hints:
+  - GlobalGAP
+  - EU-Organic
+  - USDA-NRCS
+  - EU-CAP
+  - TCFD
 phase: E4

@@ -1,11 +1,28 @@
 id: nonprofit
 name: "Nonprofit"
-description: "JTBD domain library for Nonprofit workflows (Donor, grant, volunteer)."
+description: "JTBD domain library for nonprofit organisation workflows (grant management, donor stewardship, volunteer management, programme evaluation, board governance, fundraising, compliance)."
 package: flowforge-jtbd-nonprofit
 version: "1.0.0"
+tier: B
+reviewer_credentials:
+  - nonprofit_cfo
+  - charity_compliance_auditor
+team_id: nonprofit-core
 subdomains:
-  - "Donor"
-  - "grant"
-  - "volunteer"
-regulator_hints: []
+  - "GrantManagement"
+  - "DonorStewardship"
+  - "VolunteerManagement"
+  - "ProgrammeEvaluation"
+  - "BoardGovernance"
+  - "DonationAdministration"
+  - "AnnualReporting"
+  - "FundraisingCampaigns"
+  - "ComplianceAudit"
+  - "BeneficiaryEnrollment"
+regulator_hints:
+  - IRS-Form-990
+  - Charities-Act-2011
+  - GDPR
+  - OMB-Uniform-Guidance
+  - State-Solicitation-Reg
 phase: E4

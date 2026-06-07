@@ -1,0 +1,384 @@
+{
+  "project": {
+    "name": "telco",
+    "package": "flowforge_jtbd_telco",
+    "domain": "telco",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD", "EUR", "GBP"]
+  },
+  "shared": {
+    "roles": ["provisioning_engineer", "customer_care_agent", "network_ops", "billing_analyst", "regulatory_officer", "mvno_manager", "fraud_analyst"],
+    "permissions": ["service.read", "subscriber.read", "billing.read", "network.read"]
+  },
+  "jtbds": [
+    {
+      "id": "provision_service",
+      "title": "Provision a new subscriber service",
+      "actor": {"role": "provisioning_engineer"},
+      "situation": "a new subscriber orders a mobile or fixed-line service and requires SIM allocation, number assignment, and network configuration",
+      "motivation": "activate service within the committed window to prevent regulatory complaints and competitor churn",
+      "outcome": "subscriber activated on network, SIM enabled, number assigned, and welcome communication sent",
+      "success_criteria": [
+        "service activation completed within 4 hours of order receipt",
+        "SIM status transitions to ACTIVE in HLR/HSS within 30 minutes of dispatch",
+        "welcome SMS delivered confirming number and activation"
+      ],
+      "data_capture": [
+        {"id": "subscriber_id",   "kind": "text",  "label": "Subscriber ID",          "required": true,  "pii": false},
+        {"id": "msisdn",          "kind": "phone", "label": "MSISDN",                 "required": true,  "pii": true},
+        {"id": "iccid",           "kind": "text",  "label": "SIM ICCID",              "required": true,  "pii": false},
+        {"id": "plan_code",       "kind": "text",  "label": "Plan code",              "required": true,  "pii": false},
+        {"id": "imei",            "kind": "text",  "label": "Device IMEI",            "required": false, "pii": false},
+        {"id": "customer_name",   "kind": "text",  "label": "Customer full name",     "required": true,  "pii": true},
+        {"id": "id_doc_ref",      "kind": "text",  "label": "Identity document ref",  "required": true,  "pii": true}
+      ],
+      "edge_cases": [
+        {"id": "hlr_timeout",     "condition": "HLR/HSS returns timeout after 3 retries",              "handle": "escalate"},
+        {"id": "number_unavailable","condition": "requested number range exhausted",                   "handle": "branch", "branch_to": "alternative_number_selection"},
+        {"id": "kyc_fail",        "condition": "identity document fails KYC check",                    "handle": "reject"}
+      ],
+      "notifications": [
+        {"trigger": "approved",    "channel": "sms",    "audience": "subscriber_id"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "provisioning_engineer"},
+        {"trigger": "sla_breach",  "channel": "pagerduty", "audience": "network_ops"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 14400},
+      "metrics": ["activation_success_rate", "time_to_activate", "hlr_error_rate"],
+      "compliance": ["ETSI-EN-301-908", "KYC-AML"],
+      "data_sensitivity": ["pii", "confidential"]
+    },
+    {
+      "id": "manage_churn_risk",
+      "title": "Manage a high-churn-risk subscriber",
+      "actor": {"role": "customer_care_agent"},
+      "situation": "predictive churn model flags a subscriber with ≥70% 30-day churn probability based on usage decline and complaints",
+      "motivation": "retain the subscriber through targeted intervention before they initiate a port-out request",
+      "outcome": "subscriber contacted, retention offer accepted or churn outcome recorded",
+      "success_criteria": [
+        "retention outreach attempted within 24 hours of churn flag",
+        "personalised retention offer presented per segmentation rules",
+        "outcome (retained / ported / churned) recorded within 7 days"
+      ],
+      "data_capture": [
+        {"id": "subscriber_id",    "kind": "text",    "label": "Subscriber ID",          "required": true,  "pii": false},
+        {"id": "churn_score",      "kind": "number",  "label": "Churn model score (0-1)","required": true,  "pii": false},
+        {"id": "offer_code",       "kind": "text",    "label": "Retention offer code",   "required": false, "pii": false},
+        {"id": "contact_outcome",  "kind": "enum",    "label": "Contact outcome",        "required": true,  "pii": false},
+        {"id": "agent_notes",      "kind": "textarea","label": "Agent notes",            "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "no_contact",       "condition": "subscriber unreachable after 3 attempts across channels", "handle": "branch", "branch_to": "digital_winback"},
+        {"id": "offer_rejected",   "condition": "subscriber declines all retention offers",               "handle": "branch", "branch_to": "graceful_churn"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app",  "audience": "customer_care_agent"},
+        {"trigger": "approved",    "channel": "sms",     "audience": "subscriber_id"},
+        {"trigger": "sla_warn",    "channel": "slack",   "audience": "customer_care_agent"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 86400},
+      "metrics": ["retention_rate", "save_offer_acceptance_rate", "churn_model_accuracy"],
+      "compliance": ["GDPR-Art6", "OFCOM-NMR"],
+      "data_sensitivity": ["pii", "confidential"]
+    },
+    {
+      "id": "port_phone_number",
+      "title": "Port a phone number to or from network",
+      "actor": {"role": "customer_care_agent"},
+      "situation": "subscriber requests to transfer their existing number from another carrier (port-in) or is leaving for another carrier (port-out)",
+      "motivation": "complete the port within regulatory timeframes to maintain compliance and subscriber trust",
+      "outcome": "number ported, old SIM deactivated, new SIM active, subscriber notified",
+      "success_criteria": [
+        "port request submitted to donating operator within 1 business day",
+        "number ported within the regulatory window (typically 1 business day for consumer)",
+        "subscriber notified by SMS upon successful port completion"
+      ],
+      "data_capture": [
+        {"id": "msisdn",           "kind": "phone",  "label": "Number to port",          "required": true,  "pii": true},
+        {"id": "port_direction",   "kind": "enum",   "label": "Port direction (in/out)",  "required": true,  "pii": false},
+        {"id": "donor_operator",   "kind": "text",   "label": "Donor operator code",      "required": true,  "pii": false},
+        {"id": "account_number",   "kind": "text",   "label": "Donor account number",     "required": true,  "pii": true},
+        {"id": "port_date",        "kind": "datetime","label": "Requested port date/time","required": true,  "pii": false},
+        {"id": "new_iccid",        "kind": "text",   "label": "New SIM ICCID (port-in)",  "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "account_mismatch", "condition": "account_number does not match donor operator records", "handle": "reject"},
+        {"id": "port_rejected",    "condition": "donor operator rejects port request",                 "handle": "branch", "branch_to": "port_dispute_resolution"},
+        {"id": "fraud_flag",       "condition": "subscriber flagged for SIM-swap fraud",               "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "customer_care_agent", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "sms",   "audience": "subscriber_id"},
+        {"trigger": "approved",    "channel": "sms",   "audience": "subscriber_id"},
+        {"trigger": "rejected",    "channel": "sms",   "audience": "subscriber_id"},
+        {"trigger": "sla_breach",  "channel": "slack", "audience": "regulatory_officer"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 86400},
+      "metrics": ["port_completion_rate", "port_rejection_rate", "regulatory_breach_count"],
+      "compliance": ["OFCOM-GC18", "FCC-Part52", "ETSI-TS-122-022"],
+      "data_sensitivity": ["pii", "confidential"]
+    },
+    {
+      "id": "respond_to_outage",
+      "title": "Respond to a network outage",
+      "actor": {"role": "network_ops"},
+      "situation": "NOC alerting system detects degradation or full outage affecting a cell cluster, region, or core network element",
+      "motivation": "restore service within SLA, minimise affected-subscriber count, and satisfy Ofcom/FCC mandatory reporting if threshold crossed",
+      "outcome": "service restored, affected subscribers notified, root cause identified, regulatory report filed if required",
+      "success_criteria": [
+        "NOC engineer acknowledged within 3 minutes of P1 alert",
+        "status page updated within 10 minutes of outage confirmation",
+        "service restored within 4 hours for P1 outages",
+        "regulatory report filed within 24 hours if >10,000 subscribers affected"
+      ],
+      "data_capture": [
+        {"id": "outage_id",          "kind": "text",     "label": "Outage ticket ID",        "required": true,  "pii": false},
+        {"id": "affected_cells",     "kind": "textarea", "label": "Affected cell IDs",       "required": true,  "pii": false},
+        {"id": "subscriber_count",   "kind": "number",   "label": "Estimated affected subs", "required": true,  "pii": false},
+        {"id": "root_cause",         "kind": "textarea", "label": "Root cause analysis",     "required": true,  "pii": false},
+        {"id": "regulatory_report",  "kind": "file",     "label": "Regulatory report file",  "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "cascading_failure",  "condition": "outage spreads to adjacent regions within 15 minutes",    "handle": "escalate"},
+        {"id": "regulatory_threshold","condition": "subscriber_count > 10000 or duration > 1 hour",         "handle": "branch", "branch_to": "mandatory_regulatory_notification"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "pagerduty", "audience": "network_ops"},
+        {"trigger": "state_enter",  "channel": "sms",       "audience": "subscriber_id"},
+        {"trigger": "approved",     "channel": "sms",       "audience": "subscriber_id"},
+        {"trigger": "sla_breach",   "channel": "pagerduty", "audience": "regulatory_officer"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 14400},
+      "metrics": ["mttr", "mtta", "subscribers_affected_per_outage", "regulatory_breach_count"],
+      "compliance": ["OFCOM-GC11", "FCC-Part4", "ETSI-EN-301"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "resolve_billing_dispute",
+      "title": "Resolve a subscriber billing dispute",
+      "actor": {"role": "billing_analyst"},
+      "situation": "subscriber contacts care to dispute a charge on their bill claiming the charge is erroneous or not authorised",
+      "motivation": "resolve dispute fairly within the regulatory window and retain subscriber loyalty",
+      "outcome": "dispute investigated, credit issued if warranted, subscriber notified of outcome",
+      "success_criteria": [
+        "dispute acknowledged within 1 business day",
+        "investigation completed and outcome communicated within 10 business days",
+        "credit applied to next billing cycle if upheld"
+      ],
+      "data_capture": [
+        {"id": "subscriber_id",    "kind": "text",    "label": "Subscriber ID",            "required": true,  "pii": false},
+        {"id": "disputed_amount",  "kind": "money",   "label": "Disputed amount",          "required": true,  "pii": false},
+        {"id": "charge_reference", "kind": "text",    "label": "Invoice line reference",   "required": true,  "pii": false},
+        {"id": "dispute_reason",   "kind": "enum",    "label": "Dispute reason code",      "required": true,  "pii": false},
+        {"id": "credit_amount",    "kind": "money",   "label": "Credit granted (0 if none)","required": true, "pii": false},
+        {"id": "resolution_notes", "kind": "textarea","label": "Resolution notes",         "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "fraud_pattern",    "condition": "subscriber has >3 billing disputes in 12 months", "handle": "branch", "branch_to": "fraud_review"},
+        {"id": "high_value",       "condition": "disputed_amount > 500",                           "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "billing_analyst", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "sms",   "audience": "subscriber_id"},
+        {"trigger": "approved",    "channel": "sms",   "audience": "subscriber_id"},
+        {"trigger": "sla_warn",    "channel": "slack", "audience": "billing_analyst"},
+        {"trigger": "sla_breach",  "channel": "slack", "audience": "regulatory_officer"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 864000},
+      "metrics": ["dispute_resolution_cycle_time", "first_contact_resolution_rate", "credit_rate"],
+      "compliance": ["OFCOM-GC27", "FCC-TCPA", "GDPR-Art6"],
+      "data_sensitivity": ["pii", "financial"]
+    },
+    {
+      "id": "activate_roaming",
+      "title": "Activate international roaming for a subscriber",
+      "actor": {"role": "customer_care_agent"},
+      "situation": "subscriber requests international roaming activation before travelling abroad",
+      "motivation": "enable subscriber to use their number abroad without service disruption or unexpected charges",
+      "outcome": "roaming profile activated in HLR, fair-use limits set, subscriber informed of applicable rates",
+      "success_criteria": [
+        "roaming activation applied in HLR within 1 hour of request",
+        "subscriber receives SMS confirmation with applicable rates before travel date",
+        "data roaming cap set per regulatory requirements"
+      ],
+      "data_capture": [
+        {"id": "subscriber_id",    "kind": "text",   "label": "Subscriber ID",              "required": true,  "pii": false},
+        {"id": "destination_zones","kind": "textarea","label": "Destination countries/zones","required": true, "pii": false},
+        {"id": "travel_start",     "kind": "date",   "label": "Travel start date",          "required": true,  "pii": false},
+        {"id": "travel_end",       "kind": "date",   "label": "Travel end date",            "required": false, "pii": false},
+        {"id": "roaming_bundle",   "kind": "text",   "label": "Roaming bundle code",        "required": false, "pii": false},
+        {"id": "data_cap_mb",      "kind": "number", "label": "Data cap (MB)",              "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "account_arrears",  "condition": "subscriber account balance is negative",           "handle": "reject"},
+        {"id": "embargo_country",  "condition": "destination is on restricted/embargo country list", "handle": "escalate"},
+        {"id": "eu_cap_required",  "condition": "destination is EU zone and data_cap_mb > 1024",     "handle": "branch", "branch_to": "eu_roaming_cap_enforcement"}
+      ],
+      "notifications": [
+        {"trigger": "approved",    "channel": "sms",   "audience": "subscriber_id"},
+        {"trigger": "rejected",    "channel": "sms",   "audience": "subscriber_id"},
+        {"trigger": "sla_warn",    "channel": "slack", "audience": "customer_care_agent"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 3600},
+      "metrics": ["roaming_activation_success_rate", "time_to_activate_roaming", "roaming_data_overage_rate"],
+      "compliance": ["EU-Roaming-Regulation-2022", "OFCOM-GC27"],
+      "data_sensitivity": ["pii"]
+    },
+    {
+      "id": "process_device_return",
+      "title": "Process a device return and refund",
+      "actor": {"role": "customer_care_agent"},
+      "situation": "subscriber returns a handset within the cooling-off period or under warranty and requests replacement or refund",
+      "motivation": "process the return within statutory cooling-off period to avoid consumer protection violations",
+      "outcome": "device received, assessed, refund or replacement issued, and subscriber account updated",
+      "success_criteria": [
+        "return authorisation issued within 1 business day of request",
+        "device received and assessed within 5 business days of return despatch",
+        "refund processed within 14 days of device receipt"
+      ],
+      "data_capture": [
+        {"id": "device_imei",      "kind": "text",    "label": "Device IMEI",                "required": true,  "pii": false},
+        {"id": "return_reason",    "kind": "enum",    "label": "Return reason",              "required": true,  "pii": false},
+        {"id": "return_type",      "kind": "enum",    "label": "Refund or replacement",      "required": true,  "pii": false},
+        {"id": "device_condition", "kind": "enum",    "label": "Device condition on receipt","required": true,  "pii": false},
+        {"id": "refund_amount",    "kind": "money",   "label": "Refund amount (if applicable)","required": false,"pii": false},
+        {"id": "assessment_notes", "kind": "textarea","label": "Assessment notes",           "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "device_damaged",   "condition": "device condition is damaged beyond warranty terms",    "handle": "branch", "branch_to": "damage_assessment_review"},
+        {"id": "cooling_off_expired","condition": "return requested after 14-day cooling-off period",   "handle": "branch", "branch_to": "goodwill_review"}
+      ],
+      "approvals": [
+        {"role": "customer_care_agent", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email", "audience": "subscriber_id"},
+        {"trigger": "approved",    "channel": "email", "audience": "subscriber_id"},
+        {"trigger": "rejected",    "channel": "email", "audience": "subscriber_id"},
+        {"trigger": "sla_warn",    "channel": "slack", "audience": "customer_care_agent"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 1209600},
+      "metrics": ["return_processing_cycle_time", "refund_accuracy_rate", "device_damage_rate"],
+      "compliance": ["EU-Consumer-Rights-Directive", "CRA-2015"],
+      "data_sensitivity": ["pii", "financial"]
+    },
+    {
+      "id": "prepare_regulatory_audit",
+      "title": "Prepare for a regulatory audit submission",
+      "actor": {"role": "regulatory_officer"},
+      "situation": "annual or ad-hoc regulatory submission is due to Ofcom, FCC, or national regulator covering quality-of-service, coverage, and complaints data",
+      "motivation": "submit accurate, timely data to avoid financial penalties and licence conditions",
+      "outcome": "submission package assembled, reviewed, signed off, and filed with regulator by deadline",
+      "success_criteria": [
+        "data extraction from OSS/BSS systems completed 14 days before submission deadline",
+        "submission signed off by regulatory officer and legal counsel",
+        "confirmation receipt obtained from regulator"
+      ],
+      "data_capture": [
+        {"id": "submission_type",    "kind": "enum",  "label": "Submission type",         "required": true,  "pii": false},
+        {"id": "reporting_period",   "kind": "text",  "label": "Reporting period",        "required": true,  "pii": false},
+        {"id": "submission_deadline","kind": "date",  "label": "Regulator deadline",      "required": true,  "pii": false},
+        {"id": "data_extract_url",   "kind": "url",   "label": "Data extract artefact",   "required": true,  "pii": false},
+        {"id": "submission_receipt", "kind": "file",  "label": "Regulator receipt file",  "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "data_quality_fail",  "condition": "automated validation detects error rate >1% in extract",   "handle": "escalate"},
+        {"id": "deadline_extension", "condition": "regulator grants deadline extension",                     "handle": "branch", "branch_to": "extended_submission"}
+      ],
+      "approvals": [
+        {"role": "regulatory_officer", "policy": "1_of_1"},
+        {"role": "legal_counsel",      "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "regulatory_officer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "regulatory_officer"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "regulatory_officer"},
+        {"trigger": "sla_breach",  "channel": "pagerduty","audience": "regulatory_officer"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 1209600},
+      "metrics": ["submission_on_time_rate", "data_quality_error_rate", "regulatory_penalty_count"],
+      "compliance": ["OFCOM-GC11", "FCC-Part4", "NIS-Directive"],
+      "data_sensitivity": ["restricted"]
+    },
+    {
+      "id": "settle_wholesale_account",
+      "title": "Settle a wholesale interconnect account",
+      "actor": {"role": "billing_analyst"},
+      "situation": "end of monthly settlement window requires reconciliation and payment of interconnect charges with partner carriers",
+      "motivation": "settle accurately and on time to maintain interconnect agreements and avoid interest penalties",
+      "outcome": "interconnect invoice reconciled, disputes raised if any, net settlement payment executed",
+      "success_criteria": [
+        "CDR reconciliation completed within 5 business days of month end",
+        "disputes filed within 3 business days of discrepancy identification",
+        "net settlement payment initiated within contractual payment terms"
+      ],
+      "data_capture": [
+        {"id": "partner_carrier",   "kind": "text",    "label": "Partner carrier code",     "required": true,  "pii": false},
+        {"id": "settlement_period", "kind": "text",    "label": "Settlement period",        "required": true,  "pii": false},
+        {"id": "gross_payable",     "kind": "money",   "label": "Gross payable (USD)",      "required": true,  "pii": false},
+        {"id": "gross_receivable",  "kind": "money",   "label": "Gross receivable (USD)",   "required": true,  "pii": false},
+        {"id": "dispute_amount",    "kind": "money",   "label": "Disputed amount (0 if none)","required": true,"pii": false},
+        {"id": "payment_ref",       "kind": "text",    "label": "Payment reference",        "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "large_dispute",     "condition": "dispute_amount > 5% of gross payable",               "handle": "escalate"},
+        {"id": "partner_insolvent", "condition": "partner carrier enters administration or insolvency", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "billing_analyst", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "billing_analyst"},
+        {"trigger": "approved",    "channel": "email",  "audience": "billing_analyst"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "billing_analyst"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["settlement_accuracy_rate", "dispute_rate", "days_payable_outstanding"],
+      "compliance": ["GAAP", "IFRS15", "SOX-ITGC"],
+      "data_sensitivity": ["confidential", "financial"]
+    },
+    {
+      "id": "onboard_MVNO",
+      "title": "Onboard a new MVNO partner",
+      "actor": {"role": "mvno_manager"},
+      "situation": "a new Mobile Virtual Network Operator signs a hosting agreement and requires technical and commercial onboarding onto the host network",
+      "motivation": "complete MVNO go-live within the contracted date to begin earning wholesale revenue",
+      "outcome": "MVNO tenant provisioned in BSS/OSS, test SIMs activated, technical acceptance tests passed",
+      "success_criteria": [
+        "MVNO technical specification agreed and signed within 30 days of commercial agreement",
+        "BSS/OSS configuration complete 14 days before go-live date",
+        "technical acceptance test passed with ≥98% test case success rate"
+      ],
+      "data_capture": [
+        {"id": "mvno_id",           "kind": "text",   "label": "MVNO identifier",           "required": true,  "pii": false},
+        {"id": "brand_name",        "kind": "text",   "label": "MVNO brand name",           "required": true,  "pii": false},
+        {"id": "mcc_mnc",           "kind": "text",   "label": "MCC/MNC codes",             "required": true,  "pii": false},
+        {"id": "go_live_date",      "kind": "date",   "label": "Contracted go-live date",   "required": true,  "pii": false},
+        {"id": "tat_pass_rate",     "kind": "number", "label": "TAT pass rate (%)",         "required": false, "pii": false},
+        {"id": "contract_ref",      "kind": "text",   "label": "MVNO contract reference",   "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "tat_failure",       "condition": "TAT pass rate < 98%",                                    "handle": "escalate"},
+        {"id": "spectrum_conflict", "condition": "MCC/MNC codes conflict with existing MVNO or MNO entry",  "handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "mvno_manager",    "policy": "1_of_1"},
+        {"role": "regulatory_officer","policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "mvno_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "mvno_manager"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "mvno_manager"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "mvno_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 2592000},
+      "metrics": ["mvno_go_live_on_time_rate", "tat_pass_rate", "time_to_first_subscriber"],
+      "compliance": ["OFCOM-GC18", "ITU-T-Q.700", "ETSI-TS-122-042"],
+      "data_sensitivity": ["confidential"]
+    }
+  ]
+}

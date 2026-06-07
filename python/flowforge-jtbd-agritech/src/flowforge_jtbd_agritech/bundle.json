@@ -1,0 +1,392 @@
+{
+  "project": {
+    "name": "agritech",
+    "package": "flowforge_jtbd_agritech",
+    "domain": "agritech",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD", "EUR", "GBP"]
+  },
+  "shared": {
+    "roles": ["farm_manager", "agronomist", "procurement_officer", "certifying_agent", "equipment_technician", "sustainability_officer", "subsidy_administrator"],
+    "permissions": ["field.read", "crop.read", "equipment.read", "subsidy.read"]
+  },
+  "jtbds": [
+    {
+      "id": "plan_crop_cycle",
+      "title": "Plan the seasonal crop cycle",
+      "actor": {"role": "farm_manager"},
+      "situation": "approaching planting season requires allocation of field blocks to crops, rotation scheduling, and input budgeting",
+      "motivation": "maximise yield per hectare within input cost constraints and soil health rotation requirements",
+      "outcome": "crop plan approved, field allocations committed, seed and fertiliser orders initiated",
+      "success_criteria": [
+        "crop plan submitted at least 45 days before planting window opens",
+        "field rotation rules validated against 3-year history with no repeat violations",
+        "input budget approved by farm manager and finance officer"
+      ],
+      "data_capture": [
+        {"id": "season",           "kind": "text",    "label": "Season (e.g. 2026-spring)",  "required": true,  "pii": false},
+        {"id": "field_allocations","kind": "textarea","label": "Field-to-crop allocations",  "required": true,  "pii": false},
+        {"id": "expected_yield_t", "kind": "number",  "label": "Expected yield (tonnes)",    "required": true,  "pii": false},
+        {"id": "input_budget",     "kind": "money",   "label": "Input budget (USD)",         "required": true,  "pii": false},
+        {"id": "irrigation_plan",  "kind": "textarea","label": "Irrigation schedule summary","required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "rotation_violation","condition": "same crop on same field for second consecutive season",   "handle": "reject"},
+        {"id": "budget_overrun",    "condition": "input_budget exceeds approved annual cap by >10%",        "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "farm_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "farm_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "procurement_officer"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "farm_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 3888000},
+      "metrics": ["plan_submission_lead_time", "budget_variance_pct", "rotation_compliance_rate"],
+      "compliance": ["GlobalGAP-AF9", "EIA-2070"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "report_yield",
+      "title": "Report post-harvest yield",
+      "actor": {"role": "farm_manager"},
+      "situation": "harvest is complete and actual yield must be recorded against plan, by field block and crop lot",
+      "motivation": "accurate yield data feeds subsidy claims, contract fulfilment verification, and next-season planning models",
+      "outcome": "yield data recorded per field block, variance against plan documented, lots assigned storage locations",
+      "success_criteria": [
+        "yield report submitted within 5 days of harvest completion per field block",
+        "weight tickets from certified weighbridge attached for each lot",
+        "variance >10% against plan triggers agronomist review note"
+      ],
+      "data_capture": [
+        {"id": "field_id",         "kind": "text",    "label": "Field block ID",           "required": true,  "pii": false},
+        {"id": "crop_code",        "kind": "text",    "label": "Crop code",                "required": true,  "pii": false},
+        {"id": "actual_yield_t",   "kind": "number",  "label": "Actual yield (tonnes)",    "required": true,  "pii": false},
+        {"id": "weight_ticket_url","kind": "url",     "label": "Weighbridge ticket URL",   "required": true,  "pii": false},
+        {"id": "storage_location", "kind": "text",    "label": "Storage bin/silo ID",      "required": true,  "pii": false},
+        {"id": "quality_grade",    "kind": "enum",    "label": "Quality grade",            "required": true,  "pii": false},
+        {"id": "moisture_pct",     "kind": "number",  "label": "Moisture content (%)",     "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "high_variance",    "condition": "actual_yield_t deviates >25% from plan",             "handle": "branch", "branch_to": "agronomist_variance_review"},
+        {"id": "quality_reject",   "condition": "quality_grade is below contract minimum specification","handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "farm_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "subsidy_administrator"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "farm_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["yield_variance_pct", "report_timeliness_rate", "quality_grade_distribution"],
+      "compliance": ["GlobalGAP-CB8", "FSA-CoP"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "respond_to_pest",
+      "title": "Respond to a pest or disease detection",
+      "actor": {"role": "agronomist"},
+      "situation": "field scouting, sensor alert, or satellite imagery indicates a pest or pathogen outbreak in one or more field blocks",
+      "motivation": "contain the outbreak before it spreads to adjacent blocks and breaches certification thresholds for pesticide residue",
+      "outcome": "treatment plan approved, intervention applied within treatment window, outcome monitored and recorded",
+      "success_criteria": [
+        "agronomist assessment completed within 24 hours of detection",
+        "treatment plan approved and materials sourced within 48 hours",
+        "post-treatment monitoring assessment completed 7 days after application"
+      ],
+      "data_capture": [
+        {"id": "field_id",         "kind": "text",    "label": "Affected field block ID",  "required": true,  "pii": false},
+        {"id": "pest_species",     "kind": "text",    "label": "Pest/pathogen species",    "required": true,  "pii": false},
+        {"id": "severity",         "kind": "enum",    "label": "Severity (low/med/high)",  "required": true,  "pii": false},
+        {"id": "treatment_plan",   "kind": "textarea","label": "Treatment plan",           "required": true,  "pii": false},
+        {"id": "product_code",     "kind": "text",    "label": "Agrichemical product code","required": true,  "pii": false},
+        {"id": "application_date", "kind": "date",    "label": "Planned application date", "required": true,  "pii": false},
+        {"id": "phi_days",         "kind": "number",  "label": "Pre-harvest interval (days)","required": true,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "phi_violation",    "condition": "application_date + phi_days > planned harvest date",          "handle": "reject"},
+        {"id": "organic_cert",     "condition": "field is under organic certification and product_code is synthetic","handle": "escalate"},
+        {"id": "spread_risk",      "condition": "severity is high and adjacent fields have same crop",          "handle": "branch", "branch_to": "multi_field_treatment"}
+      ],
+      "approvals": [
+        {"role": "agronomist", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "farm_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "farm_manager"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "agronomist"},
+        {"trigger": "sla_breach",  "channel": "email",  "audience": "farm_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 86400},
+      "metrics": ["response_time_to_detection", "treatment_efficacy_rate", "phi_violation_count"],
+      "compliance": ["GlobalGAP-CP7", "EU-Pesticides-Reg-1107/2009", "FQPA"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "schedule_irrigation",
+      "title": "Schedule and execute an irrigation run",
+      "actor": {"role": "farm_manager"},
+      "situation": "soil moisture sensors or evapotranspiration models indicate irrigation is required for one or more zones",
+      "motivation": "apply the right water volume at the right time to optimise yield while staying within water licence allocation",
+      "outcome": "irrigation run scheduled, executed, water volume recorded against licence, soil moisture confirmed in target range",
+      "success_criteria": [
+        "irrigation scheduled within the sensor-triggered recommendation window (±12 hours)",
+        "water applied within 5% of prescribed volume",
+        "water use logged against annual allocation licence before run starts"
+      ],
+      "data_capture": [
+        {"id": "zone_ids",          "kind": "textarea","label": "Irrigation zone IDs",       "required": true,  "pii": false},
+        {"id": "prescribed_mm",     "kind": "number",  "label": "Prescribed depth (mm)",     "required": true,  "pii": false},
+        {"id": "actual_mm",         "kind": "number",  "label": "Actual depth applied (mm)", "required": false, "pii": false},
+        {"id": "start_time",        "kind": "datetime","label": "Run start time",            "required": true,  "pii": false},
+        {"id": "duration_minutes",  "kind": "number",  "label": "Run duration (minutes)",    "required": false, "pii": false},
+        {"id": "licence_balance_ml","kind": "number",  "label": "Remaining licence (ML)",    "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "licence_exhausted", "condition": "licence_balance_ml < prescribed volume",                "handle": "reject"},
+        {"id": "pump_fault",        "condition": "pump telemetry indicates fault during run",              "handle": "branch", "branch_to": "equipment_fault_response"},
+        {"id": "rainfall_event",    "condition": "forecast precipitation >10mm within 12 hours of run",   "handle": "branch", "branch_to": "defer_irrigation"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "farm_manager"},
+        {"trigger": "approved",    "channel": "in_app", "audience": "farm_manager"},
+        {"trigger": "sla_breach",  "channel": "email",  "audience": "farm_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 43200},
+      "metrics": ["irrigation_efficiency_pct", "licence_utilisation_pct", "pump_fault_rate"],
+      "compliance": ["Water-Act-2003", "Murray-Darling-MDB-Plan", "EU-WFD"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "procure_inputs",
+      "title": "Procure season inputs (seed, fertiliser, agrichemicals)",
+      "actor": {"role": "procurement_officer"},
+      "situation": "crop plan is approved and input requirements must be sourced, compared, and ordered before seasonal price increases",
+      "motivation": "secure required quantities at competitive prices with delivery confirmed before field application windows",
+      "outcome": "purchase orders issued to approved suppliers, delivery schedule confirmed, storage allocated",
+      "success_criteria": [
+        "supplier quotes obtained from at least 3 vendors for each input category",
+        "POs issued within 5 business days of crop plan approval",
+        "delivery confirmation received at least 7 days before first application date"
+      ],
+      "data_capture": [
+        {"id": "input_category",   "kind": "enum",    "label": "Input category",           "required": true,  "pii": false},
+        {"id": "quantity_kg",      "kind": "number",  "label": "Quantity (kg or L)",       "required": true,  "pii": false},
+        {"id": "supplier_id",      "kind": "text",    "label": "Selected supplier ID",     "required": true,  "pii": false},
+        {"id": "unit_price",       "kind": "money",   "label": "Unit price (USD/kg)",      "required": true,  "pii": false},
+        {"id": "po_number",        "kind": "text",    "label": "Purchase order number",    "required": false, "pii": false},
+        {"id": "delivery_date",    "kind": "date",    "label": "Confirmed delivery date",  "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "sole_supplier",    "condition": "fewer than 3 quotes obtained due to market shortage",   "handle": "branch", "branch_to": "single_source_justification"},
+        {"id": "gmo_restricted",   "condition": "seed variety is GMO and farm is in EU GMO-restricted zone","handle": "reject"}
+      ],
+      "approvals": [
+        {"role": "procurement_officer", "policy": "1_of_1"},
+        {"role": "farm_manager",        "policy": "authority_tier", "tier": 2}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "procurement_officer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "procurement_officer"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "procurement_officer"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["input_cost_variance_pct", "delivery_on_time_rate", "supplier_concentration_index"],
+      "compliance": ["GlobalGAP-AF4", "REACH-Reg-1907/2006"],
+      "data_sensitivity": ["confidential", "financial"]
+    },
+    {
+      "id": "coordinate_harvest",
+      "title": "Coordinate the harvest operation",
+      "actor": {"role": "farm_manager"},
+      "situation": "crop maturity indicators confirm harvest readiness; equipment, labour, and logistics must be coordinated to minimise weather risk",
+      "motivation": "harvest within the optimal moisture window to maximise grade and avoid drying costs or field losses",
+      "outcome": "harvest completed, yield weighed and stored, equipment returned, contractor invoices approved",
+      "success_criteria": [
+        "harvest start within 24 hours of maturity confirmation",
+        "all field blocks completed within the forecasted weather window",
+        "contractor time records reconciled within 3 business days of completion"
+      ],
+      "data_capture": [
+        {"id": "harvest_start",    "kind": "datetime","label": "Harvest start date/time",  "required": true,  "pii": false},
+        {"id": "contractor_ids",   "kind": "textarea","label": "Contractor IDs",           "required": true,  "pii": false},
+        {"id": "machine_hours",    "kind": "number",  "label": "Total machine hours",      "required": true,  "pii": false},
+        {"id": "fuel_usage_l",     "kind": "number",  "label": "Fuel usage (litres)",      "required": true,  "pii": false},
+        {"id": "contractor_cost",  "kind": "money",   "label": "Contractor cost (USD)",    "required": true,  "pii": false},
+        {"id": "completion_date",  "kind": "date",    "label": "Harvest completion date",  "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "equipment_breakdown","condition": "primary harvester breaks down mid-harvest",          "handle": "branch", "branch_to": "emergency_equipment_hire"},
+        {"id": "weather_delay",      "condition": "rain forecast forces >48 hour delay",               "handle": "branch", "branch_to": "harvest_delay_management"},
+        {"id": "labour_shortage",    "condition": "contracted workforce falls below 70% of requirement","handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "farm_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "procurement_officer"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "farm_manager"},
+        {"trigger": "sla_breach",  "channel": "email",  "audience": "farm_manager"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 172800},
+      "metrics": ["harvest_efficiency_ha_per_hour", "field_loss_pct", "cost_per_tonne"],
+      "compliance": ["GlobalGAP-CB8", "Health-Safety-at-Work-Act"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "prepare_certification_audit",
+      "title": "Prepare for a third-party certification audit",
+      "actor": {"role": "farm_manager"},
+      "situation": "annual GlobalGAP, organic, or food safety certification is due and the certifying body has scheduled an on-farm audit",
+      "motivation": "pass the audit without major non-conformances to maintain market access and premium price premiums",
+      "outcome": "audit documentation package assembled, corrective actions from prior audit closed, audit passed",
+      "success_criteria": [
+        "all required records assembled 14 days before audit date",
+        "prior non-conformances remediated and evidence uploaded before audit",
+        "no major non-conformances raised in audit report"
+      ],
+      "data_capture": [
+        {"id": "cert_scheme",       "kind": "enum",  "label": "Certification scheme",      "required": true,  "pii": false},
+        {"id": "audit_date",        "kind": "date",  "label": "Scheduled audit date",      "required": true,  "pii": false},
+        {"id": "certifying_body",   "kind": "text",  "label": "Certifying body name",      "required": true,  "pii": false},
+        {"id": "prior_ncrs",        "kind": "number","label": "Prior NCR count",           "required": true,  "pii": false},
+        {"id": "doc_package_url",   "kind": "url",   "label": "Documentation package URL", "required": true,  "pii": false},
+        {"id": "audit_result",      "kind": "enum",  "label": "Audit result",              "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "major_ncr_raised",  "condition": "audit_result contains major non-conformance",          "handle": "branch", "branch_to": "major_ncr_remediation"},
+        {"id": "cert_suspended",    "condition": "certification body issues suspension notice",           "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "farm_manager",     "policy": "1_of_1"},
+        {"role": "certifying_agent", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "farm_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "certifying_agent"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "farm_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 1209600},
+      "metrics": ["major_ncr_count", "minor_ncr_count", "certification_pass_rate"],
+      "compliance": ["GlobalGAP-V5.3", "EU-Organic-Reg-2018/848", "BRC-Food-Issue9"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "claim_subsidy",
+      "title": "Submit a government subsidy claim",
+      "actor": {"role": "farm_manager"},
+      "situation": "annual agricultural subsidy claim window opens and eligible activities must be evidenced and submitted to the government agency",
+      "motivation": "maximise subsidy entitlement within claim window to offset input costs",
+      "outcome": "subsidy claim submitted with full evidence, claim reference received, payment confirmed in declared period",
+      "success_criteria": [
+        "claim submitted before published closing date",
+        "all field activity evidence (maps, photos, records) attached",
+        "claim reference number received from agency within 5 business days of submission"
+      ],
+      "data_capture": [
+        {"id": "scheme_code",       "kind": "text",    "label": "Subsidy scheme code",      "required": true,  "pii": false},
+        {"id": "claim_year",        "kind": "text",    "label": "Claim year",               "required": true,  "pii": false},
+        {"id": "eligible_hectares", "kind": "number",  "label": "Eligible hectares claimed","required": true,  "pii": false},
+        {"id": "activity_evidence", "kind": "file",    "label": "Activity evidence bundle", "required": true,  "pii": false},
+        {"id": "claim_amount",      "kind": "money",   "label": "Claimed amount (USD)",     "required": true,  "pii": false},
+        {"id": "agency_reference",  "kind": "text",    "label": "Agency claim reference",   "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "late_submission",   "condition": "submission date is after published closing date",       "handle": "reject"},
+        {"id": "inspection_triggered","condition": "claim amount >$50,000 or anomaly flag from agency",  "handle": "branch", "branch_to": "agency_inspection_preparation"},
+        {"id": "area_discrepancy",  "condition": "eligible_hectares differ >3% from satellite measurement","handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "farm_manager",         "policy": "1_of_1"},
+        {"role": "subsidy_administrator","policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "farm_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "farm_manager"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "farm_manager"},
+        {"trigger": "sla_breach",  "channel": "email",  "audience": "farm_manager"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 86400},
+      "metrics": ["claim_success_rate", "days_to_payment", "discrepancy_rate"],
+      "compliance": ["CAP-Reg-EU-2021/2115", "USDA-FSA-520", "RPA-SPS"],
+      "data_sensitivity": ["confidential", "financial"]
+    },
+    {
+      "id": "repair_equipment",
+      "title": "Manage a machinery repair or service event",
+      "actor": {"role": "equipment_technician"},
+      "situation": "field machinery (tractor, combine, pivot irrigation) develops a fault or reaches service interval requiring downtime management",
+      "motivation": "return equipment to operational status within the repair window to avoid harvest or planting delays",
+      "outcome": "fault diagnosed, parts sourced, repair completed, service record updated",
+      "success_criteria": [
+        "initial fault diagnosis completed within 4 hours of breakdown report",
+        "parts ordered within 1 business day of diagnosis",
+        "equipment returned to service within repair time estimate ±20%"
+      ],
+      "data_capture": [
+        {"id": "equipment_id",     "kind": "text",    "label": "Equipment asset ID",        "required": true,  "pii": false},
+        {"id": "fault_code",       "kind": "text",    "label": "Fault/OBD code",            "required": false, "pii": false},
+        {"id": "fault_description","kind": "textarea","label": "Fault description",         "required": true,  "pii": false},
+        {"id": "parts_required",   "kind": "textarea","label": "Parts required list",       "required": true,  "pii": false},
+        {"id": "repair_cost",      "kind": "money",   "label": "Estimated repair cost",     "required": true,  "pii": false},
+        {"id": "completion_date",  "kind": "date",    "label": "Actual completion date",    "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "critical_season",  "condition": "equipment is required for harvest within 72 hours",       "handle": "branch", "branch_to": "emergency_hire"},
+        {"id": "warranty_claim",   "condition": "equipment is under manufacturer warranty",                "handle": "branch", "branch_to": "warranty_claim_process"},
+        {"id": "write_off",        "condition": "repair_cost exceeds 60% of current book value",           "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "equipment_technician", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "in_app", "audience": "farm_manager"},
+        {"trigger": "approved",    "channel": "in_app", "audience": "farm_manager"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "equipment_technician"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 14400},
+      "metrics": ["mean_time_to_repair", "equipment_utilisation_pct", "unplanned_downtime_hours"],
+      "compliance": ["PSSR-2000", "LOLER-1998"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "file_sustainability_report",
+      "title": "File the annual sustainability and carbon report",
+      "actor": {"role": "sustainability_officer"},
+      "situation": "annual reporting cycle requires assembly of GHG emissions data, water use, biodiversity indicators, and sustainability KPIs for external disclosure",
+      "motivation": "meet investor ESG disclosure requirements and supply chain sustainability standards on schedule",
+      "outcome": "sustainability report published to external stakeholders, carbon sequestration credits registered if applicable",
+      "success_criteria": [
+        "GHG inventory completed using Scope 1, 2, and relevant Scope 3 categories",
+        "report submitted to scheme registry within published deadline",
+        "third-party assurance statement obtained for material emissions figures"
+      ],
+      "data_capture": [
+        {"id": "reporting_year",    "kind": "text",    "label": "Reporting year",              "required": true,  "pii": false},
+        {"id": "scope1_tco2e",      "kind": "number",  "label": "Scope 1 emissions (tCO2e)",   "required": true,  "pii": false},
+        {"id": "scope2_tco2e",      "kind": "number",  "label": "Scope 2 emissions (tCO2e)",   "required": true,  "pii": false},
+        {"id": "water_use_ml",      "kind": "number",  "label": "Total water use (ML)",        "required": true,  "pii": false},
+        {"id": "sequestration_tco2e","kind": "number", "label": "Carbon sequestered (tCO2e)",  "required": false, "pii": false},
+        {"id": "report_url",        "kind": "url",     "label": "Published report URL",        "required": false, "pii": false},
+        {"id": "assurance_doc",     "kind": "file",    "label": "Assurance statement PDF",     "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "data_gap",          "condition": "Scope 3 data unavailable from >20% of supply chain",   "handle": "branch", "branch_to": "estimated_scope3_methodology"},
+        {"id": "restatement",       "condition": "prior year figures require restatement",               "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "sustainability_officer", "policy": "1_of_1"},
+        {"role": "farm_manager",           "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "sustainability_officer"},
+        {"trigger": "approved",    "channel": "email",  "audience": "sustainability_officer"},
+        {"trigger": "sla_warn",    "channel": "in_app", "audience": "sustainability_officer"},
+        {"trigger": "sla_breach",  "channel": "email",  "audience": "farm_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 2592000},
+      "metrics": ["ghg_intensity_kg_tonne", "water_intensity_ml_tonne", "report_on_time_rate"],
+      "compliance": ["GHG-Protocol-Agri", "TCFD", "CSRD-ESRS-E1", "Gold-Standard-VCM"],
+      "data_sensitivity": ["internal"]
+    }
+  ]
+}

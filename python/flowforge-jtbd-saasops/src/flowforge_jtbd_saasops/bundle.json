@@ -1,0 +1,383 @@
+{
+  "project": {
+    "name": "saasops",
+    "package": "flowforge_jtbd_saasops",
+    "domain": "saasops",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD"]
+  },
+  "shared": {
+    "roles": ["ops_engineer", "account_manager", "security_officer", "customer_success", "billing_analyst", "product_manager", "legal_counsel"],
+    "permissions": ["tenant.read", "incident.read", "billing.read", "feature_flag.read"]
+  },
+  "jtbds": [
+    {
+      "id": "onboard_tenant",
+      "title": "Onboard a new tenant",
+      "actor": {"role": "ops_engineer"},
+      "situation": "a new customer signs a contract and needs their isolated environment provisioned in the SaaS platform",
+      "motivation": "deliver a functional, secure tenant namespace before the customer's go-live date to avoid SLA penalties",
+      "outcome": "tenant database schema migrated, RBAC seeded, SSO configured, and health check green",
+      "success_criteria": [
+        "tenant namespace created within 2 hours of contract signature",
+        "initial admin user credentials delivered securely to customer",
+        "health check endpoint returns 200 within 30 minutes of provisioning"
+      ],
+      "data_capture": [
+        {"id": "tenant_id",       "kind": "text",   "label": "Tenant slug",         "required": true,  "pii": false},
+        {"id": "admin_email",     "kind": "email",  "label": "Admin email",         "required": true,  "pii": true},
+        {"id": "company_name",    "kind": "text",   "label": "Company name",        "required": true,  "pii": false},
+        {"id": "plan_tier",       "kind": "enum",   "label": "Plan tier",           "required": true,  "pii": false},
+        {"id": "sso_idp_url",     "kind": "url",    "label": "SSO IdP metadata URL","required": false, "pii": false},
+        {"id": "data_region",     "kind": "enum",   "label": "Data residency region","required": true, "pii": false},
+        {"id": "contract_ref",    "kind": "text",   "label": "Contract reference",  "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "slug_conflict",   "condition": "tenant_id already exists in registry", "handle": "reject"},
+        {"id": "sso_unreachable", "condition": "SSO IdP metadata URL returns non-200", "handle": "branch", "branch_to": "manual_sso_setup"},
+        {"id": "migration_fail",  "condition": "schema migration exits non-zero",      "handle": "escalate"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "email",  "audience": "customer_success"},
+        {"trigger": "approved",     "channel": "email",  "audience": "admin_email"},
+        {"trigger": "sla_warn",     "channel": "slack",  "audience": "ops_engineer"},
+        {"trigger": "sla_breach",   "channel": "pagerduty", "audience": "ops_engineer"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 7200},
+      "metrics": ["time_to_provision", "onboarding_error_rate", "sso_setup_success_rate"],
+      "compliance": ["SOC2-CC6.1", "ISO27001-A.9"],
+      "data_sensitivity": ["confidential"]
+    },
+    {
+      "id": "manage_incident",
+      "title": "Manage a platform incident",
+      "actor": {"role": "ops_engineer"},
+      "situation": "automated alerting or customer report indicates a production service degradation affecting one or more tenants",
+      "motivation": "restore service within SLA window, contain blast radius, and produce a post-mortem before customer escalation",
+      "outcome": "incident resolved, all affected tenants notified, post-mortem published",
+      "success_criteria": [
+        "incident acknowledged within 5 minutes of alert",
+        "P1 incidents resolved within 1 hour, P2 within 4 hours",
+        "post-mortem draft published within 24 hours of resolution"
+      ],
+      "data_capture": [
+        {"id": "incident_id",      "kind": "text",     "label": "Incident ID",          "required": true,  "pii": false},
+        {"id": "severity",         "kind": "enum",     "label": "Severity (P1-P4)",      "required": true,  "pii": false},
+        {"id": "affected_tenants", "kind": "textarea", "label": "Affected tenant list",  "required": true,  "pii": false},
+        {"id": "root_cause",       "kind": "textarea", "label": "Root cause summary",    "required": true,  "pii": false},
+        {"id": "resolution_notes", "kind": "textarea", "label": "Resolution steps",      "required": true,  "pii": false},
+        {"id": "postmortem_url",   "kind": "url",      "label": "Post-mortem document",  "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "multi_region",     "condition": "incident spans more than one data region",      "handle": "escalate"},
+        {"id": "data_breach",      "condition": "incident involves potential data exfiltration", "handle": "branch", "branch_to": "security_incident_response"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter",  "channel": "pagerduty", "audience": "ops_engineer"},
+        {"trigger": "state_enter",  "channel": "slack",     "audience": "customer_success"},
+        {"trigger": "approved",     "channel": "email",     "audience": "affected_tenants"},
+        {"trigger": "sla_breach",   "channel": "pagerduty", "audience": "ops_engineer"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 3600},
+      "metrics": ["mttr", "mtta", "incident_recurrence_rate", "tenants_affected_per_incident"],
+      "compliance": ["SOC2-A1.2", "ISO27001-A.16"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "offboard_customer",
+      "title": "Offboard a departing customer",
+      "actor": {"role": "account_manager"},
+      "situation": "customer provides notice of contract termination and requests data export and environment teardown",
+      "motivation": "complete teardown within the contractual window, avoid data retention violations, and preserve audit trail",
+      "outcome": "customer data exported and delivered, tenant namespace destroyed, billing stopped",
+      "success_criteria": [
+        "final data export delivered to customer within 5 business days of termination notice",
+        "tenant namespace deleted within 30 days of contract end date",
+        "billing subscription cancelled effective contract end date"
+      ],
+      "data_capture": [
+        {"id": "termination_date", "kind": "date",   "label": "Contract end date",     "required": true,  "pii": false},
+        {"id": "export_format",    "kind": "enum",   "label": "Export format",         "required": true,  "pii": false},
+        {"id": "export_recipient", "kind": "email",  "label": "Export delivery email", "required": true,  "pii": true},
+        {"id": "reason_code",      "kind": "enum",   "label": "Churn reason code",     "required": true,  "pii": false},
+        {"id": "legal_hold",       "kind": "boolean","label": "Legal hold active",     "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "legal_hold_active","condition": "legal_hold is true",                          "handle": "branch", "branch_to": "legal_hold_review"},
+        {"id": "export_oversized", "condition": "data export exceeds 50 GB",                   "handle": "branch", "branch_to": "large_export_workflow"},
+        {"id": "open_invoices",    "condition": "customer has unpaid invoices at termination",  "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "legal_counsel",    "policy": "1_of_1"},
+        {"role": "account_manager",  "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "account_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "export_recipient"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "account_manager"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "ops_engineer"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 432000},
+      "metrics": ["offboarding_cycle_time", "data_export_success_rate", "churn_reason_distribution"],
+      "compliance": ["GDPR-Art17", "CCPA-1798.105", "SOC2-CC6.5"],
+      "data_sensitivity": ["confidential", "pii"]
+    },
+    {
+      "id": "process_usage_billing",
+      "title": "Process monthly usage billing",
+      "actor": {"role": "billing_analyst"},
+      "situation": "end of billing cycle; metered usage data must be reconciled and invoices generated for all active tenants",
+      "motivation": "accurate, timely invoicing preserves revenue recognition compliance and minimises dispute volume",
+      "outcome": "all tenant invoices generated, pushed to payment processor, and revenue recorded in ERP",
+      "success_criteria": [
+        "metered usage reconciled within 2 hours of cycle close",
+        "invoices generated for 100% of active tenants before billing run deadline",
+        "ERP journal entries posted same day as invoice generation"
+      ],
+      "data_capture": [
+        {"id": "billing_period",   "kind": "date",   "label": "Billing period end",    "required": true,  "pii": false},
+        {"id": "usage_report_url", "kind": "url",    "label": "Usage report S3 URL",   "required": true,  "pii": false},
+        {"id": "anomaly_flags",    "kind": "textarea","label": "Anomaly notes",        "required": false, "pii": false},
+        {"id": "erp_batch_id",     "kind": "text",   "label": "ERP batch ID",          "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "usage_spike",      "condition": "tenant usage exceeds 3x prior month baseline", "handle": "branch", "branch_to": "usage_anomaly_review"},
+        {"id": "processor_timeout","condition": "payment processor API returns 5xx",             "handle": "retry", "max_retries": 3}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "billing_analyst"},
+        {"trigger": "approved",    "channel": "email",  "audience": "billing_analyst"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "billing_analyst"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 14400},
+      "metrics": ["billing_accuracy_rate", "invoice_dispute_rate", "days_sales_outstanding"],
+      "compliance": ["ASC606", "SOX-ITGC", "PCI-DSS-Req3"],
+      "data_sensitivity": ["confidential", "financial"]
+    },
+    {
+      "id": "handle_compliance_request",
+      "title": "Handle a customer compliance request",
+      "actor": {"role": "security_officer"},
+      "situation": "enterprise customer submits a security questionnaire, penetration test request, or GDPR data processing agreement for review",
+      "motivation": "unblock the customer's procurement process without over-disclosing security architecture details",
+      "outcome": "compliance artefact reviewed, redacted if necessary, approved, and delivered to customer",
+      "success_criteria": [
+        "initial acknowledgement sent within 1 business day",
+        "completed questionnaire or DPA returned within 10 business days",
+        "any redactions documented with legal justification"
+      ],
+      "data_capture": [
+        {"id": "request_type",    "kind": "enum",     "label": "Request type",         "required": true,  "pii": false},
+        {"id": "customer_entity", "kind": "text",     "label": "Customer legal entity", "required": true,  "pii": false},
+        {"id": "questionnaire",   "kind": "file",     "label": "Questionnaire file",    "required": false, "pii": false},
+        {"id": "response_doc",    "kind": "file",     "label": "Completed response",    "required": true,  "pii": false},
+        {"id": "redaction_notes", "kind": "textarea", "label": "Redaction notes",       "required": false, "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "pen_test_request", "condition": "request_type is penetration_test",                 "handle": "branch", "branch_to": "pentest_scheduling"},
+        {"id": "dpa_scope_broad",  "condition": "DPA requests controller status for shared data",   "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "security_officer", "policy": "1_of_1"},
+        {"role": "legal_counsel",    "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "customer_success"},
+        {"trigger": "approved",    "channel": "email",  "audience": "customer_success"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "security_officer"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 864000},
+      "metrics": ["compliance_request_cycle_time", "first_response_time", "questionnaire_completion_rate"],
+      "compliance": ["GDPR-Art28", "ISO27001-A.18", "SOC2-CC2.2"],
+      "data_sensitivity": ["confidential"]
+    },
+    {
+      "id": "roll_out_feature_flag",
+      "title": "Roll out a feature flag to production",
+      "actor": {"role": "product_manager"},
+      "situation": "a new feature has passed QA and is ready for gradual production rollout via feature flag",
+      "motivation": "incrementally expose the feature to reduce blast radius of bugs while collecting real-world signal",
+      "outcome": "feature flag enabled at target percentage, metrics baseline captured, rollback plan confirmed",
+      "success_criteria": [
+        "initial rollout at ≤5% of tenants with error rate monitored for 30 minutes before proceeding",
+        "full rollout or rollback decision made within 48 hours of initial enablement",
+        "feature flag configuration committed to IaC repository"
+      ],
+      "data_capture": [
+        {"id": "flag_key",         "kind": "text",    "label": "Feature flag key",       "required": true,  "pii": false},
+        {"id": "target_pct",       "kind": "number",  "label": "Initial target pct",     "required": true,  "pii": false},
+        {"id": "rollout_strategy", "kind": "enum",    "label": "Rollout strategy",       "required": true,  "pii": false},
+        {"id": "rollback_trigger", "kind": "textarea","label": "Rollback trigger criteria","required": true, "pii": false},
+        {"id": "metrics_dashboard","kind": "url",     "label": "Metrics dashboard URL",  "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "error_rate_spike",  "condition": "error rate exceeds 1% within 30 min of enablement", "handle": "branch", "branch_to": "auto_rollback"},
+        {"id": "latency_regression","condition": "p99 latency increases >20% after flag enable",       "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "product_manager", "policy": "1_of_1"},
+        {"role": "ops_engineer",    "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "slack",  "audience": "ops_engineer"},
+        {"trigger": "approved",    "channel": "slack",  "audience": "product_manager"},
+        {"trigger": "rejected",    "channel": "slack",  "audience": "product_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 172800},
+      "metrics": ["rollout_error_rate", "rollback_frequency", "time_to_full_rollout"],
+      "compliance": ["SOC2-CC8.1"],
+      "data_sensitivity": ["internal"]
+    },
+    {
+      "id": "conduct_security_review",
+      "title": "Conduct quarterly security review",
+      "actor": {"role": "security_officer"},
+      "situation": "scheduled quarterly review requires assessment of access controls, vulnerability scan results, and policy compliance",
+      "motivation": "maintain continuous SOC 2 and ISO 27001 compliance posture and catch drift before external auditors do",
+      "outcome": "review report published, findings triaged, remediation tickets created for all medium+ findings",
+      "success_criteria": [
+        "all critical findings remediated or risk-accepted within 7 days",
+        "review report signed off by CISO within 5 business days of scan completion",
+        "access control exceptions documented with business justification"
+      ],
+      "data_capture": [
+        {"id": "review_quarter",     "kind": "text",     "label": "Review quarter (YYYY-Qn)", "required": true,  "pii": false},
+        {"id": "scan_report_url",    "kind": "url",      "label": "Vulnerability scan report","required": true,  "pii": false},
+        {"id": "critical_findings",  "kind": "number",   "label": "Critical finding count",   "required": true,  "pii": false},
+        {"id": "access_exceptions",  "kind": "textarea", "label": "Access exceptions list",   "required": false, "pii": false},
+        {"id": "review_report_url",  "kind": "url",      "label": "Review report doc URL",    "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "critical_unpatched", "condition": "critical CVE unpatched for >30 days",             "handle": "escalate"},
+        {"id": "privilege_creep",    "condition": "more than 10 access exceptions without justification", "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "security_officer", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email", "audience": "security_officer"},
+        {"trigger": "approved",    "channel": "email", "audience": "security_officer"},
+        {"trigger": "sla_warn",    "channel": "slack", "audience": "security_officer"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 604800},
+      "metrics": ["mean_time_to_remediate_critical", "access_exception_count", "vulnerability_backlog_age"],
+      "compliance": ["SOC2-CC7.1", "ISO27001-A.12.6", "PCI-DSS-Req11"],
+      "data_sensitivity": ["restricted"]
+    },
+    {
+      "id": "export_customer_data",
+      "title": "Export customer data on request (DSAR)",
+      "actor": {"role": "security_officer"},
+      "situation": "customer or end-user submits a Data Subject Access Request (DSAR) under GDPR or CCPA",
+      "motivation": "fulfil statutory obligation within the legal deadline to avoid regulatory penalties",
+      "outcome": "all personal data belonging to the subject exported, redacted of third-party data, and delivered securely",
+      "success_criteria": [
+        "DSAR acknowledged within 3 days of receipt",
+        "export package delivered within 30 calendar days of valid request",
+        "export contains no data belonging to other subjects"
+      ],
+      "data_capture": [
+        {"id": "subject_email",   "kind": "email",  "label": "Data subject email",    "required": true,  "pii": true},
+        {"id": "tenant_scope",    "kind": "text",   "label": "Tenant(s) in scope",    "required": true,  "pii": false},
+        {"id": "request_date",    "kind": "date",   "label": "Request receipt date",  "required": true,  "pii": false},
+        {"id": "id_verified",     "kind": "boolean","label": "Identity verified",     "required": true,  "pii": false},
+        {"id": "export_url",      "kind": "url",    "label": "Secure export package URL","required": false,"pii": false}
+      ],
+      "edge_cases": [
+        {"id": "identity_unverifiable","condition": "unable to verify requestor identity within 5 days", "handle": "reject"},
+        {"id": "bulk_dsar",           "condition": "more than 5 DSARs from same tenant in 30 days",     "handle": "escalate"}
+      ],
+      "approvals": [
+        {"role": "security_officer", "policy": "1_of_1"},
+        {"role": "legal_counsel",    "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "subject_email"},
+        {"trigger": "approved",    "channel": "email",  "audience": "subject_email"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "security_officer"},
+        {"trigger": "sla_breach",  "channel": "pagerduty", "audience": "security_officer"}
+      ],
+      "sla": {"warn_pct": 70, "breach_seconds": 2592000},
+      "metrics": ["dsar_cycle_time", "dsar_volume", "identity_verification_pass_rate"],
+      "compliance": ["GDPR-Art15", "CCPA-1798.100", "ISO27001-A.18.1"],
+      "data_sensitivity": ["pii", "restricted"]
+    },
+    {
+      "id": "manage_SLA_breach",
+      "title": "Manage an SLA breach event",
+      "actor": {"role": "account_manager"},
+      "situation": "monitoring detects that a committed SLA metric (uptime, response time, support TTR) has been breached for a specific tenant",
+      "motivation": "proactively notify the customer, quantify service credits owed, and prevent contract escalation",
+      "outcome": "breach documented, service credit calculated, customer notified, credit applied to next invoice",
+      "success_criteria": [
+        "customer notified within 2 hours of breach detection",
+        "service credit calculated per contract terms within 1 business day",
+        "credit reflected on next invoice"
+      ],
+      "data_capture": [
+        {"id": "tenant_id",        "kind": "text",    "label": "Affected tenant",        "required": true,  "pii": false},
+        {"id": "sla_metric",       "kind": "enum",    "label": "SLA metric breached",    "required": true,  "pii": false},
+        {"id": "breach_duration",  "kind": "number",  "label": "Breach duration (seconds)","required": true,"pii": false},
+        {"id": "credit_amount",    "kind": "money",   "label": "Service credit (USD)",   "required": true,  "pii": false},
+        {"id": "credit_notes",     "kind": "textarea","label": "Credit calculation notes","required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "dispute_credit",   "condition": "customer disputes credit calculation",            "handle": "escalate"},
+        {"id": "repeated_breach",  "condition": "same SLA metric breached 3 times in 90 days",    "handle": "branch", "branch_to": "contract_review"}
+      ],
+      "approvals": [
+        {"role": "account_manager", "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "account_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "customer_success"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "account_manager"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 7200},
+      "metrics": ["sla_breach_frequency", "credit_issuance_cycle_time", "customer_satisfaction_post_breach"],
+      "compliance": ["SOC2-A1.1"],
+      "data_sensitivity": ["confidential"]
+    },
+    {
+      "id": "renew_contract",
+      "title": "Renew a customer contract",
+      "actor": {"role": "account_manager"},
+      "situation": "customer contract is approaching its renewal date and commercial terms need to be renegotiated and executed",
+      "motivation": "secure renewal before auto-renewal window closes to lock in ARR and avoid churn attribution",
+      "outcome": "renewal contract signed, billing updated to new terms, renewed term committed in CRM",
+      "success_criteria": [
+        "renewal outreach initiated 90 days before contract end",
+        "signed renewal agreement received at least 30 days before expiry",
+        "new billing schedule activated on first day of renewed term"
+      ],
+      "data_capture": [
+        {"id": "current_arr",      "kind": "money",   "label": "Current ARR (USD)",      "required": true,  "pii": false},
+        {"id": "proposed_arr",     "kind": "money",   "label": "Proposed ARR (USD)",     "required": true,  "pii": false},
+        {"id": "term_months",      "kind": "number",  "label": "Renewal term (months)",  "required": true,  "pii": false},
+        {"id": "discount_pct",     "kind": "number",  "label": "Discount applied (%)",   "required": false, "pii": false},
+        {"id": "signed_contract",  "kind": "file",    "label": "Signed renewal contract","required": true,  "pii": false},
+        {"id": "crm_opportunity",  "kind": "text",    "label": "CRM opportunity ID",     "required": true,  "pii": false}
+      ],
+      "edge_cases": [
+        {"id": "price_pushback",   "condition": "customer requests >15% discount",                     "handle": "branch", "branch_to": "discount_approval"},
+        {"id": "downsell",         "condition": "proposed_arr < current_arr",                          "handle": "escalate"},
+        {"id": "churn_risk",       "condition": "customer has open P1 incidents or NPS score <6",      "handle": "branch", "branch_to": "save_desk_review"}
+      ],
+      "approvals": [
+        {"role": "account_manager", "policy": "1_of_1"},
+        {"role": "legal_counsel",   "policy": "1_of_1"}
+      ],
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email",  "audience": "account_manager"},
+        {"trigger": "approved",    "channel": "email",  "audience": "account_manager"},
+        {"trigger": "sla_warn",    "channel": "slack",  "audience": "account_manager"},
+        {"trigger": "sla_breach",  "channel": "slack",  "audience": "account_manager"}
+      ],
+      "sla": {"warn_pct": 80, "breach_seconds": 7776000},
+      "metrics": ["renewal_rate", "arr_expansion_rate", "days_to_signed_renewal"],
+      "compliance": ["ASC606", "SOX-ITGC"],
+      "data_sensitivity": ["confidential", "financial"]
+    }
+  ]
+}
