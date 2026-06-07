@@ -67,6 +67,10 @@ _SKIP_SEGMENTS = frozenset(
 		# trees, session logs). Walking them produces false positives that
 		# point at scaffolded generator output, not committed source.
 		".omc",
+		# Workflow tool git worktrees live under `.claude/worktrees/` during
+		# agent runs and are cleaned up on completion. They should never be
+		# walked for test-location auditing.
+		".claude",
 	}
 )
 

@@ -94,23 +94,45 @@ def _tier_for(pkg_dir_name: str) -> str:
 
 
 def test_DOC_05_versions_consistent_per_tier() -> None:
-	"""Every pkg's version matches the cadence policy for its tier."""
+	"""Every pkg's version matches the cadence policy for its tier.
+
+	Tier-1 (16 strategic packages): all must share the same semver string
+	of the form ``0.MINOR.PATCH`` — releasing them in lockstep prevents
+	split-brain between adapters that share port ABCs.
+
+	Tier-2 (domain JTBD packages with ``[tool.uv] package = false``):
+	pinned at ``0.0.1`` until a per-package SME-review gate flips them
+	to ``package = true`` in lockstep with tier-1.
+	"""
+	tier1_versions: dict[str, str] = {}
 	for pkg_dir in sorted(_PYTHON_DIR.iterdir()):
 		if not pkg_dir.is_dir():
 			continue
 		pyproj = pkg_dir / "pyproject.toml"
+		if not pyproj.exists():
+			continue
 		with pyproj.open("rb") as f:
 			data = tomllib.load(f)
 		version = data["project"]["version"]
 		tier = _tier_for(pkg_dir.name)
 		if tier == "tier-1":
-			assert re.match(r"^0\.1\.\d+$", version), (
-				f"tier-1 pkg {pkg_dir.name} should be 0.1.x; got {version!r}"
+			# Must be valid 0.x.y semver.
+			assert re.match(r"^0\.\d+\.\d+$", version), (
+				f"tier-1 pkg {pkg_dir.name} version {version!r} is not 0.x.y semver"
 			)
+			tier1_versions[pkg_dir.name] = version
 		else:
 			assert version == "0.0.1", (
 				f"tier-2 pkg {pkg_dir.name} should be 0.0.1; got {version!r}"
 			)
+
+	# All tier-1 packages must share the same version string.
+	if tier1_versions:
+		unique = set(tier1_versions.values())
+		assert len(unique) == 1, (
+			f"tier-1 packages have inconsistent versions: "
+			+ ", ".join(f"{k}={v}" for k, v in sorted(tier1_versions.items()))
+		)
 
 
 def test_DOC_05_cadence_documented_in_root_pyproject() -> None:
