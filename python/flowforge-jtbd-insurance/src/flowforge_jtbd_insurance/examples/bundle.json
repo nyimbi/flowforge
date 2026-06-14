@@ -4,29 +4,51 @@
     "package": "insurance_example",
     "domain": "insurance",
     "tenancy": "multi",
-    "languages": ["en"],
-    "currencies": ["USD"]
+    "languages": [
+      "en"
+    ],
+    "currencies": [
+      "USD"
+    ]
   },
   "shared": {
     "roles": [
-      "policyholder", "claimant", "claims_adjuster", "claims_supervisor",
-      "claims_manager", "siu_investigator", "subrogation_specialist",
-      "outside_counsel", "underwriter", "senior_underwriter",
-      "actuarial_analyst", "compliance_officer", "reinsurance_analyst",
-      "litigation_manager", "finance_controller"
+      "policyholder",
+      "claimant",
+      "claims_adjuster",
+      "claims_supervisor",
+      "claims_manager",
+      "siu_investigator",
+      "subrogation_specialist",
+      "outside_counsel",
+      "underwriter",
+      "senior_underwriter",
+      "actuarial_analyst",
+      "compliance_officer",
+      "reinsurance_analyst",
+      "litigation_manager",
+      "finance_controller"
     ],
     "permissions": [
-      "ins.claim.create", "ins.claim.assess", "ins.claim.settle",
-      "ins.policy.underwrite", "ins.policy.renew", "ins.reins.place",
-      "ins.subrogation.pursue", "ins.fraud.investigate",
-      "ins.compliance.report", "ins.litigation.manage"
+      "ins.claim.create",
+      "ins.claim.assess",
+      "ins.claim.settle",
+      "ins.policy.underwrite",
+      "ins.policy.renew",
+      "ins.reins.place",
+      "ins.subrogation.pursue",
+      "ins.fraud.investigate",
+      "ins.compliance.report",
+      "ins.litigation.manage"
     ]
   },
   "jtbds": [
     {
       "id": "process_claim",
       "title": "Process an insurance claim end-to-end",
-      "actor": {"role": "claims_adjuster"},
+      "actor": {
+        "role": "claims_adjuster"
+      },
       "situation": "policyholder or claimant files a loss notice; adjuster must triage, investigate, evaluate, and settle or deny within statutory timeframes",
       "motivation": "resolve the claim fairly and quickly to meet regulatory timelines and preserve customer trust",
       "outcome": "claim settled or denied with documented rationale, payment issued or denial letter sent",
@@ -37,43 +59,168 @@
         "reserve set within 48 hours of assignment"
       ],
       "data_capture": [
-        {"id": "claim_number",       "kind": "text",     "label": "Claim number",          "required": true,  "pii": false},
-        {"id": "policy_number",      "kind": "text",     "label": "Policy number",          "required": true,  "pii": false},
-        {"id": "claimant_name",      "kind": "text",     "label": "Claimant full name",     "required": true,  "pii": true},
-        {"id": "claimant_ssn_ref",   "kind": "text",     "label": "SSN reference (masked)", "required": false, "pii": true},
-        {"id": "loss_date",          "kind": "date",     "label": "Date of loss",           "required": true,  "pii": false},
-        {"id": "loss_description",   "kind": "textarea", "label": "Loss description",       "required": true,  "pii": false},
-        {"id": "reserve_amount",     "kind": "money",    "label": "Initial reserve",        "required": true,  "pii": false},
-        {"id": "settlement_amount",  "kind": "money",    "label": "Settlement amount",      "required": false, "pii": false},
-        {"id": "adjuster_notes",     "kind": "textarea", "label": "Adjuster notes",         "required": false, "pii": false},
-        {"id": "supporting_docs",    "kind": "file",     "label": "Supporting documents",   "required": false, "pii": false}
+        {
+          "id": "claim_number",
+          "kind": "text",
+          "label": "Claim number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "policy_number",
+          "kind": "text",
+          "label": "Policy number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "claimant_name",
+          "kind": "text",
+          "label": "Claimant full name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "claimant_ssn_ref",
+          "kind": "text",
+          "label": "SSN reference (masked)",
+          "required": false,
+          "pii": true
+        },
+        {
+          "id": "loss_date",
+          "kind": "date",
+          "label": "Date of loss",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "loss_description",
+          "kind": "textarea",
+          "label": "Loss description",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "reserve_amount",
+          "kind": "money",
+          "label": "Initial reserve",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "settlement_amount",
+          "kind": "money",
+          "label": "Settlement amount",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "adjuster_notes",
+          "kind": "textarea",
+          "label": "Adjuster notes",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "supporting_docs",
+          "kind": "file",
+          "label": "Supporting documents",
+          "required": false,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "coverage_dispute",    "condition": "coverage_determination = disputed", "handle": "escalate"},
-        {"id": "large_loss",          "condition": "reserve_amount > 250000",            "handle": "escalate"},
-        {"id": "siu_referral",        "condition": "fraud_indicators_score > 70",        "handle": "branch", "branch_to": "fraud_investigation"},
-        {"id": "litigation_trigger",  "condition": "claimant files suit",                "handle": "branch", "branch_to": "handle_litigation"}
+        {
+          "id": "coverage_dispute",
+          "condition": "coverage_determination = disputed",
+          "handle": "escalate"
+        },
+        {
+          "id": "large_loss",
+          "condition": "reserve_amount > 250000",
+          "handle": "escalate"
+        },
+        {
+          "id": "siu_referral",
+          "condition": "fraud_indicators_score > 70",
+          "handle": "branch",
+          "branch_to": "fraud_investigation"
+        },
+        {
+          "id": "litigation_trigger",
+          "condition": "claimant files suit",
+          "handle": "branch",
+          "branch_to": "handle_litigation"
+        }
       ],
       "approvals": [
-        {"role": "claims_supervisor", "policy": "1_of_1"},
-        {"role": "claims_manager",    "policy": "authority_tier", "tier": 2}
+        {
+          "role": "claims_supervisor",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "claims_manager",
+          "policy": "authority_tier",
+          "tier": 2
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter",  "channel": "email",  "audience": "claimant"},
-        {"trigger": "approved",     "channel": "email",  "audience": "claimant"},
-        {"trigger": "rejected",     "channel": "email",  "audience": "claimant"},
-        {"trigger": "sla_warn",     "channel": "in_app", "audience": "claims_adjuster"},
-        {"trigger": "sla_breach",   "channel": "slack",  "audience": "claims_manager"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "claimant"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "claimant"
+        },
+        {
+          "trigger": "rejected",
+          "channel": "email",
+          "audience": "claimant"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "claims_adjuster"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "claims_manager"
+        }
       ],
-      "sla": {"warn_pct": 75, "breach_seconds": 2592000},
-      "metrics": ["time_to_acknowledge", "time_to_settle", "reserve_accuracy_pct", "litigation_rate"],
-      "compliance": ["NAIC_UCSPA", "CA_10CCR_2695", "NY_11NYCRR_216", "GDPR", "CCPA"],
-      "data_sensitivity": ["pii", "financial", "medical"]
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 2592000
+      },
+      "metrics": [
+        "time_to_acknowledge",
+        "time_to_settle",
+        "reserve_accuracy_pct",
+        "litigation_rate"
+      ],
+      "compliance": [
+        "NAIC_UCSPA",
+        "CA_10CCR_2695",
+        "NY_11NYCRR_216",
+        "GDPR",
+        "CCPA"
+      ],
+      "data_sensitivity": [
+        "pii",
+        "financial",
+        "medical"
+      ]
     },
     {
       "id": "underwrite_policy",
       "title": "Underwrite a new insurance policy",
-      "actor": {"role": "underwriter"},
+      "actor": {
+        "role": "underwriter"
+      },
       "situation": "broker submits a new business application; underwriter must assess risk, rate, and bind or decline coverage",
       "motivation": "accept profitable risks at adequate price within authority limits while maintaining portfolio balance",
       "outcome": "policy bound with documented rationale and signed binder, or declined with written reason",
@@ -84,40 +231,148 @@
         "OFAC screening completed before binding"
       ],
       "data_capture": [
-        {"id": "applicant_name",     "kind": "text",    "label": "Applicant name",       "required": true,  "pii": true},
-        {"id": "applicant_ein",      "kind": "text",    "label": "Employer ID (EIN)",    "required": false, "pii": true},
-        {"id": "coverage_type",      "kind": "enum",    "label": "Coverage type",        "required": true,  "pii": false},
-        {"id": "requested_limit",    "kind": "money",   "label": "Requested limit",      "required": true,  "pii": false},
-        {"id": "deductible",         "kind": "money",   "label": "Deductible",           "required": true,  "pii": false},
-        {"id": "annual_premium",     "kind": "money",   "label": "Annual premium",       "required": true,  "pii": false},
-        {"id": "risk_score",         "kind": "number",  "label": "Underwriting score",   "required": true,  "pii": false},
-        {"id": "inspection_report",  "kind": "file",    "label": "Inspection report",    "required": false, "pii": false},
-        {"id": "subjectivities",     "kind": "textarea","label": "Subjectivities",       "required": false, "pii": false}
+        {
+          "id": "applicant_name",
+          "kind": "text",
+          "label": "Applicant name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "applicant_ein",
+          "kind": "text",
+          "label": "Employer ID (EIN)",
+          "required": false,
+          "pii": true
+        },
+        {
+          "id": "coverage_type",
+          "kind": "enum",
+          "label": "Coverage type",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "requested_limit",
+          "kind": "money",
+          "label": "Requested limit",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "deductible",
+          "kind": "money",
+          "label": "Deductible",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "annual_premium",
+          "kind": "money",
+          "label": "Annual premium",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "risk_score",
+          "kind": "number",
+          "label": "Underwriting score",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "inspection_report",
+          "kind": "file",
+          "label": "Inspection report",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "subjectivities",
+          "kind": "textarea",
+          "label": "Subjectivities",
+          "required": false,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "above_authority",    "condition": "requested_limit > underwriter_authority", "handle": "escalate"},
-        {"id": "ofac_hit",           "condition": "ofac_screening_result = match",           "handle": "reject"},
-        {"id": "poor_loss_history",  "condition": "loss_ratio_5yr > 0.85",                   "handle": "escalate"}
+        {
+          "id": "above_authority",
+          "condition": "requested_limit > underwriter_authority",
+          "handle": "escalate"
+        },
+        {
+          "id": "ofac_hit",
+          "condition": "ofac_screening_result = match",
+          "handle": "reject"
+        },
+        {
+          "id": "poor_loss_history",
+          "condition": "loss_ratio_5yr > 0.85",
+          "handle": "escalate"
+        }
       ],
       "approvals": [
-        {"role": "senior_underwriter", "policy": "1_of_1"}
+        {
+          "role": "senior_underwriter",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "underwriter"},
-        {"trigger": "approved",    "channel": "email",  "audience": "underwriter"},
-        {"trigger": "rejected",    "channel": "email",  "audience": "underwriter"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "underwriter"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "senior_underwriter"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "underwriter"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "underwriter"
+        },
+        {
+          "trigger": "rejected",
+          "channel": "email",
+          "audience": "underwriter"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "underwriter"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "senior_underwriter"
+        }
       ],
-      "sla": {"warn_pct": 70, "breach_seconds": 432000},
-      "metrics": ["quote_to_bind_rate", "time_to_quote", "premium_adequacy_ratio", "declination_rate"],
-      "compliance": ["OFAC_31CFR501", "GLBA", "GDPR", "CCPA"],
-      "data_sensitivity": ["pii", "financial", "confidential_business"]
+      "sla": {
+        "warn_pct": 70,
+        "breach_seconds": 432000
+      },
+      "metrics": [
+        "quote_to_bind_rate",
+        "time_to_quote",
+        "premium_adequacy_ratio",
+        "declination_rate"
+      ],
+      "compliance": [
+        "OFAC_31CFR501",
+        "GLBA",
+        "GDPR",
+        "CCPA"
+      ],
+      "data_sensitivity": [
+        "pii",
+        "financial",
+        "confidential_business"
+      ]
     },
     {
       "id": "handle_reinsurance",
       "title": "Place facultative reinsurance cession",
-      "actor": {"role": "reinsurance_analyst"},
+      "actor": {
+        "role": "reinsurance_analyst"
+      },
       "situation": "a large or unusual risk exceeds treaty capacity; analyst must obtain facultative reinsurance from markets before binding",
       "motivation": "protect balance sheet from catastrophic loss while remaining competitive on pricing",
       "outcome": "facultative certificate issued, cession recorded in bordereau, premium split booked",
@@ -128,37 +383,127 @@
         "trust fund balance verified for NY Reg 114 compliance"
       ],
       "data_capture": [
-        {"id": "cedent_policy_ref",  "kind": "text",  "label": "Cedent policy reference", "required": true,  "pii": false},
-        {"id": "cession_pct",        "kind": "number","label": "Cession percentage",       "required": true,  "pii": false},
-        {"id": "reins_limit",        "kind": "money", "label": "Reinsurance limit",        "required": true,  "pii": false},
-        {"id": "reins_premium",      "kind": "money", "label": "Reinsurance premium",      "required": true,  "pii": false},
-        {"id": "reinsurer_name",     "kind": "text",  "label": "Reinsurer name",           "required": true,  "pii": false},
-        {"id": "fac_cert_number",    "kind": "text",  "label": "Fac certificate number",   "required": true,  "pii": false},
-        {"id": "fac_cert_file",      "kind": "file",  "label": "Fac certificate document", "required": true,  "pii": false}
+        {
+          "id": "cedent_policy_ref",
+          "kind": "text",
+          "label": "Cedent policy reference",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "cession_pct",
+          "kind": "number",
+          "label": "Cession percentage",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "reins_limit",
+          "kind": "money",
+          "label": "Reinsurance limit",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "reins_premium",
+          "kind": "money",
+          "label": "Reinsurance premium",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "reinsurer_name",
+          "kind": "text",
+          "label": "Reinsurer name",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "fac_cert_number",
+          "kind": "text",
+          "label": "Fac certificate number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "fac_cert_file",
+          "kind": "file",
+          "label": "Fac certificate document",
+          "required": true,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "market_declination", "condition": "fewer than two markets quote",              "handle": "escalate"},
-        {"id": "trust_deficit",      "condition": "reg114_trust_balance < required_minimum",  "handle": "reject"},
-        {"id": "inception_overrun",  "condition": "cession_not_placed_before_inception",      "handle": "escalate"}
+        {
+          "id": "market_declination",
+          "condition": "fewer than two markets quote",
+          "handle": "escalate"
+        },
+        {
+          "id": "trust_deficit",
+          "condition": "reg114_trust_balance < required_minimum",
+          "handle": "reject"
+        },
+        {
+          "id": "inception_overrun",
+          "condition": "cession_not_placed_before_inception",
+          "handle": "escalate"
+        }
       ],
       "approvals": [
-        {"role": "chief_reinsurance_officer", "policy": "1_of_1"}
+        {
+          "role": "chief_reinsurance_officer",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "reinsurance_analyst"},
-        {"trigger": "approved",    "channel": "email",  "audience": "reinsurance_analyst"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "reinsurance_analyst"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "chief_reinsurance_officer"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "reinsurance_analyst"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "reinsurance_analyst"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "reinsurance_analyst"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "chief_reinsurance_officer"
+        }
       ],
-      "sla": {"warn_pct": 80, "breach_seconds": 259200},
-      "metrics": ["cession_fill_rate", "fac_placement_cycle_time", "bordereau_timeliness_pct"],
-      "compliance": ["NAIC_Model785", "NAIC_Model786", "NY_Reg114", "OFAC_31CFR501"],
-      "data_sensitivity": ["financial", "confidential_business"]
+      "sla": {
+        "warn_pct": 80,
+        "breach_seconds": 259200
+      },
+      "metrics": [
+        "cession_fill_rate",
+        "fac_placement_cycle_time",
+        "bordereau_timeliness_pct"
+      ],
+      "compliance": [
+        "NAIC_Model785",
+        "NAIC_Model786",
+        "NY_Reg114",
+        "OFAC_31CFR501"
+      ],
+      "data_sensitivity": [
+        "financial",
+        "confidential_business"
+      ]
     },
     {
       "id": "manage_renewal",
       "title": "Manage policy renewal underwriting",
-      "actor": {"role": "underwriter"},
+      "actor": {
+        "role": "underwriter"
+      },
       "situation": "policy approaching expiry; underwriter must re-evaluate loss history, update rating factors, and issue renewal terms or non-renewal notice",
       "motivation": "retain profitable accounts and achieve adequate rate on challenging ones before competitor quoting window closes",
       "outcome": "renewal quote issued and bound, or non-renewal notice sent within statutory deadline",
@@ -169,37 +514,128 @@
         "renewed premium variance from prior year documented"
       ],
       "data_capture": [
-        {"id": "policy_number",       "kind": "text",    "label": "Expiring policy number", "required": true,  "pii": false},
-        {"id": "expiry_date",         "kind": "date",    "label": "Expiry date",            "required": true,  "pii": false},
-        {"id": "prior_premium",       "kind": "money",   "label": "Prior year premium",     "required": true,  "pii": false},
-        {"id": "renewal_premium",     "kind": "money",   "label": "Renewal premium",        "required": true,  "pii": false},
-        {"id": "loss_ratio_3yr",      "kind": "number",  "label": "3-year loss ratio",      "required": true,  "pii": false},
-        {"id": "rate_change_pct",     "kind": "number",  "label": "Rate change %",          "required": true,  "pii": false},
-        {"id": "renewal_decision",    "kind": "enum",    "label": "Renew / non-renew",      "required": true,  "pii": false}
+        {
+          "id": "policy_number",
+          "kind": "text",
+          "label": "Expiring policy number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "expiry_date",
+          "kind": "date",
+          "label": "Expiry date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "prior_premium",
+          "kind": "money",
+          "label": "Prior year premium",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "renewal_premium",
+          "kind": "money",
+          "label": "Renewal premium",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "loss_ratio_3yr",
+          "kind": "number",
+          "label": "3-year loss ratio",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "rate_change_pct",
+          "kind": "number",
+          "label": "Rate change %",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "renewal_decision",
+          "kind": "enum",
+          "label": "Renew / non-renew",
+          "required": true,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "non_renewal_late",    "condition": "non_renewal_notice_sent < 60_days_before_expiry", "handle": "escalate"},
-        {"id": "large_rate_increase", "condition": "rate_change_pct > 25",                            "handle": "escalate"},
-        {"id": "open_claims",         "condition": "open_claim_count > 0",                            "handle": "branch", "branch_to": "reserve_review"}
+        {
+          "id": "non_renewal_late",
+          "condition": "non_renewal_notice_sent < 60_days_before_expiry",
+          "handle": "escalate"
+        },
+        {
+          "id": "large_rate_increase",
+          "condition": "rate_change_pct > 25",
+          "handle": "escalate"
+        },
+        {
+          "id": "open_claims",
+          "condition": "open_claim_count > 0",
+          "handle": "branch",
+          "branch_to": "reserve_review"
+        }
       ],
       "approvals": [
-        {"role": "senior_underwriter", "policy": "1_of_1"}
+        {
+          "role": "senior_underwriter",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "underwriter"},
-        {"trigger": "approved",    "channel": "email",  "audience": "underwriter"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "underwriter"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "senior_underwriter"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "underwriter"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "underwriter"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "underwriter"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "senior_underwriter"
+        }
       ],
-      "sla": {"warn_pct": 80, "breach_seconds": 7776000},
-      "metrics": ["renewal_retention_rate", "rate_change_adequacy", "non_renewal_timeliness_pct"],
-      "compliance": ["NAIC_UCSPA", "state_non_renewal_statutes", "GDPR", "CCPA"],
-      "data_sensitivity": ["pii", "financial"]
+      "sla": {
+        "warn_pct": 80,
+        "breach_seconds": 7776000
+      },
+      "metrics": [
+        "renewal_retention_rate",
+        "rate_change_adequacy",
+        "non_renewal_timeliness_pct"
+      ],
+      "compliance": [
+        "NAIC_UCSPA",
+        "state_non_renewal_statutes",
+        "GDPR",
+        "CCPA"
+      ],
+      "data_sensitivity": [
+        "pii",
+        "financial"
+      ]
     },
     {
       "id": "detect_fraud",
       "title": "Investigate suspected claim fraud",
-      "actor": {"role": "siu_investigator"},
+      "actor": {
+        "role": "siu_investigator"
+      },
       "situation": "claim flagged by scoring model or adjuster referral; SIU investigator must gather evidence, assess fraud indicators, and recommend accept / deny / refer to law enforcement",
       "motivation": "prevent fraudulent payments and deter future fraud while avoiding wrongful denials on legitimate claims",
       "outcome": "investigation report completed with finding and disposition recommendation",
@@ -210,37 +646,130 @@
         "ISO ClaimSearch cross-checked before closing"
       ],
       "data_capture": [
-        {"id": "siu_referral_reason", "kind": "textarea","label": "Referral reason",         "required": true,  "pii": false},
-        {"id": "fraud_score",         "kind": "number",  "label": "Fraud model score",       "required": true,  "pii": false},
-        {"id": "iso_claim_search_ref","kind": "text",    "label": "ISO ClaimSearch ref",      "required": false, "pii": false},
-        {"id": "surveillance_report", "kind": "file",    "label": "Surveillance report",      "required": false, "pii": false},
-        {"id": "recorded_statement",  "kind": "file",    "label": "Recorded statement",       "required": false, "pii": true},
-        {"id": "finding",             "kind": "enum",    "label": "SIU finding",              "required": true,  "pii": false},
-        {"id": "le_referral_number",  "kind": "text",    "label": "Law enforcement ref",      "required": false, "pii": false}
+        {
+          "id": "siu_referral_reason",
+          "kind": "textarea",
+          "label": "Referral reason",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "fraud_score",
+          "kind": "number",
+          "label": "Fraud model score",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "iso_claim_search_ref",
+          "kind": "text",
+          "label": "ISO ClaimSearch ref",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "surveillance_report",
+          "kind": "file",
+          "label": "Surveillance report",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "recorded_statement",
+          "kind": "file",
+          "label": "Recorded statement",
+          "required": false,
+          "pii": true
+        },
+        {
+          "id": "finding",
+          "kind": "enum",
+          "label": "SIU finding",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "le_referral_number",
+          "kind": "text",
+          "label": "Law enforcement ref",
+          "required": false,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "organized_ring",      "condition": "multiple_claimants_linked = true",     "handle": "escalate"},
-        {"id": "attorney_represented","condition": "claimant_represented_by_counsel = true","handle": "branch", "branch_to": "handle_litigation"},
-        {"id": "statute_expiring",    "condition": "state_fraud_report_deadline_within_7_days", "handle": "escalate"}
+        {
+          "id": "organized_ring",
+          "condition": "multiple_claimants_linked = true",
+          "handle": "escalate"
+        },
+        {
+          "id": "attorney_represented",
+          "condition": "claimant_represented_by_counsel = true",
+          "handle": "branch",
+          "branch_to": "handle_litigation"
+        },
+        {
+          "id": "statute_expiring",
+          "condition": "state_fraud_report_deadline_within_7_days",
+          "handle": "escalate"
+        }
       ],
       "approvals": [
-        {"role": "claims_manager", "policy": "1_of_1"}
+        {
+          "role": "claims_manager",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "siu_investigator"},
-        {"trigger": "approved",    "channel": "email",  "audience": "claims_adjuster"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "siu_investigator"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "claims_manager"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "siu_investigator"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "claims_adjuster"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "siu_investigator"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "claims_manager"
+        }
       ],
-      "sla": {"warn_pct": 70, "breach_seconds": 3888000},
-      "metrics": ["fraud_detection_rate", "siu_cycle_time", "le_referral_rate", "savings_per_investigation"],
-      "compliance": ["NAIC_fraud_reporting_model", "state_fraud_bureau_statutes", "FCRA", "GDPR"],
-      "data_sensitivity": ["pii", "sensitive_investigation", "medical"]
+      "sla": {
+        "warn_pct": 70,
+        "breach_seconds": 3888000
+      },
+      "metrics": [
+        "fraud_detection_rate",
+        "siu_cycle_time",
+        "le_referral_rate",
+        "savings_per_investigation"
+      ],
+      "compliance": [
+        "NAIC_fraud_reporting_model",
+        "state_fraud_bureau_statutes",
+        "FCRA",
+        "GDPR"
+      ],
+      "data_sensitivity": [
+        "pii",
+        "sensitive_investigation",
+        "medical"
+      ]
     },
     {
       "id": "process_subrogation",
       "title": "Pursue subrogation recovery",
-      "actor": {"role": "subrogation_specialist"},
+      "actor": {
+        "role": "subrogation_specialist"
+      },
       "situation": "claim paid where a third party is liable; specialist must identify subrogation potential, demand reimbursement, and negotiate or litigate recovery",
       "motivation": "recover paid losses from responsible third parties to reduce net loss cost",
       "outcome": "recovery collected and claim file closed, or subrogation waived with documented rationale",
@@ -251,37 +780,130 @@
         "recovery proceeds applied to correct claim and expense accounts"
       ],
       "data_capture": [
-        {"id": "third_party_name",    "kind": "text",    "label": "Third party name",        "required": true,  "pii": true},
-        {"id": "third_party_insurer", "kind": "text",    "label": "Third party insurer",     "required": false, "pii": false},
-        {"id": "paid_loss_amount",    "kind": "money",   "label": "Paid loss amount",        "required": true,  "pii": false},
-        {"id": "recovery_demand",     "kind": "money",   "label": "Demand amount",           "required": true,  "pii": false},
-        {"id": "recovery_amount",     "kind": "money",   "label": "Actual recovery",         "required": false, "pii": false},
-        {"id": "demand_letter",       "kind": "file",    "label": "Demand letter",           "required": false, "pii": false},
-        {"id": "arbitration_forum",   "kind": "enum",    "label": "Arbitration forum",       "required": false, "pii": false}
+        {
+          "id": "third_party_name",
+          "kind": "text",
+          "label": "Third party name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "third_party_insurer",
+          "kind": "text",
+          "label": "Third party insurer",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "paid_loss_amount",
+          "kind": "money",
+          "label": "Paid loss amount",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "recovery_demand",
+          "kind": "money",
+          "label": "Demand amount",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "recovery_amount",
+          "kind": "money",
+          "label": "Actual recovery",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "demand_letter",
+          "kind": "file",
+          "label": "Demand letter",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "arbitration_forum",
+          "kind": "enum",
+          "label": "Arbitration forum",
+          "required": false,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "sol_risk",            "condition": "statute_of_limitations_within_180_days", "handle": "escalate"},
-        {"id": "waiver_required",     "condition": "insured_partially_at_fault",             "handle": "branch", "branch_to": "waiver_approval"},
-        {"id": "intercompany_arbitration", "condition": "third_party_is_insurer",            "handle": "branch", "branch_to": "ica_process"}
+        {
+          "id": "sol_risk",
+          "condition": "statute_of_limitations_within_180_days",
+          "handle": "escalate"
+        },
+        {
+          "id": "waiver_required",
+          "condition": "insured_partially_at_fault",
+          "handle": "branch",
+          "branch_to": "waiver_approval"
+        },
+        {
+          "id": "intercompany_arbitration",
+          "condition": "third_party_is_insurer",
+          "handle": "branch",
+          "branch_to": "ica_process"
+        }
       ],
       "approvals": [
-        {"role": "subrogation_supervisor", "policy": "1_of_1"}
+        {
+          "role": "subrogation_supervisor",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "subrogation_specialist"},
-        {"trigger": "approved",    "channel": "email",  "audience": "subrogation_specialist"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "subrogation_specialist"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "claims_manager"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "subrogation_specialist"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "subrogation_specialist"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "subrogation_specialist"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "claims_manager"
+        }
       ],
-      "sla": {"warn_pct": 75, "breach_seconds": 5184000},
-      "metrics": ["subrogation_recovery_rate", "recovery_to_paid_ratio", "cycle_time_to_demand", "net_recovery_per_case"],
-      "compliance": ["ISO_subrogation_guidelines", "NAIC_UCSPA", "state_sol_statutes"],
-      "data_sensitivity": ["pii", "financial", "legal"]
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 5184000
+      },
+      "metrics": [
+        "subrogation_recovery_rate",
+        "recovery_to_paid_ratio",
+        "cycle_time_to_demand",
+        "net_recovery_per_case"
+      ],
+      "compliance": [
+        "ISO_subrogation_guidelines",
+        "NAIC_UCSPA",
+        "state_sol_statutes"
+      ],
+      "data_sensitivity": [
+        "pii",
+        "financial",
+        "legal"
+      ]
     },
     {
       "id": "handle_litigation",
       "title": "Manage claim litigation",
-      "actor": {"role": "litigation_manager"},
+      "actor": {
+        "role": "litigation_manager"
+      },
       "situation": "claimant or policyholder files suit; litigation manager must retain counsel, set litigation reserve, manage defense strategy, and resolve case",
       "motivation": "achieve best possible outcome at minimum cost while protecting the insurer from precedent-setting adverse judgments",
       "outcome": "case resolved by settlement, verdict, or dismissal with litigation reserve closed",
@@ -292,39 +914,141 @@
         "settlement authority requested before mediation"
       ],
       "data_capture": [
-        {"id": "suit_filing_date",    "kind": "date",    "label": "Suit filing date",        "required": true,  "pii": false},
-        {"id": "jurisdiction",        "kind": "text",    "label": "Court and jurisdiction",  "required": true,  "pii": false},
-        {"id": "plaintiff_demand",    "kind": "money",   "label": "Plaintiff demand",        "required": true,  "pii": false},
-        {"id": "litigation_reserve",  "kind": "money",   "label": "Litigation reserve",      "required": true,  "pii": false},
-        {"id": "counsel_name",        "kind": "text",    "label": "Defense counsel",         "required": true,  "pii": false},
-        {"id": "settlement_authority","kind": "money",   "label": "Settlement authority",    "required": false, "pii": false},
-        {"id": "resolution_amount",   "kind": "money",   "label": "Final resolution amount", "required": false, "pii": false},
-        {"id": "resolution_type",     "kind": "enum",    "label": "Settlement / verdict / dismissal", "required": false, "pii": false}
+        {
+          "id": "suit_filing_date",
+          "kind": "date",
+          "label": "Suit filing date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "jurisdiction",
+          "kind": "text",
+          "label": "Court and jurisdiction",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "plaintiff_demand",
+          "kind": "money",
+          "label": "Plaintiff demand",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "litigation_reserve",
+          "kind": "money",
+          "label": "Litigation reserve",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "counsel_name",
+          "kind": "text",
+          "label": "Defense counsel",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "settlement_authority",
+          "kind": "money",
+          "label": "Settlement authority",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "resolution_amount",
+          "kind": "money",
+          "label": "Final resolution amount",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "resolution_type",
+          "kind": "enum",
+          "label": "Settlement / verdict / dismissal",
+          "required": false,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "excess_exposure",     "condition": "plaintiff_demand > policy_limit",           "handle": "escalate"},
-        {"id": "bad_faith_allegation","condition": "bad_faith_claim_alleged = true",            "handle": "escalate"},
-        {"id": "class_action",        "condition": "suit_type = class_action",                  "handle": "escalate"}
+        {
+          "id": "excess_exposure",
+          "condition": "plaintiff_demand > policy_limit",
+          "handle": "escalate"
+        },
+        {
+          "id": "bad_faith_allegation",
+          "condition": "bad_faith_claim_alleged = true",
+          "handle": "escalate"
+        },
+        {
+          "id": "class_action",
+          "condition": "suit_type = class_action",
+          "handle": "escalate"
+        }
       ],
       "approvals": [
-        {"role": "claims_manager",    "policy": "authority_tier", "tier": 2},
-        {"role": "coverage_counsel",  "policy": "1_of_1"}
+        {
+          "role": "claims_manager",
+          "policy": "authority_tier",
+          "tier": 2
+        },
+        {
+          "role": "coverage_counsel",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "litigation_manager"},
-        {"trigger": "approved",    "channel": "email",  "audience": "litigation_manager"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "litigation_manager"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "claims_manager"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "litigation_manager"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "litigation_manager"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "litigation_manager"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "claims_manager"
+        }
       ],
-      "sla": {"warn_pct": 75, "breach_seconds": 15552000},
-      "metrics": ["litigation_closure_rate", "avg_defense_cost", "settlement_vs_verdict_ratio", "excess_verdict_rate"],
-      "compliance": ["ABA_model_rules", "state_bar_rules", "NAIC_UCSPA"],
-      "data_sensitivity": ["pii", "legal", "financial", "privileged"]
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 15552000
+      },
+      "metrics": [
+        "litigation_closure_rate",
+        "avg_defense_cost",
+        "settlement_vs_verdict_ratio",
+        "excess_verdict_rate"
+      ],
+      "compliance": [
+        "ABA_model_rules",
+        "state_bar_rules",
+        "NAIC_UCSPA"
+      ],
+      "data_sensitivity": [
+        "pii",
+        "legal",
+        "financial",
+        "privileged"
+      ]
     },
     {
       "id": "file_regulatory_report",
       "title": "File regulatory compliance report",
-      "actor": {"role": "compliance_officer"},
+      "actor": {
+        "role": "compliance_officer"
+      },
       "situation": "state insurance department or NAIC requires periodic filing (market conduct, financial, fraud statistics, or claim data call); compliance officer must compile, review, and submit on time",
       "motivation": "maintain good standing with regulators and avoid fines or market conduct examinations",
       "outcome": "report filed with regulatory authority, confirmation received and archived",
@@ -335,38 +1059,133 @@
         "prior-year comparison variance explained if > 10%"
       ],
       "data_capture": [
-        {"id": "report_type",         "kind": "enum",    "label": "Report type",             "required": true,  "pii": false},
-        {"id": "filing_jurisdiction", "kind": "text",    "label": "Filing jurisdiction",     "required": true,  "pii": false},
-        {"id": "filing_deadline",     "kind": "date",    "label": "Filing deadline",         "required": true,  "pii": false},
-        {"id": "report_period",       "kind": "text",    "label": "Reporting period",        "required": true,  "pii": false},
-        {"id": "report_file",         "kind": "file",    "label": "Report file",             "required": true,  "pii": false},
-        {"id": "mgmt_certification",  "kind": "signature","label": "Management certification","required": true, "pii": true},
-        {"id": "confirmation_receipt","kind": "file",    "label": "Regulator confirmation",  "required": false, "pii": false}
+        {
+          "id": "report_type",
+          "kind": "enum",
+          "label": "Report type",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "filing_jurisdiction",
+          "kind": "text",
+          "label": "Filing jurisdiction",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "filing_deadline",
+          "kind": "date",
+          "label": "Filing deadline",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "report_period",
+          "kind": "text",
+          "label": "Reporting period",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "report_file",
+          "kind": "file",
+          "label": "Report file",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "mgmt_certification",
+          "kind": "signature",
+          "label": "Management certification",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "confirmation_receipt",
+          "kind": "file",
+          "label": "Regulator confirmation",
+          "required": false,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "data_quality_fail",   "condition": "validation_error_count > 0",               "handle": "reject"},
-        {"id": "late_filing_risk",    "condition": "days_to_deadline < 3",                     "handle": "escalate"},
-        {"id": "amendment_required",  "condition": "regulator_requests_amendment = true",      "handle": "branch", "branch_to": "amend_filing"}
+        {
+          "id": "data_quality_fail",
+          "condition": "validation_error_count > 0",
+          "handle": "reject"
+        },
+        {
+          "id": "late_filing_risk",
+          "condition": "days_to_deadline < 3",
+          "handle": "escalate"
+        },
+        {
+          "id": "amendment_required",
+          "condition": "regulator_requests_amendment = true",
+          "handle": "branch",
+          "branch_to": "amend_filing"
+        }
       ],
       "approvals": [
-        {"role": "compliance_officer", "policy": "1_of_1"},
-        {"role": "finance_controller", "policy": "1_of_1"}
+        {
+          "role": "compliance_officer",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "finance_controller",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "compliance_officer"},
-        {"trigger": "approved",    "channel": "email",  "audience": "compliance_officer"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "compliance_officer"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "compliance_officer"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "compliance_officer"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "compliance_officer"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "compliance_officer"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "compliance_officer"
+        }
       ],
-      "sla": {"warn_pct": 85, "breach_seconds": 1296000},
-      "metrics": ["on_time_filing_rate", "amendment_rate", "data_quality_error_rate"],
-      "compliance": ["NAIC_statutory_filings", "state_DOI_regulations", "GDPR", "CCPA"],
-      "data_sensitivity": ["financial", "regulatory", "confidential_business"]
+      "sla": {
+        "warn_pct": 85,
+        "breach_seconds": 1296000
+      },
+      "metrics": [
+        "on_time_filing_rate",
+        "amendment_rate",
+        "data_quality_error_rate"
+      ],
+      "compliance": [
+        "NAIC_statutory_filings",
+        "state_DOI_regulations",
+        "GDPR",
+        "CCPA"
+      ],
+      "data_sensitivity": [
+        "financial",
+        "regulatory",
+        "confidential_business"
+      ]
     },
     {
       "id": "process_premium_payment",
       "title": "Process premium payment and reconcile",
-      "actor": {"role": "finance_controller"},
+      "actor": {
+        "role": "finance_controller"
+      },
       "situation": "broker or policyholder remits premium; finance must apply payment, reconcile against billed amount, handle short pays, and issue receipts",
       "motivation": "maintain accurate accounts receivable, avoid policy cancellations for non-payment, and close reconciling items within period",
       "outcome": "payment applied to policy, receipt issued, suspense items cleared, cancellation notice avoided or reversed",
@@ -377,34 +1196,123 @@
         "cancellation reversed within 24 hours of payment clearance"
       ],
       "data_capture": [
-        {"id": "payment_amount",      "kind": "money",  "label": "Payment amount",           "required": true,  "pii": false},
-        {"id": "payment_method",      "kind": "enum",   "label": "Payment method",           "required": true,  "pii": false},
-        {"id": "payment_reference",   "kind": "text",   "label": "Payment reference",        "required": true,  "pii": false},
-        {"id": "billed_amount",       "kind": "money",  "label": "Billed premium",           "required": true,  "pii": false},
-        {"id": "policy_number",       "kind": "text",   "label": "Policy number",            "required": true,  "pii": false},
-        {"id": "payment_date",        "kind": "date",   "label": "Payment date",             "required": true,  "pii": false},
-        {"id": "remittance_advice",   "kind": "file",   "label": "Remittance advice",        "required": false, "pii": false}
+        {
+          "id": "payment_amount",
+          "kind": "money",
+          "label": "Payment amount",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "payment_method",
+          "kind": "enum",
+          "label": "Payment method",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "payment_reference",
+          "kind": "text",
+          "label": "Payment reference",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "billed_amount",
+          "kind": "money",
+          "label": "Billed premium",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "policy_number",
+          "kind": "text",
+          "label": "Policy number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "payment_date",
+          "kind": "date",
+          "label": "Payment date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "remittance_advice",
+          "kind": "file",
+          "label": "Remittance advice",
+          "required": false,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "short_pay",           "condition": "payment_amount < billed_amount * 0.95",  "handle": "branch", "branch_to": "short_pay_notice"},
-        {"id": "overpayment",         "condition": "payment_amount > billed_amount * 1.01",  "handle": "branch", "branch_to": "refund_process"},
-        {"id": "returned_check",      "condition": "payment_method = check AND nsf = true",  "handle": "branch", "branch_to": "nsf_cancellation"}
+        {
+          "id": "short_pay",
+          "condition": "payment_amount < billed_amount * 0.95",
+          "handle": "branch",
+          "branch_to": "short_pay_notice"
+        },
+        {
+          "id": "overpayment",
+          "condition": "payment_amount > billed_amount * 1.01",
+          "handle": "branch",
+          "branch_to": "refund_process"
+        },
+        {
+          "id": "returned_check",
+          "condition": "payment_method = check AND nsf = true",
+          "handle": "branch",
+          "branch_to": "nsf_cancellation"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "finance_controller"},
-        {"trigger": "approved",    "channel": "email",  "audience": "finance_controller"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "finance_controller"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "finance_controller"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "finance_controller"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "finance_controller"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "finance_controller"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "finance_controller"
+        }
       ],
-      "sla": {"warn_pct": 80, "breach_seconds": 172800},
-      "metrics": ["days_premium_outstanding", "suspense_balance_days", "short_pay_rate", "cancellation_reversal_rate"],
-      "compliance": ["GAAP_ASC_944", "NAIC_annual_statement", "GLBA"],
-      "data_sensitivity": ["financial"]
+      "sla": {
+        "warn_pct": 80,
+        "breach_seconds": 172800
+      },
+      "metrics": [
+        "days_premium_outstanding",
+        "suspense_balance_days",
+        "short_pay_rate",
+        "cancellation_reversal_rate"
+      ],
+      "compliance": [
+        "GAAP_ASC_944",
+        "NAIC_annual_statement",
+        "GLBA"
+      ],
+      "data_sensitivity": [
+        "financial"
+      ]
     },
     {
       "id": "audit_claims_reserve",
       "title": "Audit and certify claims reserve adequacy",
-      "actor": {"role": "actuarial_analyst"},
+      "actor": {
+        "role": "actuarial_analyst"
+      },
       "situation": "quarter-end or year-end requires actuarial certification that loss reserves are adequate within stated confidence interval",
       "motivation": "ensure statutory and GAAP reserve adequacy, prevent regulator intervention, and provide accurate financial statements",
       "outcome": "actuarial reserve opinion issued and signed, reserve adjustments booked, financial statements certified",
@@ -415,33 +1323,1337 @@
         "reserve strengthenings or releases approved by CFO"
       ],
       "data_capture": [
-        {"id": "reserve_period",      "kind": "text",    "label": "Reserve period",          "required": true,  "pii": false},
-        {"id": "line_of_business",    "kind": "enum",    "label": "Line of business",        "required": true,  "pii": false},
-        {"id": "carried_reserve",     "kind": "money",   "label": "Carried reserve",         "required": true,  "pii": false},
-        {"id": "actuarial_estimate",  "kind": "money",   "label": "Actuarial point estimate","required": true,  "pii": false},
-        {"id": "confidence_interval", "kind": "text",    "label": "Confidence interval",     "required": true,  "pii": false},
-        {"id": "reserve_opinion",     "kind": "file",    "label": "Actuarial opinion",       "required": true,  "pii": false},
-        {"id": "development_notes",   "kind": "textarea","label": "Development notes",       "required": true,  "pii": false}
+        {
+          "id": "reserve_period",
+          "kind": "text",
+          "label": "Reserve period",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "line_of_business",
+          "kind": "enum",
+          "label": "Line of business",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "carried_reserve",
+          "kind": "money",
+          "label": "Carried reserve",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "actuarial_estimate",
+          "kind": "money",
+          "label": "Actuarial point estimate",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "confidence_interval",
+          "kind": "text",
+          "label": "Confidence interval",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "reserve_opinion",
+          "kind": "file",
+          "label": "Actuarial opinion",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "development_notes",
+          "kind": "textarea",
+          "label": "Development notes",
+          "required": true,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "reserve_deficiency",  "condition": "carried_reserve < actuarial_estimate * 0.95",  "handle": "escalate"},
-        {"id": "large_development",   "condition": "abs(development_pct) > 10",                    "handle": "escalate"},
-        {"id": "caa_qualification",   "condition": "actuarial_opinion_type = qualified",           "handle": "escalate"}
+        {
+          "id": "reserve_deficiency",
+          "condition": "carried_reserve < actuarial_estimate * 0.95",
+          "handle": "escalate"
+        },
+        {
+          "id": "large_development",
+          "condition": "abs(development_pct) > 10",
+          "handle": "escalate"
+        },
+        {
+          "id": "caa_qualification",
+          "condition": "actuarial_opinion_type = qualified",
+          "handle": "escalate"
+        }
       ],
       "approvals": [
-        {"role": "chief_actuary",       "policy": "1_of_1"},
-        {"role": "finance_controller",  "policy": "1_of_1"}
+        {
+          "role": "chief_actuary",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "finance_controller",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "actuarial_analyst"},
-        {"trigger": "approved",    "channel": "email",  "audience": "actuarial_analyst"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "actuarial_analyst"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "chief_actuary"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "actuarial_analyst"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "actuarial_analyst"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "actuarial_analyst"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "chief_actuary"
+        }
       ],
-      "sla": {"warn_pct": 80, "breach_seconds": 864000},
-      "metrics": ["reserve_development_pct", "opinion_timeliness", "actuarial_to_carried_ratio"],
-      "compliance": ["NAIC_SSAP_55", "GAAP_ASC_944", "CAS_standards_of_practice", "SOX"],
-      "data_sensitivity": ["financial", "regulatory", "confidential_business"]
+      "sla": {
+        "warn_pct": 80,
+        "breach_seconds": 864000
+      },
+      "metrics": [
+        "reserve_development_pct",
+        "opinion_timeliness",
+        "actuarial_to_carried_ratio"
+      ],
+      "compliance": [
+        "NAIC_SSAP_55",
+        "GAAP_ASC_944",
+        "CAS_standards_of_practice",
+        "SOX"
+      ],
+      "data_sensitivity": [
+        "financial",
+        "regulatory",
+        "confidential_business"
+      ]
+    },
+    {
+      "id": "issue_policy",
+      "title": "Issue a new policy",
+      "actor": {
+        "role": "policy_issuance_specialist"
+      },
+      "situation": "underwriter has approved a risk; policy documents must be generated, countersigned, delivered to broker/insured, and activated in the policy admin system",
+      "motivation": "activate coverage and start premium billing without delay",
+      "outcome": "policy issued, signed, delivered, and active in PAS",
+      "success_criteria": [
+        "documents generated within 2 hours of bind order",
+        "delivery confirmed within 24 hours",
+        "premium billing activated"
+      ],
+      "data_capture": [
+        {
+          "id": "policy_number",
+          "kind": "text",
+          "label": "Policy number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "insured_name",
+          "kind": "text",
+          "label": "Insured name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "effective_date",
+          "kind": "date",
+          "label": "Effective date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "premium",
+          "kind": "money",
+          "label": "Annual premium",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "underwriter",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 7200
+      },
+      "notifications": [
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "broker"
+        },
+        {
+          "trigger": "issued",
+          "channel": "email",
+          "audience": "insured"
+        }
+      ],
+      "metrics": [
+        "policy_issuance_cycle_hours",
+        "issuance_error_rate"
+      ]
+    },
+    {
+      "id": "manage_endorsement",
+      "title": "Process mid-term policy endorsement",
+      "actor": {
+        "role": "underwriter"
+      },
+      "situation": "insured requests a change to coverage, limits, or named insureds mid-term; change must be rated, priced, documented, and reflected in premium adjustment",
+      "motivation": "keep coverage aligned with insured risk profile without requiring a new policy",
+      "outcome": "endorsement issued, premium adjustment billed, PAS updated",
+      "success_criteria": [
+        "endorsement rated within 48 hours",
+        "premium adjustment calculated and billed",
+        "policy documents updated and delivered"
+      ],
+      "data_capture": [
+        {
+          "id": "policy_number",
+          "kind": "text",
+          "label": "Policy number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "change_description",
+          "kind": "textarea",
+          "label": "Change requested",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "effective_date",
+          "kind": "date",
+          "label": "Change effective date",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "underwriter",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 172800
+      },
+      "notifications": [
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "broker"
+        }
+      ],
+      "metrics": [
+        "endorsement_cycle_days",
+        "endorsement_premium_adjustment_accuracy"
+      ]
+    },
+    {
+      "id": "cancel_policy",
+      "title": "Cancel or non-renew a policy",
+      "actor": {
+        "role": "underwriter"
+      },
+      "situation": "underwriter or insured initiates cancellation or non-renewal; statutory notice periods, return-premium calculations, and mid-term audit for auditable lines must be managed",
+      "motivation": "exit the risk cleanly while meeting all regulatory notice and refund obligations",
+      "outcome": "cancellation notice sent, return premium calculated and issued, PAS closed",
+      "success_criteria": [
+        "statutory notice period observed",
+        "return premium calculated within 24 hours",
+        "refund issued within state-mandated timeframe"
+      ],
+      "data_capture": [
+        {
+          "id": "policy_number",
+          "kind": "text",
+          "label": "Policy number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "cancellation_reason",
+          "kind": "text",
+          "label": "Cancellation reason",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "effective_date",
+          "kind": "date",
+          "label": "Cancellation effective date",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "department_director",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 86400
+      },
+      "notifications": [
+        {
+          "trigger": "notice_sent",
+          "channel": "mail",
+          "audience": "insured"
+        }
+      ],
+      "metrics": [
+        "cancellation_notice_timeliness_rate",
+        "return_premium_accuracy"
+      ]
+    },
+    {
+      "id": "conduct_actuarial_reserve_review",
+      "title": "Conduct quarterly actuarial reserve review",
+      "actor": {
+        "role": "actuary"
+      },
+      "situation": "end-of-quarter close requires loss reserve adequacy certification; actuary pulls triangles, runs IBNR models, documents assumptions, and signs off for CFO and external auditors",
+      "motivation": "ensure reserves are adequate and opinion can be certified to regulators and auditors",
+      "outcome": "signed reserve opinion filed; management and board summary delivered",
+      "success_criteria": [
+        "triangles pulled within 3 days of quarter end",
+        "IBNR models run and documented",
+        "reserve opinion signed within 10 business days"
+      ],
+      "data_capture": [
+        {
+          "id": "quarter",
+          "kind": "text",
+          "label": "Quarter",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "lines_of_business",
+          "kind": "textarea",
+          "label": "Lines of business covered",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "reserve_total",
+          "kind": "money",
+          "label": "Total reserve amount",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "chief_actuary",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "cfo",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 864000
+      },
+      "notifications": [
+        {
+          "trigger": "opinion_signed",
+          "channel": "email",
+          "audience": "cfo"
+        }
+      ],
+      "metrics": [
+        "reserve_adequacy_ratio",
+        "ibnr_model_run_time_hours"
+      ]
+    },
+    {
+      "id": "manage_broker_appointment",
+      "title": "Manage producer/broker appointment",
+      "actor": {
+        "role": "distribution_manager"
+      },
+      "situation": "new broker or MGA must be appointed: licensing verified in all target states, E&O certificate collected, appointment filed with DOI, contracting executed",
+      "motivation": "onboard new distribution partner compliantly before they can bind business",
+      "outcome": "broker active in distribution system; state appointments filed",
+      "success_criteria": [
+        "license verified in all target states",
+        "E&O certificate on file",
+        "DOI appointment filed",
+        "contracting executed before first bind"
+      ],
+      "data_capture": [
+        {
+          "id": "broker_name",
+          "kind": "text",
+          "label": "Broker/agency name",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "license_number",
+          "kind": "text",
+          "label": "Resident state license number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "target_states",
+          "kind": "text",
+          "label": "Target states for appointment",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "distribution_manager",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "compliance_officer",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 1209600
+      },
+      "notifications": [
+        {
+          "trigger": "appointed",
+          "channel": "email",
+          "audience": "broker"
+        }
+      ],
+      "metrics": [
+        "broker_onboarding_cycle_days",
+        "appointment_filing_success_rate"
+      ]
+    },
+    {
+      "id": "handle_salvage_recovery",
+      "title": "Handle salvage and recovery",
+      "actor": {
+        "role": "salvage_coordinator"
+      },
+      "situation": "after a total-loss claim settlement, insurer acquires salvage title and must sell the vehicle or asset to recoup value; title transfer, auction listing, and net recovery posting required",
+      "motivation": "maximize recovery on total-loss settlements to reduce net loss cost",
+      "outcome": "salvage sold, title transferred, net recovery posted to claim",
+      "success_criteria": [
+        "title acquired within 10 days of settlement",
+        "salvage listed at auction within 5 business days",
+        "net recovery posted within 3 days of sale"
+      ],
+      "data_capture": [
+        {
+          "id": "claim_number",
+          "kind": "text",
+          "label": "Claim number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "salvage_description",
+          "kind": "textarea",
+          "label": "Salvage description",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "reserve_value",
+          "kind": "money",
+          "label": "Salvage reserve value",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "salvage_manager",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 864000
+      },
+      "notifications": [
+        {
+          "trigger": "sold",
+          "channel": "email",
+          "audience": "adjuster"
+        }
+      ],
+      "metrics": [
+        "salvage_recovery_rate",
+        "avg_days_to_sale"
+      ]
+    },
+    {
+      "id": "process_catastrophe_event",
+      "title": "Process CAT event response",
+      "actor": {
+        "role": "cat_manager"
+      },
+      "situation": "major catastrophe event generates volume spike of claims; CAT team must stand up field adjusters, triage by severity, track aggregate exposure vs reinsurance treaties, and report to executive team",
+      "motivation": "respond quickly to policyholders while protecting balance sheet via treaty recovery",
+      "outcome": "claims triaged and assigned, reinsurance notices sent, executive CAT report delivered",
+      "success_criteria": [
+        "field adjusters deployed within 24 hours",
+        "claims triaged by severity within 48 hours",
+        "reinsurance notice sent within treaty reporting window"
+      ],
+      "data_capture": [
+        {
+          "id": "event_name",
+          "kind": "text",
+          "label": "CAT event name",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "estimated_loss",
+          "kind": "money",
+          "label": "Estimated gross loss",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "claim_count",
+          "kind": "text",
+          "label": "Estimated claim count",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "cat_manager",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "cfo",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 86400
+      },
+      "notifications": [
+        {
+          "trigger": "event_declared",
+          "channel": "email",
+          "audience": "executive_team"
+        }
+      ],
+      "metrics": [
+        "cat_claim_triage_rate",
+        "reinsurance_notice_timeliness"
+      ]
+    },
+    {
+      "id": "file_rate_filing",
+      "title": "File rate revision with state DOI",
+      "actor": {
+        "role": "pricing_actuary"
+      },
+      "situation": "annual rate review determines that premium rates need adjustment; actuarial support documentation, experience data, and rate manual must be filed with DOI in each state and approved before use",
+      "motivation": "maintain rate adequacy while complying with regulatory approval requirements",
+      "outcome": "rate filing submitted; approval or objection letter received and responded to",
+      "success_criteria": [
+        "filing submitted with complete actuarial support",
+        "DOI acknowledgment received",
+        "objection response filed within 30 days if applicable"
+      ],
+      "data_capture": [
+        {
+          "id": "state",
+          "kind": "text",
+          "label": "Filing state",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "line_of_business",
+          "kind": "text",
+          "label": "Line of business",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "overall_rate_change",
+          "kind": "text",
+          "label": "Overall rate change %",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "chief_actuary",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "compliance_officer",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 7776000
+      },
+      "notifications": [
+        {
+          "trigger": "filed",
+          "channel": "email",
+          "audience": "compliance_officer"
+        }
+      ],
+      "metrics": [
+        "filing_approval_rate",
+        "avg_doi_review_days"
+      ]
+    },
+    {
+      "id": "manage_captive_program",
+      "title": "Manage captive insurance program",
+      "actor": {
+        "role": "risk_manager"
+      },
+      "situation": "corporate risk manager administers a captive insurer: fronting arrangements, reinsurance panel, collateral posting, annual audit, and domicile-state filings all require coordinated workflow",
+      "motivation": "optimize total cost of risk while maintaining captive compliance",
+      "outcome": "captive program renewed; fronting and reinsurance contracts executed; audit filed",
+      "success_criteria": [
+        "fronting agreement renewed before expiry",
+        "reinsurance panel confirmed",
+        "domicile annual report filed on time"
+      ],
+      "data_capture": [
+        {
+          "id": "captive_name",
+          "kind": "text",
+          "label": "Captive entity name",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "domicile",
+          "kind": "text",
+          "label": "Captive domicile",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "annual_premium",
+          "kind": "money",
+          "label": "Captive annual premium",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "cfo",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "board",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 2592000
+      },
+      "notifications": [
+        {
+          "trigger": "renewal_due",
+          "channel": "email",
+          "audience": "risk_manager"
+        }
+      ],
+      "metrics": [
+        "captive_compliance_score",
+        "total_cost_of_risk_ratio"
+      ]
+    },
+    {
+      "id": "conduct_siu_investigation",
+      "title": "Conduct SIU investigation",
+      "actor": {
+        "role": "siu_investigator"
+      },
+      "situation": "claim flagged by fraud analytics requires formal SIU investigation: evidence gathering, recorded statements, social media review, ISO ClaimSearch query, potential referral to law enforcement or state fraud bureau",
+      "motivation": "detect and deter insurance fraud; protect loss ratios",
+      "outcome": "investigation closed with finding; regulatory referral filed if required",
+      "success_criteria": [
+        "investigation opened within 5 days of referral",
+        "ISO ClaimSearch query completed",
+        "referral to state fraud bureau within 60 days if fraud confirmed"
+      ],
+      "data_capture": [
+        {
+          "id": "claim_number",
+          "kind": "text",
+          "label": "Claim number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "fraud_indicators",
+          "kind": "textarea",
+          "label": "Fraud indicators identified",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "siu_supervisor",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 5184000
+      },
+      "notifications": [
+        {
+          "trigger": "finding_issued",
+          "channel": "email",
+          "audience": "adjuster"
+        }
+      ],
+      "metrics": [
+        "fraud_detection_rate",
+        "siu_investigation_cycle_days"
+      ]
+    },
+    {
+      "id": "manage_excess_surplus_placement",
+      "title": "Place E&S market coverage",
+      "actor": {
+        "role": "wholesale_broker"
+      },
+      "situation": "risk declined by admitted market must be placed in E&S lines; wholesale broker must obtain declinations, select surplus lines carriers, file surplus lines tax, and deliver stamping-office evidence",
+      "motivation": "secure coverage for hard-to-place risks while meeting surplus lines compliance requirements",
+      "outcome": "E&S policy bound, surplus lines tax filed, stamping office evidence delivered",
+      "success_criteria": [
+        "declinations obtained from admitted market",
+        "carrier selected and bound",
+        "surplus lines tax filed within state deadline"
+      ],
+      "data_capture": [
+        {
+          "id": "insured_name",
+          "kind": "text",
+          "label": "Insured name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "risk_description",
+          "kind": "textarea",
+          "label": "Risk description",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "coverage_limit",
+          "kind": "money",
+          "label": "Coverage limit requested",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "wholesale_broker",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "compliance_officer",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 1209600
+      },
+      "notifications": [
+        {
+          "trigger": "bound",
+          "channel": "email",
+          "audience": "retail_broker"
+        }
+      ],
+      "metrics": [
+        "placement_success_rate",
+        "sl_tax_timeliness_rate"
+      ]
+    },
+    {
+      "id": "process_life_claim",
+      "title": "Process life insurance death claim",
+      "actor": {
+        "role": "life_claims_examiner"
+      },
+      "situation": "beneficiary submits death claim; examiner must verify coverage, review death certificate and APS if contestable period applies, calculate benefit, and issue payment or denial",
+      "motivation": "pay valid claims promptly while applying contestability period scrutiny appropriately",
+      "outcome": "claim paid or denied within statutory timeline; tax forms issued",
+      "success_criteria": [
+        "claim acknowledged within 10 days",
+        "contestability review completed if applicable",
+        "payment issued within 30 days of complete proof"
+      ],
+      "data_capture": [
+        {
+          "id": "policy_number",
+          "kind": "text",
+          "label": "Policy number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "insured_name",
+          "kind": "text",
+          "label": "Insured full name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "date_of_death",
+          "kind": "date",
+          "label": "Date of death",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "life_claims_supervisor",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 2592000
+      },
+      "notifications": [
+        {
+          "trigger": "payment_issued",
+          "channel": "email",
+          "audience": "beneficiary"
+        }
+      ],
+      "metrics": [
+        "life_claim_cycle_days",
+        "contestability_referral_rate"
+      ]
+    },
+    {
+      "id": "issue_certificate_of_insurance",
+      "title": "Issue Certificate of Insurance",
+      "actor": {
+        "role": "account_manager"
+      },
+      "situation": "insured requests COI for a contract counterparty; account manager must verify coverage is in force, confirm additional-insured status if required, generate certificate, and obtain broker signature",
+      "motivation": "provide evidence of coverage quickly so insured can meet contract requirements",
+      "outcome": "COI issued and delivered to certificate holder within SLA",
+      "success_criteria": [
+        "COI issued within 24 hours of request",
+        "coverage in force verified",
+        "additional insured endorsement confirmed if required"
+      ],
+      "data_capture": [
+        {
+          "id": "policy_number",
+          "kind": "text",
+          "label": "Policy number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "certificate_holder",
+          "kind": "text",
+          "label": "Certificate holder name and address",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "account_manager",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 86400
+      },
+      "notifications": [
+        {
+          "trigger": "issued",
+          "channel": "email",
+          "audience": "certificate_holder"
+        }
+      ],
+      "metrics": [
+        "coi_issuance_cycle_hours",
+        "coi_accuracy_rate"
+      ]
+    },
+    {
+      "id": "manage_treaty_reinsurance_settlement",
+      "title": "Settle treaty reinsurance bordereau",
+      "actor": {
+        "role": "reinsurance_accountant"
+      },
+      "situation": "quarterly bordereau due to treaty reinsurers; premium and loss data must be compiled from PAS, reconciled against treaty terms, bordereau generated, and cash settled",
+      "motivation": "maintain accurate reinsurance accounting and preserve treaty relationships",
+      "outcome": "bordereau submitted to all treaty reinsurers; cash settlement confirmed",
+      "success_criteria": [
+        "data compiled within 5 days of quarter end",
+        "bordereau submitted on treaty due date",
+        "cash settlement confirmed within 10 days"
+      ],
+      "data_capture": [
+        {
+          "id": "treaty_name",
+          "kind": "text",
+          "label": "Treaty name",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "quarter",
+          "kind": "text",
+          "label": "Settlement quarter",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "ceded_premium",
+          "kind": "money",
+          "label": "Ceded premium",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "reinsurance_manager",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "cfo",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 1296000
+      },
+      "notifications": [
+        {
+          "trigger": "submitted",
+          "channel": "email",
+          "audience": "reinsurer"
+        }
+      ],
+      "metrics": [
+        "bordereau_submission_timeliness",
+        "settlement_accuracy_rate"
+      ]
+    },
+    {
+      "id": "handle_workers_comp_claim",
+      "title": "Handle workers compensation claim",
+      "actor": {
+        "role": "wc_adjuster"
+      },
+      "situation": "employee reports workplace injury; adjuster must triage, coordinate medical management, determine compensability, establish reserves, manage RTW program, and track statutory benefit payments",
+      "motivation": "return employee to work quickly while controlling medical and indemnity costs",
+      "outcome": "claim accepted or denied; medical management underway; RTW plan in place",
+      "success_criteria": [
+        "first contact within 24 hours",
+        "compensability determined within 14 days",
+        "RTW plan developed with restrictions"
+      ],
+      "data_capture": [
+        {
+          "id": "claim_number",
+          "kind": "text",
+          "label": "Claim number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "injured_worker_name",
+          "kind": "text",
+          "label": "Injured worker name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "injury_date",
+          "kind": "date",
+          "label": "Date of injury",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "wc_supervisor",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 86400
+      },
+      "notifications": [
+        {
+          "trigger": "claim_received",
+          "channel": "email",
+          "audience": "injured_worker"
+        }
+      ],
+      "metrics": [
+        "wc_compensability_determination_days",
+        "rtw_success_rate"
+      ]
+    },
+    {
+      "id": "conduct_premium_audit",
+      "title": "Conduct annual premium audit",
+      "actor": {
+        "role": "premium_auditor"
+      },
+      "situation": "auditable policy requires end-of-term audit to reconcile actual vs estimated exposure; auditor collects payroll/revenue records, recalculates premium, and issues audit bill or return",
+      "motivation": "ensure premium accurately reflects actual exposure",
+      "outcome": "audit completed; final premium billed or returned; PAS updated",
+      "success_criteria": [
+        "audit scheduled within 30 days of policy expiry",
+        "records received and reviewed",
+        "audit premium calculated",
+        "bill or return issued within 15 days of audit"
+      ],
+      "data_capture": [
+        {
+          "id": "policy_number",
+          "kind": "text",
+          "label": "Policy number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "audit_period",
+          "kind": "text",
+          "label": "Audit period",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "actual_exposure",
+          "kind": "money",
+          "label": "Actual exposure per audit",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "audit_supervisor",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 5184000
+      },
+      "notifications": [
+        {
+          "trigger": "audit_bill_issued",
+          "channel": "email",
+          "audience": "broker"
+        }
+      ],
+      "metrics": [
+        "premium_audit_completion_rate",
+        "audit_adjustment_accuracy"
+      ]
+    },
+    {
+      "id": "manage_cyber_incident_response",
+      "title": "Manage cyber insurance incident response",
+      "actor": {
+        "role": "cyber_claims_manager"
+      },
+      "situation": "cyber policyholder reports a breach or ransomware event; insurer must invoke breach response panel, coordinate coverage under cyber policy, and manage expenses vs policy limits",
+      "motivation": "minimize insured loss while coordinating covered response services efficiently",
+      "outcome": "IR firm engaged; coverage determination made; expenses tracked against sublimits",
+      "success_criteria": [
+        "IR firm engaged within 4 hours of notice",
+        "coverage determination within 24 hours",
+        "expenses tracked against each sublimit"
+      ],
+      "data_capture": [
+        {
+          "id": "policy_number",
+          "kind": "text",
+          "label": "Policy number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "incident_type",
+          "kind": "text",
+          "label": "Incident type",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "incident_date",
+          "kind": "date",
+          "label": "Date incident discovered",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "cyber_claims_director",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 14400
+      },
+      "notifications": [
+        {
+          "trigger": "ir_engaged",
+          "channel": "email",
+          "audience": "insured"
+        }
+      ],
+      "metrics": [
+        "cyber_response_time_hours",
+        "sublimit_exhaustion_rate"
+      ]
+    },
+    {
+      "id": "process_medical_malpractice_claim",
+      "title": "Process medical malpractice claim",
+      "actor": {
+        "role": "malpractice_adjuster"
+      },
+      "situation": "physician or hospital is sued for alleged malpractice; adjuster must engage defense counsel, evaluate damages, manage discovery, and pursue settlement or trial strategy",
+      "motivation": "resolve the claim at the lowest defensible cost while protecting the insured license and reputation",
+      "outcome": "claim resolved; defense costs and indemnity within reserve",
+      "success_criteria": [
+        "defense counsel engaged within 48 hours",
+        "reserve established within 30 days",
+        "claim resolved within statute of limitations"
+      ],
+      "data_capture": [
+        {
+          "id": "claim_number",
+          "kind": "text",
+          "label": "Claim number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "defendant_name",
+          "kind": "text",
+          "label": "Defendant name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "suit_demand",
+          "kind": "money",
+          "label": "Plaintiff demand",
+          "required": false,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "claims_director",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "legal_counsel",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 172800
+      },
+      "notifications": [
+        {
+          "trigger": "suit_received",
+          "channel": "email",
+          "audience": "defense_counsel"
+        }
+      ],
+      "metrics": [
+        "avg_defense_cost_per_case",
+        "settlement_to_demand_ratio"
+      ]
+    },
+    {
+      "id": "manage_loss_control_survey",
+      "title": "Conduct loss control survey",
+      "actor": {
+        "role": "loss_control_consultant"
+      },
+      "situation": "underwriter requires on-site inspection of a commercial risk; consultant must schedule visit, complete hazard survey, score risk, prepare report, and upload recommendations to UW system",
+      "motivation": "identify controllable hazards to reduce expected loss cost and support underwriting decision",
+      "outcome": "survey report submitted; recommendations delivered to insured; UW system updated",
+      "success_criteria": [
+        "survey scheduled within 10 days of request",
+        "visit completed before binding if required",
+        "report submitted within 5 business days of visit"
+      ],
+      "data_capture": [
+        {
+          "id": "account_name",
+          "kind": "text",
+          "label": "Account name",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "location_address",
+          "kind": "text",
+          "label": "Survey location address",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "risk_score",
+          "kind": "text",
+          "label": "Overall risk score",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "loss_control_manager",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 604800
+      },
+      "notifications": [
+        {
+          "trigger": "survey_complete",
+          "channel": "email",
+          "audience": "underwriter"
+        }
+      ],
+      "metrics": [
+        "survey_cycle_days",
+        "recommendation_implementation_rate"
+      ]
+    },
+    {
+      "id": "manage_subrogation_recovery_litigation",
+      "title": "Manage subrogation recovery litigation",
+      "actor": {
+        "role": "subrogation_attorney"
+      },
+      "situation": "after settling a claim, insurer pursues subrogation recovery through litigation against the responsible third party; attorney must file suit, manage discovery, negotiate settlement, and remit recovery",
+      "motivation": "recover claim dollars paid from the responsible party to reduce net loss cost",
+      "outcome": "recovery amount received; recovery allocated to claim; attorney fees posted",
+      "success_criteria": [
+        "suit filed within statute of limitations",
+        "recovery maximized relative to damages paid",
+        "recovery posted to claim file within 5 days of receipt"
+      ],
+      "data_capture": [
+        {
+          "id": "claim_number",
+          "kind": "text",
+          "label": "Claim number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "damages_paid",
+          "kind": "money",
+          "label": "Total damages paid",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "recovery_target",
+          "kind": "money",
+          "label": "Recovery target amount",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "subrogation_manager",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 15552000
+      },
+      "notifications": [
+        {
+          "trigger": "recovery_received",
+          "channel": "email",
+          "audience": "claims_director"
+        }
+      ],
+      "metrics": [
+        "subrogation_recovery_rate",
+        "avg_litigation_cycle_days"
+      ]
     }
   ]
 }

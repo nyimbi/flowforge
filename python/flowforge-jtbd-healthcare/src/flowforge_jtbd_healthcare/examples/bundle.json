@@ -4,21 +4,41 @@
     "package": "healthcare_example",
     "domain": "healthcare",
     "tenancy": "multi",
-    "languages": ["en"],
-    "currencies": ["USD"]
+    "languages": [
+      "en"
+    ],
+    "currencies": [
+      "USD"
+    ]
   },
   "shared": {
     "roles": [
-      "patient", "admissions_coordinator", "attending_physician",
-      "nurse", "case_manager", "utilization_reviewer",
-      "medical_coder", "billing_specialist", "prior_auth_specialist",
-      "referral_coordinator", "pharmacist", "research_coordinator",
-      "risk_manager", "health_information_manager", "patient_advocate"
+      "patient",
+      "admissions_coordinator",
+      "attending_physician",
+      "nurse",
+      "case_manager",
+      "utilization_reviewer",
+      "medical_coder",
+      "billing_specialist",
+      "prior_auth_specialist",
+      "referral_coordinator",
+      "pharmacist",
+      "research_coordinator",
+      "risk_manager",
+      "health_information_manager",
+      "patient_advocate"
     ],
     "permissions": [
-      "hc.patient.admit", "hc.patient.discharge", "hc.appointment.schedule",
-      "hc.auth.request", "hc.claim.submit", "hc.referral.create",
-      "hc.prescription.process", "hc.trial.enroll", "hc.incident.report",
+      "hc.patient.admit",
+      "hc.patient.discharge",
+      "hc.appointment.schedule",
+      "hc.auth.request",
+      "hc.claim.submit",
+      "hc.referral.create",
+      "hc.prescription.process",
+      "hc.trial.enroll",
+      "hc.incident.report",
       "hc.record.request"
     ]
   },
@@ -26,7 +46,9 @@
     {
       "id": "admit_patient",
       "title": "Admit a patient for inpatient care",
-      "actor": {"role": "admissions_coordinator"},
+      "actor": {
+        "role": "admissions_coordinator"
+      },
       "situation": "patient presents for scheduled or emergency inpatient admission; coordinator must verify benefits, obtain authorization, assign bed, and complete consents",
       "motivation": "ensure patient receives timely care with coverage verified to prevent revenue denials",
       "outcome": "patient admitted with signed consents, authorization number obtained, bed assigned",
@@ -37,39 +59,145 @@
         "HIPAA notice of privacy practices delivered and acknowledged"
       ],
       "data_capture": [
-        {"id": "patient_mrn",         "kind": "text",     "label": "Medical record number",  "required": true,  "pii": true},
-        {"id": "patient_name",        "kind": "text",     "label": "Patient full name",       "required": true,  "pii": true},
-        {"id": "dob",                 "kind": "date",     "label": "Date of birth",           "required": true,  "pii": true},
-        {"id": "ssn_ref",             "kind": "text",     "label": "SSN reference (masked)",  "required": false, "pii": true},
-        {"id": "insurance_id",        "kind": "text",     "label": "Insurance member ID",     "required": true,  "pii": false},
-        {"id": "admission_type",      "kind": "enum",     "label": "Admission type",          "required": true,  "pii": false},
-        {"id": "admitting_dx",        "kind": "text",     "label": "Admitting diagnosis",     "required": true,  "pii": false},
-        {"id": "auth_number",         "kind": "text",     "label": "Authorization number",    "required": false, "pii": false},
-        {"id": "consent_forms",       "kind": "signature","label": "Signed consents",         "required": true,  "pii": true}
+        {
+          "id": "patient_mrn",
+          "kind": "text",
+          "label": "Medical record number",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "patient_name",
+          "kind": "text",
+          "label": "Patient full name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "dob",
+          "kind": "date",
+          "label": "Date of birth",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "ssn_ref",
+          "kind": "text",
+          "label": "SSN reference (masked)",
+          "required": false,
+          "pii": true
+        },
+        {
+          "id": "insurance_id",
+          "kind": "text",
+          "label": "Insurance member ID",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "admission_type",
+          "kind": "enum",
+          "label": "Admission type",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "admitting_dx",
+          "kind": "text",
+          "label": "Admitting diagnosis",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "auth_number",
+          "kind": "text",
+          "label": "Authorization number",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "consent_forms",
+          "kind": "signature",
+          "label": "Signed consents",
+          "required": true,
+          "pii": true
+        }
       ],
       "edge_cases": [
-        {"id": "no_coverage",         "condition": "insurance_verification = no_coverage",    "handle": "branch", "branch_to": "self_pay_counseling"},
-        {"id": "auth_denied",         "condition": "prior_auth_result = denied",              "handle": "branch", "branch_to": "appeal_authorization"},
-        {"id": "capacity_full",       "condition": "bed_availability = 0",                   "handle": "escalate"}
+        {
+          "id": "no_coverage",
+          "condition": "insurance_verification = no_coverage",
+          "handle": "branch",
+          "branch_to": "self_pay_counseling"
+        },
+        {
+          "id": "auth_denied",
+          "condition": "prior_auth_result = denied",
+          "handle": "branch",
+          "branch_to": "appeal_authorization"
+        },
+        {
+          "id": "capacity_full",
+          "condition": "bed_availability = 0",
+          "handle": "escalate"
+        }
       ],
       "approvals": [
-        {"role": "attending_physician", "policy": "1_of_1"}
+        {
+          "role": "attending_physician",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "patient"},
-        {"trigger": "approved",    "channel": "in_app", "audience": "nurse"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "admissions_coordinator"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "case_manager"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "patient"
+        },
+        {
+          "trigger": "approved",
+          "channel": "in_app",
+          "audience": "nurse"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "admissions_coordinator"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "case_manager"
+        }
       ],
-      "sla": {"warn_pct": 75, "breach_seconds": 86400},
-      "metrics": ["admission_to_bed_time", "auth_denial_rate", "registration_accuracy_pct"],
-      "compliance": ["HIPAA", "EMTALA", "CMS_CoP", "Joint_Commission", "GDPR"],
-      "data_sensitivity": ["phi", "pii", "financial"]
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 86400
+      },
+      "metrics": [
+        "admission_to_bed_time",
+        "auth_denial_rate",
+        "registration_accuracy_pct"
+      ],
+      "compliance": [
+        "HIPAA",
+        "EMTALA",
+        "CMS_CoP",
+        "Joint_Commission",
+        "GDPR"
+      ],
+      "data_sensitivity": [
+        "phi",
+        "pii",
+        "financial"
+      ]
     },
     {
       "id": "schedule_appointment",
       "title": "Schedule a patient appointment",
-      "actor": {"role": "admissions_coordinator"},
+      "actor": {
+        "role": "admissions_coordinator"
+      },
       "situation": "patient or referring provider requests an appointment; coordinator must check availability, verify insurance eligibility, and confirm scheduling",
       "motivation": "minimize patient wait time and maximize provider schedule utilization while ensuring coverage is active",
       "outcome": "appointment confirmed, eligibility verified, reminders sent to patient",
@@ -80,33 +208,118 @@
         "no-show rate < 10%"
       ],
       "data_capture": [
-        {"id": "patient_mrn",         "kind": "text",  "label": "MRN (or new patient flag)", "required": true,  "pii": true},
-        {"id": "appointment_type",    "kind": "enum",  "label": "Appointment type",          "required": true,  "pii": false},
-        {"id": "requested_provider",  "kind": "text",  "label": "Requested provider",        "required": false, "pii": false},
-        {"id": "preferred_dates",     "kind": "text",  "label": "Preferred dates",           "required": false, "pii": false},
-        {"id": "chief_complaint",     "kind": "textarea","label": "Chief complaint",         "required": true,  "pii": false},
-        {"id": "eligibility_result",  "kind": "text",  "label": "Eligibility check result",  "required": true,  "pii": false},
-        {"id": "appointment_datetime","kind": "datetime","label": "Scheduled date/time",     "required": true,  "pii": false}
+        {
+          "id": "patient_mrn",
+          "kind": "text",
+          "label": "MRN (or new patient flag)",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "appointment_type",
+          "kind": "enum",
+          "label": "Appointment type",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "requested_provider",
+          "kind": "text",
+          "label": "Requested provider",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "preferred_dates",
+          "kind": "text",
+          "label": "Preferred dates",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "chief_complaint",
+          "kind": "textarea",
+          "label": "Chief complaint",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "eligibility_result",
+          "kind": "text",
+          "label": "Eligibility check result",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "appointment_datetime",
+          "kind": "datetime",
+          "label": "Scheduled date/time",
+          "required": true,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "no_eligibility",      "condition": "eligibility_result = inactive",          "handle": "branch", "branch_to": "financial_counseling"},
-        {"id": "urgent_triage",       "condition": "chief_complaint_urgency = urgent",       "handle": "branch", "branch_to": "same_day_scheduling"},
-        {"id": "no_show_pattern",     "condition": "patient_no_show_count > 2",              "handle": "escalate"}
+        {
+          "id": "no_eligibility",
+          "condition": "eligibility_result = inactive",
+          "handle": "branch",
+          "branch_to": "financial_counseling"
+        },
+        {
+          "id": "urgent_triage",
+          "condition": "chief_complaint_urgency = urgent",
+          "handle": "branch",
+          "branch_to": "same_day_scheduling"
+        },
+        {
+          "id": "no_show_pattern",
+          "condition": "patient_no_show_count > 2",
+          "handle": "escalate"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter",  "channel": "email", "audience": "patient"},
-        {"trigger": "approved",     "channel": "sms",   "audience": "patient"},
-        {"trigger": "sla_warn",     "channel": "in_app","audience": "admissions_coordinator"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "patient"
+        },
+        {
+          "trigger": "approved",
+          "channel": "sms",
+          "audience": "patient"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "admissions_coordinator"
+        }
       ],
-      "sla": {"warn_pct": 80, "breach_seconds": 604800},
-      "metrics": ["days_to_appointment", "no_show_rate", "eligibility_denial_rate", "schedule_utilization_pct"],
-      "compliance": ["HIPAA", "ADA_accessibility", "CMS_access_standards"],
-      "data_sensitivity": ["phi", "pii"]
+      "sla": {
+        "warn_pct": 80,
+        "breach_seconds": 604800
+      },
+      "metrics": [
+        "days_to_appointment",
+        "no_show_rate",
+        "eligibility_denial_rate",
+        "schedule_utilization_pct"
+      ],
+      "compliance": [
+        "HIPAA",
+        "ADA_accessibility",
+        "CMS_access_standards"
+      ],
+      "data_sensitivity": [
+        "phi",
+        "pii"
+      ]
     },
     {
       "id": "process_prior_authorization",
       "title": "Process prior authorization request",
-      "actor": {"role": "prior_auth_specialist"},
+      "actor": {
+        "role": "prior_auth_specialist"
+      },
       "situation": "payer requires authorization before procedure, medication, or specialist visit; specialist must submit clinical criteria and obtain approval before service rendered",
       "motivation": "prevent claim denials by obtaining payer approval in advance, while minimizing treatment delays for patients",
       "outcome": "authorization approved or denied, appeal initiated if denied, authorization number documented in chart",
@@ -117,39 +330,141 @@
         "authorization number entered in scheduling system before procedure"
       ],
       "data_capture": [
-        {"id": "patient_mrn",         "kind": "text",    "label": "MRN",                      "required": true,  "pii": true},
-        {"id": "procedure_code",      "kind": "text",    "label": "CPT/HCPCS code",            "required": true,  "pii": false},
-        {"id": "diagnosis_code",      "kind": "text",    "label": "ICD-10 diagnosis code",    "required": true,  "pii": false},
-        {"id": "payer_id",            "kind": "text",    "label": "Payer ID",                  "required": true,  "pii": false},
-        {"id": "clinical_notes",      "kind": "textarea","label": "Clinical justification",   "required": true,  "pii": false},
-        {"id": "urgency_flag",        "kind": "boolean", "label": "Urgent request",            "required": true,  "pii": false},
-        {"id": "auth_number",         "kind": "text",    "label": "Authorization number",      "required": false, "pii": false},
-        {"id": "auth_valid_through",  "kind": "date",    "label": "Authorization valid through","required": false,"pii": false}
+        {
+          "id": "patient_mrn",
+          "kind": "text",
+          "label": "MRN",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "procedure_code",
+          "kind": "text",
+          "label": "CPT/HCPCS code",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "diagnosis_code",
+          "kind": "text",
+          "label": "ICD-10 diagnosis code",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "payer_id",
+          "kind": "text",
+          "label": "Payer ID",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "clinical_notes",
+          "kind": "textarea",
+          "label": "Clinical justification",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "urgency_flag",
+          "kind": "boolean",
+          "label": "Urgent request",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "auth_number",
+          "kind": "text",
+          "label": "Authorization number",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "auth_valid_through",
+          "kind": "date",
+          "label": "Authorization valid through",
+          "required": false,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "urgent_escalation",   "condition": "urgency_flag = true",                    "handle": "escalate"},
-        {"id": "auth_denied",         "condition": "payer_decision = denied",               "handle": "branch", "branch_to": "peer_to_peer_review"},
-        {"id": "auth_expired",        "condition": "service_date > auth_valid_through",     "handle": "branch", "branch_to": "reauthorization"}
+        {
+          "id": "urgent_escalation",
+          "condition": "urgency_flag = true",
+          "handle": "escalate"
+        },
+        {
+          "id": "auth_denied",
+          "condition": "payer_decision = denied",
+          "handle": "branch",
+          "branch_to": "peer_to_peer_review"
+        },
+        {
+          "id": "auth_expired",
+          "condition": "service_date > auth_valid_through",
+          "handle": "branch",
+          "branch_to": "reauthorization"
+        }
       ],
       "approvals": [
-        {"role": "attending_physician", "policy": "1_of_1"}
+        {
+          "role": "attending_physician",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "in_app", "audience": "prior_auth_specialist"},
-        {"trigger": "approved",    "channel": "email",  "audience": "patient"},
-        {"trigger": "rejected",    "channel": "in_app", "audience": "prior_auth_specialist"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "prior_auth_specialist"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "case_manager"}
+        {
+          "trigger": "state_enter",
+          "channel": "in_app",
+          "audience": "prior_auth_specialist"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "patient"
+        },
+        {
+          "trigger": "rejected",
+          "channel": "in_app",
+          "audience": "prior_auth_specialist"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "prior_auth_specialist"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "case_manager"
+        }
       ],
-      "sla": {"warn_pct": 70, "breach_seconds": 86400},
-      "metrics": ["auth_approval_rate", "time_to_auth_decision", "denial_overturn_rate", "treatment_delay_days"],
-      "compliance": ["HIPAA", "ACA_parity_rules", "CMS_prior_auth_final_rule_2024"],
-      "data_sensitivity": ["phi", "pii"]
+      "sla": {
+        "warn_pct": 70,
+        "breach_seconds": 86400
+      },
+      "metrics": [
+        "auth_approval_rate",
+        "time_to_auth_decision",
+        "denial_overturn_rate",
+        "treatment_delay_days"
+      ],
+      "compliance": [
+        "HIPAA",
+        "ACA_parity_rules",
+        "CMS_prior_auth_final_rule_2024"
+      ],
+      "data_sensitivity": [
+        "phi",
+        "pii"
+      ]
     },
     {
       "id": "submit_insurance_claim",
       "title": "Submit and follow up on insurance claim",
-      "actor": {"role": "billing_specialist"},
+      "actor": {
+        "role": "billing_specialist"
+      },
       "situation": "services rendered; billing specialist must code the encounter, validate claim data, submit electronically to payer, and follow up on unpaid or rejected claims",
       "motivation": "maximize clean claim rate and collect accounts receivable within payer timely filing limits",
       "outcome": "claim paid, posted to patient account, and ERA reconciled; denials worked or appealed",
@@ -160,38 +475,138 @@
         "timely filing limit met for all payers"
       ],
       "data_capture": [
-        {"id": "patient_mrn",        "kind": "text",  "label": "MRN",                      "required": true,  "pii": true},
-        {"id": "service_date",       "kind": "date",  "label": "Date of service",          "required": true,  "pii": false},
-        {"id": "procedure_codes",    "kind": "text",  "label": "CPT codes",                "required": true,  "pii": false},
-        {"id": "diagnosis_codes",    "kind": "text",  "label": "ICD-10 codes",             "required": true,  "pii": false},
-        {"id": "billed_amount",      "kind": "money", "label": "Billed charges",           "required": true,  "pii": false},
-        {"id": "payer_id",           "kind": "text",  "label": "Payer ID",                 "required": true,  "pii": false},
-        {"id": "claim_number",       "kind": "text",  "label": "Claim number",             "required": false, "pii": false},
-        {"id": "remittance_amount",  "kind": "money", "label": "Remittance paid amount",   "required": false, "pii": false}
+        {
+          "id": "patient_mrn",
+          "kind": "text",
+          "label": "MRN",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "service_date",
+          "kind": "date",
+          "label": "Date of service",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "procedure_codes",
+          "kind": "text",
+          "label": "CPT codes",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "diagnosis_codes",
+          "kind": "text",
+          "label": "ICD-10 codes",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "billed_amount",
+          "kind": "money",
+          "label": "Billed charges",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "payer_id",
+          "kind": "text",
+          "label": "Payer ID",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "claim_number",
+          "kind": "text",
+          "label": "Claim number",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "remittance_amount",
+          "kind": "money",
+          "label": "Remittance paid amount",
+          "required": false,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "timely_filing_risk",  "condition": "days_since_service > payer_filing_limit - 10", "handle": "escalate"},
-        {"id": "coding_error",        "condition": "claim_edit_count > 0",                         "handle": "branch", "branch_to": "coding_review"},
-        {"id": "coordination_of_benefits", "condition": "patient_has_multiple_payers = true",     "handle": "branch", "branch_to": "cob_workflow"}
+        {
+          "id": "timely_filing_risk",
+          "condition": "days_since_service > payer_filing_limit - 10",
+          "handle": "escalate"
+        },
+        {
+          "id": "coding_error",
+          "condition": "claim_edit_count > 0",
+          "handle": "branch",
+          "branch_to": "coding_review"
+        },
+        {
+          "id": "coordination_of_benefits",
+          "condition": "patient_has_multiple_payers = true",
+          "handle": "branch",
+          "branch_to": "cob_workflow"
+        }
       ],
       "approvals": [
-        {"role": "medical_coder", "policy": "1_of_1"}
+        {
+          "role": "medical_coder",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "in_app", "audience": "billing_specialist"},
-        {"trigger": "rejected",    "channel": "in_app", "audience": "billing_specialist"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "billing_specialist"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "billing_specialist"}
+        {
+          "trigger": "state_enter",
+          "channel": "in_app",
+          "audience": "billing_specialist"
+        },
+        {
+          "trigger": "rejected",
+          "channel": "in_app",
+          "audience": "billing_specialist"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "billing_specialist"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "billing_specialist"
+        }
       ],
-      "sla": {"warn_pct": 80, "breach_seconds": 259200},
-      "metrics": ["clean_claim_rate", "days_in_AR", "denial_rate", "first_pass_resolution_rate"],
-      "compliance": ["HIPAA_837", "CMS_timely_filing", "OIG_false_claims_act", "GDPR"],
-      "data_sensitivity": ["phi", "pii", "financial"]
+      "sla": {
+        "warn_pct": 80,
+        "breach_seconds": 259200
+      },
+      "metrics": [
+        "clean_claim_rate",
+        "days_in_AR",
+        "denial_rate",
+        "first_pass_resolution_rate"
+      ],
+      "compliance": [
+        "HIPAA_837",
+        "CMS_timely_filing",
+        "OIG_false_claims_act",
+        "GDPR"
+      ],
+      "data_sensitivity": [
+        "phi",
+        "pii",
+        "financial"
+      ]
     },
     {
       "id": "manage_referral",
       "title": "Manage specialist referral",
-      "actor": {"role": "referral_coordinator"},
+      "actor": {
+        "role": "referral_coordinator"
+      },
       "situation": "attending physician orders a specialist referral; coordinator must obtain authorization, identify in-network specialist, transmit clinical summary, and track appointment completion",
       "motivation": "ensure continuity of care and avoid out-of-network liability while meeting the physician's clinical timeline",
       "outcome": "referral authorized, specialist appointment scheduled, consult note received back in chart",
@@ -202,35 +617,129 @@
         "referring physician notified of consult findings"
       ],
       "data_capture": [
-        {"id": "patient_mrn",         "kind": "text",    "label": "MRN",                    "required": true,  "pii": true},
-        {"id": "referring_physician", "kind": "text",    "label": "Referring physician",    "required": true,  "pii": false},
-        {"id": "specialty_requested", "kind": "enum",    "label": "Specialty",              "required": true,  "pii": false},
-        {"id": "referral_reason",     "kind": "textarea","label": "Referral reason",        "required": true,  "pii": false},
-        {"id": "urgency",             "kind": "enum",    "label": "Urgency level",          "required": true,  "pii": false},
-        {"id": "auth_number",         "kind": "text",    "label": "Authorization number",   "required": false, "pii": false},
-        {"id": "specialist_name",     "kind": "text",    "label": "Specialist assigned",    "required": false, "pii": false},
-        {"id": "consult_note",        "kind": "file",    "label": "Consult note",           "required": false, "pii": false}
+        {
+          "id": "patient_mrn",
+          "kind": "text",
+          "label": "MRN",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "referring_physician",
+          "kind": "text",
+          "label": "Referring physician",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "specialty_requested",
+          "kind": "enum",
+          "label": "Specialty",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "referral_reason",
+          "kind": "textarea",
+          "label": "Referral reason",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "urgency",
+          "kind": "enum",
+          "label": "Urgency level",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "auth_number",
+          "kind": "text",
+          "label": "Authorization number",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "specialist_name",
+          "kind": "text",
+          "label": "Specialist assigned",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "consult_note",
+          "kind": "file",
+          "label": "Consult note",
+          "required": false,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "out_of_network",      "condition": "specialist_network_status = OON",       "handle": "escalate"},
-        {"id": "auth_denied",         "condition": "auth_result = denied",                  "handle": "branch", "branch_to": "referral_appeal"},
-        {"id": "no_response",         "condition": "specialist_appointment_not_scheduled_in_5_days", "handle": "escalate"}
+        {
+          "id": "out_of_network",
+          "condition": "specialist_network_status = OON",
+          "handle": "escalate"
+        },
+        {
+          "id": "auth_denied",
+          "condition": "auth_result = denied",
+          "handle": "branch",
+          "branch_to": "referral_appeal"
+        },
+        {
+          "id": "no_response",
+          "condition": "specialist_appointment_not_scheduled_in_5_days",
+          "handle": "escalate"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "patient"},
-        {"trigger": "approved",    "channel": "email",  "audience": "patient"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "referral_coordinator"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "case_manager"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "patient"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "patient"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "referral_coordinator"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "case_manager"
+        }
       ],
-      "sla": {"warn_pct": 75, "breach_seconds": 432000},
-      "metrics": ["referral_completion_rate", "time_to_specialist", "consult_note_return_rate", "oon_referral_rate"],
-      "compliance": ["HIPAA", "ACA_network_adequacy", "CMS_CoP"],
-      "data_sensitivity": ["phi", "pii"]
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 432000
+      },
+      "metrics": [
+        "referral_completion_rate",
+        "time_to_specialist",
+        "consult_note_return_rate",
+        "oon_referral_rate"
+      ],
+      "compliance": [
+        "HIPAA",
+        "ACA_network_adequacy",
+        "CMS_CoP"
+      ],
+      "data_sensitivity": [
+        "phi",
+        "pii"
+      ]
     },
     {
       "id": "handle_discharge",
       "title": "Coordinate patient discharge",
-      "actor": {"role": "case_manager"},
+      "actor": {
+        "role": "case_manager"
+      },
       "situation": "attending physician writes discharge order; case manager must coordinate post-acute placement, arrange follow-up, reconcile medications, and obtain patient education acknowledgement",
       "motivation": "prevent avoidable readmissions and ensure patient has safe, appropriate discharge destination with required follow-up in place",
       "outcome": "patient discharged with care transition plan, medication reconciliation complete, follow-up scheduled",
@@ -241,38 +750,133 @@
         "30-day readmission rate < 10%"
       ],
       "data_capture": [
-        {"id": "patient_mrn",           "kind": "text",     "label": "MRN",                       "required": true,  "pii": true},
-        {"id": "discharge_destination", "kind": "enum",     "label": "Discharge destination",     "required": true,  "pii": false},
-        {"id": "discharge_diagnosis",   "kind": "text",     "label": "Discharge diagnosis (ICD)", "required": true,  "pii": false},
-        {"id": "discharge_datetime",    "kind": "datetime", "label": "Discharge date/time",       "required": true,  "pii": false},
-        {"id": "medication_list",       "kind": "textarea", "label": "Reconciled medication list","required": true,  "pii": false},
-        {"id": "followup_appointment",  "kind": "date",     "label": "Follow-up appointment date","required": false, "pii": false},
-        {"id": "patient_education_ack", "kind": "signature","label": "Patient education acknowledgement","required": true,"pii": true}
+        {
+          "id": "patient_mrn",
+          "kind": "text",
+          "label": "MRN",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "discharge_destination",
+          "kind": "enum",
+          "label": "Discharge destination",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "discharge_diagnosis",
+          "kind": "text",
+          "label": "Discharge diagnosis (ICD)",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "discharge_datetime",
+          "kind": "datetime",
+          "label": "Discharge date/time",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "medication_list",
+          "kind": "textarea",
+          "label": "Reconciled medication list",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "followup_appointment",
+          "kind": "date",
+          "label": "Follow-up appointment date",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "patient_education_ack",
+          "kind": "signature",
+          "label": "Patient education acknowledgement",
+          "required": true,
+          "pii": true
+        }
       ],
       "edge_cases": [
-        {"id": "against_medical_advice","condition": "patient_leaving_ama = true",            "handle": "branch", "branch_to": "ama_documentation"},
-        {"id": "no_safe_discharge",     "condition": "discharge_destination = none_available","handle": "escalate"},
-        {"id": "insurance_denied_snf",  "condition": "snf_auth_denied = true",               "handle": "escalate"}
+        {
+          "id": "against_medical_advice",
+          "condition": "patient_leaving_ama = true",
+          "handle": "branch",
+          "branch_to": "ama_documentation"
+        },
+        {
+          "id": "no_safe_discharge",
+          "condition": "discharge_destination = none_available",
+          "handle": "escalate"
+        },
+        {
+          "id": "insurance_denied_snf",
+          "condition": "snf_auth_denied = true",
+          "handle": "escalate"
+        }
       ],
       "approvals": [
-        {"role": "attending_physician", "policy": "1_of_1"},
-        {"role": "utilization_reviewer","policy": "1_of_1"}
+        {
+          "role": "attending_physician",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "utilization_reviewer",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "patient"},
-        {"trigger": "approved",    "channel": "email",  "audience": "patient"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "case_manager"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "case_manager"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "patient"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "patient"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "case_manager"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "case_manager"
+        }
       ],
-      "sla": {"warn_pct": 80, "breach_seconds": 86400},
-      "metrics": ["30day_readmission_rate", "discharge_delay_hours", "med_rec_completion_rate", "followup_scheduling_rate"],
-      "compliance": ["HIPAA", "CMS_discharge_planning_rule", "Joint_Commission", "HCAHPS"],
-      "data_sensitivity": ["phi", "pii"]
+      "sla": {
+        "warn_pct": 80,
+        "breach_seconds": 86400
+      },
+      "metrics": [
+        "30day_readmission_rate",
+        "discharge_delay_hours",
+        "med_rec_completion_rate",
+        "followup_scheduling_rate"
+      ],
+      "compliance": [
+        "HIPAA",
+        "CMS_discharge_planning_rule",
+        "Joint_Commission",
+        "HCAHPS"
+      ],
+      "data_sensitivity": [
+        "phi",
+        "pii"
+      ]
     },
     {
       "id": "process_prescription",
       "title": "Process and verify prescription",
-      "actor": {"role": "pharmacist"},
+      "actor": {
+        "role": "pharmacist"
+      },
       "situation": "prescriber submits prescription (electronic or paper); pharmacist must verify patient identity, check interactions, confirm coverage, and dispense or counsel on alternatives",
       "motivation": "ensure patient receives the correct medication at appropriate dose with no harmful interactions and with insurance coverage confirmed",
       "outcome": "prescription dispensed or therapeutic alternative offered, patient counseled, PDMP checked",
@@ -283,35 +887,131 @@
         "controlled substance verified against DEA number"
       ],
       "data_capture": [
-        {"id": "patient_mrn",        "kind": "text",    "label": "MRN",                     "required": true,  "pii": true},
-        {"id": "drug_name",          "kind": "text",    "label": "Drug name",               "required": true,  "pii": false},
-        {"id": "ndc_code",           "kind": "text",    "label": "NDC code",                "required": true,  "pii": false},
-        {"id": "dose",               "kind": "text",    "label": "Dose and frequency",      "required": true,  "pii": false},
-        {"id": "days_supply",        "kind": "number",  "label": "Days supply",             "required": true,  "pii": false},
-        {"id": "prescriber_dea",     "kind": "text",    "label": "Prescriber DEA number",   "required": false, "pii": false},
-        {"id": "pdmp_check_result",  "kind": "text",    "label": "PDMP check result",       "required": false, "pii": false},
-        {"id": "copay_amount",       "kind": "money",   "label": "Patient copay",           "required": false, "pii": false}
+        {
+          "id": "patient_mrn",
+          "kind": "text",
+          "label": "MRN",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "drug_name",
+          "kind": "text",
+          "label": "Drug name",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "ndc_code",
+          "kind": "text",
+          "label": "NDC code",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "dose",
+          "kind": "text",
+          "label": "Dose and frequency",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "days_supply",
+          "kind": "number",
+          "label": "Days supply",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "prescriber_dea",
+          "kind": "text",
+          "label": "Prescriber DEA number",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "pdmp_check_result",
+          "kind": "text",
+          "label": "PDMP check result",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "copay_amount",
+          "kind": "money",
+          "label": "Patient copay",
+          "required": false,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "drug_interaction",   "condition": "interaction_severity = major",            "handle": "escalate"},
-        {"id": "pdmp_alert",         "condition": "pdmp_result = multiple_prescribers",      "handle": "escalate"},
-        {"id": "coverage_denied",    "condition": "insurance_coverage = not_covered",        "handle": "branch", "branch_to": "prior_auth_or_alternative"},
-        {"id": "dea_invalid",        "condition": "dea_validation = invalid",               "handle": "reject"}
+        {
+          "id": "drug_interaction",
+          "condition": "interaction_severity = major",
+          "handle": "escalate"
+        },
+        {
+          "id": "pdmp_alert",
+          "condition": "pdmp_result = multiple_prescribers",
+          "handle": "escalate"
+        },
+        {
+          "id": "coverage_denied",
+          "condition": "insurance_coverage = not_covered",
+          "handle": "branch",
+          "branch_to": "prior_auth_or_alternative"
+        },
+        {
+          "id": "dea_invalid",
+          "condition": "dea_validation = invalid",
+          "handle": "reject"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "sms",   "audience": "patient"},
-        {"trigger": "approved",    "channel": "sms",   "audience": "patient"},
-        {"trigger": "sla_warn",    "channel": "in_app","audience": "pharmacist"}
+        {
+          "trigger": "state_enter",
+          "channel": "sms",
+          "audience": "patient"
+        },
+        {
+          "trigger": "approved",
+          "channel": "sms",
+          "audience": "patient"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "pharmacist"
+        }
       ],
-      "sla": {"warn_pct": 80, "breach_seconds": 3600},
-      "metrics": ["dispensing_error_rate", "pdmp_compliance_rate", "coverage_denial_rate", "time_to_dispense"],
-      "compliance": ["HIPAA", "DEA_21CFR_1306", "PDMP_state_statutes", "USP_797_800"],
-      "data_sensitivity": ["phi", "pii", "controlled_substance"]
+      "sla": {
+        "warn_pct": 80,
+        "breach_seconds": 3600
+      },
+      "metrics": [
+        "dispensing_error_rate",
+        "pdmp_compliance_rate",
+        "coverage_denial_rate",
+        "time_to_dispense"
+      ],
+      "compliance": [
+        "HIPAA",
+        "DEA_21CFR_1306",
+        "PDMP_state_statutes",
+        "USP_797_800"
+      ],
+      "data_sensitivity": [
+        "phi",
+        "pii",
+        "controlled_substance"
+      ]
     },
     {
       "id": "enroll_clinical_trial",
       "title": "Enroll patient in clinical trial",
-      "actor": {"role": "research_coordinator"},
+      "actor": {
+        "role": "research_coordinator"
+      },
       "situation": "patient meets eligibility criteria for an IRB-approved trial; coordinator must obtain informed consent, verify eligibility, randomize, and register in CTMS",
       "motivation": "advance research while protecting patient rights, ensuring protocol compliance, and meeting enrollment targets",
       "outcome": "patient enrolled, consent documented, baseline data collected, CTMS record created",
@@ -323,39 +1023,141 @@
         "enrollment registered on ClinicalTrials.gov within 21 days"
       ],
       "data_capture": [
-        {"id": "patient_mrn",          "kind": "text",     "label": "MRN",                      "required": true,  "pii": true},
-        {"id": "protocol_id",          "kind": "text",     "label": "Protocol ID",              "required": true,  "pii": false},
-        {"id": "irb_approval_number",  "kind": "text",     "label": "IRB approval number",      "required": true,  "pii": false},
-        {"id": "informed_consent_doc", "kind": "signature","label": "Signed informed consent",  "required": true,  "pii": true},
-        {"id": "eligibility_checklist","kind": "file",     "label": "Eligibility checklist",    "required": true,  "pii": false},
-        {"id": "randomization_code",   "kind": "text",     "label": "Randomization code",       "required": false, "pii": false},
-        {"id": "baseline_visit_date",  "kind": "date",     "label": "Baseline visit date",      "required": true,  "pii": false}
+        {
+          "id": "patient_mrn",
+          "kind": "text",
+          "label": "MRN",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "protocol_id",
+          "kind": "text",
+          "label": "Protocol ID",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "irb_approval_number",
+          "kind": "text",
+          "label": "IRB approval number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "informed_consent_doc",
+          "kind": "signature",
+          "label": "Signed informed consent",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "eligibility_checklist",
+          "kind": "file",
+          "label": "Eligibility checklist",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "randomization_code",
+          "kind": "text",
+          "label": "Randomization code",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "baseline_visit_date",
+          "kind": "date",
+          "label": "Baseline visit date",
+          "required": true,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "screen_failure",       "condition": "eligibility_met = false",                  "handle": "reject"},
-        {"id": "consent_withdrawn",    "condition": "patient_withdraws_consent = true",         "handle": "branch", "branch_to": "withdrawal_procedure"},
-        {"id": "sae_during_screening", "condition": "serious_adverse_event_during_screening",   "handle": "escalate"}
+        {
+          "id": "screen_failure",
+          "condition": "eligibility_met = false",
+          "handle": "reject"
+        },
+        {
+          "id": "consent_withdrawn",
+          "condition": "patient_withdraws_consent = true",
+          "handle": "branch",
+          "branch_to": "withdrawal_procedure"
+        },
+        {
+          "id": "sae_during_screening",
+          "condition": "serious_adverse_event_during_screening",
+          "handle": "escalate"
+        }
       ],
       "approvals": [
-        {"role": "attending_physician",   "policy": "1_of_1"},
-        {"role": "research_coordinator",  "policy": "1_of_1"}
+        {
+          "role": "attending_physician",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "research_coordinator",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "patient"},
-        {"trigger": "approved",    "channel": "email",  "audience": "research_coordinator"},
-        {"trigger": "rejected",    "channel": "email",  "audience": "patient"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "research_coordinator"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "research_coordinator"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "patient"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "research_coordinator"
+        },
+        {
+          "trigger": "rejected",
+          "channel": "email",
+          "audience": "patient"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "research_coordinator"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "research_coordinator"
+        }
       ],
-      "sla": {"warn_pct": 80, "breach_seconds": 1814400},
-      "metrics": ["enrollment_rate", "screen_failure_rate", "consent_to_enrollment_days", "protocol_deviation_rate"],
-      "compliance": ["FDA_21CFR_50", "FDA_21CFR_56", "ICH_GCP_E6", "HIPAA", "GDPR_clinical_trials"],
-      "data_sensitivity": ["phi", "pii", "research_data", "sensitive"]
+      "sla": {
+        "warn_pct": 80,
+        "breach_seconds": 1814400
+      },
+      "metrics": [
+        "enrollment_rate",
+        "screen_failure_rate",
+        "consent_to_enrollment_days",
+        "protocol_deviation_rate"
+      ],
+      "compliance": [
+        "FDA_21CFR_50",
+        "FDA_21CFR_56",
+        "ICH_GCP_E6",
+        "HIPAA",
+        "GDPR_clinical_trials"
+      ],
+      "data_sensitivity": [
+        "phi",
+        "pii",
+        "research_data",
+        "sensitive"
+      ]
     },
     {
       "id": "handle_incident_report",
       "title": "Handle patient safety incident report",
-      "actor": {"role": "risk_manager"},
+      "actor": {
+        "role": "risk_manager"
+      },
       "situation": "staff member reports an adverse event, near-miss, or sentinel event; risk manager must investigate, classify, conduct RCA if required, and implement corrective actions",
       "motivation": "prevent recurrence of patient harm, meet Joint Commission sentinel event reporting obligations, and protect the organization from liability",
       "outcome": "incident classified, root cause analysis completed, corrective action plan implemented and monitored",
@@ -367,38 +1169,140 @@
         "Joint Commission notified within 5 business days for sentinel events"
       ],
       "data_capture": [
-        {"id": "incident_date",       "kind": "datetime","label": "Incident date/time",     "required": true,  "pii": false},
-        {"id": "incident_type",       "kind": "enum",    "label": "Incident type",          "required": true,  "pii": false},
-        {"id": "severity_level",      "kind": "enum",    "label": "NCC MERP severity",      "required": true,  "pii": false},
-        {"id": "patient_mrn",         "kind": "text",    "label": "MRN (if patient harm)",  "required": false, "pii": true},
-        {"id": "description",         "kind": "textarea","label": "Incident description",   "required": true,  "pii": false},
-        {"id": "contributing_factors","kind": "textarea","label": "Contributing factors",   "required": false, "pii": false},
-        {"id": "rca_report",          "kind": "file",    "label": "RCA report",             "required": false, "pii": false},
-        {"id": "cap_document",        "kind": "file",    "label": "Corrective action plan", "required": false, "pii": false}
+        {
+          "id": "incident_date",
+          "kind": "datetime",
+          "label": "Incident date/time",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "incident_type",
+          "kind": "enum",
+          "label": "Incident type",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "severity_level",
+          "kind": "enum",
+          "label": "NCC MERP severity",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "patient_mrn",
+          "kind": "text",
+          "label": "MRN (if patient harm)",
+          "required": false,
+          "pii": true
+        },
+        {
+          "id": "description",
+          "kind": "textarea",
+          "label": "Incident description",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "contributing_factors",
+          "kind": "textarea",
+          "label": "Contributing factors",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "rca_report",
+          "kind": "file",
+          "label": "RCA report",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "cap_document",
+          "kind": "file",
+          "label": "Corrective action plan",
+          "required": false,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "sentinel_event",      "condition": "severity_level = sentinel",               "handle": "escalate"},
-        {"id": "regulatory_report",   "condition": "incident_type = device_malfunction",      "handle": "branch", "branch_to": "fda_maude_report"},
-        {"id": "litigation_risk",     "condition": "patient_harm_level = serious",            "handle": "branch", "branch_to": "legal_hold"}
+        {
+          "id": "sentinel_event",
+          "condition": "severity_level = sentinel",
+          "handle": "escalate"
+        },
+        {
+          "id": "regulatory_report",
+          "condition": "incident_type = device_malfunction",
+          "handle": "branch",
+          "branch_to": "fda_maude_report"
+        },
+        {
+          "id": "litigation_risk",
+          "condition": "patient_harm_level = serious",
+          "handle": "branch",
+          "branch_to": "legal_hold"
+        }
       ],
       "approvals": [
-        {"role": "risk_manager", "policy": "1_of_1"}
+        {
+          "role": "risk_manager",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "in_app", "audience": "risk_manager"},
-        {"trigger": "approved",    "channel": "in_app", "audience": "risk_manager"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "risk_manager"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "risk_manager"}
+        {
+          "trigger": "state_enter",
+          "channel": "in_app",
+          "audience": "risk_manager"
+        },
+        {
+          "trigger": "approved",
+          "channel": "in_app",
+          "audience": "risk_manager"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "risk_manager"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "risk_manager"
+        }
       ],
-      "sla": {"warn_pct": 75, "breach_seconds": 3888000},
-      "metrics": ["incident_reporting_rate", "rca_completion_rate", "cap_closure_rate", "repeat_event_rate"],
-      "compliance": ["Joint_Commission_sentinel", "TJC_NPSG", "CMS_CoP_482", "FDA_21CFR_803", "HIPAA"],
-      "data_sensitivity": ["phi", "pii", "legal", "privileged"]
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 3888000
+      },
+      "metrics": [
+        "incident_reporting_rate",
+        "rca_completion_rate",
+        "cap_closure_rate",
+        "repeat_event_rate"
+      ],
+      "compliance": [
+        "Joint_Commission_sentinel",
+        "TJC_NPSG",
+        "CMS_CoP_482",
+        "FDA_21CFR_803",
+        "HIPAA"
+      ],
+      "data_sensitivity": [
+        "phi",
+        "pii",
+        "legal",
+        "privileged"
+      ]
     },
     {
       "id": "request_medical_record",
       "title": "Process medical record request",
-      "actor": {"role": "health_information_manager"},
+      "actor": {
+        "role": "health_information_manager"
+      },
       "situation": "patient, attorney, insurer, or government entity requests medical records; HIM must verify authorization, redact non-authorized information, and release within statutory timeframes",
       "motivation": "fulfill the patient's right of access and legal obligations while protecting PHI and preventing unauthorized disclosure",
       "outcome": "records released to authorized requester, access log updated, fees collected if applicable",
@@ -410,32 +1314,1538 @@
         "accounting of disclosures maintained for non-TPO releases"
       ],
       "data_capture": [
-        {"id": "patient_mrn",         "kind": "text",     "label": "MRN",                    "required": true,  "pii": true},
-        {"id": "requester_name",      "kind": "text",     "label": "Requester name",         "required": true,  "pii": true},
-        {"id": "requester_type",      "kind": "enum",     "label": "Requester type",         "required": true,  "pii": false},
-        {"id": "authorization_form",  "kind": "file",     "label": "Signed authorization",   "required": true,  "pii": true},
-        {"id": "records_requested",   "kind": "textarea", "label": "Records requested",      "required": true,  "pii": false},
-        {"id": "date_range",          "kind": "text",     "label": "Date range",             "required": false, "pii": false},
-        {"id": "release_format",      "kind": "enum",     "label": "Release format",         "required": true,  "pii": false},
-        {"id": "fee_amount",          "kind": "money",    "label": "Fee charged",            "required": false, "pii": false}
+        {
+          "id": "patient_mrn",
+          "kind": "text",
+          "label": "MRN",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "requester_name",
+          "kind": "text",
+          "label": "Requester name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "requester_type",
+          "kind": "enum",
+          "label": "Requester type",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "authorization_form",
+          "kind": "file",
+          "label": "Signed authorization",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "records_requested",
+          "kind": "textarea",
+          "label": "Records requested",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "date_range",
+          "kind": "text",
+          "label": "Date range",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "release_format",
+          "kind": "enum",
+          "label": "Release format",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "fee_amount",
+          "kind": "money",
+          "label": "Fee charged",
+          "required": false,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "invalid_authorization","condition": "authorization_validation = invalid",   "handle": "reject"},
-        {"id": "subpoena",            "condition": "requester_type = court_subpoena",       "handle": "branch", "branch_to": "legal_review"},
-        {"id": "psychotherapy_notes", "condition": "records_include_psychotherapy_notes",   "handle": "escalate"},
-        {"id": "minor_patient",       "condition": "patient_age < 18 AND requester_type = patient", "handle": "escalate"}
+        {
+          "id": "invalid_authorization",
+          "condition": "authorization_validation = invalid",
+          "handle": "reject"
+        },
+        {
+          "id": "subpoena",
+          "condition": "requester_type = court_subpoena",
+          "handle": "branch",
+          "branch_to": "legal_review"
+        },
+        {
+          "id": "psychotherapy_notes",
+          "condition": "records_include_psychotherapy_notes",
+          "handle": "escalate"
+        },
+        {
+          "id": "minor_patient",
+          "condition": "patient_age < 18 AND requester_type = patient",
+          "handle": "escalate"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "patient"},
-        {"trigger": "approved",    "channel": "email",  "audience": "patient"},
-        {"trigger": "rejected",    "channel": "email",  "audience": "patient"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "health_information_manager"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "health_information_manager"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "patient"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "patient"
+        },
+        {
+          "trigger": "rejected",
+          "channel": "email",
+          "audience": "patient"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "health_information_manager"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "health_information_manager"
+        }
       ],
-      "sla": {"warn_pct": 75, "breach_seconds": 2592000},
-      "metrics": ["record_release_timeliness", "authorization_rejection_rate", "complaint_rate", "cost_per_request"],
-      "compliance": ["HIPAA_164_524", "HIPAA_164_526", "21st_Century_Cures_Act", "GDPR", "state_medical_records_statutes"],
-      "data_sensitivity": ["phi", "pii", "legal"]
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 2592000
+      },
+      "metrics": [
+        "record_release_timeliness",
+        "authorization_rejection_rate",
+        "complaint_rate",
+        "cost_per_request"
+      ],
+      "compliance": [
+        "HIPAA_164_524",
+        "HIPAA_164_526",
+        "21st_Century_Cures_Act",
+        "GDPR",
+        "state_medical_records_statutes"
+      ],
+      "data_sensitivity": [
+        "phi",
+        "pii",
+        "legal"
+      ]
+    },
+    {
+      "id": "credential_provider",
+      "title": "Credential and privilege a clinical provider",
+      "actor": {
+        "role": "medical_staff_coordinator"
+      },
+      "situation": "new physician, NP, or PA must be credentialed before seeing patients: primary source verification of licenses, malpractice history, DEA, board certifications, and hospital privileges",
+      "motivation": "ensure only qualified, verified providers render care to patients",
+      "outcome": "credentials verified; privileges granted; provider active in scheduling and billing",
+      "success_criteria": [
+        "all licenses verified through primary sources",
+        "malpractice history reviewed (past 5 years)",
+        "DEA registration verified",
+        "privileges granted per department-specific criteria",
+        "provider active in scheduling and billing systems"
+      ],
+      "data_capture": [
+        {
+          "id": "provider_name",
+          "kind": "text",
+          "label": "Provider full name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "license_number",
+          "kind": "text",
+          "label": "State medical license number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "npi",
+          "kind": "text",
+          "label": "NPI number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "specialty",
+          "kind": "text",
+          "label": "Clinical specialty",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "medical_staff_committee",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "department_chief",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 7776000
+      },
+      "notifications": [
+        {
+          "trigger": "credentialed",
+          "channel": "email",
+          "audience": "department_chief"
+        },
+        {
+          "trigger": "privileges_granted",
+          "channel": "email",
+          "audience": "provider"
+        }
+      ],
+      "metrics": [
+        "credentialing_cycle_days",
+        "primary_source_verification_completion_rate"
+      ]
+    },
+    {
+      "id": "process_denial_appeal",
+      "title": "Appeal insurance claim denial",
+      "actor": {
+        "role": "billing_specialist"
+      },
+      "situation": "payer denies a claim for medical necessity, coding, or authorization; provider must gather clinical documentation, draft appeal letter, submit within payer appeal window, and track through peer-to-peer and IRO if needed",
+      "motivation": "recover revenue for services legitimately rendered",
+      "outcome": "appeal submitted; denial overturned or final denial received",
+      "success_criteria": [
+        "appeal filed within payer appeal deadline",
+        "clinical documentation attached",
+        "peer-to-peer requested within 24 hours of denial if appropriate",
+        "IRO referral submitted if second-level denied"
+      ],
+      "data_capture": [
+        {
+          "id": "claim_number",
+          "kind": "text",
+          "label": "Claim number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "payer_name",
+          "kind": "text",
+          "label": "Payer name",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "denial_reason",
+          "kind": "text",
+          "label": "Denial reason code",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "denial_amount",
+          "kind": "money",
+          "label": "Denied amount",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "billing_manager",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 1296000
+      },
+      "notifications": [
+        {
+          "trigger": "appeal_submitted",
+          "channel": "email",
+          "audience": "billing_manager"
+        },
+        {
+          "trigger": "overturned",
+          "channel": "email",
+          "audience": "revenue_cycle_director"
+        }
+      ],
+      "metrics": [
+        "appeal_overturn_rate",
+        "avg_appeal_cycle_days"
+      ]
+    },
+    {
+      "id": "manage_bed_capacity",
+      "title": "Manage inpatient bed capacity",
+      "actor": {
+        "role": "bed_coordinator"
+      },
+      "situation": "hospital census approaching capacity; coordinator must identify discharge-ready patients, coordinate pending admissions, manage boarding in ED, and escalate to incident command if needed",
+      "motivation": "prevent patient harm from boarding and ensure ED throughput",
+      "outcome": "capacity managed within target; escalations documented; census report updated",
+      "success_criteria": [
+        "discharge-ready patients identified by 10am daily",
+        "pending admissions matched to available beds within 2 hours",
+        "ED boarding time below target threshold",
+        "incident command activated if house-full"
+      ],
+      "data_capture": [
+        {
+          "id": "date",
+          "kind": "date",
+          "label": "Date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "census",
+          "kind": "text",
+          "label": "Current census",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "available_beds",
+          "kind": "text",
+          "label": "Available beds by unit",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "house_supervisor",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 7200
+      },
+      "notifications": [
+        {
+          "trigger": "capacity_alert",
+          "channel": "email",
+          "audience": "house_supervisor"
+        },
+        {
+          "trigger": "incident_command_activated",
+          "channel": "email",
+          "audience": "cno"
+        }
+      ],
+      "metrics": [
+        "ed_boarding_time_hours",
+        "bed_assignment_cycle_minutes"
+      ]
+    },
+    {
+      "id": "conduct_utilization_review",
+      "title": "Conduct concurrent utilization review",
+      "actor": {
+        "role": "case_manager"
+      },
+      "situation": "payer or internal UR nurse reviews inpatient stay daily to confirm continued medical necessity; must document clinical criteria met, communicate with attending, and initiate discharge planning if criteria no longer met",
+      "motivation": "ensure appropriate level of care while preventing avoidable days and denials",
+      "outcome": "UR determination documented; payer notified; discharge plan initiated if criteria not met",
+      "success_criteria": [
+        "UR review completed daily for all inpatients",
+        "clinical criteria documented in UR software",
+        "attending notified if criteria not met",
+        "discharge plan initiated within 24 hours if criteria not met"
+      ],
+      "data_capture": [
+        {
+          "id": "patient_mrn",
+          "kind": "text",
+          "label": "Patient MRN (masked)",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "admission_date",
+          "kind": "date",
+          "label": "Admission date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "clinical_criteria_met",
+          "kind": "text",
+          "label": "Clinical criteria met (yes/no)",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "payer",
+          "kind": "text",
+          "label": "Payer",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "ur_physician_advisor",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 86400
+      },
+      "notifications": [
+        {
+          "trigger": "criteria_not_met",
+          "channel": "email",
+          "audience": "attending"
+        },
+        {
+          "trigger": "discharge_plan_initiated",
+          "channel": "email",
+          "audience": "care_coordinator"
+        }
+      ],
+      "metrics": [
+        "avoidable_day_rate",
+        "ur_denial_rate"
+      ]
+    },
+    {
+      "id": "manage_medication_reconciliation",
+      "title": "Manage medication reconciliation at transitions of care",
+      "actor": {
+        "role": "pharmacist"
+      },
+      "situation": "patient transitions between care settings; complete medication list must be reconciled, discrepancies flagged, and patient/caregiver counseled",
+      "motivation": "prevent adverse drug events caused by medication discrepancies at care transitions",
+      "outcome": "reconciled medication list signed by provider; discrepancies resolved; patient counseled",
+      "success_criteria": [
+        "best possible medication history completed within 24 hours of admission",
+        "discrepancies flagged and resolved before discharge",
+        "discharge medication list provided to patient",
+        "patient/caregiver counseled on medication changes"
+      ],
+      "data_capture": [
+        {
+          "id": "patient_mrn",
+          "kind": "text",
+          "label": "Patient MRN (masked)",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "transition_type",
+          "kind": "text",
+          "label": "Transition type (admit/discharge/transfer)",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "discrepancy_count",
+          "kind": "text",
+          "label": "Number of discrepancies identified",
+          "required": false,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "pharmacist",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "attending_physician",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 86400
+      },
+      "notifications": [
+        {
+          "trigger": "discrepancy_flagged",
+          "channel": "email",
+          "audience": "attending"
+        },
+        {
+          "trigger": "reconciliation_complete",
+          "channel": "email",
+          "audience": "care_coordinator"
+        }
+      ],
+      "metrics": [
+        "medication_reconciliation_completion_rate",
+        "adverse_drug_event_rate"
+      ]
+    },
+    {
+      "id": "manage_infection_control_outbreak",
+      "title": "Manage infectious disease outbreak response",
+      "actor": {
+        "role": "infection_preventionist"
+      },
+      "situation": "cluster of HAIs or community outbreak detected; IP must identify cases, implement transmission-based precautions, notify public health, and lead root-cause investigation",
+      "motivation": "contain outbreak, protect patients and staff, and meet mandatory reporting requirements",
+      "outcome": "outbreak declared contained; root cause identified; corrective actions implemented; report filed",
+      "success_criteria": [
+        "case identification and line list within 24 hours",
+        "transmission-based precautions implemented",
+        "public health notified within required timeframe",
+        "root-cause analysis completed within 30 days"
+      ],
+      "data_capture": [
+        {
+          "id": "outbreak_type",
+          "kind": "text",
+          "label": "Pathogen or outbreak type",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "case_count",
+          "kind": "text",
+          "label": "Number of cases identified",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "discovery_date",
+          "kind": "date",
+          "label": "Date outbreak identified",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "infection_control_committee",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "cmo",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 86400
+      },
+      "notifications": [
+        {
+          "trigger": "outbreak_declared",
+          "channel": "email",
+          "audience": "cno"
+        },
+        {
+          "trigger": "public_health_notified",
+          "channel": "email",
+          "audience": "infection_preventionist"
+        }
+      ],
+      "metrics": [
+        "outbreak_containment_time_days",
+        "mandatory_report_timeliness"
+      ]
+    },
+    {
+      "id": "conduct_peer_review",
+      "title": "Conduct clinical peer review",
+      "actor": {
+        "role": "peer_review_committee"
+      },
+      "situation": "quality event triggers peer review of a physician clinical decision making; committee must gather records, apply criteria, score, communicate findings, and maintain confidentiality under state peer review protection",
+      "motivation": "improve clinical quality while protecting peer review privilege",
+      "outcome": "peer review complete; action plan or no-action documented; credentials file updated",
+      "success_criteria": [
+        "case selected and criteria applied consistently",
+        "peer reviewer blinded to outcome",
+        "findings communicated to physician",
+        "credentials file updated",
+        "peer review privilege maintained"
+      ],
+      "data_capture": [
+        {
+          "id": "case_type",
+          "kind": "text",
+          "label": "Case type triggering review",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "review_date",
+          "kind": "date",
+          "label": "Review date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "outcome",
+          "kind": "text",
+          "label": "Review outcome (no action/action plan/referral)",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "peer_review_committee_chair",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "cmo",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 5184000
+      },
+      "notifications": [
+        {
+          "trigger": "review_complete",
+          "channel": "email",
+          "audience": "physician"
+        },
+        {
+          "trigger": "credentials_updated",
+          "channel": "email",
+          "audience": "medical_staff_coordinator"
+        }
+      ],
+      "metrics": [
+        "peer_review_cycle_days",
+        "action_plan_completion_rate"
+      ]
+    },
+    {
+      "id": "manage_value_based_care_performance",
+      "title": "Manage value-based care contract performance",
+      "actor": {
+        "role": "quality_director"
+      },
+      "situation": "health system has ACO or bundled payment contracts with payers; quality director must track performance metrics, identify gaps, coordinate care management interventions, and report to payer at contract milestones",
+      "motivation": "earn shared savings or avoid penalties under value-based payment arrangements",
+      "outcome": "performance report submitted; gap closure interventions documented; shared savings calculated",
+      "success_criteria": [
+        "quality metrics tracked monthly against contract targets",
+        "gap closure interventions documented per patient",
+        "performance report submitted on payer schedule",
+        "shared savings calculation verified"
+      ],
+      "data_capture": [
+        {
+          "id": "contract_name",
+          "kind": "text",
+          "label": "VBC contract name",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "payer",
+          "kind": "text",
+          "label": "Payer name",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "performance_period",
+          "kind": "text",
+          "label": "Performance period",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "quality_score",
+          "kind": "text",
+          "label": "Current quality composite score",
+          "required": false,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "cmo",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "cfo",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 7776000
+      },
+      "notifications": [
+        {
+          "trigger": "report_submitted",
+          "channel": "email",
+          "audience": "payer"
+        },
+        {
+          "trigger": "shared_savings_distributed",
+          "channel": "email",
+          "audience": "cfo"
+        }
+      ],
+      "metrics": [
+        "vbc_quality_score",
+        "shared_savings_achievement_rate"
+      ]
+    },
+    {
+      "id": "process_organ_donation",
+      "title": "Process organ donation authorization",
+      "actor": {
+        "role": "organ_donation_coordinator"
+      },
+      "situation": "brain-dead or DCD patient is a potential donor; OPO coordinator must approach family, obtain authorization, coordinate medical management to preserve organs, arrange surgical recovery, and facilitate allocation",
+      "motivation": "honor patient donation wishes and save lives of transplant recipients",
+      "outcome": "authorization obtained or declined; organs recovered and allocated; family bereavement support arranged",
+      "success_criteria": [
+        "family approached within 1 hour of identification as potential donor",
+        "authorization documented",
+        "medical management maintained to preserve organ viability",
+        "UNOS allocation followed",
+        "family bereavement support offered"
+      ],
+      "data_capture": [
+        {
+          "id": "donor_type",
+          "kind": "text",
+          "label": "Donor type (DBD/DCD)",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "authorization_type",
+          "kind": "text",
+          "label": "Authorization type (registry/family)",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "organs_recovered",
+          "kind": "text",
+          "label": "Organs recovered",
+          "required": false,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "opo_medical_director",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 14400
+      },
+      "notifications": [
+        {
+          "trigger": "authorization_obtained",
+          "channel": "email",
+          "audience": "transplant_center"
+        },
+        {
+          "trigger": "recovery_complete",
+          "channel": "email",
+          "audience": "opo_coordinator"
+        }
+      ],
+      "metrics": [
+        "donation_conversion_rate",
+        "organ_utilization_rate"
+      ]
+    },
+    {
+      "id": "manage_telehealth_encounter",
+      "title": "Manage telehealth visit",
+      "actor": {
+        "role": "care_coordinator"
+      },
+      "situation": "patient scheduled for telehealth encounter requires technology setup, consent, identity verification, state licensure check for provider, and documentation in EHR with appropriate modifier for billing",
+      "motivation": "deliver accessible care remotely while maintaining quality and billing compliance",
+      "outcome": "telehealth visit completed; encounter documented; claim submitted with correct modifiers",
+      "success_criteria": [
+        "patient technology verified before appointment",
+        "written telehealth consent obtained",
+        "provider state licensure confirmed",
+        "encounter documented in EHR",
+        "claim submitted with telehealth modifier"
+      ],
+      "data_capture": [
+        {
+          "id": "patient_mrn",
+          "kind": "text",
+          "label": "Patient MRN (masked)",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "provider_npi",
+          "kind": "text",
+          "label": "Provider NPI",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "telehealth_platform",
+          "kind": "text",
+          "label": "Telehealth platform used",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "payer",
+          "kind": "text",
+          "label": "Payer",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "telehealth_coordinator",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 3600
+      },
+      "notifications": [
+        {
+          "trigger": "encounter_complete",
+          "channel": "email",
+          "audience": "billing"
+        },
+        {
+          "trigger": "claim_submitted",
+          "channel": "email",
+          "audience": "care_coordinator"
+        }
+      ],
+      "metrics": [
+        "telehealth_completion_rate",
+        "telehealth_billing_error_rate"
+      ]
+    },
+    {
+      "id": "handle_adverse_event_reporting",
+      "title": "Handle adverse event reporting (AHRQ PSO)",
+      "actor": {
+        "role": "patient_safety_officer"
+      },
+      "situation": "serious safety event requires internal review and voluntary external reporting to Patient Safety Organization; PSO work product privilege must be maintained while conducting root cause analysis and filing reports",
+      "motivation": "learn from adverse events to prevent recurrence while protected from discovery",
+      "outcome": "internal RCA complete; PSO report filed; corrective actions implemented",
+      "success_criteria": [
+        "event reported to PSO within 45 days",
+        "RCA completed within 45 days",
+        "corrective actions documented",
+        "PSO privilege maintained throughout process"
+      ],
+      "data_capture": [
+        {
+          "id": "event_type",
+          "kind": "text",
+          "label": "Event type (serious/near-miss/sentinel)",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "event_date",
+          "kind": "date",
+          "label": "Event date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "unit_or_department",
+          "kind": "text",
+          "label": "Unit or department",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "patient_safety_officer",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "cmo",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 3888000
+      },
+      "notifications": [
+        {
+          "trigger": "event_reported",
+          "channel": "email",
+          "audience": "patient_safety_officer"
+        },
+        {
+          "trigger": "pso_report_filed",
+          "channel": "email",
+          "audience": "cmo"
+        }
+      ],
+      "metrics": [
+        "pso_report_timeliness",
+        "corrective_action_completion_rate"
+      ]
+    },
+    {
+      "id": "manage_population_health_gaps",
+      "title": "Manage population health care gaps",
+      "actor": {
+        "role": "population_health_analyst"
+      },
+      "situation": "health system or payer identifies cohort of patients with gaps in preventive care; outreach campaign must be designed, executed, responses tracked, and HEDIS measure closure documented",
+      "motivation": "close HEDIS and Stars measure gaps to improve quality scores and reimbursement",
+      "outcome": "outreach campaign sent; gap closure rate reported; HEDIS data submitted",
+      "success_criteria": [
+        "patient cohort correctly identified",
+        "outreach campaign executed before measurement period end",
+        "gap closure documented in EHR",
+        "HEDIS data submission accurate"
+      ],
+      "data_capture": [
+        {
+          "id": "measure_name",
+          "kind": "text",
+          "label": "HEDIS/Stars measure",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "cohort_size",
+          "kind": "text",
+          "label": "Patient cohort size",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "outreach_channel",
+          "kind": "text",
+          "label": "Primary outreach channel",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "quality_director",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 7776000
+      },
+      "notifications": [
+        {
+          "trigger": "campaign_launched",
+          "channel": "email",
+          "audience": "population_health_team"
+        },
+        {
+          "trigger": "measure_closed",
+          "channel": "email",
+          "audience": "quality_director"
+        }
+      ],
+      "metrics": [
+        "gap_closure_rate",
+        "hedis_score_improvement"
+      ]
+    },
+    {
+      "id": "process_home_health_authorization",
+      "title": "Process home health authorization and start of care",
+      "actor": {
+        "role": "home_health_coordinator"
+      },
+      "situation": "physician orders home health; coordinator must verify Medicare/Medicaid eligibility, obtain prior authorization, schedule initial visit, complete OASIS assessment, and establish Plan of Care within mandated timeframe",
+      "motivation": "initiate covered home health services quickly to support safe discharge and prevent readmission",
+      "outcome": "authorization confirmed; OASIS filed; POC signed by physician; services started",
+      "success_criteria": [
+        "eligibility verified before start of care",
+        "PA obtained from payer",
+        "initial visit scheduled within 48 hours of discharge",
+        "OASIS completed within 5 days",
+        "POC signed within 30 days"
+      ],
+      "data_capture": [
+        {
+          "id": "patient_mrn",
+          "kind": "text",
+          "label": "Patient MRN (masked)",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "payer",
+          "kind": "text",
+          "label": "Payer",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "discharge_date",
+          "kind": "date",
+          "label": "Hospital discharge date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "ordered_services",
+          "kind": "textarea",
+          "label": "Services ordered",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "home_health_director",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 172800
+      },
+      "notifications": [
+        {
+          "trigger": "authorization_confirmed",
+          "channel": "email",
+          "audience": "care_coordinator"
+        },
+        {
+          "trigger": "oasis_filed",
+          "channel": "email",
+          "audience": "billing"
+        }
+      ],
+      "metrics": [
+        "home_health_start_of_care_timeliness",
+        "oasis_accuracy_rate"
+      ]
+    },
+    {
+      "id": "manage_dme_order",
+      "title": "Manage durable medical equipment order",
+      "actor": {
+        "role": "dme_coordinator"
+      },
+      "situation": "physician orders DME; coordinator must verify insurance coverage, obtain CMN, arrange delivery, collect patient signatures, and submit claim with correct HCPCS codes",
+      "motivation": "ensure patient receives necessary equipment quickly and claim is paid",
+      "outcome": "DME delivered; CMN on file; claim submitted and paid",
+      "success_criteria": [
+        "coverage verified before order placed",
+        "CMN obtained from physician",
+        "equipment delivered within 3 business days",
+        "claim submitted with correct HCPCS codes"
+      ],
+      "data_capture": [
+        {
+          "id": "patient_mrn",
+          "kind": "text",
+          "label": "Patient MRN (masked)",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "equipment_type",
+          "kind": "text",
+          "label": "Equipment type",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "hcpcs_code",
+          "kind": "text",
+          "label": "HCPCS code",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "payer",
+          "kind": "text",
+          "label": "Payer",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "dme_manager",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 259200
+      },
+      "notifications": [
+        {
+          "trigger": "delivered",
+          "channel": "email",
+          "audience": "care_coordinator"
+        },
+        {
+          "trigger": "claim_submitted",
+          "channel": "email",
+          "audience": "billing"
+        }
+      ],
+      "metrics": [
+        "dme_delivery_timeliness",
+        "dme_claim_denial_rate"
+      ]
+    },
+    {
+      "id": "conduct_chart_audit",
+      "title": "Conduct clinical documentation improvement audit",
+      "actor": {
+        "role": "cdi_specialist"
+      },
+      "situation": "CDI specialist queries medical record to ensure diagnoses are captured at highest specificity for DRG assignment; physician must respond to queries within 24 hours; final coded record must reflect clinical complexity",
+      "motivation": "ensure accurate risk-adjusted reimbursement and quality scores by capturing true clinical severity",
+      "outcome": "queries resolved; diagnosis list updated; DRG finalized; claim submitted",
+      "success_criteria": [
+        "query sent within 24 hours of admission",
+        "physician response within 24 hours of query",
+        "diagnosis updated to highest specificity",
+        "DRG reflects clinical complexity",
+        "claim submitted with final codes"
+      ],
+      "data_capture": [
+        {
+          "id": "patient_mrn",
+          "kind": "text",
+          "label": "Patient MRN (masked)",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "query_type",
+          "kind": "text",
+          "label": "Query type",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "principal_diagnosis",
+          "kind": "text",
+          "label": "Principal diagnosis (after CDI)",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "drg_assigned",
+          "kind": "text",
+          "label": "Final DRG assigned",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "cdi_manager",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 172800
+      },
+      "notifications": [
+        {
+          "trigger": "query_sent",
+          "channel": "email",
+          "audience": "attending"
+        },
+        {
+          "trigger": "drg_updated",
+          "kind": "email",
+          "audience": "billing"
+        }
+      ],
+      "metrics": [
+        "cdi_query_response_rate",
+        "drg_weight_improvement"
+      ]
+    },
+    {
+      "id": "process_pharmacy_benefit_prior_auth",
+      "title": "Process pharmacy benefit prior authorization",
+      "actor": {
+        "role": "prior_auth_pharmacist"
+      },
+      "situation": "specialty drug requires prior authorization from PBM; pharmacist or PA coordinator must gather clinical notes, submit via CoverMyMeds or payer portal, respond to peer-to-peer requests, and obtain approval or denial",
+      "motivation": "obtain coverage for medically necessary specialty medications within therapy start timelines",
+      "outcome": "PA approved or final denial issued; patient enrolled in hub or alternative pathway",
+      "success_criteria": [
+        "PA submitted within 24 hours of prescription",
+        "peer-to-peer conducted if initial denial",
+        "approval obtained before specialty pharmacy dispenses",
+        "patient enrolled in manufacturer hub if approved"
+      ],
+      "data_capture": [
+        {
+          "id": "drug_name",
+          "kind": "text",
+          "label": "Drug name",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "payer",
+          "kind": "text",
+          "label": "PBM/payer name",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "diagnosis_code",
+          "kind": "text",
+          "label": "Diagnosis code (ICD-10)",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "patient_mrn",
+          "kind": "text",
+          "label": "Patient MRN (masked)",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "prior_auth_pharmacist",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 172800
+      },
+      "notifications": [
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "prescriber"
+        },
+        {
+          "trigger": "denied",
+          "channel": "email",
+          "audience": "prescriber"
+        }
+      ],
+      "metrics": [
+        "pa_approval_rate",
+        "pa_cycle_hours"
+      ]
+    },
+    {
+      "id": "manage_outpatient_surgery_scheduling",
+      "title": "Manage outpatient surgery scheduling and pre-op",
+      "actor": {
+        "role": "surgical_scheduler"
+      },
+      "situation": "surgeon schedules outpatient procedure; coordinator must verify insurance, obtain authorization, schedule anesthesia and OR time, complete pre-op H&P and lab orders, and provide patient with arrival instructions",
+      "motivation": "ensure surgery proceeds on schedule without authorization or clinical gaps",
+      "outcome": "surgery scheduled; authorization confirmed; pre-op complete; patient instructed",
+      "success_criteria": [
+        "insurance verified and PA obtained before surgery date",
+        "OR and anesthesia scheduled",
+        "H&P completed within 30 days of surgery",
+        "pre-op labs resulted",
+        "patient instructions provided"
+      ],
+      "data_capture": [
+        {
+          "id": "procedure_name",
+          "kind": "text",
+          "label": "Procedure name",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "cpt_code",
+          "kind": "text",
+          "label": "CPT code",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "surgeon_name",
+          "kind": "text",
+          "label": "Surgeon name",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "surgery_date",
+          "kind": "date",
+          "label": "Surgery date",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "surgical_director",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 1296000
+      },
+      "notifications": [
+        {
+          "trigger": "scheduled",
+          "channel": "email",
+          "audience": "patient"
+        },
+        {
+          "trigger": "auth_confirmed",
+          "channel": "email",
+          "audience": "surgical_scheduler"
+        }
+      ],
+      "metrics": [
+        "surgery_cancellation_rate",
+        "auth_obtained_rate"
+      ]
+    },
+    {
+      "id": "handle_patient_grievance",
+      "title": "Handle patient grievance",
+      "actor": {
+        "role": "patient_relations_specialist"
+      },
+      "situation": "patient files formal grievance about care quality, billing, or access; CMS CoPs require written acknowledgement within 7 days and resolution within 30 days; complex grievances require committee review",
+      "motivation": "resolve patient concerns fairly and demonstrate responsiveness to meet CMS grievance standards",
+      "outcome": "grievance acknowledged; investigation complete; written resolution delivered within CMS timeline",
+      "success_criteria": [
+        "written acknowledgement within 7 days",
+        "investigation complete within 30 days",
+        "written resolution delivered",
+        "grievance log updated",
+        "regulatory agency notified if applicable"
+      ],
+      "data_capture": [
+        {
+          "id": "grievance_type",
+          "kind": "text",
+          "label": "Grievance type",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "date_received",
+          "kind": "date",
+          "label": "Date received",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "resolution_summary",
+          "kind": "textarea",
+          "label": "Resolution summary",
+          "required": false,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "patient_relations_director",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 2592000
+      },
+      "notifications": [
+        {
+          "trigger": "acknowledged",
+          "channel": "mail",
+          "audience": "patient"
+        },
+        {
+          "trigger": "resolved",
+          "channel": "mail",
+          "audience": "patient"
+        }
+      ],
+      "metrics": [
+        "grievance_acknowledgement_timeliness",
+        "grievance_resolution_timeliness"
+      ]
+    },
+    {
+      "id": "process_340b_purchase",
+      "title": "Process 340B drug program purchase",
+      "actor": {
+        "role": "340b_program_coordinator"
+      },
+      "situation": "covered entity must procure 340B-priced medications, maintain split-billing to prevent diversion, and pass HRSA audit without findings",
+      "motivation": "capture 340B savings while maintaining program compliance to avoid HRSA termination",
+      "outcome": "340B purchases processed; inventory reconciled; audit trail complete",
+      "success_criteria": [
+        "eligible patients identified before purchase",
+        "split-billing software reconciles 340B vs WAC inventory",
+        "no diversion or duplicate discount identified",
+        "HRSA audit documentation current"
+      ],
+      "data_capture": [
+        {
+          "id": "ndc",
+          "kind": "text",
+          "label": "NDC number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "quantity",
+          "kind": "text",
+          "label": "Quantity purchased",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "wholesaler",
+          "kind": "text",
+          "label": "Wholesaler",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "340b_program_director",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 86400
+      },
+      "notifications": [
+        {
+          "trigger": "reconciliation_complete",
+          "channel": "email",
+          "audience": "340b_program_coordinator"
+        },
+        {
+          "trigger": "diversion_alert",
+          "channel": "email",
+          "audience": "340b_program_director"
+        }
+      ],
+      "metrics": [
+        "340b_savings_per_encounter",
+        "diversion_rate"
+      ]
+    },
+    {
+      "id": "process_advance_directive",
+      "title": "Process advance directive and POLST",
+      "actor": {
+        "role": "social_worker"
+      },
+      "situation": "patient or family requests advance directive (living will, healthcare proxy) or POLST form; social worker must counsel patient, witness signatures, upload to EHR, notify care team, and ensure form follows patient across care settings",
+      "motivation": "honor patient care preferences at end of life and reduce unwanted aggressive interventions",
+      "outcome": "advance directive signed and scanned into EHR; care team notified; form available at all care sites",
+      "success_criteria": [
+        "patient counseled on directive options",
+        "document witnessed per state requirements",
+        "uploaded to EHR and flagged in chart",
+        "care team notification sent",
+        "POLST on door or chart per policy"
+      ],
+      "data_capture": [
+        {
+          "id": "patient_mrn",
+          "kind": "text",
+          "label": "Patient MRN (masked)",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "directive_type",
+          "kind": "text",
+          "label": "Directive type (AD/POLST/DNR)",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "decision_maker",
+          "kind": "text",
+          "label": "Healthcare proxy name",
+          "required": false,
+          "pii": true
+        }
+      ],
+      "approvals": [
+        {
+          "role": "social_work_manager",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 86400
+      },
+      "notifications": [
+        {
+          "trigger": "uploaded_to_ehr",
+          "channel": "email",
+          "audience": "attending"
+        },
+        {
+          "trigger": "care_team_notified",
+          "channel": "email",
+          "audience": "charge_nurse"
+        }
+      ],
+      "metrics": [
+        "advance_directive_completion_rate",
+        "polst_ehr_upload_timeliness"
+      ]
     }
   ]
 }

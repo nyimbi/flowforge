@@ -4,19 +4,38 @@
     "package": "hr_example",
     "domain": "hr",
     "tenancy": "multi",
-    "languages": ["en"],
-    "currencies": ["USD"]
+    "languages": [
+      "en"
+    ],
+    "currencies": [
+      "USD"
+    ]
   },
   "shared": {
     "roles": [
-      "employee", "manager", "hr_business_partner", "hr_admin",
-      "hr_director", "recruiter", "payroll_specialist", "benefits_admin",
-      "legal_counsel", "employee_relations_specialist", "vp_hr", "ceo"
+      "employee",
+      "manager",
+      "hr_business_partner",
+      "hr_admin",
+      "hr_director",
+      "recruiter",
+      "payroll_specialist",
+      "benefits_admin",
+      "legal_counsel",
+      "employee_relations_specialist",
+      "vp_hr",
+      "ceo"
     ],
     "permissions": [
-      "hr.employee.onboard", "hr.employee.offboard", "hr.performance.manage",
-      "hr.leave.manage", "hr.promotion.process", "hr.disciplinary.manage",
-      "hr.complaint.handle", "hr.payroll.change", "hr.benefits.enroll",
+      "hr.employee.onboard",
+      "hr.employee.offboard",
+      "hr.performance.manage",
+      "hr.leave.manage",
+      "hr.promotion.process",
+      "hr.disciplinary.manage",
+      "hr.complaint.handle",
+      "hr.payroll.change",
+      "hr.benefits.enroll",
       "hr.rif.manage"
     ]
   },
@@ -24,7 +43,9 @@
     {
       "id": "onboard_employee",
       "title": "Onboard a new employee",
-      "actor": {"role": "hr_admin"},
+      "actor": {
+        "role": "hr_admin"
+      },
       "situation": "offer accepted; hr admin must provision systems, collect new-hire paperwork, schedule orientation, and ensure the employee is productive on day 1",
       "motivation": "deliver a consistent onboarding experience that accelerates time-to-productivity and prevents I-9 / compliance failures",
       "outcome": "employee active in HRIS, I-9 verified, all required training completed, day-1 access provisioned",
@@ -35,41 +56,156 @@
         "IT access provisioned before or on start date"
       ],
       "data_capture": [
-        {"id": "employee_id",         "kind": "text",     "label": "Employee ID",           "required": true,  "pii": false},
-        {"id": "legal_name",          "kind": "text",     "label": "Legal name",            "required": true,  "pii": true},
-        {"id": "ssn_ref",             "kind": "text",     "label": "SSN reference",         "required": true,  "pii": true},
-        {"id": "start_date",          "kind": "date",     "label": "Start date",            "required": true,  "pii": false},
-        {"id": "job_title",           "kind": "text",     "label": "Job title",             "required": true,  "pii": false},
-        {"id": "department",          "kind": "text",     "label": "Department",            "required": true,  "pii": false},
-        {"id": "i9_documents",        "kind": "file",     "label": "I-9 identity documents","required": true,  "pii": true},
-        {"id": "w4_form",             "kind": "file",     "label": "W-4 form",              "required": true,  "pii": true},
-        {"id": "direct_deposit",      "kind": "text",     "label": "Bank account ref",      "required": true,  "pii": true},
-        {"id": "signed_offer",        "kind": "signature","label": "Signed offer letter",   "required": true,  "pii": false}
+        {
+          "id": "employee_id",
+          "kind": "text",
+          "label": "Employee ID",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "legal_name",
+          "kind": "text",
+          "label": "Legal name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "ssn_ref",
+          "kind": "text",
+          "label": "SSN reference",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "start_date",
+          "kind": "date",
+          "label": "Start date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "job_title",
+          "kind": "text",
+          "label": "Job title",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "department",
+          "kind": "text",
+          "label": "Department",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "i9_documents",
+          "kind": "file",
+          "label": "I-9 identity documents",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "w4_form",
+          "kind": "file",
+          "label": "W-4 form",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "direct_deposit",
+          "kind": "text",
+          "label": "Bank account ref",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "signed_offer",
+          "kind": "signature",
+          "label": "Signed offer letter",
+          "required": true,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "i9_document_mismatch","condition": "i9_document_validation = failed",        "handle": "escalate"},
-        {"id": "background_fail",     "condition": "background_check_result = adverse",      "handle": "escalate"},
-        {"id": "start_date_change",   "condition": "start_date_changed = true",              "handle": "branch", "branch_to": "revise_provisioning"}
+        {
+          "id": "i9_document_mismatch",
+          "condition": "i9_document_validation = failed",
+          "handle": "escalate"
+        },
+        {
+          "id": "background_fail",
+          "condition": "background_check_result = adverse",
+          "handle": "escalate"
+        },
+        {
+          "id": "start_date_change",
+          "condition": "start_date_changed = true",
+          "handle": "branch",
+          "branch_to": "revise_provisioning"
+        }
       ],
       "approvals": [
-        {"role": "manager",              "policy": "1_of_1"},
-        {"role": "hr_business_partner",  "policy": "1_of_1"}
+        {
+          "role": "manager",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "hr_business_partner",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "employee"},
-        {"trigger": "approved",    "channel": "email",  "audience": "employee"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "hr_admin"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "hr_business_partner"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "hr_admin"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "hr_business_partner"
+        }
       ],
-      "sla": {"warn_pct": 80, "breach_seconds": 259200},
-      "metrics": ["i9_compliance_rate", "time_to_productivity", "training_completion_rate", "provisioning_accuracy"],
-      "compliance": ["IRCA_I9", "IRS_W4", "FLSA", "EEOC", "state_new_hire_reporting"],
-      "data_sensitivity": ["pii", "financial", "sensitive"]
+      "sla": {
+        "warn_pct": 80,
+        "breach_seconds": 259200
+      },
+      "metrics": [
+        "i9_compliance_rate",
+        "time_to_productivity",
+        "training_completion_rate",
+        "provisioning_accuracy"
+      ],
+      "compliance": [
+        "IRCA_I9",
+        "IRS_W4",
+        "FLSA",
+        "EEOC",
+        "state_new_hire_reporting"
+      ],
+      "data_sensitivity": [
+        "pii",
+        "financial",
+        "sensitive"
+      ]
     },
     {
       "id": "process_resignation",
       "title": "Process employee resignation and offboarding",
-      "actor": {"role": "hr_admin"},
+      "actor": {
+        "role": "hr_admin"
+      },
       "situation": "employee submits resignation; HR must acknowledge, conduct exit interview, revoke access, process final pay, and ensure knowledge transfer",
       "motivation": "execute a clean separation that protects company assets, meets final pay laws, and preserves goodwill where possible",
       "outcome": "access revoked, final paycheck issued on time, COBRA notice sent, exit interview completed",
@@ -80,38 +216,134 @@
         "equipment returned and asset tracker updated before last day"
       ],
       "data_capture": [
-        {"id": "employee_id",         "kind": "text",    "label": "Employee ID",            "required": true,  "pii": false},
-        {"id": "resignation_date",    "kind": "date",    "label": "Resignation date",       "required": true,  "pii": false},
-        {"id": "last_day",            "kind": "date",    "label": "Last day of work",       "required": true,  "pii": false},
-        {"id": "resignation_reason",  "kind": "enum",    "label": "Resignation reason",     "required": false, "pii": false},
-        {"id": "exit_interview_notes","kind": "textarea","label": "Exit interview notes",   "required": false, "pii": false},
-        {"id": "final_pay_amount",    "kind": "money",   "label": "Final pay amount",       "required": false, "pii": false},
-        {"id": "pto_payout",          "kind": "money",   "label": "PTO payout",             "required": false, "pii": false}
+        {
+          "id": "employee_id",
+          "kind": "text",
+          "label": "Employee ID",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "resignation_date",
+          "kind": "date",
+          "label": "Resignation date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "last_day",
+          "kind": "date",
+          "label": "Last day of work",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "resignation_reason",
+          "kind": "enum",
+          "label": "Resignation reason",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "exit_interview_notes",
+          "kind": "textarea",
+          "label": "Exit interview notes",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "final_pay_amount",
+          "kind": "money",
+          "label": "Final pay amount",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "pto_payout",
+          "kind": "money",
+          "label": "PTO payout",
+          "required": false,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "immediate_termination","condition": "manager_requests_immediate_exit = true","handle": "branch", "branch_to": "same_day_offboard"},
-        {"id": "state_final_pay_law",  "condition": "state_final_pay_deadline_same_day = true","handle": "escalate"},
-        {"id": "nda_breach_risk",      "condition": "employee_joining_competitor = true",    "handle": "branch", "branch_to": "legal_review"}
+        {
+          "id": "immediate_termination",
+          "condition": "manager_requests_immediate_exit = true",
+          "handle": "branch",
+          "branch_to": "same_day_offboard"
+        },
+        {
+          "id": "state_final_pay_law",
+          "condition": "state_final_pay_deadline_same_day = true",
+          "handle": "escalate"
+        },
+        {
+          "id": "nda_breach_risk",
+          "condition": "employee_joining_competitor = true",
+          "handle": "branch",
+          "branch_to": "legal_review"
+        }
       ],
       "approvals": [
-        {"role": "manager",             "policy": "1_of_1"},
-        {"role": "hr_business_partner", "policy": "1_of_1"}
+        {
+          "role": "manager",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "hr_business_partner",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "employee"},
-        {"trigger": "approved",    "channel": "email",  "audience": "employee"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "hr_admin"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "hr_business_partner"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "hr_admin"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "hr_business_partner"
+        }
       ],
-      "sla": {"warn_pct": 80, "breach_seconds": 604800},
-      "metrics": ["offboarding_checklist_completion", "final_pay_timeliness", "cobra_notice_timeliness", "access_revocation_time"],
-      "compliance": ["COBRA_29USC1166", "FLSA_final_pay", "state_final_pay_laws", "WARN_Act"],
-      "data_sensitivity": ["pii", "financial"]
+      "sla": {
+        "warn_pct": 80,
+        "breach_seconds": 604800
+      },
+      "metrics": [
+        "offboarding_checklist_completion",
+        "final_pay_timeliness",
+        "cobra_notice_timeliness",
+        "access_revocation_time"
+      ],
+      "compliance": [
+        "COBRA_29USC1166",
+        "FLSA_final_pay",
+        "state_final_pay_laws",
+        "WARN_Act"
+      ],
+      "data_sensitivity": [
+        "pii",
+        "financial"
+      ]
     },
     {
       "id": "manage_performance_review",
       "title": "Manage annual performance review cycle",
-      "actor": {"role": "hr_business_partner"},
+      "actor": {
+        "role": "hr_business_partner"
+      },
       "situation": "annual review cycle opens; HRBP must coordinate self-assessments, manager evaluations, calibration sessions, and merit decisions within the review window",
       "motivation": "complete fair, documented evaluations on time to unlock merit increases and identify development needs",
       "outcome": "all employees rated, calibration completed, ratings communicated, merit increases approved and staged for payroll",
@@ -122,39 +354,140 @@
         "employees notified of final rating within 5 business days of calibration"
       ],
       "data_capture": [
-        {"id": "employee_id",         "kind": "text",    "label": "Employee ID",            "required": true,  "pii": false},
-        {"id": "review_period",       "kind": "text",    "label": "Review period",          "required": true,  "pii": false},
-        {"id": "self_assessment",     "kind": "textarea","label": "Self assessment",        "required": true,  "pii": false},
-        {"id": "manager_rating",      "kind": "enum",    "label": "Manager rating",         "required": true,  "pii": false},
-        {"id": "manager_comments",    "kind": "textarea","label": "Manager comments",       "required": true,  "pii": false},
-        {"id": "calibrated_rating",   "kind": "enum",    "label": "Calibrated final rating","required": false, "pii": false},
-        {"id": "merit_increase_pct",  "kind": "number",  "label": "Merit increase %",       "required": false, "pii": false},
-        {"id": "development_plan",    "kind": "textarea","label": "Development goals",      "required": false, "pii": false}
+        {
+          "id": "employee_id",
+          "kind": "text",
+          "label": "Employee ID",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "review_period",
+          "kind": "text",
+          "label": "Review period",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "self_assessment",
+          "kind": "textarea",
+          "label": "Self assessment",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "manager_rating",
+          "kind": "enum",
+          "label": "Manager rating",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "manager_comments",
+          "kind": "textarea",
+          "label": "Manager comments",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "calibrated_rating",
+          "kind": "enum",
+          "label": "Calibrated final rating",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "merit_increase_pct",
+          "kind": "number",
+          "label": "Merit increase %",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "development_plan",
+          "kind": "textarea",
+          "label": "Development goals",
+          "required": false,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "overdue_review",      "condition": "manager_review_past_deadline = true",   "handle": "escalate"},
-        {"id": "pip_candidate",       "condition": "calibrated_rating = below_expectations","handle": "branch", "branch_to": "pip_initiation"},
-        {"id": "merit_budget_exceed", "condition": "team_merit_total > team_budget",        "handle": "escalate"}
+        {
+          "id": "overdue_review",
+          "condition": "manager_review_past_deadline = true",
+          "handle": "escalate"
+        },
+        {
+          "id": "pip_candidate",
+          "condition": "calibrated_rating = below_expectations",
+          "handle": "branch",
+          "branch_to": "pip_initiation"
+        },
+        {
+          "id": "merit_budget_exceed",
+          "condition": "team_merit_total > team_budget",
+          "handle": "escalate"
+        }
       ],
       "approvals": [
-        {"role": "manager",             "policy": "1_of_1"},
-        {"role": "hr_business_partner", "policy": "1_of_1"}
+        {
+          "role": "manager",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "hr_business_partner",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "employee"},
-        {"trigger": "approved",    "channel": "email",  "audience": "employee"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "manager"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "hr_business_partner"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "manager"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "hr_business_partner"
+        }
       ],
-      "sla": {"warn_pct": 75, "breach_seconds": 1209600},
-      "metrics": ["review_completion_rate", "calibration_distribution", "merit_budget_utilization", "time_to_communication"],
-      "compliance": ["EEOC_disparate_impact", "pay_equity_laws", "ADEA", "state_fair_pay_acts"],
-      "data_sensitivity": ["pii", "sensitive"]
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 1209600
+      },
+      "metrics": [
+        "review_completion_rate",
+        "calibration_distribution",
+        "merit_budget_utilization",
+        "time_to_communication"
+      ],
+      "compliance": [
+        "EEOC_disparate_impact",
+        "pay_equity_laws",
+        "ADEA",
+        "state_fair_pay_acts"
+      ],
+      "data_sensitivity": [
+        "pii",
+        "sensitive"
+      ]
     },
     {
       "id": "handle_leave_request",
       "title": "Handle employee leave request (FMLA/ADA/PTO)",
-      "actor": {"role": "hr_admin"},
+      "actor": {
+        "role": "hr_admin"
+      },
       "situation": "employee requests leave for medical, family, military, or personal reasons; HR must determine eligibility, designate leave type, coordinate with manager, and track intermittent usage",
       "motivation": "ensure employee receives all legally protected leave while minimizing operational disruption and preventing unlawful interference",
       "outcome": "leave designated (FMLA, ADA, state, PTO), return-to-work date confirmed, payroll updated, medical documentation retained securely",
@@ -165,38 +498,136 @@
         "medical documentation stored separate from personnel file"
       ],
       "data_capture": [
-        {"id": "employee_id",         "kind": "text",    "label": "Employee ID",            "required": true,  "pii": false},
-        {"id": "leave_type",          "kind": "enum",    "label": "Leave type",             "required": true,  "pii": false},
-        {"id": "start_date",          "kind": "date",    "label": "Leave start date",       "required": true,  "pii": false},
-        {"id": "expected_return",     "kind": "date",    "label": "Expected return date",   "required": false, "pii": false},
-        {"id": "medical_cert",        "kind": "file",    "label": "Medical certification",  "required": false, "pii": true},
-        {"id": "fmla_hours_used",     "kind": "number",  "label": "FMLA hours used",        "required": false, "pii": false},
-        {"id": "pay_status",          "kind": "enum",    "label": "Pay status during leave","required": true,  "pii": false}
+        {
+          "id": "employee_id",
+          "kind": "text",
+          "label": "Employee ID",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "leave_type",
+          "kind": "enum",
+          "label": "Leave type",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "start_date",
+          "kind": "date",
+          "label": "Leave start date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "expected_return",
+          "kind": "date",
+          "label": "Expected return date",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "medical_cert",
+          "kind": "file",
+          "label": "Medical certification",
+          "required": false,
+          "pii": true
+        },
+        {
+          "id": "fmla_hours_used",
+          "kind": "number",
+          "label": "FMLA hours used",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "pay_status",
+          "kind": "enum",
+          "label": "Pay status during leave",
+          "required": true,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "ada_accommodation",   "condition": "leave_type = ada_accommodation",         "handle": "branch", "branch_to": "interactive_process"},
-        {"id": "fmla_exhausted",      "condition": "fmla_hours_used >= 480",                 "handle": "branch", "branch_to": "non_fmla_leave_review"},
-        {"id": "intermittent_abuse",  "condition": "absence_pattern_score > 75",            "handle": "escalate"}
+        {
+          "id": "ada_accommodation",
+          "condition": "leave_type = ada_accommodation",
+          "handle": "branch",
+          "branch_to": "interactive_process"
+        },
+        {
+          "id": "fmla_exhausted",
+          "condition": "fmla_hours_used >= 480",
+          "handle": "branch",
+          "branch_to": "non_fmla_leave_review"
+        },
+        {
+          "id": "intermittent_abuse",
+          "condition": "absence_pattern_score > 75",
+          "handle": "escalate"
+        }
       ],
       "approvals": [
-        {"role": "hr_business_partner", "policy": "1_of_1"}
+        {
+          "role": "hr_business_partner",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "employee"},
-        {"trigger": "approved",    "channel": "email",  "audience": "employee"},
-        {"trigger": "rejected",    "channel": "email",  "audience": "employee"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "hr_admin"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "hr_business_partner"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "rejected",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "hr_admin"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "hr_business_partner"
+        }
       ],
-      "sla": {"warn_pct": 80, "breach_seconds": 432000},
-      "metrics": ["fmla_designation_timeliness", "leave_tracker_accuracy", "return_to_work_rate", "intermittent_leave_hours"],
-      "compliance": ["FMLA_29CFR825", "ADA_42USC12112", "USERRA", "state_paid_family_leave_laws"],
-      "data_sensitivity": ["pii", "phi", "sensitive"]
+      "sla": {
+        "warn_pct": 80,
+        "breach_seconds": 432000
+      },
+      "metrics": [
+        "fmla_designation_timeliness",
+        "leave_tracker_accuracy",
+        "return_to_work_rate",
+        "intermittent_leave_hours"
+      ],
+      "compliance": [
+        "FMLA_29CFR825",
+        "ADA_42USC12112",
+        "USERRA",
+        "state_paid_family_leave_laws"
+      ],
+      "data_sensitivity": [
+        "pii",
+        "phi",
+        "sensitive"
+      ]
     },
     {
       "id": "process_promotion",
       "title": "Process employee promotion",
-      "actor": {"role": "hr_business_partner"},
+      "actor": {
+        "role": "hr_business_partner"
+      },
       "situation": "manager recommends an employee for promotion; HRBP must validate against grade criteria, conduct pay equity review, obtain approvals, and update HRIS and payroll",
       "motivation": "reward high performers equitably and consistently while maintaining internal pay equity and budget compliance",
       "outcome": "promotion approved, new title and compensation effective on target date, HRIS updated, offer letter issued",
@@ -207,40 +638,143 @@
         "employee notification at least 5 business days before effective date"
       ],
       "data_capture": [
-        {"id": "employee_id",         "kind": "text",   "label": "Employee ID",             "required": true,  "pii": false},
-        {"id": "current_title",       "kind": "text",   "label": "Current title/grade",     "required": true,  "pii": false},
-        {"id": "target_title",        "kind": "text",   "label": "Target title/grade",      "required": true,  "pii": false},
-        {"id": "current_salary",      "kind": "money",  "label": "Current salary",          "required": true,  "pii": false},
-        {"id": "proposed_salary",     "kind": "money",  "label": "Proposed salary",         "required": true,  "pii": false},
-        {"id": "effective_date",      "kind": "date",   "label": "Effective date",          "required": true,  "pii": false},
-        {"id": "justification",       "kind": "textarea","label": "Business justification", "required": true,  "pii": false},
-        {"id": "pay_equity_review",   "kind": "file",   "label": "Pay equity analysis",     "required": true,  "pii": false}
+        {
+          "id": "employee_id",
+          "kind": "text",
+          "label": "Employee ID",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "current_title",
+          "kind": "text",
+          "label": "Current title/grade",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "target_title",
+          "kind": "text",
+          "label": "Target title/grade",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "current_salary",
+          "kind": "money",
+          "label": "Current salary",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "proposed_salary",
+          "kind": "money",
+          "label": "Proposed salary",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "effective_date",
+          "kind": "date",
+          "label": "Effective date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "justification",
+          "kind": "textarea",
+          "label": "Business justification",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "pay_equity_review",
+          "kind": "file",
+          "label": "Pay equity analysis",
+          "required": true,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "above_band",          "condition": "proposed_salary > target_grade_band_max","handle": "escalate"},
-        {"id": "pay_equity_flag",     "condition": "pay_equity_review_result = flagged",     "handle": "escalate"},
-        {"id": "budget_constraint",   "condition": "dept_merit_budget_remaining < proposed_salary - current_salary", "handle": "escalate"}
+        {
+          "id": "above_band",
+          "condition": "proposed_salary > target_grade_band_max",
+          "handle": "escalate"
+        },
+        {
+          "id": "pay_equity_flag",
+          "condition": "pay_equity_review_result = flagged",
+          "handle": "escalate"
+        },
+        {
+          "id": "budget_constraint",
+          "condition": "dept_merit_budget_remaining < proposed_salary - current_salary",
+          "handle": "escalate"
+        }
       ],
       "approvals": [
-        {"role": "manager",             "policy": "1_of_1"},
-        {"role": "hr_business_partner", "policy": "1_of_1"},
-        {"role": "hr_director",         "policy": "authority_tier", "tier": 2}
+        {
+          "role": "manager",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "hr_business_partner",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "hr_director",
+          "policy": "authority_tier",
+          "tier": 2
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "in_app", "audience": "manager"},
-        {"trigger": "approved",    "channel": "email",  "audience": "employee"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "hr_business_partner"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "hr_director"}
+        {
+          "trigger": "state_enter",
+          "channel": "in_app",
+          "audience": "manager"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "hr_business_partner"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "hr_director"
+        }
       ],
-      "sla": {"warn_pct": 80, "breach_seconds": 604800},
-      "metrics": ["promotion_cycle_time", "pay_equity_pass_rate", "band_exception_rate"],
-      "compliance": ["EPA_29USC206d", "EEOC_pay_equity", "state_pay_transparency_laws"],
-      "data_sensitivity": ["pii", "financial", "sensitive"]
+      "sla": {
+        "warn_pct": 80,
+        "breach_seconds": 604800
+      },
+      "metrics": [
+        "promotion_cycle_time",
+        "pay_equity_pass_rate",
+        "band_exception_rate"
+      ],
+      "compliance": [
+        "EPA_29USC206d",
+        "EEOC_pay_equity",
+        "state_pay_transparency_laws"
+      ],
+      "data_sensitivity": [
+        "pii",
+        "financial",
+        "sensitive"
+      ]
     },
     {
       "id": "manage_disciplinary_action",
       "title": "Manage employee disciplinary action",
-      "actor": {"role": "hr_business_partner"},
+      "actor": {
+        "role": "hr_business_partner"
+      },
       "situation": "manager reports a policy violation or performance issue; HRBP must investigate, determine appropriate action level, document, and deliver the action consistently with policy",
       "motivation": "address misconduct fairly and consistently to protect the company from wrongful termination claims and maintain workplace standards",
       "outcome": "disciplinary action documented and delivered, action plan agreed, follow-up scheduled",
@@ -251,40 +785,147 @@
         "union procedures followed if applicable"
       ],
       "data_capture": [
-        {"id": "employee_id",         "kind": "text",    "label": "Employee ID",            "required": true,  "pii": false},
-        {"id": "incident_date",       "kind": "date",    "label": "Incident date",          "required": true,  "pii": false},
-        {"id": "policy_violated",     "kind": "text",    "label": "Policy violated",        "required": true,  "pii": false},
-        {"id": "incident_description","kind": "textarea","label": "Incident description",   "required": true,  "pii": false},
-        {"id": "action_level",        "kind": "enum",    "label": "Action level",           "required": true,  "pii": false},
-        {"id": "prior_actions",       "kind": "text",    "label": "Prior disciplinary history","required": true,"pii": false},
-        {"id": "employee_response",   "kind": "textarea","label": "Employee response",      "required": false, "pii": false},
-        {"id": "action_document",     "kind": "file",    "label": "Signed disciplinary notice","required": true,"pii": false}
+        {
+          "id": "employee_id",
+          "kind": "text",
+          "label": "Employee ID",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "incident_date",
+          "kind": "date",
+          "label": "Incident date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "policy_violated",
+          "kind": "text",
+          "label": "Policy violated",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "incident_description",
+          "kind": "textarea",
+          "label": "Incident description",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "action_level",
+          "kind": "enum",
+          "label": "Action level",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "prior_actions",
+          "kind": "text",
+          "label": "Prior disciplinary history",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "employee_response",
+          "kind": "textarea",
+          "label": "Employee response",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "action_document",
+          "kind": "file",
+          "label": "Signed disciplinary notice",
+          "required": true,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "termination_level",   "condition": "action_level = termination",             "handle": "branch", "branch_to": "termination_workflow"},
-        {"id": "retaliation_risk",    "condition": "employee_filed_complaint_within_90_days","handle": "escalate"},
-        {"id": "union_employee",      "condition": "employee_union_member = true",           "handle": "branch", "branch_to": "just_cause_review"}
+        {
+          "id": "termination_level",
+          "condition": "action_level = termination",
+          "handle": "branch",
+          "branch_to": "termination_workflow"
+        },
+        {
+          "id": "retaliation_risk",
+          "condition": "employee_filed_complaint_within_90_days",
+          "handle": "escalate"
+        },
+        {
+          "id": "union_employee",
+          "condition": "employee_union_member = true",
+          "handle": "branch",
+          "branch_to": "just_cause_review"
+        }
       ],
       "approvals": [
-        {"role": "manager",             "policy": "1_of_1"},
-        {"role": "hr_business_partner", "policy": "1_of_1"},
-        {"role": "legal_counsel",       "policy": "authority_tier", "tier": 2}
+        {
+          "role": "manager",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "hr_business_partner",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "legal_counsel",
+          "policy": "authority_tier",
+          "tier": 2
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "in_app", "audience": "manager"},
-        {"trigger": "approved",    "channel": "in_app", "audience": "manager"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "hr_business_partner"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "hr_director"}
+        {
+          "trigger": "state_enter",
+          "channel": "in_app",
+          "audience": "manager"
+        },
+        {
+          "trigger": "approved",
+          "channel": "in_app",
+          "audience": "manager"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "hr_business_partner"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "hr_director"
+        }
       ],
-      "sla": {"warn_pct": 75, "breach_seconds": 604800},
-      "metrics": ["disciplinary_consistency_score", "grievance_rate", "wrongful_termination_rate"],
-      "compliance": ["NLRA_29USC151", "FLSA", "EEOC", "state_employment_laws", "WARN_Act"],
-      "data_sensitivity": ["pii", "sensitive", "legal"]
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 604800
+      },
+      "metrics": [
+        "disciplinary_consistency_score",
+        "grievance_rate",
+        "wrongful_termination_rate"
+      ],
+      "compliance": [
+        "NLRA_29USC151",
+        "FLSA",
+        "EEOC",
+        "state_employment_laws",
+        "WARN_Act"
+      ],
+      "data_sensitivity": [
+        "pii",
+        "sensitive",
+        "legal"
+      ]
     },
     {
       "id": "handle_harassment_complaint",
       "title": "Handle workplace harassment complaint",
-      "actor": {"role": "employee_relations_specialist"},
+      "actor": {
+        "role": "employee_relations_specialist"
+      },
       "situation": "employee files a harassment or discrimination complaint; ER specialist must promptly investigate, maintain confidentiality, determine findings, and take remedial action",
       "motivation": "protect the complainant from retaliation, resolve the matter lawfully, and prevent future incidents",
       "outcome": "investigation completed, findings documented, remedial action taken, complainant notified of outcome",
@@ -296,39 +937,143 @@
         "no evidence of retaliation during or after investigation"
       ],
       "data_capture": [
-        {"id": "complainant_id",      "kind": "text",    "label": "Complainant employee ID","required": true,  "pii": false},
-        {"id": "respondent_id",       "kind": "text",    "label": "Respondent employee ID", "required": false, "pii": false},
-        {"id": "complaint_date",      "kind": "date",    "label": "Complaint date",         "required": true,  "pii": false},
-        {"id": "complaint_type",      "kind": "enum",    "label": "Complaint type",         "required": true,  "pii": false},
-        {"id": "complaint_narrative", "kind": "textarea","label": "Complaint narrative",    "required": true,  "pii": false},
-        {"id": "investigation_notes", "kind": "textarea","label": "Investigation notes",    "required": true,  "pii": false},
-        {"id": "findings",            "kind": "enum",    "label": "Investigation findings", "required": true,  "pii": false},
-        {"id": "remedial_action",     "kind": "textarea","label": "Remedial action taken",  "required": false, "pii": false}
+        {
+          "id": "complainant_id",
+          "kind": "text",
+          "label": "Complainant employee ID",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "respondent_id",
+          "kind": "text",
+          "label": "Respondent employee ID",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "complaint_date",
+          "kind": "date",
+          "label": "Complaint date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "complaint_type",
+          "kind": "enum",
+          "label": "Complaint type",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "complaint_narrative",
+          "kind": "textarea",
+          "label": "Complaint narrative",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "investigation_notes",
+          "kind": "textarea",
+          "label": "Investigation notes",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "findings",
+          "kind": "enum",
+          "label": "Investigation findings",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "remedial_action",
+          "kind": "textarea",
+          "label": "Remedial action taken",
+          "required": false,
+          "pii": false
+        }
       ],
       "edge_cases": [
-        {"id": "eeoc_charge",         "condition": "eeoc_charge_filed = true",               "handle": "branch", "branch_to": "eeoc_response"},
-        {"id": "criminal_conduct",    "condition": "incident_involves_criminal_conduct",     "handle": "escalate"},
-        {"id": "retaliation_detected","condition": "retaliation_indicators_found = true",    "handle": "escalate"}
+        {
+          "id": "eeoc_charge",
+          "condition": "eeoc_charge_filed = true",
+          "handle": "branch",
+          "branch_to": "eeoc_response"
+        },
+        {
+          "id": "criminal_conduct",
+          "condition": "incident_involves_criminal_conduct",
+          "handle": "escalate"
+        },
+        {
+          "id": "retaliation_detected",
+          "condition": "retaliation_indicators_found = true",
+          "handle": "escalate"
+        }
       ],
       "approvals": [
-        {"role": "hr_director",        "policy": "1_of_1"},
-        {"role": "legal_counsel",      "policy": "1_of_1"}
+        {
+          "role": "hr_director",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "legal_counsel",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "employee"},
-        {"trigger": "approved",    "channel": "email",  "audience": "employee"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "employee_relations_specialist"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "hr_director"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "employee_relations_specialist"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "hr_director"
+        }
       ],
-      "sla": {"warn_pct": 70, "breach_seconds": 2592000},
-      "metrics": ["investigation_timeliness", "substantiation_rate", "retaliation_complaint_rate", "repeat_complaint_rate"],
-      "compliance": ["Title_VII_42USC2000e", "EEOC_guidelines", "ADA", "ADEA", "state_FEHA_laws"],
-      "data_sensitivity": ["pii", "sensitive", "legal", "privileged"]
+      "sla": {
+        "warn_pct": 70,
+        "breach_seconds": 2592000
+      },
+      "metrics": [
+        "investigation_timeliness",
+        "substantiation_rate",
+        "retaliation_complaint_rate",
+        "repeat_complaint_rate"
+      ],
+      "compliance": [
+        "Title_VII_42USC2000e",
+        "EEOC_guidelines",
+        "ADA",
+        "ADEA",
+        "state_FEHA_laws"
+      ],
+      "data_sensitivity": [
+        "pii",
+        "sensitive",
+        "legal",
+        "privileged"
+      ]
     },
     {
       "id": "process_payroll_change",
       "title": "Process payroll change request",
-      "actor": {"role": "payroll_specialist"},
+      "actor": {
+        "role": "payroll_specialist"
+      },
       "situation": "compensation event (salary change, bonus, garnishment, tax withholding update) must be reflected in the next payroll run; specialist must validate, enter, and audit changes",
       "motivation": "ensure employees are paid correctly and on time while maintaining payroll data integrity and audit trails",
       "outcome": "payroll change entered and audited, reflected in correct pay period, employee confirmation sent",
@@ -339,37 +1084,129 @@
         "change log archived for audit"
       ],
       "data_capture": [
-        {"id": "employee_id",         "kind": "text",  "label": "Employee ID",              "required": true,  "pii": false},
-        {"id": "change_type",         "kind": "enum",  "label": "Change type",              "required": true,  "pii": false},
-        {"id": "effective_date",      "kind": "date",  "label": "Effective date",           "required": true,  "pii": false},
-        {"id": "old_value",           "kind": "money", "label": "Previous value",           "required": true,  "pii": false},
-        {"id": "new_value",           "kind": "money", "label": "New value",                "required": true,  "pii": false},
-        {"id": "supporting_doc",      "kind": "file",  "label": "Supporting document",      "required": false, "pii": false},
-        {"id": "garnishment_order",   "kind": "file",  "label": "Garnishment court order",  "required": false, "pii": true}
+        {
+          "id": "employee_id",
+          "kind": "text",
+          "label": "Employee ID",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "change_type",
+          "kind": "enum",
+          "label": "Change type",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "effective_date",
+          "kind": "date",
+          "label": "Effective date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "old_value",
+          "kind": "money",
+          "label": "Previous value",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "new_value",
+          "kind": "money",
+          "label": "New value",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "supporting_doc",
+          "kind": "file",
+          "label": "Supporting document",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "garnishment_order",
+          "kind": "file",
+          "label": "Garnishment court order",
+          "required": false,
+          "pii": true
+        }
       ],
       "edge_cases": [
-        {"id": "cutoff_missed",       "condition": "entry_time > payroll_cutoff",            "handle": "branch", "branch_to": "off_cycle_run"},
-        {"id": "garnishment",         "condition": "change_type = garnishment",              "handle": "branch", "branch_to": "garnishment_setup"},
-        {"id": "retroactive_change",  "condition": "effective_date < current_period_start", "handle": "escalate"}
+        {
+          "id": "cutoff_missed",
+          "condition": "entry_time > payroll_cutoff",
+          "handle": "branch",
+          "branch_to": "off_cycle_run"
+        },
+        {
+          "id": "garnishment",
+          "condition": "change_type = garnishment",
+          "handle": "branch",
+          "branch_to": "garnishment_setup"
+        },
+        {
+          "id": "retroactive_change",
+          "condition": "effective_date < current_period_start",
+          "handle": "escalate"
+        }
       ],
       "approvals": [
-        {"role": "hr_admin",          "policy": "1_of_1"},
-        {"role": "payroll_specialist","policy": "1_of_1"}
+        {
+          "role": "hr_admin",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "payroll_specialist",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "approved",    "channel": "email",  "audience": "employee"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "payroll_specialist"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "hr_director"}
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "payroll_specialist"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "hr_director"
+        }
       ],
-      "sla": {"warn_pct": 85, "breach_seconds": 172800},
-      "metrics": ["payroll_accuracy_rate", "off_cycle_run_rate", "garnishment_compliance_rate", "change_lead_time"],
-      "compliance": ["FLSA_overtime", "IRS_payroll_tax", "state_wage_payment_laws", "Consumer_Credit_Protection_Act"],
-      "data_sensitivity": ["pii", "financial"]
+      "sla": {
+        "warn_pct": 85,
+        "breach_seconds": 172800
+      },
+      "metrics": [
+        "payroll_accuracy_rate",
+        "off_cycle_run_rate",
+        "garnishment_compliance_rate",
+        "change_lead_time"
+      ],
+      "compliance": [
+        "FLSA_overtime",
+        "IRS_payroll_tax",
+        "state_wage_payment_laws",
+        "Consumer_Credit_Protection_Act"
+      ],
+      "data_sensitivity": [
+        "pii",
+        "financial"
+      ]
     },
     {
       "id": "enroll_benefits",
       "title": "Enroll employee in benefits",
-      "actor": {"role": "benefits_admin"},
+      "actor": {
+        "role": "benefits_admin"
+      },
       "situation": "new hire, qualifying life event, or open enrollment period; benefits admin must verify eligibility, collect elections, submit to carriers, and confirm coverage activation",
       "motivation": "ensure employees have correct coverage activated on time and elections are transmitted error-free to carriers",
       "outcome": "benefits elected and transmitted to carriers, confirmation letters issued, payroll deductions staged",
@@ -380,38 +1217,136 @@
         "ACA affordability calculation verified for health plans"
       ],
       "data_capture": [
-        {"id": "employee_id",         "kind": "text",  "label": "Employee ID",              "required": true,  "pii": false},
-        {"id": "enrollment_trigger",  "kind": "enum",  "label": "Enrollment trigger",       "required": true,  "pii": false},
-        {"id": "health_plan",         "kind": "enum",  "label": "Medical plan elected",     "required": false, "pii": false},
-        {"id": "dental_plan",         "kind": "enum",  "label": "Dental plan elected",      "required": false, "pii": false},
-        {"id": "vision_plan",         "kind": "enum",  "label": "Vision plan elected",      "required": false, "pii": false},
-        {"id": "401k_pct",            "kind": "number","label": "401(k) contribution %",    "required": false, "pii": false},
-        {"id": "dependent_info",      "kind": "file",  "label": "Dependent documentation", "required": false, "pii": true},
-        {"id": "life_event_doc",      "kind": "file",  "label": "Life event document",      "required": false, "pii": true}
+        {
+          "id": "employee_id",
+          "kind": "text",
+          "label": "Employee ID",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "enrollment_trigger",
+          "kind": "enum",
+          "label": "Enrollment trigger",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "health_plan",
+          "kind": "enum",
+          "label": "Medical plan elected",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "dental_plan",
+          "kind": "enum",
+          "label": "Dental plan elected",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "vision_plan",
+          "kind": "enum",
+          "label": "Vision plan elected",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "401k_pct",
+          "kind": "number",
+          "label": "401(k) contribution %",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "dependent_info",
+          "kind": "file",
+          "label": "Dependent documentation",
+          "required": false,
+          "pii": true
+        },
+        {
+          "id": "life_event_doc",
+          "kind": "file",
+          "label": "Life event document",
+          "required": false,
+          "pii": true
+        }
       ],
       "edge_cases": [
-        {"id": "window_missed",       "condition": "election_submitted_after_deadline",      "handle": "reject"},
-        {"id": "dependent_not_verified","condition": "dependent_docs_invalid = true",        "handle": "branch", "branch_to": "dependent_verification"},
-        {"id": "aca_affordability",   "condition": "employee_contribution > aca_threshold",  "handle": "escalate"}
+        {
+          "id": "window_missed",
+          "condition": "election_submitted_after_deadline",
+          "handle": "reject"
+        },
+        {
+          "id": "dependent_not_verified",
+          "condition": "dependent_docs_invalid = true",
+          "handle": "branch",
+          "branch_to": "dependent_verification"
+        },
+        {
+          "id": "aca_affordability",
+          "condition": "employee_contribution > aca_threshold",
+          "handle": "escalate"
+        }
       ],
       "approvals": [
-        {"role": "benefits_admin", "policy": "1_of_1"}
+        {
+          "role": "benefits_admin",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "employee"},
-        {"trigger": "approved",    "channel": "email",  "audience": "employee"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "benefits_admin"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "hr_director"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "benefits_admin"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "hr_director"
+        }
       ],
-      "sla": {"warn_pct": 80, "breach_seconds": 432000},
-      "metrics": ["enrollment_completion_rate", "carrier_transmission_accuracy", "payroll_deduction_accuracy"],
-      "compliance": ["ERISA_29USC1001", "ACA_IRS_4980H", "HIPAA_special_enrollment", "DOL_FMLA_benefits"],
-      "data_sensitivity": ["pii", "phi", "financial"]
+      "sla": {
+        "warn_pct": 80,
+        "breach_seconds": 432000
+      },
+      "metrics": [
+        "enrollment_completion_rate",
+        "carrier_transmission_accuracy",
+        "payroll_deduction_accuracy"
+      ],
+      "compliance": [
+        "ERISA_29USC1001",
+        "ACA_IRS_4980H",
+        "HIPAA_special_enrollment",
+        "DOL_FMLA_benefits"
+      ],
+      "data_sensitivity": [
+        "pii",
+        "phi",
+        "financial"
+      ]
     },
     {
       "id": "conduct_workforce_reduction",
       "title": "Conduct workforce reduction (RIF)",
-      "actor": {"role": "hr_director"},
+      "actor": {
+        "role": "hr_director"
+      },
       "situation": "business decision to reduce headcount; HR must design selection criteria, conduct adverse impact analysis, prepare WARN Act notices, execute separations, and offer severance",
       "motivation": "achieve target headcount reduction while minimizing legal exposure and preserving employee dignity",
       "outcome": "affected employees notified with WARN compliance, severance agreements executed, ADEA waiver periods honored, HRIS updated",
@@ -423,34 +1358,1556 @@
         "COBRA notices mailed within 14 days"
       ],
       "data_capture": [
-        {"id": "rif_plan_id",         "kind": "text",    "label": "RIF plan ID",            "required": true,  "pii": false},
-        {"id": "affected_count",      "kind": "number",  "label": "Affected headcount",     "required": true,  "pii": false},
-        {"id": "selection_criteria",  "kind": "textarea","label": "Selection criteria",     "required": true,  "pii": false},
-        {"id": "ai_analysis",         "kind": "file",    "label": "Adverse impact analysis","required": true,  "pii": false},
-        {"id": "warn_notice",         "kind": "file",    "label": "WARN Act notice",        "required": false, "pii": false},
-        {"id": "severance_amount",    "kind": "money",   "label": "Per-employee severance", "required": true,  "pii": false},
-        {"id": "adea_waiver",         "kind": "signature","label": "ADEA waiver (signed)",  "required": false, "pii": true}
+        {
+          "id": "rif_plan_id",
+          "kind": "text",
+          "label": "RIF plan ID",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "affected_count",
+          "kind": "number",
+          "label": "Affected headcount",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "selection_criteria",
+          "kind": "textarea",
+          "label": "Selection criteria",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "ai_analysis",
+          "kind": "file",
+          "label": "Adverse impact analysis",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "warn_notice",
+          "kind": "file",
+          "label": "WARN Act notice",
+          "required": false,
+          "pii": false
+        },
+        {
+          "id": "severance_amount",
+          "kind": "money",
+          "label": "Per-employee severance",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "adea_waiver",
+          "kind": "signature",
+          "label": "ADEA waiver (signed)",
+          "required": false,
+          "pii": true
+        }
       ],
       "edge_cases": [
-        {"id": "warn_triggered",      "condition": "affected_count >= 50 AND site_count >= 1", "handle": "branch", "branch_to": "warn_notice_process"},
-        {"id": "ai_flag",             "condition": "adverse_impact_analysis_result = flagged","handle": "escalate"},
-        {"id": "mass_layoff_state",   "condition": "state_warn_threshold_met = true",          "handle": "branch", "branch_to": "state_warn_notice"}
+        {
+          "id": "warn_triggered",
+          "condition": "affected_count >= 50 AND site_count >= 1",
+          "handle": "branch",
+          "branch_to": "warn_notice_process"
+        },
+        {
+          "id": "ai_flag",
+          "condition": "adverse_impact_analysis_result = flagged",
+          "handle": "escalate"
+        },
+        {
+          "id": "mass_layoff_state",
+          "condition": "state_warn_threshold_met = true",
+          "handle": "branch",
+          "branch_to": "state_warn_notice"
+        }
       ],
       "approvals": [
-        {"role": "hr_director",  "policy": "1_of_1"},
-        {"role": "legal_counsel","policy": "1_of_1"},
-        {"role": "ceo",          "policy": "1_of_1"}
+        {
+          "role": "hr_director",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "legal_counsel",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "ceo",
+          "policy": "1_of_1"
+        }
       ],
       "notifications": [
-        {"trigger": "state_enter", "channel": "email",  "audience": "employee"},
-        {"trigger": "approved",    "channel": "email",  "audience": "employee"},
-        {"trigger": "sla_warn",    "channel": "in_app", "audience": "hr_director"},
-        {"trigger": "sla_breach",  "channel": "slack",  "audience": "hr_director"}
+        {
+          "trigger": "state_enter",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "sla_warn",
+          "channel": "in_app",
+          "audience": "hr_director"
+        },
+        {
+          "trigger": "sla_breach",
+          "channel": "slack",
+          "audience": "hr_director"
+        }
       ],
-      "sla": {"warn_pct": 85, "breach_seconds": 5184000},
-      "metrics": ["warn_compliance_rate", "adverse_impact_clean_pct", "adea_waiver_return_rate", "severance_payment_timeliness"],
-      "compliance": ["WARN_Act_29USC2101", "ADEA_29USC623", "OWBPA", "COBRA_29USC1166", "EEOC_uniform_guidelines"],
-      "data_sensitivity": ["pii", "financial", "sensitive", "legal"]
+      "sla": {
+        "warn_pct": 85,
+        "breach_seconds": 5184000
+      },
+      "metrics": [
+        "warn_compliance_rate",
+        "adverse_impact_clean_pct",
+        "adea_waiver_return_rate",
+        "severance_payment_timeliness"
+      ],
+      "compliance": [
+        "WARN_Act_29USC2101",
+        "ADEA_29USC623",
+        "OWBPA",
+        "COBRA_29USC1166",
+        "EEOC_uniform_guidelines"
+      ],
+      "data_sensitivity": [
+        "pii",
+        "financial",
+        "sensitive",
+        "legal"
+      ]
+    },
+    {
+      "id": "manage_recruitment",
+      "title": "Manage full-cycle recruitment",
+      "actor": {
+        "role": "recruiter"
+      },
+      "situation": "hiring manager submits requisition for open role; recruiter must create job posting, screen applicants, coordinate interviews, manage offer process, and initiate background check before start date",
+      "motivation": "fill the role with a qualified candidate within time-to-fill target while maintaining fair and legal hiring process",
+      "outcome": "offer accepted; background check cleared; onboarding initiated",
+      "success_criteria": [
+        "requisition approved and posted within 3 business days",
+        "interview slate presented within 2 weeks",
+        "offer extended within 48 hours of final decision",
+        "background check initiated before offer acceptance"
+      ],
+      "data_capture": [
+        {
+          "id": "requisition_number",
+          "kind": "text",
+          "label": "Requisition number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "job_title",
+          "kind": "text",
+          "label": "Job title",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "hiring_manager",
+          "kind": "text",
+          "label": "Hiring manager name",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "target_start_date",
+          "kind": "date",
+          "label": "Target start date",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "hiring_manager",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "hr_director",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 3888000
+      },
+      "notifications": [
+        {
+          "trigger": "offer_extended",
+          "channel": "email",
+          "audience": "candidate"
+        },
+        {
+          "trigger": "hired",
+          "channel": "email",
+          "audience": "hiring_manager"
+        }
+      ],
+      "metrics": [
+        "time_to_fill_days",
+        "offer_acceptance_rate"
+      ]
+    },
+    {
+      "id": "process_i9_everify",
+      "title": "Complete I-9 and E-Verify for new hire",
+      "actor": {
+        "role": "hr_coordinator"
+      },
+      "situation": "new hire must complete Form I-9 within first day; documents must be inspected and verified; E-Verify case opened within 3 business days; tentative nonconfirmation process managed if triggered",
+      "motivation": "comply with IRCA and E-Verify MOU while onboarding new hire on schedule",
+      "outcome": "I-9 complete; E-Verify case closed as authorized; I-9 filed for retention period",
+      "success_criteria": [
+        "Section 1 completed on or before first day",
+        "Section 2 completed by end of day 3",
+        "E-Verify case opened within 3 business days",
+        "TNC process managed per E-Verify requirements"
+      ],
+      "data_capture": [
+        {
+          "id": "employee_name",
+          "kind": "text",
+          "label": "Employee full name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "start_date",
+          "kind": "date",
+          "label": "Employment start date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "document_list_used",
+          "kind": "text",
+          "label": "Document list used (A, B+C)",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "hr_coordinator",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 259200
+      },
+      "notifications": [
+        {
+          "trigger": "i9_complete",
+          "channel": "email",
+          "audience": "hr_director"
+        },
+        {
+          "trigger": "everify_authorized",
+          "channel": "email",
+          "audience": "hr_coordinator"
+        }
+      ],
+      "metrics": [
+        "i9_on_time_rate",
+        "everify_tnc_rate"
+      ]
+    },
+    {
+      "id": "manage_fmla_leave",
+      "title": "Manage FMLA leave",
+      "actor": {
+        "role": "leave_administrator"
+      },
+      "situation": "employee requests FMLA-qualifying leave; administrator must provide notices, obtain medical certification, track 12-week entitlement, coordinate benefit continuation, and manage return-to-work",
+      "motivation": "administer FMLA correctly to protect both employee rights and employer compliance",
+      "outcome": "FMLA designated; leave tracked; benefits continued; employee returned or separation processed",
+      "success_criteria": [
+        "eligibility notice provided within 5 business days",
+        "designation notice provided within 5 days of medical certification",
+        "12-week entitlement tracked accurately",
+        "benefits continued per FMLA requirements"
+      ],
+      "data_capture": [
+        {
+          "id": "employee_name",
+          "kind": "text",
+          "label": "Employee name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "leave_reason",
+          "kind": "text",
+          "label": "FMLA qualifying reason",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "anticipated_leave_start",
+          "kind": "date",
+          "label": "Anticipated leave start date",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "leave_administrator",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "hr_director",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 432000
+      },
+      "notifications": [
+        {
+          "trigger": "designated",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "return_due",
+          "channel": "email",
+          "audience": "manager"
+        }
+      ],
+      "metrics": [
+        "fmla_designation_timeliness_rate",
+        "fmla_return_to_work_rate"
+      ]
+    },
+    {
+      "id": "process_ada_accommodation",
+      "title": "Process ADA reasonable accommodation",
+      "actor": {
+        "role": "hr_business_partner"
+      },
+      "situation": "employee or applicant requests accommodation for disability; HRBP must engage in interactive process, request medical documentation, evaluate undue hardship, implement approved accommodation",
+      "motivation": "meet ADA obligations while maintaining operational effectiveness",
+      "outcome": "accommodation determination documented; accommodation implemented or hardship denial with alternatives",
+      "success_criteria": [
+        "interactive process initiated within 5 days of request",
+        "medical documentation requested",
+        "accommodation or denial decision documented",
+        "undue hardship analysis documented if denial"
+      ],
+      "data_capture": [
+        {
+          "id": "employee_name",
+          "kind": "text",
+          "label": "Employee name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "accommodation_requested",
+          "kind": "textarea",
+          "label": "Accommodation requested",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "disability_category",
+          "kind": "text",
+          "label": "Disability category (general)",
+          "required": false,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "hr_director",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "legal_counsel",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 1296000
+      },
+      "notifications": [
+        {
+          "trigger": "process_initiated",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "determination_made",
+          "channel": "email",
+          "audience": "employee"
+        }
+      ],
+      "metrics": [
+        "ada_interactive_process_timeliness",
+        "accommodation_approval_rate"
+      ]
+    },
+    {
+      "id": "manage_compensation_review",
+      "title": "Manage annual compensation review cycle",
+      "actor": {
+        "role": "compensation_analyst"
+      },
+      "situation": "annual merit cycle requires building pay-range modeling, calibrating with managers, processing merit increases within budget, generating letters, and updating HRIS before effective date",
+      "motivation": "retain talent through competitive pay decisions while staying within compensation budget",
+      "outcome": "merit increases approved; letters generated; HRIS updated; payroll effective",
+      "success_criteria": [
+        "merit budget allocated to managers",
+        "calibration sessions completed",
+        "all increases within approved range",
+        "letters generated and distributed",
+        "HRIS updated before payroll cutoff"
+      ],
+      "data_capture": [
+        {
+          "id": "review_cycle",
+          "kind": "text",
+          "label": "Review cycle (e.g. 2026 Annual)",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "total_budget",
+          "kind": "money",
+          "label": "Total merit budget",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "employee_count",
+          "kind": "text",
+          "label": "Number of employees in cycle",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "cfo",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "chro",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 5184000
+      },
+      "notifications": [
+        {
+          "trigger": "letters_generated",
+          "channel": "email",
+          "audience": "managers"
+        },
+        {
+          "trigger": "hris_updated",
+          "channel": "email",
+          "audience": "payroll"
+        }
+      ],
+      "metrics": [
+        "merit_cycle_completion_rate",
+        "merit_budget_utilization"
+      ]
+    },
+    {
+      "id": "investigate_employee_complaint",
+      "title": "Investigate employee complaint",
+      "actor": {
+        "role": "hr_business_partner"
+      },
+      "situation": "employee files complaint about manager conduct or policy violation; HRBP must intake complaint, interview parties, determine credibility, and recommend action",
+      "motivation": "address employee concerns fairly and consistently to reduce legal risk and preserve workplace trust",
+      "outcome": "investigation complete; credibility assessment documented; corrective action recommended; employee notified",
+      "success_criteria": [
+        "complaint acknowledged within 2 business days",
+        "all parties interviewed within 10 days",
+        "credibility assessment documented",
+        "outcome communicated to complainant"
+      ],
+      "data_capture": [
+        {
+          "id": "complainant_name",
+          "kind": "text",
+          "label": "Complainant name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "respondent_name",
+          "kind": "text",
+          "label": "Respondent name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "complaint_description",
+          "kind": "textarea",
+          "label": "Complaint description",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "hr_director",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "legal_counsel",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 864000
+      },
+      "notifications": [
+        {
+          "trigger": "complaint_received",
+          "channel": "email",
+          "audience": "hr_director"
+        },
+        {
+          "trigger": "outcome_communicated",
+          "channel": "email",
+          "audience": "complainant"
+        }
+      ],
+      "metrics": [
+        "complaint_investigation_cycle_days",
+        "complainant_satisfaction_rate"
+      ]
+    },
+    {
+      "id": "manage_cobra_administration",
+      "title": "Administer COBRA continuation coverage",
+      "actor": {
+        "role": "benefits_administrator"
+      },
+      "situation": "qualifying event triggers COBRA obligation; administrator must provide election notice within 44 days, track election and premium payments, notify carrier, and handle premium subsidy if applicable",
+      "motivation": "fulfill COBRA notice obligations and avoid DOL excise tax penalties",
+      "outcome": "election notice sent within 44 days; carrier notified; premium payments tracked",
+      "success_criteria": [
+        "qualifying event notice received from employer",
+        "election notice sent within 44 days of qualifying event",
+        "carrier notified of elections",
+        "premium payments tracked and applied"
+      ],
+      "data_capture": [
+        {
+          "id": "employee_name",
+          "kind": "text",
+          "label": "Employee name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "qualifying_event",
+          "kind": "text",
+          "label": "Qualifying event type",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "qualifying_event_date",
+          "kind": "date",
+          "label": "Qualifying event date",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "benefits_manager",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 3801600
+      },
+      "notifications": [
+        {
+          "trigger": "notice_sent",
+          "channel": "mail",
+          "audience": "qualified_beneficiary"
+        },
+        {
+          "trigger": "election_received",
+          "channel": "email",
+          "audience": "benefits_administrator"
+        }
+      ],
+      "metrics": [
+        "cobra_notice_timeliness_rate",
+        "cobra_election_rate"
+      ]
+    },
+    {
+      "id": "process_separation_agreement",
+      "title": "Process separation agreement and release",
+      "actor": {
+        "role": "hr_counsel"
+      },
+      "situation": "involuntary separation requires separation agreement with ADEA/OWBPA-compliant release; HR counsel drafts agreement, provides 21/45-day consideration period, tracks 7-day revocation window, and ensures consideration is adequate",
+      "motivation": "obtain valid release of claims while complying with ADEA/OWBPA requirements",
+      "outcome": "agreement executed after revocation period; severance paid per terms; EEO reporting updated",
+      "success_criteria": [
+        "ADEA/OWBPA disclosures included",
+        "21-day (or 45-day for group) consideration period provided",
+        "7-day revocation window honored",
+        "severance paid after revocation period"
+      ],
+      "data_capture": [
+        {
+          "id": "employee_name",
+          "kind": "text",
+          "label": "Employee name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "separation_date",
+          "kind": "date",
+          "label": "Separation date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "severance_amount",
+          "kind": "money",
+          "label": "Severance amount",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "adea_group_layoff",
+          "kind": "text",
+          "label": "Part of group layoff (yes/no)",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "hr_director",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "legal_counsel",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 1296000
+      },
+      "notifications": [
+        {
+          "trigger": "agreement_executed",
+          "channel": "email",
+          "audience": "payroll"
+        },
+        {
+          "trigger": "revocation_period_expired",
+          "channel": "email",
+          "audience": "hr_director"
+        }
+      ],
+      "metrics": [
+        "separation_agreement_execution_rate",
+        "revocation_period_compliance_rate"
+      ]
+    },
+    {
+      "id": "manage_visa_sponsorship",
+      "title": "Manage employment visa sponsorship",
+      "actor": {
+        "role": "immigration_coordinator"
+      },
+      "situation": "sponsored employee needs H-1B, L-1, or PERM labor certification; coordinator manages attorney engagement, LCA filing, USCIS petition, and status tracking; cap-subject H-1B requires lottery registration",
+      "motivation": "retain international talent and maintain work authorization without gaps",
+      "outcome": "petition approved; I-94 extended; PERM filed or approved; employee notified of status",
+      "success_criteria": [
+        "LCA filed and certified before petition",
+        "USCIS petition filed with correct supporting docs",
+        "status tracked through adjudication",
+        "employee notified of approval before I-94 expiry"
+      ],
+      "data_capture": [
+        {
+          "id": "employee_name",
+          "kind": "text",
+          "label": "Employee name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "visa_category",
+          "kind": "text",
+          "label": "Visa category (H-1B/L-1/PERM)",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "i94_expiry",
+          "kind": "date",
+          "label": "Current I-94 expiry date",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "hr_director",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "legal_counsel",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 7776000
+      },
+      "notifications": [
+        {
+          "trigger": "petition_filed",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "approved",
+          "channel": "email",
+          "audience": "employee"
+        }
+      ],
+      "metrics": [
+        "visa_approval_rate",
+        "i94_gap_rate"
+      ]
+    },
+    {
+      "id": "manage_benefits_open_enrollment",
+      "title": "Manage annual benefits open enrollment",
+      "actor": {
+        "role": "benefits_manager"
+      },
+      "situation": "annual enrollment window requires carrier negotiation, rate finalization, employee communication campaign, enrollment system configuration, and election file submission to carriers before coverage effective date",
+      "motivation": "close enrollment on time with complete election data to avoid coverage gaps",
+      "outcome": "enrollment closed; elections submitted to all carriers; confirmations issued; HRIS updated",
+      "success_criteria": [
+        "carrier rates finalized 60 days before enrollment",
+        "enrollment system configured and tested",
+        "all employee elections received",
+        "election files submitted to carriers before effective date"
+      ],
+      "data_capture": [
+        {
+          "id": "enrollment_year",
+          "kind": "text",
+          "label": "Plan year",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "enrollment_window_start",
+          "kind": "date",
+          "label": "Enrollment window start",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "enrollment_window_end",
+          "kind": "date",
+          "label": "Enrollment window end",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "chro",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "cfo",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 7776000
+      },
+      "notifications": [
+        {
+          "trigger": "enrollment_open",
+          "channel": "email",
+          "audience": "all_employees"
+        },
+        {
+          "trigger": "enrollment_closing",
+          "channel": "email",
+          "audience": "non_enrolled_employees"
+        }
+      ],
+      "metrics": [
+        "enrollment_completion_rate",
+        "carrier_file_timeliness"
+      ]
+    },
+    {
+      "id": "manage_union_grievance",
+      "title": "Manage union grievance",
+      "actor": {
+        "role": "labor_relations_manager"
+      },
+      "situation": "union files formal grievance alleging contract violation; LR manager must respond at Step 1 within contractual timeline, escalate to Step 2/3 if unresolved, and prepare for arbitration if not settled",
+      "motivation": "resolve grievances at lowest step to avoid costly arbitration and preserve labor relations",
+      "outcome": "grievance resolved at step or arbitration scheduled; timeline compliance documented",
+      "success_criteria": [
+        "Step 1 response within contractual deadline",
+        "all step responses documented",
+        "arbitration demand responded to within CBA deadline",
+        "grievance file maintained for contract term"
+      ],
+      "data_capture": [
+        {
+          "id": "grievance_number",
+          "kind": "text",
+          "label": "Grievance number",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "grievant_name",
+          "kind": "text",
+          "label": "Grievant name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "cba_article_cited",
+          "kind": "text",
+          "label": "CBA article(s) cited",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "step_filed",
+          "kind": "text",
+          "label": "Step filed at",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "labor_relations_director",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "legal_counsel",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 432000
+      },
+      "notifications": [
+        {
+          "trigger": "grievance_received",
+          "channel": "email",
+          "audience": "labor_relations_manager"
+        },
+        {
+          "trigger": "step_response_due",
+          "channel": "email",
+          "audience": "labor_relations_manager"
+        }
+      ],
+      "metrics": [
+        "grievance_step1_resolution_rate",
+        "arbitration_rate"
+      ]
+    },
+    {
+      "id": "process_reduction_in_force_warn",
+      "title": "Issue WARN Act notice for mass layoff",
+      "actor": {
+        "role": "hr_legal"
+      },
+      "situation": "planned RIF of 50+ employees at a single site triggers WARN Act 60-day advance notice obligation to employees, union, and state rapid response coordinator; WARN must be analyzed for exceptions",
+      "motivation": "comply with WARN or document applicable exception to avoid 60-day back-pay liability",
+      "outcome": "WARN notices issued or exception documented; state rapid response notified; RIF executed",
+      "success_criteria": [
+        "WARN applicability determined before announcing RIF",
+        "notices delivered 60 days before layoff effective date (or exception documented)",
+        "state rapid response unit notified",
+        "notice copies retained"
+      ],
+      "data_capture": [
+        {
+          "id": "layoff_effective_date",
+          "kind": "date",
+          "label": "Layoff effective date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "affected_employee_count",
+          "kind": "text",
+          "label": "Number of affected employees",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "site_address",
+          "kind": "text",
+          "label": "Site address",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "warn_exception",
+          "kind": "text",
+          "label": "WARN exception claimed (if any)",
+          "required": false,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "legal_counsel",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "chro",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 5184000
+      },
+      "notifications": [
+        {
+          "trigger": "notices_issued",
+          "channel": "mail",
+          "audience": "affected_employees"
+        },
+        {
+          "trigger": "state_notified",
+          "channel": "email",
+          "audience": "state_rapid_response"
+        }
+      ],
+      "metrics": [
+        "warn_notice_timeliness_rate",
+        "warn_exception_documentation_rate"
+      ]
+    },
+    {
+      "id": "manage_eeo1_reporting",
+      "title": "Manage EEO-1 and AAP reporting",
+      "actor": {
+        "role": "hr_compliance_analyst"
+      },
+      "situation": "annual EEO-1 Component 1 filing requires aggregating headcount by race/ethnicity/gender/job category from HRIS and submitting to EEOC portal; federal contractor AAP requires annual written affirmative action program",
+      "motivation": "meet EEOC and OFCCP filing deadlines to avoid compliance findings",
+      "outcome": "EEO-1 submitted by deadline; AAP updated and signed; HRIS data validated",
+      "success_criteria": [
+        "HRIS data validated and corrected",
+        "EEO-1 filing submitted by EEOC deadline",
+        "AAP updated and signed by establishment",
+        "OFCCP audit file current"
+      ],
+      "data_capture": [
+        {
+          "id": "reporting_year",
+          "kind": "text",
+          "label": "Reporting year",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "establishment_count",
+          "kind": "text",
+          "label": "Number of establishments",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "total_employee_count",
+          "kind": "text",
+          "label": "Total employee count",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "chro",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "legal_counsel",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 7776000
+      },
+      "notifications": [
+        {
+          "trigger": "eeo1_submitted",
+          "channel": "email",
+          "audience": "hr_compliance_analyst"
+        },
+        {
+          "trigger": "aap_signed",
+          "channel": "email",
+          "audience": "chro"
+        }
+      ],
+      "metrics": [
+        "eeo1_filing_timeliness",
+        "aap_update_completion_rate"
+      ]
+    },
+    {
+      "id": "conduct_job_evaluation",
+      "title": "Conduct job evaluation and classification",
+      "actor": {
+        "role": "compensation_analyst"
+      },
+      "situation": "new or significantly changed role requires job evaluation to determine FLSA exempt/non-exempt status, grade, and pay range; analyst must collect job content data, apply evaluation methodology, benchmark to market",
+      "motivation": "ensure accurate FLSA classification to avoid wage-and-hour liability and maintain internal pay equity",
+      "outcome": "classification documented; grade and range established; FLSA status assigned with rationale",
+      "success_criteria": [
+        "job content data collected from hiring manager",
+        "evaluation methodology applied consistently",
+        "FLSA status determined with legal review",
+        "grade and range benchmarked to market data"
+      ],
+      "data_capture": [
+        {
+          "id": "job_title",
+          "kind": "text",
+          "label": "Job title",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "department",
+          "kind": "text",
+          "label": "Department",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "flsa_status",
+          "kind": "text",
+          "label": "FLSA status determination",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "grade",
+          "kind": "text",
+          "label": "Job grade assigned",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "compensation_director",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "legal_counsel",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 1296000
+      },
+      "notifications": [
+        {
+          "trigger": "evaluation_complete",
+          "channel": "email",
+          "audience": "hiring_manager"
+        },
+        {
+          "trigger": "flsa_status_assigned",
+          "channel": "email",
+          "audience": "payroll"
+        }
+      ],
+      "metrics": [
+        "job_evaluation_cycle_days",
+        "flsa_misclassification_rate"
+      ]
+    },
+    {
+      "id": "process_payroll_change_validation",
+      "title": "Validate and process payroll change request",
+      "actor": {
+        "role": "payroll_specialist"
+      },
+      "situation": "manager submits payroll change (salary adjustment, retroactive pay, deduction change); specialist must validate authorization, calculate impact, apply to payroll system before cutoff, and confirm employee receives correct pay",
+      "motivation": "ensure pay changes are authorized, accurate, and processed in the correct pay period",
+      "outcome": "change applied to payroll; employee receives correct pay; HRIS updated",
+      "success_criteria": [
+        "authorization verified before processing",
+        "retroactive calculation correct",
+        "change applied before payroll cutoff",
+        "confirmation sent to employee and manager"
+      ],
+      "data_capture": [
+        {
+          "id": "employee_name",
+          "kind": "text",
+          "label": "Employee name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "change_type",
+          "kind": "text",
+          "label": "Change type",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "effective_date",
+          "kind": "date",
+          "label": "Effective date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "new_amount",
+          "kind": "money",
+          "label": "New salary/rate amount",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "payroll_manager",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "hr_director",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 172800
+      },
+      "notifications": [
+        {
+          "trigger": "processed",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "processed",
+          "channel": "email",
+          "audience": "manager"
+        }
+      ],
+      "metrics": [
+        "payroll_change_accuracy_rate",
+        "payroll_cutoff_compliance_rate"
+      ]
+    },
+    {
+      "id": "manage_executive_compensation",
+      "title": "Manage executive compensation program",
+      "actor": {
+        "role": "head_of_total_rewards"
+      },
+      "situation": "annual board compensation committee cycle requires benchmarking CEO and NEO pay, designing annual and long-term incentive programs, preparing proxy disclosure, and obtaining committee approval before grants",
+      "motivation": "attract and retain executive talent within ISS/Glass Lewis pay-for-performance standards",
+      "outcome": "incentive plans approved by committee; grants made; CD&A filed with proxy",
+      "success_criteria": [
+        "NEO pay benchmarked to peer group",
+        "AIP and LTI plan designs approved by committee",
+        "grant date and amount documented",
+        "CD&A disclosure drafted for proxy"
+      ],
+      "data_capture": [
+        {
+          "id": "proxy_year",
+          "kind": "text",
+          "label": "Proxy year",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "ceo_total_compensation",
+          "kind": "money",
+          "label": "CEO total compensation",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "peer_group_size",
+          "kind": "text",
+          "label": "Peer group size",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "board_compensation_committee",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "legal_counsel",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 7776000
+      },
+      "notifications": [
+        {
+          "trigger": "grants_approved",
+          "channel": "email",
+          "audience": "ceo"
+        },
+        {
+          "trigger": "cda_filed",
+          "channel": "email",
+          "audience": "board_compensation_committee"
+        }
+      ],
+      "metrics": [
+        "say_on_pay_approval_rate",
+        "lti_grant_timeliness"
+      ]
+    },
+    {
+      "id": "process_workers_comp_claim_hr",
+      "title": "Process workers compensation claim (HR)",
+      "actor": {
+        "role": "hr_safety_specialist"
+      },
+      "situation": "employee reports workplace injury; HR must record on OSHA 300 log, file first report of injury with insurer, coordinate light duty, and manage RTW with restrictions",
+      "motivation": "protect injured employee, meet OSHA recording obligations, and control WC costs through early RTW",
+      "outcome": "OSHA 300 log updated; first report filed; RTW plan in place; WC adjuster briefed",
+      "success_criteria": [
+        "injury reported to insurer within 24 hours",
+        "OSHA 300 log updated if recordable",
+        "light duty offered if available",
+        "RTW plan developed within 5 days"
+      ],
+      "data_capture": [
+        {
+          "id": "employee_name",
+          "kind": "text",
+          "label": "Employee name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "injury_date",
+          "kind": "date",
+          "label": "Date of injury",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "injury_description",
+          "kind": "textarea",
+          "label": "Injury description",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "recordable",
+          "kind": "text",
+          "label": "OSHA recordable (yes/no)",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "hr_director",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 86400
+      },
+      "notifications": [
+        {
+          "trigger": "reported_to_insurer",
+          "channel": "email",
+          "audience": "hr_safety_specialist"
+        },
+        {
+          "trigger": "rtw_plan_ready",
+          "channel": "email",
+          "audience": "manager"
+        }
+      ],
+      "metrics": [
+        "osha_recording_accuracy_rate",
+        "rtw_offer_rate"
+      ]
+    },
+    {
+      "id": "manage_talent_succession_planning",
+      "title": "Manage succession planning",
+      "actor": {
+        "role": "talent_management_director"
+      },
+      "situation": "annual succession review requires identifying high-potential employees, assessing readiness for key roles, creating individual development plans, and presenting slate to executive team and board for critical positions",
+      "motivation": "reduce key-person risk and ensure leadership pipeline for critical roles",
+      "outcome": "succession slates presented to board; IDPs created; HRIS updated with readiness ratings",
+      "success_criteria": [
+        "all critical roles have at least one ready-now successor identified",
+        "IDPs created for all high-potentials",
+        "succession slates presented to board",
+        "readiness ratings updated in HRIS"
+      ],
+      "data_capture": [
+        {
+          "id": "review_cycle",
+          "kind": "text",
+          "label": "Review cycle",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "critical_role_count",
+          "kind": "text",
+          "label": "Number of critical roles reviewed",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "ready_now_coverage_rate",
+          "kind": "text",
+          "label": "Ready-now coverage rate (%)",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "chro",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "board",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 7776000
+      },
+      "notifications": [
+        {
+          "trigger": "slates_presented",
+          "channel": "email",
+          "audience": "board"
+        },
+        {
+          "trigger": "idps_created",
+          "channel": "email",
+          "audience": "high_potentials"
+        }
+      ],
+      "metrics": [
+        "succession_coverage_rate",
+        "internal_promotion_rate"
+      ]
+    },
+    {
+      "id": "manage_hr_system_implementation",
+      "title": "Manage HCM system implementation",
+      "actor": {
+        "role": "hris_manager"
+      },
+      "situation": "new HCM platform requires data migration, process redesign, integration build (payroll, benefits, ATS), testing, and change management before go-live",
+      "motivation": "replace legacy system without payroll disruption or data loss during cutover",
+      "outcome": "go-live complete; parallel payroll run validated; integrations confirmed; legacy decommissioned",
+      "success_criteria": [
+        "data migration validated in UAT",
+        "parallel payroll run shows zero variances",
+        "all integrations confirmed in production",
+        "change management training completed before go-live"
+      ],
+      "data_capture": [
+        {
+          "id": "system_name",
+          "kind": "text",
+          "label": "HCM system name",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "go_live_date",
+          "kind": "date",
+          "label": "Target go-live date",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "employee_count",
+          "kind": "text",
+          "label": "Total employee count migrating",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "chro",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "cfo",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "cio",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 15552000
+      },
+      "notifications": [
+        {
+          "trigger": "golive_approved",
+          "channel": "email",
+          "audience": "all_hr_staff"
+        },
+        {
+          "trigger": "parallel_run_complete",
+          "channel": "email",
+          "audience": "payroll"
+        }
+      ],
+      "metrics": [
+        "go_live_date_adherence",
+        "payroll_parallel_run_variance_rate"
+      ]
+    },
+    {
+      "id": "manage_performance_improvement_plan",
+      "title": "Manage performance improvement plan",
+      "actor": {
+        "role": "hr_business_partner"
+      },
+      "situation": "employee is placed on PIP for below-standard performance; HRBP must draft measurable goals, set review cadence, document manager observations, and determine outcome at end of PIP period",
+      "motivation": "give employee a genuine opportunity to improve while creating documented basis for separation if performance does not improve",
+      "outcome": "PIP completed; employee improved or separated with documentation; legal review signed off",
+      "success_criteria": [
+        "PIP goals are SMART and documented",
+        "manager check-ins documented on schedule",
+        "outcome (pass/extended/separation) documented",
+        "legal review completed before separation"
+      ],
+      "data_capture": [
+        {
+          "id": "employee_name",
+          "kind": "text",
+          "label": "Employee name",
+          "required": true,
+          "pii": true
+        },
+        {
+          "id": "performance_gap",
+          "kind": "textarea",
+          "label": "Performance gap description",
+          "required": true,
+          "pii": false
+        },
+        {
+          "id": "pip_duration_weeks",
+          "kind": "text",
+          "label": "PIP duration (weeks)",
+          "required": true,
+          "pii": false
+        }
+      ],
+      "approvals": [
+        {
+          "role": "hr_director",
+          "policy": "1_of_1"
+        },
+        {
+          "role": "legal_counsel",
+          "policy": "1_of_1"
+        }
+      ],
+      "sla": {
+        "warn_pct": 75,
+        "breach_seconds": 5184000
+      },
+      "notifications": [
+        {
+          "trigger": "pip_issued",
+          "channel": "email",
+          "audience": "employee"
+        },
+        {
+          "trigger": "outcome_determined",
+          "channel": "email",
+          "audience": "hr_director"
+        }
+      ],
+      "metrics": [
+        "pip_improvement_rate",
+        "pip_separation_rate"
+      ]
     }
   ]
 }
