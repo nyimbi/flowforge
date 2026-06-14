@@ -1,0 +1,317 @@
+{
+  "project": {
+    "name": "municipal-example",
+    "package": "municipal_example",
+    "domain": "municipal",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD"]
+  },
+  "shared": {
+    "roles": [
+      "resident",
+      "permit_clerk",
+      "plan_reviewer",
+      "building_inspector",
+      "code_enforcement_officer",
+      "zoning_officer",
+      "parks_manager",
+      "public_works_supervisor",
+      "city_attorney",
+      "department_director",
+      "city_manager"
+    ],
+    "permissions": [
+      "muni.permit.submit",
+      "muni.permit.review",
+      "muni.permit.approve",
+      "muni.inspection.schedule",
+      "muni.inspection.record",
+      "muni.code.investigate",
+      "muni.zoning.review",
+      "muni.license.issue",
+      "muni.publicworks.order",
+      "muni.records.request"
+    ]
+  },
+  "jtbds": [
+    {
+      "id": "process_building_permit",
+      "title": "Process building permit application",
+      "actor": {"role": "permit_clerk"},
+      "situation": "resident or contractor submits building permit application for construction, renovation, or addition; clerk must review completeness, route to plan reviewer, schedule inspections, and issue permit once approved",
+      "motivation": "ensure construction meets code while issuing permit within statutory timeframe",
+      "outcome": "permit issued with conditions; inspection schedule established; fees collected",
+      "success_criteria": [
+        "completeness review within 5 business days",
+        "plan review completed within statutory timeframe (varies by jurisdiction: 30-60 days)",
+        "permit issued within 3 days of approval",
+        "all fees collected before issuance"
+      ],
+      "data_capture": [
+        {"id": "parcel_number", "kind": "text", "label": "Parcel/APN number", "required": true, "pii": false},
+        {"id": "applicant_name", "kind": "text", "label": "Applicant full name", "required": true, "pii": true},
+        {"id": "project_description", "kind": "textarea", "label": "Project description", "required": true, "pii": false},
+        {"id": "valuation", "kind": "money", "label": "Project valuation", "required": true, "pii": false},
+        {"id": "contractor_license", "kind": "text", "label": "Contractor license number", "required": false, "pii": false}
+      ],
+      "approvals": [{"role": "plan_reviewer", "policy": "1_of_1"}, {"role": "building_inspector", "policy": "1_of_1"}],
+      "sla": {"warn_pct": 75, "breach_seconds": 2592000},
+      "notifications": [
+        {"trigger": "state_enter", "channel": "email", "audience": "applicant"},
+        {"trigger": "approved", "channel": "email", "audience": "applicant"}
+      ],
+      "metrics": ["permit_issuance_rate", "avg_review_cycle_days"]
+    },
+    {
+      "id": "handle_code_violation",
+      "title": "Investigate and resolve municipal code violation",
+      "actor": {"role": "code_enforcement_officer"},
+      "situation": "resident complaint or officer observation identifies potential code violation (blight, unpermitted work, zoning violation, noise); officer must investigate, notify property owner, allow cure period, and escalate to citation or abatement if unresolved",
+      "motivation": "bring property into code compliance while preserving due process rights of property owner",
+      "outcome": "violation resolved through voluntary compliance or formal enforcement action; file closed",
+      "success_criteria": [
+        "notice of violation sent within 5 days of inspection",
+        "cure period provided per ordinance (typically 30 days)",
+        "citation issued if not cured within period",
+        "abatement costs recovered if city-performed"
+      ],
+      "data_capture": [
+        {"id": "property_address", "kind": "text", "label": "Property address", "required": true, "pii": false},
+        {"id": "violation_type", "kind": "text", "label": "Violation type/code section", "required": true, "pii": false},
+        {"id": "complainant_name", "kind": "text", "label": "Complainant name (confidential)", "required": false, "pii": true},
+        {"id": "inspection_notes", "kind": "textarea", "label": "Inspection notes", "required": true, "pii": false}
+      ],
+      "approvals": [{"role": "department_director", "policy": "1_of_1"}],
+      "sla": {"warn_pct": 75, "breach_seconds": 2592000},
+      "notifications": [
+        {"trigger": "violation_issued", "channel": "mail", "audience": "property_owner"},
+        {"trigger": "citation_issued", "channel": "mail", "audience": "property_owner"}
+      ],
+      "metrics": ["voluntary_compliance_rate", "avg_days_to_resolution"]
+    },
+    {
+      "id": "process_business_license",
+      "title": "Issue or renew business license",
+      "actor": {"role": "permit_clerk"},
+      "situation": "new or existing business applies for municipal business license; clerk must verify business information, check zoning compliance, collect fees, and issue license; renewal requires updated information and fee payment",
+      "motivation": "register businesses operating in city limits, collect revenue, and ensure zoning compliance",
+      "outcome": "business license issued or renewed; fee collected; city business registry updated",
+      "success_criteria": [
+        "license issued within 10 business days of complete application",
+        "zoning compliance verified before issuance",
+        "fees collected per city fee schedule",
+        "certificate of occupancy verified for commercial locations"
+      ],
+      "data_capture": [
+        {"id": "business_name", "kind": "text", "label": "Business name", "required": true, "pii": false},
+        {"id": "owner_name", "kind": "text", "label": "Owner/responsible party name", "required": true, "pii": true},
+        {"id": "business_address", "kind": "text", "label": "Business address", "required": true, "pii": false},
+        {"id": "naics_code", "kind": "text", "label": "Business type (NAICS code)", "required": false, "pii": false},
+        {"id": "employees", "kind": "text", "label": "Number of employees", "required": true, "pii": false}
+      ],
+      "approvals": [{"role": "zoning_officer", "policy": "1_of_1"}],
+      "sla": {"warn_pct": 75, "breach_seconds": 864000},
+      "notifications": [
+        {"trigger": "approved", "channel": "email", "audience": "applicant"},
+        {"trigger": "renewal_due", "channel": "email", "audience": "licensee"}
+      ],
+      "metrics": ["license_issuance_rate", "avg_processing_days"]
+    },
+    {
+      "id": "manage_public_works_service_order",
+      "title": "Manage public works service order",
+      "actor": {"role": "public_works_supervisor"},
+      "situation": "resident reports infrastructure issue (pothole, broken streetlight, water main break, storm drain blockage); dispatcher creates service order, assigns crew, tracks completion, and closes with documentation",
+      "motivation": "restore public infrastructure to safe operating condition within response time targets",
+      "outcome": "service order completed; repair documented; resident notified; asset management system updated",
+      "success_criteria": [
+        "emergency issues (water main break, safety hazard) dispatched within 1 hour",
+        "standard issues dispatched within 3 business days",
+        "completion documented with before/after photos",
+        "asset management system updated"
+      ],
+      "data_capture": [
+        {"id": "location", "kind": "text", "label": "Location/address", "required": true, "pii": false},
+        {"id": "issue_type", "kind": "text", "label": "Issue type", "required": true, "pii": false},
+        {"id": "priority", "kind": "text", "label": "Priority (emergency/standard/routine)", "required": true, "pii": false},
+        {"id": "reporter_contact", "kind": "text", "label": "Reporter contact", "required": false, "pii": true}
+      ],
+      "approvals": [{"role": "public_works_supervisor", "policy": "1_of_1"}],
+      "sla": {"warn_pct": 75, "breach_seconds": 259200},
+      "notifications": [
+        {"trigger": "assigned", "channel": "sms", "audience": "crew"},
+        {"trigger": "completed", "channel": "email", "audience": "reporter"}
+      ],
+      "metrics": ["service_order_completion_rate", "avg_response_time_hours"]
+    },
+    {
+      "id": "process_encroachment_permit",
+      "title": "Process encroachment permit",
+      "actor": {"role": "permit_clerk"},
+      "situation": "contractor or utility company needs permit to work within city right-of-way (excavation, lane closure, utility installation); permit requires traffic control plan review, bond, and inspection schedule",
+      "motivation": "allow necessary work in ROW while protecting public safety and minimizing traffic disruption",
+      "outcome": "encroachment permit issued; traffic control plan approved; bond on file; inspections scheduled",
+      "success_criteria": [
+        "traffic control plan reviewed within 5 days",
+        "permit issued before work begins",
+        "bond or insurance certificate on file",
+        "final inspection completed at project close"
+      ],
+      "data_capture": [
+        {"id": "location_description", "kind": "textarea", "label": "Work location description", "required": true, "pii": false},
+        {"id": "work_dates", "kind": "text", "label": "Proposed work dates", "required": true, "pii": false},
+        {"id": "contractor_name", "kind": "text", "label": "Contractor name", "required": true, "pii": false},
+        {"id": "bond_amount", "kind": "money", "label": "Bond amount", "required": true, "pii": false}
+      ],
+      "approvals": [{"role": "public_works_supervisor", "policy": "1_of_1"}],
+      "sla": {"warn_pct": 75, "breach_seconds": 432000},
+      "notifications": [
+        {"trigger": "approved", "channel": "email", "audience": "applicant"},
+        {"trigger": "final_inspection_due", "channel": "email", "audience": "contractor"}
+      ],
+      "metrics": ["encroachment_permit_cycle_days", "traffic_control_plan_approval_rate"]
+    },
+    {
+      "id": "manage_zoning_variance",
+      "title": "Process zoning variance or conditional use permit",
+      "actor": {"role": "zoning_officer"},
+      "situation": "property owner seeks relief from zoning standards (setback, height, use) via variance or conditional use permit; officer must review application, issue CEQA/SEPA notice, schedule public hearing, prepare staff report, and implement board decision",
+      "motivation": "provide due process for property rights relief while protecting neighboring properties and general plan consistency",
+      "outcome": "variance granted with conditions or denied with findings; decision recorded; GIS updated",
+      "success_criteria": [
+        "public notice published 10+ days before hearing",
+        "staff report completed before hearing",
+        "written decision issued within 10 days of hearing",
+        "conditions of approval recorded against title"
+      ],
+      "data_capture": [
+        {"id": "parcel_number", "kind": "text", "label": "APN", "required": true, "pii": false},
+        {"id": "variance_type", "kind": "text", "label": "Type of relief requested", "required": true, "pii": false},
+        {"id": "project_description", "kind": "textarea", "label": "Project description", "required": true, "pii": false},
+        {"id": "findings_justification", "kind": "textarea", "label": "Required findings justification", "required": true, "pii": false}
+      ],
+      "approvals": [{"role": "zoning_officer", "policy": "1_of_1"}, {"role": "department_director", "policy": "1_of_1"}],
+      "sla": {"warn_pct": 75, "breach_seconds": 5184000},
+      "notifications": [
+        {"trigger": "hearing_scheduled", "channel": "mail", "audience": "applicant"},
+        {"trigger": "decision_issued", "channel": "mail", "audience": "applicant"}
+      ],
+      "metrics": ["variance_approval_rate", "avg_variance_processing_days"]
+    },
+    {
+      "id": "process_parks_facility_reservation",
+      "title": "Process parks facility reservation",
+      "actor": {"role": "parks_manager"},
+      "situation": "community group or individual requests reservation of park pavilion, sports field, or facility for event; manager must check availability, collect deposit, issue permit, and coordinate setup/cleanup",
+      "motivation": "ensure equitable community access to parks facilities while recovering costs through permit fees",
+      "outcome": "reservation confirmed; deposit collected; facility permit issued; calendar updated",
+      "success_criteria": [
+        "availability confirmed and reservation made within 3 business days",
+        "deposit collected before event",
+        "permit conditions communicated to applicant",
+        "post-event facility inspection completed"
+      ],
+      "data_capture": [
+        {"id": "facility_name", "kind": "text", "label": "Facility requested", "required": true, "pii": false},
+        {"id": "event_date", "kind": "date", "label": "Event date", "required": true, "pii": false},
+        {"id": "event_type", "kind": "text", "label": "Event type", "required": true, "pii": false},
+        {"id": "expected_attendance", "kind": "text", "label": "Expected attendance", "required": true, "pii": false},
+        {"id": "contact_name", "kind": "text", "label": "Contact name", "required": true, "pii": true}
+      ],
+      "approvals": [{"role": "parks_manager", "policy": "1_of_1"}],
+      "sla": {"warn_pct": 75, "breach_seconds": 259200},
+      "notifications": [
+        {"trigger": "confirmed", "channel": "email", "audience": "applicant"},
+        {"trigger": "event_reminder", "channel": "email", "audience": "applicant"}
+      ],
+      "metrics": ["facility_utilization_rate", "reservation_processing_days"]
+    },
+    {
+      "id": "manage_city_contract",
+      "title": "Manage city procurement and contract award",
+      "actor": {"role": "department_director"},
+      "situation": "department needs goods or services above informal bid threshold; must follow competitive bid process, evaluate proposals, present to city council for award, execute contract, and manage vendor performance",
+      "motivation": "procure services competitively and transparently in compliance with public contracting requirements",
+      "outcome": "contract awarded to best-value vendor; council approval obtained; contract executed",
+      "success_criteria": [
+        "solicitation published per public contracting code",
+        "evaluation criteria applied consistently",
+        "council award resolution adopted",
+        "contract executed before work begins",
+        "prevailing wage posting if public works"
+      ],
+      "data_capture": [
+        {"id": "project_name", "kind": "text", "label": "Project/service name", "required": true, "pii": false},
+        {"id": "estimated_value", "kind": "money", "label": "Estimated contract value", "required": true, "pii": false},
+        {"id": "department", "kind": "text", "label": "Requesting department", "required": true, "pii": false},
+        {"id": "bid_type", "kind": "text", "label": "Bid type (RFP/RFQ/IFB)", "required": true, "pii": false}
+      ],
+      "approvals": [{"role": "city_attorney", "policy": "1_of_1"}, {"role": "city_manager", "policy": "1_of_1"}],
+      "sla": {"warn_pct": 75, "breach_seconds": 7776000},
+      "notifications": [
+        {"trigger": "solicitation_published", "channel": "email", "audience": "procurement_list"},
+        {"trigger": "award_approved", "channel": "email", "audience": "vendor"}
+      ],
+      "metrics": ["competitive_bid_rate", "avg_procurement_cycle_days"]
+    },
+    {
+      "id": "process_special_event_permit",
+      "title": "Issue special event permit",
+      "actor": {"role": "permit_clerk"},
+      "situation": "event organizer applies for permit to hold public event (parade, festival, race) on city streets or in parks; permit requires coordination with police, fire, public works, and may require traffic control plan and EMS standby",
+      "motivation": "facilitate community events safely while managing city liability and resource deployment",
+      "outcome": "special event permit issued; interdepartmental coordination complete; post-event debrief conducted",
+      "success_criteria": [
+        "application received 30+ days before event",
+        "all department sign-offs obtained before permit",
+        "insurance certificate on file",
+        "post-event debrief report filed"
+      ],
+      "data_capture": [
+        {"id": "event_name", "kind": "text", "label": "Event name", "required": true, "pii": false},
+        {"id": "event_date", "kind": "date", "label": "Event date", "required": true, "pii": false},
+        {"id": "expected_attendance", "kind": "text", "label": "Expected attendance", "required": true, "pii": false},
+        {"id": "organizer_name", "kind": "text", "label": "Organizer name", "required": true, "pii": true},
+        {"id": "route_or_venue", "kind": "textarea", "label": "Route or venue description", "required": true, "pii": false}
+      ],
+      "approvals": [
+        {"role": "permit_clerk", "policy": "1_of_1"},
+        {"role": "department_director", "policy": "1_of_1"}
+      ],
+      "sla": {"warn_pct": 75, "breach_seconds": 2592000},
+      "notifications": [
+        {"trigger": "application_received", "channel": "email", "audience": "organizer"},
+        {"trigger": "permit_issued", "channel": "email", "audience": "organizer"}
+      ],
+      "metrics": ["special_event_permit_processing_days", "department_coordination_completion_rate"]
+    },
+    {
+      "id": "manage_public_utility_connection",
+      "title": "Manage utility connection and service order",
+      "actor": {"role": "public_works_supervisor"},
+      "situation": "property owner or developer requests connection to water, sewer, or stormwater utility; supervisor must verify system capacity, calculate connection fees, schedule tie-in inspection, and activate service",
+      "motivation": "connect new customers to utility infrastructure while protecting system capacity and collecting connection fees",
+      "outcome": "utility connection completed; connection fees collected; meter set; service activated",
+      "success_criteria": [
+        "capacity analysis completed before approval",
+        "connection fee calculated and collected",
+        "tie-in inspection conducted before backfill",
+        "meter installed and service activated within 5 business days of inspection"
+      ],
+      "data_capture": [
+        {"id": "parcel_address", "kind": "text", "label": "Property address", "required": true, "pii": false},
+        {"id": "utility_type", "kind": "text", "label": "Utility type (water/sewer/storm)", "required": true, "pii": false},
+        {"id": "meter_size", "kind": "text", "label": "Meter size requested", "required": true, "pii": false},
+        {"id": "connection_fee_paid", "kind": "money", "label": "Connection fee paid", "required": true, "pii": false}
+      ],
+      "approvals": [{"role": "public_works_supervisor", "policy": "1_of_1"}],
+      "sla": {"warn_pct": 75, "breach_seconds": 432000},
+      "notifications": [
+        {"trigger": "approved", "channel": "email", "audience": "applicant"},
+        {"trigger": "service_activated", "channel": "email", "audience": "customer"}
+      ],
+      "metrics": ["utility_connection_cycle_days", "connection_fee_collection_rate"]
+    }
+  ]
+}

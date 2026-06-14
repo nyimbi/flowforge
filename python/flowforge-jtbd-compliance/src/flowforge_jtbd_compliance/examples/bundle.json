@@ -1,0 +1,319 @@
+{
+  "project": {
+    "name": "compliance-example",
+    "package": "compliance_example",
+    "domain": "compliance",
+    "tenancy": "multi",
+    "languages": ["en"],
+    "currencies": ["USD"]
+  },
+  "shared": {
+    "roles": [
+      "compliance_officer",
+      "kyc_analyst",
+      "aml_investigator",
+      "internal_auditor",
+      "external_auditor",
+      "ciso",
+      "dpo",
+      "legal_counsel",
+      "chief_compliance_officer",
+      "board_audit_committee"
+    ],
+    "permissions": [
+      "comp.kyc.verify",
+      "comp.aml.screen",
+      "comp.sar.file",
+      "comp.audit.conduct",
+      "comp.policy.review",
+      "comp.incident.report",
+      "comp.sanction.screen",
+      "comp.training.assign",
+      "comp.risk.assess",
+      "comp.regulatory.report"
+    ]
+  },
+  "jtbds": [
+    {
+      "id": "conduct_kyc_verification",
+      "title": "Conduct KYC customer due diligence",
+      "actor": {"role": "kyc_analyst"},
+      "situation": "new customer onboarding triggers KYC/CDD requirement; analyst must verify identity through primary sources, screen against sanctions and PEP lists, assess risk rating, and document findings before account activation",
+      "motivation": "meet BSA/AML CDD rule obligations and prevent financial crime risk",
+      "outcome": "KYC file completed; risk rating assigned; account activated or declined with documented rationale",
+      "success_criteria": [
+        "identity verified through government-issued ID",
+        "OFAC, PEP, and adverse media screening completed",
+        "risk rating assigned per CDD policy",
+        "EDD initiated for high-risk customers",
+        "beneficial ownership collected for legal entities"
+      ],
+      "data_capture": [
+        {"id": "customer_id", "kind": "text", "label": "Customer ID", "required": true, "pii": false},
+        {"id": "legal_name", "kind": "text", "label": "Legal name", "required": true, "pii": true},
+        {"id": "dob_or_ein", "kind": "text", "label": "DOB or EIN", "required": true, "pii": true},
+        {"id": "id_document_type", "kind": "text", "label": "ID document type", "required": true, "pii": false},
+        {"id": "source_of_funds", "kind": "textarea", "label": "Source of funds", "required": true, "pii": false}
+      ],
+      "approvals": [{"role": "kyc_analyst", "policy": "1_of_1"}, {"role": "compliance_officer", "policy": "1_of_1"}],
+      "sla": {"warn_pct": 75, "breach_seconds": 172800},
+      "notifications": [
+        {"trigger": "edd_required", "channel": "email", "audience": "compliance_officer"},
+        {"trigger": "approved", "channel": "email", "audience": "relationship_manager"}
+      ],
+      "metrics": ["kyc_completion_rate", "avg_kyc_cycle_hours", "edd_escalation_rate"]
+    },
+    {
+      "id": "investigate_aml_alert",
+      "title": "Investigate AML transaction monitoring alert",
+      "actor": {"role": "aml_investigator"},
+      "situation": "transaction monitoring system generates alert on unusual activity; investigator must review transaction history, assess structuring or layering indicators, obtain customer explanation, and determine whether to clear or escalate to SAR",
+      "motivation": "detect and report suspicious activity while minimizing false positives that burden legitimate customers",
+      "outcome": "alert cleared with documented rationale or escalated to SAR filing team",
+      "success_criteria": [
+        "alert reviewed within 5 business days",
+        "all relevant transactions reviewed (lookback period applied)",
+        "customer contact attempted if appropriate",
+        "SAR decision documented with supervisor concurrence"
+      ],
+      "data_capture": [
+        {"id": "alert_id", "kind": "text", "label": "Alert ID", "required": true, "pii": false},
+        {"id": "customer_id", "kind": "text", "label": "Customer ID", "required": true, "pii": false},
+        {"id": "alert_type", "kind": "text", "label": "Alert type/typology", "required": true, "pii": false},
+        {"id": "transaction_volume", "kind": "money", "label": "Transaction volume (alert period)", "required": true, "pii": false},
+        {"id": "investigation_narrative", "kind": "textarea", "label": "Investigation narrative", "required": true, "pii": false}
+      ],
+      "approvals": [{"role": "aml_investigator", "policy": "1_of_1"}, {"role": "compliance_officer", "policy": "1_of_1"}],
+      "sla": {"warn_pct": 75, "breach_seconds": 432000},
+      "notifications": [
+        {"trigger": "sar_escalated", "channel": "email", "audience": "sar_team"},
+        {"trigger": "cleared", "channel": "email", "audience": "alert_queue"}
+      ],
+      "metrics": ["alert_closure_rate", "avg_investigation_days", "sar_escalation_rate"]
+    },
+    {
+      "id": "file_suspicious_activity_report",
+      "title": "File Suspicious Activity Report (SAR)",
+      "actor": {"role": "compliance_officer"},
+      "situation": "AML investigation concludes that activity meets SAR filing threshold; compliance officer must complete FinCEN SAR form, obtain BSA officer approval, file via FinCEN BSA e-filing, and maintain confidentiality of filing from subject",
+      "motivation": "meet statutory SAR filing obligation within 30-day deadline while maintaining confidentiality",
+      "outcome": "SAR filed with FinCEN via BSA e-filing; confirmation number retained; filing log updated",
+      "success_criteria": [
+        "SAR filed within 30 days of detection (60 days with extension)",
+        "BSA officer approval obtained before filing",
+        "filing confirmation number retained",
+        "subject not tipped off to filing",
+        "continuing SAR filed if suspicious activity continues"
+      ],
+      "data_capture": [
+        {"id": "investigation_case_id", "kind": "text", "label": "Investigation case ID", "required": true, "pii": false},
+        {"id": "sar_type", "kind": "text", "label": "SAR type (initial/continuing)", "required": true, "pii": false},
+        {"id": "suspicious_amount", "kind": "money", "label": "Suspicious activity amount", "required": true, "pii": false},
+        {"id": "fincen_confirmation", "kind": "text", "label": "FinCEN confirmation number", "required": false, "pii": false}
+      ],
+      "approvals": [{"role": "chief_compliance_officer", "policy": "1_of_1"}],
+      "sla": {"warn_pct": 75, "breach_seconds": 2592000},
+      "notifications": [
+        {"trigger": "filed", "channel": "email", "audience": "bsa_officer"},
+        {"trigger": "30_day_warning", "channel": "email", "audience": "compliance_officer"}
+      ],
+      "metrics": ["sar_on_time_filing_rate", "sar_filing_volume_monthly"]
+    },
+    {
+      "id": "conduct_internal_audit",
+      "title": "Conduct internal audit engagement",
+      "actor": {"role": "internal_auditor"},
+      "situation": "internal audit plan calls for review of a business process or control area; auditor must develop engagement scope, conduct fieldwork, document findings, issue draft report, obtain management response, and issue final report",
+      "motivation": "provide independent assurance on internal control effectiveness and risk management",
+      "outcome": "final audit report issued; management responses incorporated; findings tracked in audit management system",
+      "success_criteria": [
+        "engagement letter issued before fieldwork begins",
+        "draft report issued within 15 days of fieldwork completion",
+        "management response received within 10 days",
+        "final report issued within 5 days of response",
+        "findings rated by risk level"
+      ],
+      "data_capture": [
+        {"id": "audit_area", "kind": "text", "label": "Audit area/process", "required": true, "pii": false},
+        {"id": "audit_period", "kind": "text", "label": "Audit period", "required": true, "pii": false},
+        {"id": "findings_count", "kind": "text", "label": "Number of findings", "required": false, "pii": false},
+        {"id": "overall_rating", "kind": "text", "label": "Overall audit rating", "required": true, "pii": false}
+      ],
+      "approvals": [{"role": "chief_compliance_officer", "policy": "1_of_1"}, {"role": "board_audit_committee", "policy": "1_of_1"}],
+      "sla": {"warn_pct": 75, "breach_seconds": 7776000},
+      "notifications": [
+        {"trigger": "draft_issued", "channel": "email", "audience": "auditee"},
+        {"trigger": "final_issued", "channel": "email", "audience": "board_audit_committee"}
+      ],
+      "metrics": ["audit_cycle_days", "finding_closure_rate", "management_response_timeliness"]
+    },
+    {
+      "id": "manage_policy_review_cycle",
+      "title": "Manage compliance policy review and attestation",
+      "actor": {"role": "compliance_officer"},
+      "situation": "annual policy review cycle requires compliance officer to review and update all compliance policies, route for legal and executive approval, publish to policy management system, and collect employee attestations",
+      "motivation": "ensure compliance policies remain current with regulatory changes and that all employees have read and attested",
+      "outcome": "all policies updated, approved, published, and attested by required employees before deadline",
+      "success_criteria": [
+        "all policies reviewed before annual deadline",
+        "legal counsel sign-off obtained for material changes",
+        "employee attestation rate ≥ 95% within 30 days of publication",
+        "non-attestors escalated to manager"
+      ],
+      "data_capture": [
+        {"id": "policy_name", "kind": "text", "label": "Policy name", "required": true, "pii": false},
+        {"id": "policy_version", "kind": "text", "label": "Policy version", "required": true, "pii": false},
+        {"id": "effective_date", "kind": "date", "label": "Effective date", "required": true, "pii": false},
+        {"id": "change_summary", "kind": "textarea", "label": "Summary of material changes", "required": true, "pii": false}
+      ],
+      "approvals": [{"role": "legal_counsel", "policy": "1_of_1"}, {"role": "chief_compliance_officer", "policy": "1_of_1"}],
+      "sla": {"warn_pct": 75, "breach_seconds": 2592000},
+      "notifications": [
+        {"trigger": "published", "channel": "email", "audience": "all_employees"},
+        {"trigger": "attestation_overdue", "channel": "email", "audience": "manager"}
+      ],
+      "metrics": ["policy_attestation_rate", "avg_review_cycle_days"]
+    },
+    {
+      "id": "manage_sanctions_screening",
+      "title": "Manage OFAC/sanctions screening and match review",
+      "actor": {"role": "compliance_officer"},
+      "situation": "sanctions screening system generates potential match on customer, counterparty, or transaction; compliance officer must review match, apply OFAC guidance, determine true hit vs. false positive, block or release transaction, and report true hits",
+      "motivation": "comply with OFAC SDN list and sanctions programs while minimizing false positives that delay legitimate transactions",
+      "outcome": "match reviewed and resolved; true hits reported to OFAC and transaction blocked; false positives cleared",
+      "success_criteria": [
+        "all potential matches reviewed within 24 hours",
+        "true hits reported to OFAC and blocked",
+        "false positive rationale documented",
+        "blocked funds held in segregated account",
+        "OFAC license obtained if applicable"
+      ],
+      "data_capture": [
+        {"id": "match_id", "kind": "text", "label": "Screening match ID", "required": true, "pii": false},
+        {"id": "matched_name", "kind": "text", "label": "Matched name", "required": true, "pii": true},
+        {"id": "sanction_list", "kind": "text", "label": "Sanctions list matched", "required": true, "pii": false},
+        {"id": "disposition", "kind": "text", "label": "Disposition (true hit/false positive)", "required": true, "pii": false},
+        {"id": "rationale", "kind": "textarea", "label": "Disposition rationale", "required": true, "pii": false}
+      ],
+      "approvals": [{"role": "compliance_officer", "policy": "1_of_1"}],
+      "sla": {"warn_pct": 75, "breach_seconds": 86400},
+      "notifications": [
+        {"trigger": "true_hit_detected", "channel": "email", "audience": "chief_compliance_officer"},
+        {"trigger": "resolved", "channel": "email", "audience": "operations"}
+      ],
+      "metrics": ["screening_false_positive_rate", "avg_match_review_hours", "true_hit_report_timeliness"]
+    },
+    {
+      "id": "manage_compliance_training",
+      "title": "Manage mandatory compliance training campaign",
+      "actor": {"role": "compliance_officer"},
+      "situation": "annual or event-triggered compliance training (BSA/AML, code of conduct, data privacy, anti-corruption) must be assigned to all required employees, tracked to completion, and documented for regulatory examination",
+      "motivation": "meet regulatory training requirements and build compliance culture; demonstrate program to examiners",
+      "outcome": "training assigned, completed by ≥95% of employees within deadline, completion records retained",
+      "success_criteria": [
+        "training assigned to all required employees",
+        "completion rate ≥ 95% within 30-day window",
+        "non-completers escalated to HR for disciplinary action",
+        "completion records retained for 3+ years",
+        "training content reflects current regulatory requirements"
+      ],
+      "data_capture": [
+        {"id": "training_name", "kind": "text", "label": "Training name/module", "required": true, "pii": false},
+        {"id": "due_date", "kind": "date", "label": "Completion due date", "required": true, "pii": false},
+        {"id": "target_population", "kind": "text", "label": "Target employee population", "required": true, "pii": false},
+        {"id": "regulatory_basis", "kind": "text", "label": "Regulatory requirement basis", "required": true, "pii": false}
+      ],
+      "approvals": [{"role": "chief_compliance_officer", "policy": "1_of_1"}],
+      "sla": {"warn_pct": 75, "breach_seconds": 2592000},
+      "notifications": [
+        {"trigger": "training_assigned", "channel": "email", "audience": "employees"},
+        {"trigger": "reminder_7_days", "channel": "email", "audience": "incomplete_employees"},
+        {"trigger": "overdue", "channel": "email", "audience": "manager"}
+      ],
+      "metrics": ["training_completion_rate", "avg_days_to_completion", "non_completer_escalation_rate"]
+    },
+    {
+      "id": "manage_data_privacy_request",
+      "title": "Manage data subject access or deletion request (GDPR/CCPA)",
+      "actor": {"role": "dpo"},
+      "situation": "data subject submits access, rectification, erasure, or portability request under GDPR Article 15-20 or CCPA; DPO must verify identity, locate personal data across systems, fulfill or deny request with documented legal basis, and respond within statutory deadline",
+      "motivation": "fulfill data subject rights obligations under GDPR (30-day) and CCPA (45-day) deadlines",
+      "outcome": "request fulfilled or denied with documented legal basis; response delivered within statutory deadline",
+      "success_criteria": [
+        "identity verification completed before data disclosure",
+        "data located across all relevant systems",
+        "response delivered within GDPR 30-day / CCPA 45-day deadline",
+        "legal basis for denial documented if applicable",
+        "record of processing maintained"
+      ],
+      "data_capture": [
+        {"id": "request_type", "kind": "text", "label": "Request type (access/erasure/portability/rectification)", "required": true, "pii": false},
+        {"id": "requestor_name", "kind": "text", "label": "Requestor name", "required": true, "pii": true},
+        {"id": "requestor_email", "kind": "text", "label": "Requestor email", "required": true, "pii": true},
+        {"id": "jurisdiction", "kind": "text", "label": "Applicable regulation (GDPR/CCPA/other)", "required": true, "pii": false}
+      ],
+      "approvals": [{"role": "dpo", "policy": "1_of_1"}, {"role": "legal_counsel", "policy": "1_of_1"}],
+      "sla": {"warn_pct": 75, "breach_seconds": 2592000},
+      "notifications": [
+        {"trigger": "received", "channel": "email", "audience": "requestor"},
+        {"trigger": "fulfilled", "channel": "email", "audience": "requestor"}
+      ],
+      "metrics": ["dsar_on_time_rate", "avg_dsar_fulfillment_days", "dsar_denial_rate"]
+    },
+    {
+      "id": "manage_regulatory_examination",
+      "title": "Manage regulatory examination response",
+      "actor": {"role": "chief_compliance_officer"},
+      "situation": "regulator (OCC, Fed, CFPB, state) initiates examination and issues document request list; CCO must triage requests, coordinate document production, brief executives, manage examiner meetings, and respond to findings",
+      "motivation": "demonstrate strong compliance program and minimize examination findings; complete response on-time",
+      "outcome": "all examiner requests responded to within deadlines; findings reviewed and MRA response plan submitted",
+      "success_criteria": [
+        "initial document production within examiner deadline",
+        "examiner meeting briefings prepared",
+        "draft findings reviewed by legal counsel",
+        "MRA/MRIA response plan approved by board"
+      ],
+      "data_capture": [
+        {"id": "regulator", "kind": "text", "label": "Regulatory agency", "required": true, "pii": false},
+        {"id": "exam_type", "kind": "text", "label": "Examination type", "required": true, "pii": false},
+        {"id": "exam_start_date", "kind": "date", "label": "Examination start date", "required": true, "pii": false},
+        {"id": "request_count", "kind": "text", "label": "Number of document requests", "required": false, "pii": false}
+      ],
+      "approvals": [{"role": "chief_compliance_officer", "policy": "1_of_1"}, {"role": "board_audit_committee", "policy": "1_of_1"}],
+      "sla": {"warn_pct": 75, "breach_seconds": 864000},
+      "notifications": [
+        {"trigger": "exam_received", "channel": "email", "audience": "executive_team"},
+        {"trigger": "finding_issued", "channel": "email", "audience": "board_audit_committee"}
+      ],
+      "metrics": ["exam_response_timeliness_rate", "finding_closure_rate", "mra_response_days"]
+    },
+    {
+      "id": "manage_risk_assessment",
+      "title": "Conduct enterprise compliance risk assessment",
+      "actor": {"role": "chief_compliance_officer"},
+      "situation": "annual compliance risk assessment requires identifying regulatory requirements applicable to the business, assessing inherent risk and control effectiveness, rating residual risk, and presenting results to board and regulators as evidence of risk-based compliance program",
+      "motivation": "demonstrate risk-based compliance program to regulators and allocate compliance resources to highest-risk areas",
+      "outcome": "risk assessment completed; residual risk heat map presented to board; compliance priorities updated for coming year",
+      "success_criteria": [
+        "all applicable regulatory requirements inventoried",
+        "inherent risk and control gap rated for each requirement",
+        "residual risk heat map approved by board",
+        "high-risk areas have documented remediation plans",
+        "assessment updated annually or when material changes occur"
+      ],
+      "data_capture": [
+        {"id": "assessment_period", "kind": "text", "label": "Assessment period (e.g. 2026)", "required": true, "pii": false},
+        {"id": "regulatory_universe", "kind": "textarea", "label": "Regulatory universe covered", "required": true, "pii": false},
+        {"id": "high_risk_count", "kind": "text", "label": "Number of high-risk areas identified", "required": false, "pii": false},
+        {"id": "methodology", "kind": "text", "label": "Assessment methodology", "required": true, "pii": false}
+      ],
+      "approvals": [{"role": "chief_compliance_officer", "policy": "1_of_1"}, {"role": "board_audit_committee", "policy": "1_of_1"}],
+      "sla": {"warn_pct": 75, "breach_seconds": 7776000},
+      "notifications": [
+        {"trigger": "draft_complete", "channel": "email", "audience": "executive_team"},
+        {"trigger": "board_presented", "channel": "email", "audience": "chief_compliance_officer"}
+      ],
+      "metrics": ["risk_assessment_completion_rate", "high_risk_remediation_rate", "control_gap_closure_rate"]
+    }
+  ]
+}
