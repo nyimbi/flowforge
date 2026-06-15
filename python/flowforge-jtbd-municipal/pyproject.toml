@@ -1,5 +1,5 @@
 [project]
-name = "flowforge-jtbd-municipal-starter"
+name = "flowforge-jtbd-municipal"
 version = "0.0.1"
 description = "flowforge JTBD domain library — Municipal (Utility, zoning, parks)"
 keywords = ["flowforge", "jtbd", "scaffold-only", "starter"]

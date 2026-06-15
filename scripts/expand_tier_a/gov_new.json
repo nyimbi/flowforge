@@ -1,0 +1,1373 @@
+[
+  {
+    "id": "process_business_registration",
+    "title": "Register a new business entity",
+    "actor": {
+      "role": "business_registration_clerk"
+    },
+    "situation": "entrepreneur files articles of incorporation or LLC formation; clerk must verify name availability, collect statutory information, assign entity number, and issue certificate of formation within statutory timeframe",
+    "motivation": "activate legal entity quickly so owner can open bank accounts and obtain licenses",
+    "outcome": "entity registered; certificate issued; state database updated",
+    "success_criteria": [
+      "name availability confirmed",
+      "statutory information collected",
+      "entity number assigned",
+      "certificate of formation issued within statutory timeframe"
+    ],
+    "data_capture": [
+      {
+        "id": "entity_name",
+        "kind": "text",
+        "label": "Entity name",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "entity_type",
+        "kind": "text",
+        "label": "Entity type (LLC/Corp/Partnership)",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "registered_agent",
+        "kind": "text",
+        "label": "Registered agent name and address",
+        "required": true,
+        "pii": false
+      }
+    ],
+    "approvals": [
+      {
+        "role": "business_registration_clerk",
+        "policy": "1_of_1"
+      }
+    ],
+    "sla": {
+      "warn_pct": 75,
+      "breach_seconds": 432000
+    },
+    "notifications": [
+      {
+        "trigger": "registered",
+        "channel": "email",
+        "audience": "applicant"
+      }
+    ],
+    "metrics": [
+      "registration_cycle_days",
+      "name_availability_check_accuracy"
+    ]
+  },
+  {
+    "id": "manage_environmental_permit",
+    "title": "Issue and manage environmental permit",
+    "actor": {
+      "role": "environmental_permit_officer"
+    },
+    "situation": "facility operator applies for air, water, or hazardous waste permit; officer must review application, issue public notice, hold comment period, conduct NEPA review, issue draft permit, resolve comments, and issue final permit",
+    "motivation": "authorize lawful operations while protecting environmental quality and public health",
+    "outcome": "permit issued with conditions; compliance schedule established; permit database updated",
+    "success_criteria": [
+      "application completeness review within 30 days",
+      "public notice published per regulation",
+      "comment period response documented",
+      "final permit issued within statutory timeframe"
+    ],
+    "data_capture": [
+      {
+        "id": "facility_name",
+        "kind": "text",
+        "label": "Facility name",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "permit_type",
+        "kind": "text",
+        "label": "Permit type (air/water/hazwaste)",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "facility_address",
+        "kind": "text",
+        "label": "Facility address",
+        "required": true,
+        "pii": false
+      }
+    ],
+    "approvals": [
+      {
+        "role": "environmental_program_director",
+        "policy": "1_of_1"
+      }
+    ],
+    "sla": {
+      "warn_pct": 75,
+      "breach_seconds": 15552000
+    },
+    "notifications": [
+      {
+        "trigger": "public_notice_issued",
+        "channel": "email",
+        "audience": "applicant"
+      },
+      {
+        "trigger": "permit_issued",
+        "channel": "email",
+        "audience": "applicant"
+      }
+    ],
+    "metrics": [
+      "permit_issuance_cycle_days",
+      "public_comment_response_rate"
+    ]
+  },
+  {
+    "id": "process_court_filing",
+    "title": "Process court filing and docket management",
+    "actor": {
+      "role": "court_clerk"
+    },
+    "situation": "attorney or self-represented litigant files complaint, motion, or appeal; clerk must review filing for completeness and proper form, collect fees, docket the matter, issue summons, and notify all parties",
+    "motivation": "ensure court record is accurate and parties are properly served within rules of civil procedure",
+    "outcome": "filing docketed; summons issued; parties notified; hearing scheduled",
+    "success_criteria": [
+      "filing reviewed for completeness on day of submission",
+      "fees collected",
+      "matter docketed in case management system",
+      "summons issued within 3 days",
+      "parties served within statutory period"
+    ],
+    "data_capture": [
+      {
+        "id": "case_type",
+        "kind": "text",
+        "label": "Case type",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "plaintiff_name",
+        "kind": "text",
+        "label": "Plaintiff name",
+        "required": true,
+        "pii": true
+      },
+      {
+        "id": "defendant_name",
+        "kind": "text",
+        "label": "Defendant name",
+        "required": true,
+        "pii": true
+      },
+      {
+        "id": "filing_fee",
+        "kind": "money",
+        "label": "Filing fee collected",
+        "required": true,
+        "pii": false
+      }
+    ],
+    "approvals": [
+      {
+        "role": "court_clerk",
+        "policy": "1_of_1"
+      }
+    ],
+    "sla": {
+      "warn_pct": 75,
+      "breach_seconds": 86400
+    },
+    "notifications": [
+      {
+        "trigger": "docketed",
+        "channel": "email",
+        "audience": "attorney"
+      },
+      {
+        "trigger": "summons_issued",
+        "channel": "mail",
+        "audience": "defendant"
+      }
+    ],
+    "metrics": [
+      "filing_processing_cycle_hours",
+      "summons_issuance_timeliness"
+    ]
+  },
+  {
+    "id": "manage_public_safety_incident",
+    "title": "Manage public safety incident (emergency response)",
+    "actor": {
+      "role": "emergency_management_coordinator"
+    },
+    "situation": "major incident activates EOC; coordinator must declare emergency, activate ICS, request mutual aid, coordinate shelter-and-evacuation, submit FEMA PA cost documentation, and close out declaration",
+    "motivation": "protect life and property and position agency for FEMA reimbursement",
+    "outcome": "incident declared closed; ICS documentation complete; FEMA project worksheets submitted",
+    "success_criteria": [
+      "EOC activated within 1 hour of incident declaration",
+      "ICS 214 activity logs maintained",
+      "mutual aid requests documented",
+      "FEMA project worksheets submitted within 60 days"
+    ],
+    "data_capture": [
+      {
+        "id": "incident_name",
+        "kind": "text",
+        "label": "Incident name",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "incident_type",
+        "kind": "text",
+        "label": "Incident type",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "declaration_date",
+        "kind": "date",
+        "label": "Emergency declaration date",
+        "required": true,
+        "pii": false
+      }
+    ],
+    "approvals": [
+      {
+        "role": "emergency_management_director",
+        "policy": "1_of_1"
+      },
+      {
+        "role": "chief_executive",
+        "policy": "1_of_1"
+      }
+    ],
+    "sla": {
+      "warn_pct": 75,
+      "breach_seconds": 5184000
+    },
+    "notifications": [
+      {
+        "trigger": "eoc_activated",
+        "channel": "email",
+        "audience": "all_department_heads"
+      },
+      {
+        "trigger": "fema_submitted",
+        "channel": "email",
+        "audience": "emergency_management_director"
+      }
+    ],
+    "metrics": [
+      "eoc_activation_time_minutes",
+      "fema_worksheet_submission_timeliness"
+    ]
+  },
+  {
+    "id": "administer_public_assistance_program",
+    "title": "Administer public assistance program enrollment",
+    "actor": {
+      "role": "benefits_eligibility_worker"
+    },
+    "situation": "applicant seeks Medicaid, SNAP, or TANF benefits; worker must verify identity and income, apply eligibility criteria, determine benefit amount, issue notice of action within regulatory timeframe, and set renewal date",
+    "motivation": "serve eligible residents quickly while applying statutory eligibility rules accurately",
+    "outcome": "eligibility determination made; benefit amount calculated; notice of action mailed; benefits issued",
+    "success_criteria": [
+      "application processed within regulatory timeframe (30-45 days depending on program)",
+      "income and identity verified through primary sources",
+      "notice of action mailed",
+      "EBT card or benefit issued within 5 days of approval"
+    ],
+    "data_capture": [
+      {
+        "id": "applicant_name",
+        "kind": "text",
+        "label": "Applicant full name",
+        "required": true,
+        "pii": true
+      },
+      {
+        "id": "program_applied",
+        "kind": "text",
+        "label": "Program (SNAP/Medicaid/TANF)",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "household_size",
+        "kind": "text",
+        "label": "Household size",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "monthly_income",
+        "kind": "money",
+        "label": "Monthly gross income",
+        "required": true,
+        "pii": false
+      }
+    ],
+    "approvals": [
+      {
+        "role": "eligibility_supervisor",
+        "policy": "1_of_1"
+      }
+    ],
+    "sla": {
+      "warn_pct": 75,
+      "breach_seconds": 2592000
+    },
+    "notifications": [
+      {
+        "trigger": "notice_mailed",
+        "channel": "mail",
+        "audience": "applicant"
+      },
+      {
+        "trigger": "renewal_due",
+        "channel": "mail",
+        "audience": "recipient"
+      }
+    ],
+    "metrics": [
+      "application_processing_timeliness",
+      "eligibility_accuracy_rate"
+    ]
+  },
+  {
+    "id": "manage_property_tax_assessment",
+    "title": "Manage property tax assessment cycle",
+    "actor": {
+      "role": "county_assessor"
+    },
+    "situation": "annual reassessment requires mass appraisal updates, mailing of assessment notices to all parcels, managing appeal window, conducting informal hearings, and certifying tax roll for collection",
+    "motivation": "produce accurate and legally defensible assessments that meet state equalization requirements",
+    "outcome": "assessment notices mailed; appeals processed; tax roll certified to tax collector",
+    "success_criteria": [
+      "mass appraisal values updated per assessment year",
+      "assessment notices mailed by statutory date",
+      "appeal hearings scheduled within statutory window",
+      "tax roll certified to collector by deadline"
+    ],
+    "data_capture": [
+      {
+        "id": "assessment_year",
+        "kind": "text",
+        "label": "Assessment year",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "parcel_count",
+        "kind": "text",
+        "label": "Total parcel count",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "appeal_count",
+        "kind": "text",
+        "label": "Number of appeals filed",
+        "required": false,
+        "pii": false
+      }
+    ],
+    "approvals": [
+      {
+        "role": "county_assessor",
+        "policy": "1_of_1"
+      },
+      {
+        "role": "county_counsel",
+        "policy": "1_of_1"
+      }
+    ],
+    "sla": {
+      "warn_pct": 75,
+      "breach_seconds": 7776000
+    },
+    "notifications": [
+      {
+        "trigger": "notices_mailed",
+        "channel": "mail",
+        "audience": "all_property_owners"
+      },
+      {
+        "trigger": "roll_certified",
+        "channel": "email",
+        "audience": "tax_collector"
+      }
+    ],
+    "metrics": [
+      "assessment_appeal_rate",
+      "equalization_ratio_compliance"
+    ]
+  },
+  {
+    "id": "process_planning_zone_change",
+    "title": "Process zoning change or variance application",
+    "actor": {
+      "role": "planning_officer"
+    },
+    "situation": "property owner applies for rezoning or variance; planning staff must review application, conduct CEQA analysis, schedule planning commission hearing, post notice, present staff report, and implement commission decision",
+    "motivation": "process land use application within statutory timeframe while ensuring public participation",
+    "outcome": "planning commission decision issued; conditions recorded; GIS zoning map updated",
+    "success_criteria": [
+      "application completeness review within 30 days",
+      "CEQA notice of determination filed",
+      "public notice posted 10+ days before hearing",
+      "written decision issued within 10 days of hearing"
+    ],
+    "data_capture": [
+      {
+        "id": "parcel_number",
+        "kind": "text",
+        "label": "APN",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "application_type",
+        "kind": "text",
+        "label": "Application type (rezone/variance/CUP)",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "project_description",
+        "kind": "textarea",
+        "label": "Project description",
+        "required": true,
+        "pii": false
+      }
+    ],
+    "approvals": [
+      {
+        "role": "planning_director",
+        "policy": "1_of_1"
+      }
+    ],
+    "sla": {
+      "warn_pct": 75,
+      "breach_seconds": 10368000
+    },
+    "notifications": [
+      {
+        "trigger": "hearing_scheduled",
+        "channel": "mail",
+        "audience": "applicant"
+      },
+      {
+        "trigger": "decision_issued",
+        "channel": "mail",
+        "audience": "applicant"
+      }
+    ],
+    "metrics": [
+      "planning_application_cycle_days",
+      "ceqa_compliance_rate"
+    ]
+  },
+  {
+    "id": "manage_federal_grant_compliance",
+    "title": "Manage federal grant compliance and reporting",
+    "actor": {
+      "role": "grants_compliance_officer"
+    },
+    "situation": "agency receives federal grant; officer must track allowable expenditures, meet single audit threshold reporting, submit quarterly performance reports, and respond to monitoring visits",
+    "motivation": "maintain grant compliance to avoid disallowed costs, findings, or grant termination",
+    "outcome": "SF-425 submitted on time; single audit filed if threshold met; monitoring findings resolved",
+    "success_criteria": [
+      "expenditures tracked by allowable cost category",
+      "SF-425 submitted by due date",
+      "single audit filed within 9 months of fiscal year end if threshold met",
+      "monitoring findings responded to within 30 days"
+    ],
+    "data_capture": [
+      {
+        "id": "grant_name",
+        "kind": "text",
+        "label": "Grant program name",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "federal_agency",
+        "kind": "text",
+        "label": "Federal awarding agency",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "award_amount",
+        "kind": "money",
+        "label": "Grant award amount",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "cfda_number",
+        "kind": "text",
+        "label": "CFDA/Assistance Listing number",
+        "required": true,
+        "pii": false
+      }
+    ],
+    "approvals": [
+      {
+        "role": "grants_compliance_officer",
+        "policy": "1_of_1"
+      },
+      {
+        "role": "finance_director",
+        "policy": "1_of_1"
+      }
+    ],
+    "sla": {
+      "warn_pct": 75,
+      "breach_seconds": 7776000
+    },
+    "notifications": [
+      {
+        "trigger": "report_submitted",
+        "channel": "email",
+        "audience": "grants_manager"
+      },
+      {
+        "trigger": "monitoring_finding_received",
+        "channel": "email",
+        "audience": "grants_compliance_officer"
+      }
+    ],
+    "metrics": [
+      "grant_report_timeliness_rate",
+      "single_audit_finding_rate"
+    ]
+  },
+  {
+    "id": "issue_professional_license",
+    "title": "Issue professional license",
+    "actor": {
+      "role": "licensing_board_examiner"
+    },
+    "situation": "applicant submits license application with transcripts, exam scores, fingerprints, and work history; examiner must verify all credentials through primary sources, apply board standards, and issue license or denial with appeal rights",
+    "motivation": "protect public by licensing only qualified practitioners while processing within mandated timeframe",
+    "outcome": "license issued or denial with appeal rights; license database updated; certificate mailed",
+    "success_criteria": [
+      "all credentials verified through primary sources",
+      "exam scores confirmed with testing vendor",
+      "background check cleared",
+      "license issued within statutory processing time"
+    ],
+    "data_capture": [
+      {
+        "id": "applicant_name",
+        "kind": "text",
+        "label": "Applicant full name",
+        "required": true,
+        "pii": true
+      },
+      {
+        "id": "license_type",
+        "kind": "text",
+        "label": "License type",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "education_institution",
+        "kind": "text",
+        "label": "Credentialing institution",
+        "required": true,
+        "pii": false
+      }
+    ],
+    "approvals": [
+      {
+        "role": "licensing_board_director",
+        "policy": "1_of_1"
+      }
+    ],
+    "sla": {
+      "warn_pct": 75,
+      "breach_seconds": 3888000
+    },
+    "notifications": [
+      {
+        "trigger": "issued",
+        "channel": "email",
+        "audience": "applicant"
+      },
+      {
+        "trigger": "renewal_due",
+        "channel": "email",
+        "audience": "licensee"
+      }
+    ],
+    "metrics": [
+      "license_issuance_cycle_days",
+      "primary_source_verification_completion_rate"
+    ]
+  },
+  {
+    "id": "manage_procurement_contract",
+    "title": "Manage procurement contract administration",
+    "actor": {
+      "role": "contracting_officer"
+    },
+    "situation": "awarded contract requires contractor performance monitoring, invoice review, change-order processing under FAR/state procurement code, cure notice if performance deficient, and closeout at completion",
+    "motivation": "ensure contractor performance meets contract terms and public funds are spent appropriately",
+    "outcome": "all deliverables accepted; final payment made; contract closed; lessons learned documented",
+    "success_criteria": [
+      "contractor performance monitored against PWS",
+      "invoices reviewed and approved within 30 days",
+      "change orders within scope and properly authorized",
+      "final payment made within 30 days of acceptance"
+    ],
+    "data_capture": [
+      {
+        "id": "contract_number",
+        "kind": "text",
+        "label": "Contract number",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "contractor_name",
+        "kind": "text",
+        "label": "Contractor name",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "contract_value",
+        "kind": "money",
+        "label": "Total contract value",
+        "required": true,
+        "pii": false
+      }
+    ],
+    "approvals": [
+      {
+        "role": "contracting_officer",
+        "policy": "1_of_1"
+      },
+      {
+        "role": "program_manager",
+        "policy": "1_of_1"
+      }
+    ],
+    "sla": {
+      "warn_pct": 75,
+      "breach_seconds": 2592000
+    },
+    "notifications": [
+      {
+        "trigger": "invoice_approved",
+        "channel": "email",
+        "audience": "contractor"
+      },
+      {
+        "trigger": "contract_closed",
+        "channel": "email",
+        "audience": "program_manager"
+      }
+    ],
+    "metrics": [
+      "invoice_approval_cycle_days",
+      "contractor_performance_rating"
+    ]
+  },
+  {
+    "id": "process_election_voter_registration",
+    "title": "Process voter registration",
+    "actor": {
+      "role": "elections_clerk"
+    },
+    "situation": "citizen submits voter registration application; clerk must verify identity, check eligibility criteria, update rolls, send confirmation, and process NVRA-required agency registrations",
+    "motivation": "enfranchise eligible voters while maintaining accurate voter rolls under NVRA and HAVA requirements",
+    "outcome": "voter registered and confirmed; state voter file updated; NVRA motor-voter records processed",
+    "success_criteria": [
+      "eligibility verified within processing window",
+      "confirmation mailed within 2 weeks",
+      "state voter file updated before registration deadline",
+      "NVRA agency records processed per federal requirements"
+    ],
+    "data_capture": [
+      {
+        "id": "applicant_name",
+        "kind": "text",
+        "label": "Applicant full name",
+        "required": true,
+        "pii": true
+      },
+      {
+        "id": "date_of_birth",
+        "kind": "date",
+        "label": "Date of birth",
+        "required": true,
+        "pii": true
+      },
+      {
+        "id": "address",
+        "kind": "text",
+        "label": "Residential address",
+        "required": true,
+        "pii": true
+      },
+      {
+        "id": "citizenship_attestation",
+        "kind": "text",
+        "label": "Citizenship attestation",
+        "required": true,
+        "pii": false
+      }
+    ],
+    "approvals": [
+      {
+        "role": "elections_clerk",
+        "policy": "1_of_1"
+      }
+    ],
+    "sla": {
+      "warn_pct": 75,
+      "breach_seconds": 1296000
+    },
+    "notifications": [
+      {
+        "trigger": "registered",
+        "channel": "mail",
+        "audience": "voter"
+      },
+      {
+        "trigger": "rejected",
+        "channel": "mail",
+        "audience": "applicant"
+      }
+    ],
+    "metrics": [
+      "registration_processing_rate",
+      "nvra_compliance_rate"
+    ]
+  },
+  {
+    "id": "manage_public_works_project",
+    "title": "Manage public works capital project",
+    "actor": {
+      "role": "public_works_project_manager"
+    },
+    "situation": "capital project progresses from design through bidding, contractor selection, construction inspection, change orders, and final acceptance; Davis-Bacon wage rates and prevailing wage posting required",
+    "motivation": "deliver project on time and within budget while meeting Davis-Bacon and prevailing wage requirements",
+    "outcome": "project accepted; final payment made; as-built drawings filed; infrastructure database updated",
+    "success_criteria": [
+      "design approved before bid advertisement",
+      "Davis-Bacon wage decision posted",
+      "construction inspection documented",
+      "change orders within budget contingency",
+      "final acceptance documented"
+    ],
+    "data_capture": [
+      {
+        "id": "project_name",
+        "kind": "text",
+        "label": "Project name",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "project_budget",
+        "kind": "money",
+        "label": "Project budget",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "construction_start",
+        "kind": "date",
+        "label": "Construction start date",
+        "required": true,
+        "pii": false
+      }
+    ],
+    "approvals": [
+      {
+        "role": "public_works_director",
+        "policy": "1_of_1"
+      },
+      {
+        "role": "finance_director",
+        "policy": "1_of_1"
+      }
+    ],
+    "sla": {
+      "warn_pct": 75,
+      "breach_seconds": 31536000
+    },
+    "notifications": [
+      {
+        "trigger": "bid_awarded",
+        "channel": "email",
+        "audience": "council"
+      },
+      {
+        "trigger": "project_accepted",
+        "channel": "email",
+        "audience": "public_works_director"
+      }
+    ],
+    "metrics": [
+      "project_schedule_variance_days",
+      "change_order_rate"
+    ]
+  },
+  {
+    "id": "handle_administrative_appeal",
+    "title": "Handle administrative appeal hearing",
+    "actor": {
+      "role": "administrative_law_judge"
+    },
+    "situation": "agency decision is appealed; ALJ must schedule hearing, manage prehearing conference, take testimony, apply APA procedural rules, and issue final decision with findings",
+    "motivation": "provide fair and impartial review meeting APA due process requirements",
+    "outcome": "decision issued within statutory timeframe; record preserved; judicial review rights stated",
+    "success_criteria": [
+      "hearing scheduled within statutory timeframe",
+      "prehearing conference held",
+      "testimony taken on the record",
+      "written decision with findings of fact issued"
+    ],
+    "data_capture": [
+      {
+        "id": "appeal_number",
+        "kind": "text",
+        "label": "Appeal case number",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "appellant_name",
+        "kind": "text",
+        "label": "Appellant name",
+        "required": true,
+        "pii": true
+      },
+      {
+        "id": "agency_decision_date",
+        "kind": "date",
+        "label": "Agency decision date appealed",
+        "required": true,
+        "pii": false
+      }
+    ],
+    "approvals": [
+      {
+        "role": "chief_administrative_law_judge",
+        "policy": "1_of_1"
+      }
+    ],
+    "sla": {
+      "warn_pct": 75,
+      "breach_seconds": 7776000
+    },
+    "notifications": [
+      {
+        "trigger": "hearing_scheduled",
+        "channel": "mail",
+        "audience": "appellant"
+      },
+      {
+        "trigger": "decision_issued",
+        "channel": "mail",
+        "audience": "appellant"
+      }
+    ],
+    "metrics": [
+      "appeal_decision_timeliness",
+      "reversal_rate"
+    ]
+  },
+  {
+    "id": "conduct_government_audit",
+    "title": "Conduct government performance audit",
+    "actor": {
+      "role": "government_auditor"
+    },
+    "situation": "legislative or executive audit covers program effectiveness, financial controls, or contract oversight; auditor must develop objectives, collect evidence, issue draft report, receive management response, and issue final report",
+    "motivation": "provide independent assessment of program efficiency and compliance to legislature and public",
+    "outcome": "final audit report issued; management responses incorporated; recommendations tracked",
+    "success_criteria": [
+      "audit objectives approved before fieldwork",
+      "draft report issued within 30 days of fieldwork",
+      "management response received within 30 days",
+      "final report published within 15 days of response"
+    ],
+    "data_capture": [
+      {
+        "id": "audit_program",
+        "kind": "text",
+        "label": "Program or area audited",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "audit_period",
+        "kind": "text",
+        "label": "Audit period",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "finding_count",
+        "kind": "text",
+        "label": "Number of findings",
+        "required": false,
+        "pii": false
+      }
+    ],
+    "approvals": [
+      {
+        "role": "audit_director",
+        "policy": "1_of_1"
+      },
+      {
+        "role": "legislative_oversight_chair",
+        "policy": "1_of_1"
+      }
+    ],
+    "sla": {
+      "warn_pct": 75,
+      "breach_seconds": 15552000
+    },
+    "notifications": [
+      {
+        "trigger": "draft_issued",
+        "channel": "email",
+        "audience": "agency_head"
+      },
+      {
+        "trigger": "final_published",
+        "channel": "email",
+        "audience": "legislature"
+      }
+    ],
+    "metrics": [
+      "audit_report_timeliness",
+      "recommendation_implementation_rate"
+    ]
+  },
+  {
+    "id": "manage_cybersecurity_incident_gov",
+    "title": "Manage government cybersecurity incident (FISMA/CISA)",
+    "actor": {
+      "role": "government_ciso"
+    },
+    "situation": "federal agency or state government detects a cybersecurity incident; CISO must activate incident response plan, report to CISA within 1 hour (CIRCIA), conduct forensics, notify OMB/congressional oversight, and remediate",
+    "motivation": "contain breach, meet FISMA and CIRCIA reporting obligations, and prevent recurrence",
+    "outcome": "incident contained; CISA notified within 1 hour; OMB report submitted; POA&M updated",
+    "success_criteria": [
+      "CISA notified within 1 hour of discovery",
+      "incident contained and eradicated",
+      "OMB report filed within required timeframe",
+      "POA&M updated with new weakness"
+    ],
+    "data_capture": [
+      {
+        "id": "incident_type",
+        "kind": "text",
+        "label": "Incident type (breach/ransomware/intrusion)",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "systems_affected",
+        "kind": "textarea",
+        "label": "Systems affected",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "discovery_date",
+        "kind": "date",
+        "label": "Date of discovery",
+        "required": true,
+        "pii": false
+      }
+    ],
+    "approvals": [
+      {
+        "role": "agency_cio",
+        "policy": "1_of_1"
+      },
+      {
+        "role": "agency_head",
+        "policy": "1_of_1"
+      }
+    ],
+    "sla": {
+      "warn_pct": 75,
+      "breach_seconds": 3600
+    },
+    "notifications": [
+      {
+        "trigger": "cisa_notified",
+        "channel": "email",
+        "audience": "agency_head"
+      },
+      {
+        "trigger": "contained",
+        "channel": "email",
+        "audience": "omb"
+      }
+    ],
+    "metrics": [
+      "cisa_notification_timeliness",
+      "incident_containment_time_hours"
+    ]
+  },
+  {
+    "id": "process_public_contracting_dispute",
+    "title": "Process procurement protest or contract dispute",
+    "actor": {
+      "role": "contracting_officer"
+    },
+    "situation": "unsuccessful bidder files protest with GAO, COFC, or state protest authority; contracting officer must prepare agency report, suspend performance if required, implement corrective action if protest sustained",
+    "motivation": "resolve protest efficiently while protecting valid award and complying with protest authority orders",
+    "outcome": "protest decided; corrective action implemented if required; bid file preserved",
+    "success_criteria": [
+      "agency report filed within protest authority deadline",
+      "performance suspended if required",
+      "corrective action plan prepared if protest sustained",
+      "bid file documentation preserved"
+    ],
+    "data_capture": [
+      {
+        "id": "contract_number",
+        "kind": "text",
+        "label": "Contract number protested",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "protester_name",
+        "kind": "text",
+        "label": "Protester name",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "protest_grounds",
+        "kind": "textarea",
+        "label": "Protest grounds",
+        "required": true,
+        "pii": false
+      }
+    ],
+    "approvals": [
+      {
+        "role": "contracting_director",
+        "policy": "1_of_1"
+      },
+      {
+        "role": "legal_counsel",
+        "policy": "1_of_1"
+      }
+    ],
+    "sla": {
+      "warn_pct": 75,
+      "breach_seconds": 864000
+    },
+    "notifications": [
+      {
+        "trigger": "protest_received",
+        "channel": "email",
+        "audience": "contracting_director"
+      },
+      {
+        "trigger": "decision_issued",
+        "channel": "email",
+        "audience": "contracting_officer"
+      }
+    ],
+    "metrics": [
+      "protest_response_timeliness",
+      "protest_sustain_rate"
+    ]
+  },
+  {
+    "id": "manage_social_services_case",
+    "title": "Manage social services case",
+    "actor": {
+      "role": "social_services_case_worker"
+    },
+    "situation": "vulnerable resident requires case management: needs assessment, safety plan, service plan, provider coordination, court reporting if required, and case review at mandated intervals",
+    "motivation": "protect vulnerable resident and meet statutory case management and reporting requirements",
+    "outcome": "safety plan in place; services engaged; court reports filed; case reviewed at mandated interval",
+    "success_criteria": [
+      "initial assessment completed within 24-72 hours depending on risk level",
+      "safety plan developed",
+      "service providers engaged within 5 days",
+      "court reports filed on time"
+    ],
+    "data_capture": [
+      {
+        "id": "client_name",
+        "kind": "text",
+        "label": "Client name",
+        "required": true,
+        "pii": true
+      },
+      {
+        "id": "referral_type",
+        "kind": "text",
+        "label": "Referral type (CWS/APS/homeless)",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "risk_level",
+        "kind": "text",
+        "label": "Initial risk level",
+        "required": true,
+        "pii": false
+      }
+    ],
+    "approvals": [
+      {
+        "role": "case_supervisor",
+        "policy": "1_of_1"
+      }
+    ],
+    "sla": {
+      "warn_pct": 75,
+      "breach_seconds": 86400
+    },
+    "notifications": [
+      {
+        "trigger": "safety_plan_created",
+        "channel": "email",
+        "audience": "supervisor"
+      },
+      {
+        "trigger": "court_report_due",
+        "channel": "email",
+        "audience": "case_worker"
+      }
+    ],
+    "metrics": [
+      "initial_assessment_timeliness",
+      "court_report_timeliness_rate"
+    ]
+  },
+  {
+    "id": "process_tax_lien_collection",
+    "title": "Process tax lien and delinquent collection",
+    "actor": {
+      "role": "tax_collector"
+    },
+    "situation": "delinquent taxpayer has unpaid property or business taxes; collector must issue statutory notices, file tax lien, offer installment agreement, and proceed to tax sale or levy if not resolved",
+    "motivation": "collect delinquent revenue while following statutory due process before enforced collection",
+    "outcome": "delinquent taxes collected or installment agreement in place; tax lien filed; tax sale scheduled if no resolution",
+    "success_criteria": [
+      "statutory notices sent in proper sequence",
+      "tax lien filed within statutory timeframe",
+      "installment agreement offered before enforcement",
+      "tax sale advertised per statutory requirements"
+    ],
+    "data_capture": [
+      {
+        "id": "parcel_or_account",
+        "kind": "text",
+        "label": "Parcel or account number",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "delinquent_amount",
+        "kind": "money",
+        "label": "Delinquent amount",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "delinquency_years",
+        "kind": "text",
+        "label": "Years delinquent",
+        "required": true,
+        "pii": false
+      }
+    ],
+    "approvals": [
+      {
+        "role": "tax_collector",
+        "policy": "1_of_1"
+      },
+      {
+        "role": "county_counsel",
+        "policy": "1_of_1"
+      }
+    ],
+    "sla": {
+      "warn_pct": 75,
+      "breach_seconds": 7776000
+    },
+    "notifications": [
+      {
+        "trigger": "lien_filed",
+        "channel": "mail",
+        "audience": "taxpayer"
+      },
+      {
+        "trigger": "tax_sale_scheduled",
+        "channel": "mail",
+        "audience": "taxpayer"
+      }
+    ],
+    "metrics": [
+      "delinquency_collection_rate",
+      "tax_sale_redemption_rate"
+    ]
+  },
+  {
+    "id": "manage_regulatory_rulemaking",
+    "title": "Manage regulatory rulemaking (APA notice-and-comment)",
+    "actor": {
+      "role": "regulatory_policy_officer"
+    },
+    "situation": "agency proposes new or amended rule; officer must draft NPRM, publish in Federal Register, manage public comment period, prepare final rule with responses to significant comments, and submit for OMB OIRA review",
+    "motivation": "promulgate legally defensible final rule that withstands judicial review under APA arbitrary-and-capricious standard",
+    "outcome": "final rule published in Federal Register; effective date set; guidance documents updated; OIRA review closed",
+    "success_criteria": [
+      "NPRM published with complete regulatory analysis",
+      "comment period open for minimum 60 days",
+      "all significant comments addressed in preamble",
+      "OIRA review completed before publication",
+      "cost-benefit analysis meets EO 12866 requirements"
+    ],
+    "data_capture": [
+      {
+        "id": "rule_title",
+        "kind": "text",
+        "label": "Rule title",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "cfr_citation",
+        "kind": "text",
+        "label": "CFR part being amended",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "nprm_publication_date",
+        "kind": "date",
+        "label": "NPRM publication date",
+        "required": true,
+        "pii": false
+      }
+    ],
+    "approvals": [
+      {
+        "role": "agency_head",
+        "policy": "1_of_1"
+      },
+      {
+        "role": "oira",
+        "policy": "1_of_1"
+      }
+    ],
+    "sla": {
+      "warn_pct": 75,
+      "breach_seconds": 31536000
+    },
+    "notifications": [
+      {
+        "trigger": "nprm_published",
+        "channel": "email",
+        "audience": "regulated_entities"
+      },
+      {
+        "trigger": "final_rule_published",
+        "channel": "email",
+        "audience": "regulated_entities"
+      }
+    ],
+    "metrics": [
+      "rulemaking_cycle_days",
+      "comment_response_completeness_rate"
+    ]
+  },
+  {
+    "id": "process_foia_request",
+    "title": "Process Freedom of Information Act request",
+    "actor": {
+      "role": "foia_coordinator"
+    },
+    "situation": "member of public or media submits FOIA request; coordinator must log receipt, acknowledge within 20 working days, search all responsive records, apply exemptions, redact, and issue final determination",
+    "motivation": "fulfill transparency obligations within statutory timeframes to avoid litigation and OGIS complaints",
+    "outcome": "records produced or withheld with exemption citation; determination letter issued; FOIA log updated",
+    "success_criteria": [
+      "acknowledgement letter sent within 20 working days",
+      "search certified by all responsive offices",
+      "exemptions applied with legal review",
+      "determination letter cites specific exemptions",
+      "fee waiver determination included if requested"
+    ],
+    "data_capture": [
+      {
+        "id": "request_number",
+        "kind": "text",
+        "label": "FOIA request number",
+        "required": true,
+        "pii": false
+      },
+      {
+        "id": "requester_name",
+        "kind": "text",
+        "label": "Requester name",
+        "required": true,
+        "pii": true
+      },
+      {
+        "id": "records_requested",
+        "kind": "textarea",
+        "label": "Records requested description",
+        "required": true,
+        "pii": false
+      }
+    ],
+    "approvals": [
+      {
+        "role": "foia_officer",
+        "policy": "1_of_1"
+      },
+      {
+        "role": "legal_counsel",
+        "policy": "1_of_1"
+      }
+    ],
+    "sla": {
+      "warn_pct": 75,
+      "breach_seconds": 1728000
+    },
+    "notifications": [
+      {
+        "trigger": "acknowledged",
+        "channel": "email",
+        "audience": "requester"
+      },
+      {
+        "trigger": "determination_issued",
+        "channel": "email",
+        "audience": "requester"
+      }
+    ],
+    "metrics": [
+      "foia_on_time_rate",
+      "foia_backlog_count"
+    ]
+  }
+]

@@ -634,7 +634,7 @@
       ]
     },
     {
-      "id": "handle_FOIA_request",
+      "id": "handle_foia_request",
       "title": "Handle Freedom of Information Act request",
       "actor": {
         "role": "foia_officer"

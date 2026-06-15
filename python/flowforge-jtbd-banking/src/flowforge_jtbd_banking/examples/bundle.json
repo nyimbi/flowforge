@@ -669,6 +669,12 @@
       "data_sensitivity": [
         "pii",
         "financial"
+      ],
+      "approvals": [
+        {
+          "role": "dispute_supervisor",
+          "policy": "1_of_1"
+        }
       ]
     },
     {
@@ -921,7 +927,7 @@
       ]
     },
     {
-      "id": "handle_AML_alert",
+      "id": "handle_aml_alert",
       "title": "Investigate AML transaction monitoring alert",
       "actor": {
         "role": "aml_analyst"
@@ -1340,7 +1346,7 @@
       ]
     },
     {
-      "id": "file_SAR",
+      "id": "file_sar",
       "title": "File Suspicious Activity Report (SAR)",
       "actor": {
         "role": "bsa_officer"
@@ -1844,7 +1850,7 @@
       ]
     },
     {
-      "id": "process_ACH_exception",
+      "id": "process_ach_exception",
       "title": "Process ACH return and exception",
       "actor": {
         "role": "ach_operations_specialist"
@@ -1904,7 +1910,7 @@
       ]
     },
     {
-      "id": "conduct_BSA_CDD_review",
+      "id": "conduct_bsa_cdd_review",
       "title": "Conduct BSA Customer Due Diligence review",
       "actor": {
         "role": "bsa_analyst"
@@ -2384,7 +2390,7 @@
       ]
     },
     {
-      "id": "process_SBA_loan",
+      "id": "process_sba_loan",
       "title": "Process SBA-guaranteed loan",
       "actor": {
         "role": "sba_loan_officer"
@@ -2818,7 +2824,7 @@
       ]
     },
     {
-      "id": "manage_LIBOR_SOFR_transition",
+      "id": "manage_libor_sofr_transition",
       "title": "Manage LIBOR-to-SOFR loan transition",
       "actor": {
         "role": "loan_operations_manager"

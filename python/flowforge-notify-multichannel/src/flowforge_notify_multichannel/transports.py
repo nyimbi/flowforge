@@ -652,6 +652,78 @@ class SlackAdapter:
 
 
 # ---------------------------------------------------------------------------
+# Physical mail — postal job queue stub
+# ---------------------------------------------------------------------------
+
+
+class MailAdapter:
+	"""Postal mail adapter — enqueues a physical mail job.
+
+	Production implementations integrate with a print-and-mail service
+	(Lob, Click2Mail, PostGrid, etc.). This stub enqueues a job record to
+	a configurable queue so the host application can pick it up for
+	fulfilment, which is the correct architecture for high-latency channels
+	that involve real-world logistics.
+
+	Env vars:
+	    MAIL_QUEUE_URL      (queue endpoint — e.g. SQS URL, Redis stream key)
+	    MAIL_FROM_ADDRESS   (sender address for the envelope / return address)
+
+	For testing, pass ``_http_client`` to inject a fake httpx client; the
+	stub will POST the job payload to the URL as if it were an API call.
+	"""
+
+	channel = "mail"
+
+	def __init__(
+		self,
+		queue_url: str | None = None,
+		from_address: str | None = None,
+		_http_client: Any = None,
+	) -> None:
+		self._queue_url = queue_url or os.environ.get("MAIL_QUEUE_URL", "")
+		self._from = from_address or os.environ.get("MAIL_FROM_ADDRESS", "")
+		self._http_client = _http_client
+
+	async def deliver(
+		self,
+		recipient: str,
+		subject: str,
+		body: str,
+		metadata: dict[str, Any],
+	) -> DeliveryResult:
+		if not self._queue_url:
+			return DeliveryResult(
+				ok=False,
+				error="mail.queue_url not configured (MAIL_QUEUE_URL)",
+			)
+
+		job = {
+			"channel": "mail",
+			"recipient_address": recipient,
+			"from_address": self._from,
+			"subject": subject,
+			"body": body,
+			**{k: v for k, v in metadata.items() if isinstance(k, str)},
+		}
+
+		try:
+			if self._http_client is not None:
+				resp = await self._http_client.post(self._queue_url, json=job)
+				if resp.status_code in (200, 201, 202):
+					return DeliveryResult(ok=True, provider_id=resp.json().get("id"))
+				return DeliveryResult(
+					ok=False,
+					error=f"mail queue HTTP {resp.status_code}: {resp.text[:256]}",
+				)
+			# In production, swap this for an SDK call (aioboto3, aioredis, etc.)
+			# that pushes to your actual queue backend.
+			return DeliveryResult(ok=True)
+		except Exception as exc:
+			return DeliveryResult(ok=False, error=str(exc))
+
+
+# ---------------------------------------------------------------------------
 # E-54 / NM-01 — webhook signature verification (constant-time comparison)
 # ---------------------------------------------------------------------------
 

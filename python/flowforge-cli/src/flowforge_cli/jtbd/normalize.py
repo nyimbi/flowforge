@@ -241,6 +241,8 @@ def _norm_jtbd(
 	raw: dict[str, Any],
 	shared_perms: list[str],
 	overrides: JtbdCopyOverrides | None = None,
+	*,
+	pkg: str = "",
 ) -> NormalizedJTBD:
 	jt_id = raw["id"]
 	states = T.derive_states(raw)
@@ -265,7 +267,7 @@ def _norm_jtbd(
 		outcome=raw["outcome"],
 		success_criteria=tuple(raw.get("success_criteria") or ()),
 		class_name=T.pascal_case(jt_id),
-		table_name=T.snake_case(jt_id),
+		table_name=f"{T.snake_case(pkg)}_{T.snake_case(jt_id)}" if pkg else T.snake_case(jt_id),
 		module_name=T.snake_case(jt_id),
 		url_segment=T.kebab_case(jt_id),
 		states=tuple(states),
@@ -357,8 +359,9 @@ def normalize(
 		design=design,
 	)
 
+	bundle_pkg = proj.get("package", "")
 	jtbds = tuple(
-		_norm_jtbd(j, shared_perms, overrides) for j in bundle["jtbds"]
+		_norm_jtbd(j, shared_perms, overrides, pkg=bundle_pkg) for j in bundle["jtbds"]
 	)
 
 	# Cross-bundle aggregations: union, sorted, deduplicated.

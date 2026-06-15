@@ -60,28 +60,37 @@ FieldKind = Literal[
 
 EdgeCaseHandle = Literal["branch", "reject", "escalate", "compensate", "loop"]
 ApprovalPolicy = Literal["1_of_1", "2_of_2", "n_of_m", "authority_tier"]
-NotificationTrigger = Literal[
-    "state_enter",
-    "state_exit",
-    "sla_warn",
-    "sla_breach",
-    "approved",
-    "rejected",
-    "escalated",
-]
-NotificationChannel = Literal["email", "sms", "slack", "webhook", "in_app"]
+# Standard built-in triggers fired by the engine itself.  Domain bundles may
+# also emit any custom event name via their state-machine transition effects —
+# this field is intentionally open so domain-specific alerts ("30_day_warning",
+# "investigation_complete", etc.) are not rejected at validation time.
+STANDARD_NOTIFICATION_TRIGGERS: frozenset[str] = frozenset(
+    {
+        "state_enter",
+        "state_exit",
+        "sla_warn",
+        "sla_breach",
+        "approved",
+        "rejected",
+        "escalated",
+    }
+)
+NotificationTrigger = str  # any event name; see STANDARD_NOTIFICATION_TRIGGERS
+
+NotificationChannel = Literal["email", "sms", "slack", "webhook", "in_app", "mail", "push"]
 TenancyMode = Literal["none", "single", "multi"]
-DataSensitivity = Literal["PII", "PHI", "PCI", "secrets", "regulated"]
-ComplianceRegime = Literal[
-    "GDPR",
-    "SOX",
-    "HIPAA",
-    "PCI-DSS",
-    "ISO27001",
-    "SOC2",
-    "NIST-800-53",
-    "CCPA",
-]
+# Well-known data-sensitivity tags; domain bundles may add custom tags.
+STANDARD_DATA_SENSITIVITY_TAGS: frozenset[str] = frozenset(
+    {"PII", "PHI", "PCI", "secrets", "regulated"}
+)
+DataSensitivity = str  # any tag; see STANDARD_DATA_SENSITIVITY_TAGS
+
+# Well-known compliance frameworks; bundles commonly cite jurisdiction-specific
+# regulations (ECOA_RegB, BSA_31USC5318, OFAC, HMDA, …) not listed here.
+STANDARD_COMPLIANCE_REGIMES: frozenset[str] = frozenset(
+    {"GDPR", "SOX", "HIPAA", "PCI-DSS", "ISO27001", "SOC2", "NIST-800-53", "CCPA"}
+)
+ComplianceRegime = str  # any regime string; see STANDARD_COMPLIANCE_REGIMES
 
 JtbdSpecStatus = Literal[
     "draft",
@@ -578,7 +587,9 @@ class JtbdBundle(BaseModel):
 __all__ = [
     "ApprovalPolicy",
     "ComplianceRegime",
+    "STANDARD_COMPLIANCE_REGIMES",
     "DataSensitivity",
+    "STANDARD_DATA_SENSITIVITY_TAGS",
     "DesignDensity",
     "EdgeCaseHandle",
     "FieldKind",
@@ -600,6 +611,7 @@ __all__ = [
     "JtbdSpecStatus",
     "NotificationChannel",
     "NotificationTrigger",
+    "STANDARD_NOTIFICATION_TRIGGERS",
     "SENSITIVE_FIELD_KINDS",
     "SemverStr",
     "SpecHashStr",

@@ -1,5 +1,5 @@
 [project]
-name = "flowforge-jtbd-compliance-starter"
+name = "flowforge-jtbd-compliance"
 version = "0.0.1"
 description = "flowforge JTBD domain library — Compliance (KYC, AML, audit)"
 keywords = ["flowforge", "jtbd", "scaffold-only", "starter"]

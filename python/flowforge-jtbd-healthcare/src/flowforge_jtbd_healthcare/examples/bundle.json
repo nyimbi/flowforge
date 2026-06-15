@@ -1004,6 +1004,12 @@
         "phi",
         "pii",
         "controlled_substance"
+      ],
+      "approvals": [
+        {
+          "role": "supervising_pharmacist",
+          "policy": "1_of_1"
+        }
       ]
     },
     {
@@ -2496,8 +2502,8 @@
         },
         {
           "trigger": "drg_updated",
-          "kind": "email",
-          "audience": "billing"
+          "audience": "billing",
+          "channel": "email"
         }
       ],
       "metrics": [

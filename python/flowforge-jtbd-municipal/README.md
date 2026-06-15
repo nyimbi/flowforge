@@ -34,7 +34,7 @@ bundle = load_bundle()
 
 ```bash
 # Lint the bundle
-flowforge jtbd lint python/flowforge-jtbd-municipal/src/flowforge_jtbd_municipal/examples/bundle.json
+uv run flowforge jtbd lint python/flowforge-jtbd-municipal/src/flowforge_jtbd_municipal/examples/bundle.json
 
 # Run the tutorial with this domain
 flowforge tutorial --domain municipal

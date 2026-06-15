@@ -48,7 +48,7 @@ import json
 from importlib.resources import files
 
 bundle = json.loads(
-    files("flowforge_jtbd_healthcare.examples").joinpath("bundle.json").read_text()
+    files("flowforge_jtbd_healthcare").joinpath("examples/bundle.json").read_text()
 )
 
 for jtbd in bundle["jtbds"]:
