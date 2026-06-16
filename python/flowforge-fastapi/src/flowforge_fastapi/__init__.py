@@ -57,10 +57,12 @@ def mount_routers(
 	prefix: str = "",
 	principal_extractor: "PrincipalExtractor | None" = None,
 	tenant_resolver: "TenantResolver | None" = None,
-	tags: Sequence[str] | None = None,
+	tags: "Sequence[str] | None" = None,
 	require_csrf: bool = False,
-	ws_allowed_origins: Sequence[str] | None = None,
+	ws_allowed_origins: "Sequence[str] | None" = None,
 	allow_test_defaults: bool = False,
+	instance_store: "Any | None" = None,
+	registry: "WorkflowDefRegistry | None" = None,
 ) -> None:
 	"""Attach designer + runtime + WS routers to *app*.
 
@@ -79,6 +81,17 @@ def mount_routers(
 	* ``ws_allowed_origins`` — optional exact browser origins trusted for
 	  WebSocket handshakes.  When unset, WebSocket handshakes with an
 	  ``Origin`` header must be same-origin with the request host.
+	* ``instance_store`` — optional durable snapshot store. When provided,
+	  overrides the default :class:`InstanceStore` (in-memory) for this
+	  app. Pass a :class:`flowforge_sqlalchemy.SqlAlchemySnapshotStore`
+	  instance for production deployments. The object must implement
+	  ``get()``, ``get_for_tenant()``, ``create_instance()``, and
+	  ``put()``; ``fire_and_commit()`` and ``compare_and_put()`` are used
+	  when present (duck-typed, not required).
+	* ``registry`` — optional :class:`WorkflowDefRegistry`. When provided,
+	  overrides the module-level singleton for this app so that multiple
+	  FastAPI apps in the same process can hold independent definition
+	  sets.
 	"""
 
 	from fastapi import FastAPI
@@ -112,6 +125,19 @@ def mount_routers(
 	app_hub = WorkflowEventsHub()
 	app.state.flowforge_events_hub = app_hub
 	app.dependency_overrides[get_events_hub] = lambda: app_hub
+
+	# DI injection for durable stores. When provided, override the module-level
+	# in-memory singletons so every request handled by this app uses the
+	# injected implementation. This is the correct production path for hosts
+	# that back instances with flowforge-sqlalchemy or a custom adapter.
+	# The closures capture the injected objects by reference — consistent with
+	# how get_events_hub is overridden above.
+	if instance_store is not None:
+		_injected_store = instance_store
+		app.dependency_overrides[get_instance_store] = lambda: _injected_store
+	if registry is not None:
+		_injected_registry = registry
+		app.dependency_overrides[get_registry] = lambda: _injected_registry
 
 	app.include_router(designer, prefix=prefix)
 	app.include_router(runtime, prefix=prefix)

@@ -185,7 +185,7 @@ async def test_generate_wraps_sdk_failure_in_provider_error() -> None:
 
 async def test_embed_raises_not_implemented() -> None:
     provider = LlmProviderClaude(client=_FakeClient())
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(LlmProviderError, match="Claude does not ship"):
         await provider.embed("text")
 
 

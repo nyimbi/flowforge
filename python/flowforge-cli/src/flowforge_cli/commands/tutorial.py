@@ -381,8 +381,15 @@ def tutorial_cmd(
 						_unique_evs = list(dict.fromkeys(_evs))
 						if _unique_evs:
 							_sim_events = _unique_evs[:2]
-					except Exception:
-						pass
+					except Exception as _exc:
+						import logging as _logging
+						_logging.getLogger(__name__).warning(
+							"tutorial: could not derive event names from %s (%s); "
+							"falling back to defaults %s",
+							wf_path,
+							_exc,
+							_sim_events,
+						)
 				_sim_args = [item for ev in _sim_events for item in ("--events", ev)]
 				ok = _run_cmd(
 					["flowforge", "simulate", "--def", str(wf_path)] + _sim_args,

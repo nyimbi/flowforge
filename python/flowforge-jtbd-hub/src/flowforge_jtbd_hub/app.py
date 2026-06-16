@@ -196,6 +196,14 @@ def create_app(
 			t.strip() for t in admin_token.split(",") if t.strip()
 		)
 		assert allowed_tokens, "admin_token must contain at least one non-empty value"
+		import logging as _logging
+		_logging.getLogger(__name__).warning(
+			"flowforge-jtbd-hub: legacy admin-token bridge (E-58) is ACTIVE with %d token(s). "
+			"This mechanism is retained for backward compatibility only — migrate to "
+			"principal_extractor + proper OIDC/JWT auth before production. "
+			"Set admin_token=None once all callers are updated.",
+			len(allowed_tokens),
+		)
 	if principal_extractor is None and not allowed_tokens and not dev_mode:
 		raise RuntimeError(
 			"flowforge-jtbd-hub admin routes require principal_extractor or admin_token; "

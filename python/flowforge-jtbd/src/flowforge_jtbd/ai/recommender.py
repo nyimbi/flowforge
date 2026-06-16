@@ -348,14 +348,17 @@ class InMemoryEmbeddingStore:
         import warnings as _warnings
 
         if not type(self)._warned:
-            _warnings.warn(
+            import logging as _logging
+            _msg = (
                 "InMemoryEmbeddingStore is intended for tests and small "
                 "catalogs (< 10K JTBDs). Use the pgvector store for "
                 "production — see flowforge-jtbd/README.md § 'Vector store "
-                "selection'.",
-                category=PerformanceWarning,
-                stacklevel=2,
+                "selection'."
             )
+            _warnings.warn(_msg, category=PerformanceWarning, stacklevel=2)
+            # Also emit via logging so the warning appears in production log
+            # aggregators even when Python warning filters suppress it.
+            _logging.getLogger(__name__).warning(_msg)
             type(self)._warned = True
         self._vectors: dict[str, list[float]] = {}
         self._meta: dict[str, dict[str, Any]] = {}

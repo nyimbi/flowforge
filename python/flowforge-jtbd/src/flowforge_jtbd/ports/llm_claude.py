@@ -9,8 +9,8 @@ Default model ids (overridable):
 
 * generate / stream_chat — ``claude-sonnet-4-5-20250929``
 * embed — Anthropic does not ship a first-party embedding API; this
-  adapter raises ``NotImplementedError`` from :meth:`embed` so callers
-  fall back to the configured ``EmbeddingProvider`` (E-15).
+  adapter raises :class:`LlmProviderError` from :meth:`embed` so callers
+  know to configure a dedicated ``EmbeddingProvider`` (E-15).
 """
 
 from __future__ import annotations
@@ -88,9 +88,11 @@ class LlmProviderClaude:
         return _join_text_blocks(response)
 
     async def embed(self, text: str) -> list[float]:
-        raise NotImplementedError(
+        raise LlmProviderError(
             "Claude does not ship a first-party embedding API. "
-            "Configure an EmbeddingProvider (E-15) for vector use cases.",
+            "Configure a dedicated EmbeddingProvider (e.g. OpenAI "
+            "text-embedding-3-small or a local sentence-transformers model) "
+            "for vector use cases — see E-15 / flowforge-jtbd README."
         )
 
     async def stream_chat(

@@ -178,6 +178,8 @@ class EmailAdapter:
 		from_addr: str | None = None,
 		start_tls: bool | None = None,
 	) -> None:
+		import logging as _logging
+
 		self._host = host or os.environ.get("SMTP_HOST", "localhost")
 		self._port = port or int(os.environ.get("SMTP_PORT", "587"))
 		self._user = user or os.environ.get("SMTP_USER", "")
@@ -185,6 +187,17 @@ class EmailAdapter:
 		self._from = from_addr or os.environ.get("SMTP_FROM", "noreply@example.com")
 		env_tls = os.environ.get("SMTP_START_TLS", "true").lower() not in ("0", "false", "no")
 		self._start_tls = start_tls if start_tls is not None else env_tls
+		_log = _logging.getLogger(__name__)
+		if self._host == "localhost" and host is None and not os.environ.get("SMTP_HOST"):
+			_log.warning(
+				"EmailAdapter: SMTP_HOST is using the default 'localhost'. "
+				"Set SMTP_HOST to your production SMTP relay to avoid delivery failures."
+			)
+		if self._from == "noreply@example.com" and from_addr is None and not os.environ.get("SMTP_FROM"):
+			_log.warning(
+				"EmailAdapter: SMTP_FROM is using the placeholder 'noreply@example.com'. "
+				"Set SMTP_FROM to a verified sender address."
+			)
 
 	async def deliver(
 		self,
@@ -252,12 +265,20 @@ class SESEmailAdapter:
 		from_addr: str | None = None,
 		_http_client: Any = None,
 	) -> None:
+		import logging as _logging
+
 		self._access_key = access_key or os.environ.get("AWS_ACCESS_KEY_ID", "")
 		self._secret_key = secret_key or os.environ.get("AWS_SECRET_ACCESS_KEY", "")
 		self._session_token = session_token or os.environ.get("AWS_SESSION_TOKEN", "")
 		self._region = region or os.environ.get("AWS_REGION", "us-east-1")
 		self._from = from_addr or os.environ.get("SES_FROM_ADDRESS", "noreply@example.com")
 		self._http_client = _http_client
+		if self._from == "noreply@example.com" and from_addr is None and not os.environ.get("SES_FROM_ADDRESS"):
+			_logging.getLogger(__name__).warning(
+				"SESEmailAdapter: SES_FROM_ADDRESS is using the placeholder "
+				"'noreply@example.com'. SES will reject all emails until a verified "
+				"sender address is configured via SES_FROM_ADDRESS or from_addr."
+			)
 
 	async def deliver(
 		self,
@@ -707,19 +728,25 @@ class MailAdapter:
 			**{k: v for k, v in metadata.items() if isinstance(k, str)},
 		}
 
+		import httpx
+
 		try:
 			if self._http_client is not None:
 				resp = await self._http_client.post(self._queue_url, json=job)
-				if resp.status_code in (200, 201, 202):
-					return DeliveryResult(ok=True, provider_id=resp.json().get("id"))
-				return DeliveryResult(
-					ok=False,
-					error=f"mail queue HTTP {resp.status_code}: {resp.text[:256]}",
-				)
-			# In production, swap this for an SDK call (aioboto3, aioredis, etc.)
-			# that pushes to your actual queue backend.
-			return DeliveryResult(ok=True)
-		except Exception as exc:
+			else:
+				async with httpx.AsyncClient(timeout=10.0) as client:
+					resp = await client.post(self._queue_url, json=job)
+			if resp.status_code in (200, 201, 202):
+				try:
+					provider_id = resp.json().get("id") if resp.content else None
+				except Exception:
+					provider_id = None
+				return DeliveryResult(ok=True, provider_id=provider_id)
+			return DeliveryResult(
+				ok=False,
+				error=f"mail queue HTTP {resp.status_code}: {resp.text[:256]}",
+			)
+		except httpx.RequestError as exc:
 			return DeliveryResult(ok=False, error=str(exc))
 
 
