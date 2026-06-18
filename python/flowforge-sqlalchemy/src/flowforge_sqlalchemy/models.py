@@ -427,3 +427,31 @@ class OutboxMessage(Base):
 	__table_args__ = (
 		Index("ix_outbox_status_created", "status", "created_at"),
 	)
+
+
+class WorkflowTask(Base):
+	"""Operational tasks surfaced by the engine for manual_review states.
+
+	Created by :class:`PostgresTaskTracker` when a workflow instance
+	enters a ``manual_review`` state. Ops dashboards poll this table
+	to surface pending human work items.
+	"""
+
+	__tablename__ = "workflow_tasks"
+
+	id: Mapped[str] = mapped_column(UuidStr(), primary_key=True)
+	tenant_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+	kind: Mapped[str] = mapped_column(String(64), nullable=False)
+	ref: Mapped[str] = mapped_column(String(512), nullable=False, index=True)
+	note: Mapped[str] = mapped_column(Text(), nullable=False, default="")
+	status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending", index=True)
+	created_at: Mapped[datetime] = mapped_column(
+		DateTime(timezone=True), nullable=False, default=_utcnow
+	)
+	resolved_at: Mapped[datetime | None] = mapped_column(
+		DateTime(timezone=True), nullable=True
+	)
+
+	__table_args__ = (
+		Index("ix_workflow_tasks_status_created", "status", "created_at"),
+	)

@@ -156,6 +156,7 @@ async def test_http_adapters_use_default_async_client_when_no_client_injected(
 	ses_result = await SESEmailAdapter(
 		access_key="AKID",
 		secret_key="SECRET",
+		from_addr="from@ses.test",
 	).deliver("to@ses.test", "S", "B", {})
 	sms_result = await SMSAdapter(
 		account_sid="AC1",
@@ -257,7 +258,7 @@ class TestEmailAdapter:
 
 		monkeypatch.setattr("aiosmtplib.send", fail_send)
 
-		adapter = EmailAdapter(host="localhost", port=9999, start_tls=False)
+		adapter = EmailAdapter(host="localhost", port=9999, start_tls=False, from_addr="from@test.com")
 		result = await adapter.deliver("to@test.com", "S", "B", {})
 		assert not result.ok
 		assert "no smtp" in (result.error or "")
@@ -270,7 +271,7 @@ class TestEmailAdapter:
 
 		monkeypatch.setattr("aiosmtplib.send", fail_send)
 
-		adapter = EmailAdapter(host="localhost", port=9999, start_tls=False)
+		adapter = EmailAdapter(host="localhost", port=9999, start_tls=False, from_addr="from@test.com")
 		result = await adapter.deliver("to@test.com", "S", "B", {})
 		assert not result.ok
 		assert "smtp refused" in (result.error or "")
@@ -306,7 +307,7 @@ class TestSESEmailAdapter:
 
 	async def test_deliver_requires_credentials(self) -> None:
 		fake = FakeHTTPClient(FakeResponse(500, "Internal Error"))
-		adapter = SESEmailAdapter(_http_client=fake)
+		adapter = SESEmailAdapter(_http_client=fake, from_addr="noop@test.com")
 		result = await adapter.deliver("to@ses.test", "S", "B", {})
 		assert not result.ok
 		assert "credentials" in (result.error or "")
@@ -314,13 +315,13 @@ class TestSESEmailAdapter:
 
 	async def test_deliver_http_error(self) -> None:
 		fake = FakeHTTPClient(FakeResponse(500, "Internal Error"))
-		adapter = SESEmailAdapter(access_key="AKID", secret_key="SECRET", _http_client=fake)
+		adapter = SESEmailAdapter(access_key="AKID", secret_key="SECRET", from_addr="from@ses.test", _http_client=fake)
 		result = await adapter.deliver("to@ses.test", "S", "B", {})
 		assert not result.ok
 		assert "500" in (result.error or "")
 
 	async def test_deliver_request_error(self) -> None:
-		adapter = SESEmailAdapter(access_key="AKID", secret_key="SECRET", _http_client=RaisingHTTPClient())
+		adapter = SESEmailAdapter(access_key="AKID", secret_key="SECRET", from_addr="from@ses.test", _http_client=RaisingHTTPClient())
 		result = await adapter.deliver("to@ses.test", "S", "B", {})
 		assert not result.ok
 		assert "network down" in (result.error or "")

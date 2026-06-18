@@ -394,7 +394,7 @@ async def test_principal_extractor_failure_maps_to_401(
 			headers={"Authorization": "Bearer invalid"},
 			json={"user_id": "alice", "stars": 5},
 		)
-	assert r.status_code == 401
+	assert r.status_code == 503  # infrastructure error → 503, not 401 (BLK-01)
 
 
 async def test_demote_requires_admin_token(

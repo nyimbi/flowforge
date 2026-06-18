@@ -56,10 +56,14 @@ typing checks arity and name, not async-ness of the return type).
 from __future__ import annotations
 
 import base64
+import binascii
 import json
+import logging
 import time
 import uuid
 from typing import Any
+
+_log = logging.getLogger(__name__)
 
 from .rbac import Principal, Role
 from .token_revocation import RevocationList
@@ -152,8 +156,8 @@ class JwtPrincipalExtractor:
 			_c = _cfg.current()
 			if _c.metrics is not None:
 				_c.metrics.emit("flowforge_jwt_tokens_issued_total", 1.0, {})
-		except Exception:
-			pass
+		except Exception as _exc:
+			_log.debug("metrics emit failed (jwt_tokens_issued): %s", _exc)
 		return token
 
 	# keep synchronous alias for callers that cannot await
@@ -184,25 +188,35 @@ class JwtPrincipalExtractor:
 		try:
 			sig_bytes = _b64url_decode(parts[0])
 			payload_bytes = _b64url_decode(parts[1])
-		except Exception:
+		except (ValueError, binascii.Error):
 			return None
 
 		# Decode payload to get key_id for verify() dispatch.
 		try:
 			payload: dict[str, Any] = json.loads(payload_bytes)
-		except Exception:
+		except (json.JSONDecodeError, ValueError):
 			return None
 
 		key_id: str | None = payload.get("key_id")
 		if not key_id:
 			return None
 
-		# Verify signature — wrong key or tampered payload returns False
-		# or raises UnknownKeyId; both cases → return None.
+		# Verify signature — wrong key or tampered payload returns False;
+		# UnknownKeyId (ValueError subclass) → invalid token → return None.
+		# KMS/transport errors must NOT be swallowed — propagate so the
+		# caller can surface a 503 instead of silently downgrading auth.
 		try:
 			ok = await self._signing.verify(payload_bytes, sig_bytes, key_id)
-		except Exception:
+		except (ValueError, KeyError):
+			# UnknownKeyId or similar "key not found" — token is invalid.
 			return None
+		except Exception:
+			# Infrastructure failure — re-raise so _resolve_principal can 503.
+			_log.error(
+				"signing.verify() raised an infrastructure error — propagating",
+				exc_info=True,
+			)
+			raise
 		if not ok:
 			return None
 

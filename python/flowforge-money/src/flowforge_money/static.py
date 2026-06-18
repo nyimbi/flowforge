@@ -297,6 +297,14 @@ class StaticMoneyPort:
 
 	def __init__(self, provider: RateProvider | None = None) -> None:
 		self._provider: RateProvider = provider or StaticRateProvider()
+		if isinstance(self._provider, StaticRateProvider) and not self._provider._rates:  # type: ignore[attr-defined]
+			import logging as _logging
+			_logging.getLogger(__name__).warning(
+				"StaticMoneyPort constructed with an empty rate table. "
+				"Any cross-currency convert() call will raise ValueError. "
+				"Populate rates via StaticRateProvider.add_rate() or pass a "
+				"pre-loaded provider."
+			)
 
 	async def convert(
 		self,

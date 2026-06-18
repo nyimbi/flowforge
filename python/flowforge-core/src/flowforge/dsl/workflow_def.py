@@ -102,6 +102,15 @@ class Gate(BaseModel):
 	tier: int | None = None
 
 
+class RetryPolicy(BaseModel):
+	model_config = ConfigDict(extra="forbid")
+
+	max_attempts: int = 3
+	backoff_seconds: int = 60
+	backoff_multiplier: float = 2.0
+	max_backoff_seconds: int = 3600
+
+
 class Effect(BaseModel):
 	model_config = ConfigDict(extra="forbid")
 
@@ -115,6 +124,7 @@ class Effect(BaseModel):
 	subworkflow_key: str | None = None
 	compensation_kind: str | None = None
 	url: str | None = None
+	retry: RetryPolicy | None = None
 
 
 class Sla(BaseModel):

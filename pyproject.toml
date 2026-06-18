@@ -77,6 +77,7 @@ members = [
     "python/flowforge-cli",
     "python/flowforge-jtbd",
     "python/flowforge-jtbd-hub",
+    "python/flowforge-connectors",
     # Domain libraries — registered for build discovery; package=false until
     # they pass E-48a (rebrand to *-starter) or E-48b (real-content review).
     "python/flowforge-jtbd-accounting",
@@ -126,6 +127,7 @@ flowforge-documents-s3 = { workspace = true }
 flowforge-money = { workspace = true }
 flowforge-signing-kms = { workspace = true }
 flowforge-notify-multichannel = { workspace = true }
+flowforge-connectors = { workspace = true }
 flowforge-otel = { workspace = true }
 flowforge-cli = { workspace = true }
 

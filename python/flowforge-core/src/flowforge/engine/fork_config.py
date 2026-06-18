@@ -14,7 +14,20 @@ Two conditions must both be true for fork dispatch to activate:
 
 from __future__ import annotations
 
+import logging
 import os
+
+_log = logging.getLogger(__name__)
+
+# Emit once at import time so operators see fork semantics in startup logs.
+_FORKS_ENABLED_VAL = os.environ.get("FLOWFORGE_FORKS_ENABLED", "1").strip().lower()
+_FORKS_ON = _FORKS_ENABLED_VAL not in ("0", "false", "no")
+_log.info(
+	"flowforge: parallel_fork engine semantics are %s "
+	"(FLOWFORGE_FORKS_ENABLED=%s). Set FLOWFORGE_FORKS_ENABLED=0 to disable.",
+	"ENABLED" if _FORKS_ON else "DISABLED",
+	_FORKS_ENABLED_VAL or "1 (default)",
+)
 
 
 def forks_enabled() -> bool:

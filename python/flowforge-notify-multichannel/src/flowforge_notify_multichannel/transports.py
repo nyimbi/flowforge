@@ -189,14 +189,15 @@ class EmailAdapter:
 		self._start_tls = start_tls if start_tls is not None else env_tls
 		_log = _logging.getLogger(__name__)
 		if self._host == "localhost" and host is None and not os.environ.get("SMTP_HOST"):
-			_log.warning(
-				"EmailAdapter: SMTP_HOST is using the default 'localhost'. "
-				"Set SMTP_HOST to your production SMTP relay to avoid delivery failures."
+			raise ValueError(
+				"EmailAdapter: SMTP_HOST is 'localhost' (default). "
+				"Set SMTP_HOST to your production SMTP relay, or pass host= explicitly. "
+				"This will fail at first send in any non-local environment."
 			)
 		if self._from == "noreply@example.com" and from_addr is None and not os.environ.get("SMTP_FROM"):
-			_log.warning(
-				"EmailAdapter: SMTP_FROM is using the placeholder 'noreply@example.com'. "
-				"Set SMTP_FROM to a verified sender address."
+			raise ValueError(
+				"EmailAdapter: SMTP_FROM is the placeholder 'noreply@example.com'. "
+				"Set SMTP_FROM to a verified sender address or pass from_addr= explicitly."
 			)
 
 	async def deliver(
@@ -274,10 +275,10 @@ class SESEmailAdapter:
 		self._from = from_addr or os.environ.get("SES_FROM_ADDRESS", "noreply@example.com")
 		self._http_client = _http_client
 		if self._from == "noreply@example.com" and from_addr is None and not os.environ.get("SES_FROM_ADDRESS"):
-			_logging.getLogger(__name__).warning(
-				"SESEmailAdapter: SES_FROM_ADDRESS is using the placeholder "
-				"'noreply@example.com'. SES will reject all emails until a verified "
-				"sender address is configured via SES_FROM_ADDRESS or from_addr."
+			raise ValueError(
+				"SESEmailAdapter: SES_FROM_ADDRESS is the placeholder 'noreply@example.com'. "
+				"AWS SES will reject all sends from an unverified address. "
+				"Set SES_FROM_ADDRESS to a verified sender or pass from_addr= explicitly."
 			)
 
 	async def deliver(
@@ -627,6 +628,13 @@ class SlackAdapter:
 		_http_client: Any = None,
 	) -> None:
 		self._default_url = webhook_url or os.environ.get("SLACK_WEBHOOK_URL", "")
+		if not self._default_url:
+			import logging as _logging
+			_logging.getLogger(__name__).warning(
+				"SlackAdapter: no default webhook URL configured (SLACK_WEBHOOK_URL). "
+				"A webhook URL must be provided per-call via recipient or "
+				"metadata['webhook_url'], otherwise delivery will fail."
+			)
 		env_allowed_hosts = _parse_allowed_hosts(os.environ.get("SLACK_ALLOWED_HOSTS"))
 		explicit_allowed_hosts = (
 			frozenset(host.lower() for host in allowed_hosts) if allowed_hosts is not None else frozenset()
@@ -705,6 +713,11 @@ class MailAdapter:
 		self._queue_url = queue_url or os.environ.get("MAIL_QUEUE_URL", "")
 		self._from = from_address or os.environ.get("MAIL_FROM_ADDRESS", "")
 		self._http_client = _http_client
+		if not self._queue_url:
+			raise ValueError(
+				"MailAdapter requires a queue URL. "
+				"Pass queue_url= or set MAIL_QUEUE_URL environment variable."
+			)
 
 	async def deliver(
 		self,

@@ -425,8 +425,9 @@ class PackageRegistry:
 				_c = _cfg.current()
 				if _c.metrics is not None:
 					_c.metrics.emit("flowforge_jtbd_hub_package_install_unsigned_total", 1.0, {})
-			except Exception:
-				pass
+			except Exception as _exc:
+				import logging as _logging
+				_logging.getLogger(__name__).debug("metrics emit failed (package_install_unsigned): %s", _exc)
 			await _emit_audit_event(
 				self._audit_hook,
 				audit_emit,

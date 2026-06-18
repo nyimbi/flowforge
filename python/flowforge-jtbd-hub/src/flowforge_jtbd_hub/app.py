@@ -233,8 +233,9 @@ def create_app(
 					_c = _cfg.current()
 					if _c.metrics is not None:
 						_c.metrics.emit("flowforge_jtbd_hub_admin_legacy_token_uses_total", 1.0, {})
-				except Exception:
-					pass
+				except Exception as _exc:
+					import logging as _logging
+					_logging.getLogger(__name__).debug("metrics emit failed (legacy_token_uses): %s", _exc)
 				return LEGACY_ADMIN_PRINCIPAL
 		return None
 
@@ -262,11 +263,29 @@ def create_app(
 					principal = await result
 				else:
 					principal = result
-			except Exception:
-				principal = None
+			except HTTPException:
+				# Deliberate auth rejection (401/403) — propagate as-is.
+				raise
+			except Exception as _exc:
+				# Infrastructure failure (KMS unreachable, signing error, network
+				# partition). Falling through to the legacy bridge would silently
+				# degrade authenticated requests to unauthenticated — auth bypass
+				# under fault. Surface as 503 instead.
+				import logging as _logging
+				_logging.getLogger(__name__).error(
+					"principal_extractor raised unexpectedly — returning 503 "
+					"to prevent silent auth downgrade: %s",
+					_exc,
+					exc_info=True,
+				)
+				raise HTTPException(
+					status_code=503,
+					detail="authentication service temporarily unavailable",
+				) from _exc
 			if principal is not None:
 				return principal
-		# Fall through to the legacy bridge.
+		# Fall through to legacy bridge only when extractor returned None
+		# (anonymous / no token), never when it raised.
 		return _legacy_token_principal(authorization)
 
 	def _require_permission(perm: Permission):

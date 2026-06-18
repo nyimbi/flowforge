@@ -73,8 +73,9 @@ def _emit_metric(name: str, value: float = 1.0, labels: dict | None = None) -> N
 		_c = _cfg.current()
 		if _c.metrics is not None:
 			_c.metrics.emit(name, value, labels or {})
-	except Exception:
-		pass
+	except Exception as _exc:
+		import logging as _logging
+		_logging.getLogger(__name__).debug("metrics emit failed (%s): %s", name, _exc)
 
 from .hash_chain import (
 	AuditRow,

@@ -337,8 +337,9 @@ def _hub_for(websocket: WebSocket) -> WorkflowEventsHub:
 		_c = _cfg.current()
 		if _c.metrics is not None:
 			_c.metrics.emit("flowforge_fastapi_hub_cross_app_leak_total", 1.0, {})
-	except Exception:
-		pass
+	except Exception as _exc:
+		import logging as _logging
+		_logging.getLogger(__name__).debug("metrics emit failed (hub_cross_app_leak): %s", _exc)
 	return _hub
 
 

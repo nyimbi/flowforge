@@ -27,14 +27,19 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any
+
+_log = logging.getLogger(__name__)
 
 from .. import config
 from .._uuid7 import uuid7str
 from ..dsl import Effect, Transition, WorkflowDef
 from .tokens import Token, TokenSet
 from ..expr import EvaluationError, evaluate
+from ..ports.metrics import FIRE_DURATION_HISTOGRAM
 from ..ports.types import (
 	AuditEvent,
 	ExecutionContext,
@@ -389,8 +394,8 @@ async def fire(
 		if _c.metrics is not None:
 			try:
 				_c.metrics.emit("flowforge_engine_fire_rejected_concurrent_total", 1.0, {})
-			except Exception:
-				pass
+			except Exception as _exc:
+				_log.debug("metrics emit failed (fire_rejected_concurrent): %s", _exc)
 		raise ConcurrentFireRejected(instance.id)
 	_FIRING_INSTANCES.add(instance.id)
 	try:
@@ -404,18 +409,45 @@ async def fire(
 		):
 			return FireResult(instance, None, [], instance.state, terminal=True)
 
-		return await _fire_locked(
-			wd,
-			instance,
-			event,
-			payload=payload,
-			principal=principal,
-			tenant_id=tenant_id,
-			jtbd_id=jtbd_id,
-			jtbd_version=jtbd_version,
-			dispatch_ports=dispatch_ports,
-			token_id=token_id,
-		)
+		_t0 = time.monotonic()
+		_cfg = config.current()
+		_span_attrs: dict[str, Any] = {
+			"flowforge.tenant_id": tenant_id,
+			"flowforge.event": event,
+			"flowforge.state": instance.state,
+			"flowforge.principal_user_id": principal.user_id if principal else "",
+		}
+		if jtbd_id:
+			_span_attrs["flowforge.jtbd_id"] = jtbd_id
+		try:
+			if _cfg.tracing is not None:
+				async with _cfg.tracing.start_span("flowforge.fire", attributes=_span_attrs) as _span:
+					result = await _fire_locked(
+						wd, instance, event,
+						payload=payload, principal=principal, tenant_id=tenant_id,
+						jtbd_id=jtbd_id, jtbd_version=jtbd_version,
+						dispatch_ports=dispatch_ports, token_id=token_id,
+					)
+					_span.set_attribute("flowforge.state", result.new_state or "")
+			else:
+				result = await _fire_locked(
+					wd, instance, event,
+					payload=payload, principal=principal, tenant_id=tenant_id,
+					jtbd_id=jtbd_id, jtbd_version=jtbd_version,
+					dispatch_ports=dispatch_ports, token_id=token_id,
+				)
+			return result
+		finally:
+			_dur = time.monotonic() - _t0
+			_m = config.current().metrics
+			if _m is not None and hasattr(_m, "record_histogram"):
+				try:
+					_m.record_histogram(
+						FIRE_DURATION_HISTOGRAM, _dur,
+						{"event": event, "tenant_id": tenant_id},
+					)
+				except Exception as _exc:
+					_log.debug("metrics record_histogram failed (fire_duration): %s", _exc)
 	finally:
 		_FIRING_INSTANCES.discard(instance.id)
 
@@ -460,8 +492,8 @@ async def _fire_locked(
 			if _cfg.metrics is not None:
 				try:
 					_cfg.metrics.emit("flowforge_token_unknown_advance_total", 1.0, {})
-				except Exception:
-					pass
+				except Exception as _exc:
+					_log.debug("metrics emit failed (token_unknown_advance): %s", _exc)
 			raise TokenAlreadyConsumedError(f"token {token_id!r} not found or already consumed")
 
 		_token = next(t for t in instance.tokens.list() if t.id == token_id)
@@ -578,16 +610,16 @@ async def _fire_locked(
 							float(_outstanding_before),
 							{},
 						)
-					except Exception:
-						pass
+					except Exception as _exc:
+						_log.debug("metrics emit failed (fork_join_timeout): %s", _exc)
 					try:
 						_cfg2.metrics.emit(
 							"flowforge_fork_orphan_tokens_total",
 							float(_outstanding_before),
 							{},
 						)
-					except Exception:
-						pass
+					except Exception as _exc:
+						_log.debug("metrics emit failed (fork_orphan_tokens): %s", _exc)
 
 		# Take a post-mutation snapshot (after consume_token + join collapse) for
 		# the dispatch-failure rollback. Using the pre-mutation pre_snapshot here
@@ -798,6 +830,26 @@ async def _fire_locked(
 						jtbd_version=jtbd_version,
 					)
 				raise OutboxDispatchError(instance.id, env.kind) from e
+
+	# FEAT-02: When entering a manual_review state, surface a task in the
+	# TaskTrackerPort so operator dashboards see pending human work.
+	if _new_state_def is not None and _new_state_def.kind == "manual_review":
+		_task_cfg = config.current()
+		if _task_cfg.tasks is not None:
+			try:
+				await _task_cfg.tasks.create_task(
+					kind="manual_review",
+					ref=f"{wd.key}:{instance.id}",
+					note=(
+						f"State {instance.state!r} via event {event!r}. "
+						+ (f"Actor: {principal.user_id!r}." if principal else "Actor: system.")
+					),
+				)
+			except Exception as _exc:
+				_log.warning(
+					"TaskTrackerPort.create_task() failed for instance %r state %r: %s",
+					instance.id, instance.state, _exc,
+				)
 
 	terminal = _is_terminal(wd, instance.state)
 	return FireResult(

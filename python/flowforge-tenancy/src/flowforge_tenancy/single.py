@@ -36,8 +36,9 @@ def _validate_guc_key(key: str) -> None:
 			_c = _cfg.current()
 			if _c.metrics is not None:
 				_c.metrics.emit("flowforge_tenancy_invalid_guc_key_total", 1.0, {})
-		except Exception:
-			pass
+		except Exception as _exc:
+			import logging as _logging
+			_logging.getLogger(__name__).debug("metrics emit failed (invalid_guc_key): %s", _exc)
 		raise ValueError(
 			f"invalid GUC key {key!r}: must match {_GUC_KEY_RE.pattern}"
 		)

@@ -109,8 +109,8 @@ def _resolve_keys(
                 _c = _cfg.current()
                 if _c.metrics is not None:
                     _c.metrics.emit("flowforge_signing_secret_default_used_total", 1.0, {})
-            except Exception:
-                pass
+            except Exception as _exc:
+                _logger.debug("metrics emit failed (signing_secret_default_used): %s", _exc)
             _logger.warning(
                 "!!! INSECURE DEFAULT IN USE !!! "
                 "HmacDevSigning fell back to the hard-coded legacy secret because "
