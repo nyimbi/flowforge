@@ -15,6 +15,28 @@ from typing import Any
 
 from .fire import Instance, FireResult, fire, new_instance
 from ..dsl import WorkflowDef
+from .dynamic_fork import (
+	BranchStatus,
+	DynamicForkError,
+	ForkState,
+	begin_fork,
+	clear_fork,
+	collect_branch_result,
+	collect_fork_results,
+	is_fork_complete,
+)
+from .hibernate import (
+	HibernationCandidate,
+	HibernationError,
+	HibernationRecord,
+	WakeResult,
+	WakeScheduler,
+	begin_hibernate,
+	compact_history,
+	is_due_for_wake,
+)
+from .migration import MigrationReport, StateMigrationError, migrate_instance, validate_migration_mapping
+from .replay import ReplayResult, ReplayStep, replay_from_events, replay_summary
 from .saga import (
 	CompensationHandler,
 	CompensationReport,
@@ -26,7 +48,6 @@ from .saga import (
 from .signals import SignalCorrelator
 from .snapshots import InMemorySnapshotStore
 from .sla_scheduler import SlaCandidate, SlaBreachResult, check_sla_breaches, is_sla_breached
-from .migration import MigrationReport, StateMigrationError, migrate_instance, validate_migration_mapping
 
 
 async def receive_signal(
@@ -70,13 +91,21 @@ async def receive_signal(
 
 
 __all__ = [
+	"BranchStatus",
 	"CompensationHandler",
 	"CompensationReport",
 	"CompensationWorker",
+	"DynamicForkError",
 	"FireResult",
+	"ForkState",
+	"HibernationCandidate",
+	"HibernationError",
+	"HibernationRecord",
 	"InMemorySnapshotStore",
 	"Instance",
 	"MigrationReport",
+	"ReplayResult",
+	"ReplayStep",
 	"SagaLedger",
 	"SagaQueriesProtocol",
 	"SagaStep",
@@ -84,11 +113,23 @@ __all__ = [
 	"SlaBreachResult",
 	"SlaCandidate",
 	"StateMigrationError",
+	"WakeResult",
+	"WakeScheduler",
+	"begin_fork",
+	"begin_hibernate",
 	"check_sla_breaches",
+	"clear_fork",
+	"collect_branch_result",
+	"collect_fork_results",
+	"compact_history",
 	"fire",
+	"is_due_for_wake",
+	"is_fork_complete",
 	"is_sla_breached",
 	"migrate_instance",
 	"new_instance",
 	"receive_signal",
+	"replay_from_events",
+	"replay_summary",
 	"validate_migration_mapping",
 ]

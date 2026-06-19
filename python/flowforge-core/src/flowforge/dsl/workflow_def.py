@@ -53,9 +53,11 @@ StateKind = Literal[
 	"automatic",
 	"parallel_fork",
 	"parallel_join",
+	"parallel_map",
 	"timer",
 	"signal_wait",
 	"subworkflow",
+	"hibernate",
 	"terminal_success",
 	"terminal_fail",
 ]
@@ -81,6 +83,8 @@ EffectKind = Literal[
 	"start_subworkflow",
 	"compensate",
 	"http_call",
+	"fork_items",
+	"hibernate",
 ]
 
 
@@ -145,6 +149,10 @@ class State(BaseModel):
 	documents: list[dict[str, Any]] = PField(default_factory=list)
 	sla: Sla | None = None
 	subworkflow_key: str | None = None
+	# parallel_map: dot-path into context whose value is the list to iterate
+	fork_items_expr: str | None = None
+	# hibernate: seconds to sleep before auto-waking (0 = manual wake only)
+	hibernate_seconds: int | None = None
 
 
 class Transition(BaseModel):

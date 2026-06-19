@@ -10,11 +10,13 @@ from .base import ConnectorBase, ConnectorResult
 from .github import GitHubWebhookVerifier
 from .http import HTTPWebhookConnector
 from .hubspot import HubSpotConnector
+from .kafka import KafkaTrigger
 from .postgres import PostgresQueryConnector
 from .redis_conn import RedisConnector
 from .s3 import S3Connector
 from .slack import SlackConnector
 from .smtp import SMTPConnector
+from .sqs import SQSTrigger
 from .stripe import StripeWebhookVerifier
 from .twilio import TwilioSMSConnector
 
@@ -24,11 +26,13 @@ __all__ = [
 	"GitHubWebhookVerifier",
 	"HTTPWebhookConnector",
 	"HubSpotConnector",
+	"KafkaTrigger",
 	"PostgresQueryConnector",
 	"RedisConnector",
 	"S3Connector",
 	"SlackConnector",
 	"SMTPConnector",
+	"SQSTrigger",
 	"StripeWebhookVerifier",
 	"TwilioSMSConnector",
 ]
