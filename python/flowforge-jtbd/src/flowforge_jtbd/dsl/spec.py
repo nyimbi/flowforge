@@ -83,14 +83,32 @@ TenancyMode = Literal["none", "single", "multi"]
 STANDARD_DATA_SENSITIVITY_TAGS: frozenset[str] = frozenset(
     {"PII", "PHI", "PCI", "secrets", "regulated"}
 )
-DataSensitivity = str  # any tag; see STANDARD_DATA_SENSITIVITY_TAGS
+def _data_sensitivity(v: str) -> str:
+    if v not in STANDARD_DATA_SENSITIVITY_TAGS:
+        raise ValueError(
+            f"Unknown data sensitivity tag {v!r}; "
+            f"allowed: {sorted(STANDARD_DATA_SENSITIVITY_TAGS)}"
+        )
+    return v
+
+DataSensitivity = Annotated[str, AfterValidator(_data_sensitivity)]
 
 # Well-known compliance frameworks; bundles commonly cite jurisdiction-specific
 # regulations (ECOA_RegB, BSA_31USC5318, OFAC, HMDA, …) not listed here.
 STANDARD_COMPLIANCE_REGIMES: frozenset[str] = frozenset(
     {"GDPR", "SOX", "HIPAA", "PCI-DSS", "ISO27001", "SOC2", "NIST-800-53", "CCPA"}
 )
-ComplianceRegime = str  # any regime string; see STANDARD_COMPLIANCE_REGIMES
+
+
+def _compliance_regime(v: str) -> str:
+    if v not in STANDARD_COMPLIANCE_REGIMES:
+        raise ValueError(
+            f"Unknown compliance regime {v!r}; "
+            f"allowed: {sorted(STANDARD_COMPLIANCE_REGIMES)}"
+        )
+    return v
+
+ComplianceRegime = Annotated[str, AfterValidator(_compliance_regime)]
 
 JtbdSpecStatus = Literal[
     "draft",
