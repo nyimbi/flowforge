@@ -1,6 +1,6 @@
 # Security Hardening Guide for flowforge Deployments
 
-**Version:** 0.1.x  
+**Version:** 0.5.x documentation baseline
 **Audience:** Platform engineers, DevSecOps, security architects  
 **Scope:** Production deployment of flowforge-core and its adapter packages
 
@@ -29,20 +29,23 @@ The `principal_extractor` parameter on every flowforge FastAPI router is require
 
 ```python
 # WRONG — StaticPrincipalExtractor bypasses all authentication
-from flowforge_fastapi.auth import StaticPrincipalExtractor
+from flowforge_fastapi.auth import StaticPrincipalExtractor, StaticTenantResolver
+from flowforge_fastapi import build_runtime_router
 
-router = make_workflow_runtime_router(
-    workflow=wf,
+router = build_runtime_router(
     principal_extractor=StaticPrincipalExtractor(),  # development only
+    tenant_resolver=StaticTenantResolver(),          # development only
 )
 ```
 
 **Correct production wiring using `JwtPrincipalExtractor`:**
 
 ```python
+import os
+
 from flowforge_signing_kms import AwsKmsSigning
 from flowforge_jtbd_hub.jwt_extractor import make_jwt_extractor
-from flowforge_fastapi import make_workflow_runtime_router
+from flowforge_fastapi import build_runtime_router
 
 # KMS-backed signing — key ARN comes from environment
 signing = AwsKmsSigning(
@@ -54,9 +57,9 @@ signing = AwsKmsSigning(
 # JWT extractor wraps signing; KMS transient errors → 503 (BLK-01)
 extractor = make_jwt_extractor(signing)
 
-router = make_workflow_runtime_router(
-    workflow=wf,
+router = build_runtime_router(
     principal_extractor=extractor,
+    tenant_resolver=tenant_resolver,  # resolve from trusted auth/session context
 )
 ```
 
@@ -1077,4 +1080,4 @@ SPICEDB_TOKEN=${SPICEDB_PSK}
 
 ---
 
-*This guide was generated from the flowforge codebase at version 0.1.x. Review and update when upgrading to 0.2.0, particularly sections covering KMS adapter behaviour and the signing port protocol.*
+*This guide has been refreshed for the v0.5.x package line. Re-review before each minor release, particularly sections covering KMS adapter behaviour, the signing port protocol, FastAPI authentication, tenant resolution, and production port validation.*

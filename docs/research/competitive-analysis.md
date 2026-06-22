@@ -126,7 +126,7 @@ flowforge's hexagonal architecture, full Python + TypeScript dual-runtime, and J
 No competitor offers anything comparable. A `JtbdBundle` JSON document drives generation of the entire stack — database migration, ORM model, API router, form spec, React step component, and Playwright tests. This eliminates the "blank page" problem for new domain implementations.
 
 ### 2. Hexagonal Architecture with Port Fakes
-`flowforge.testing.port_fakes` provides full in-memory implementations of all 14 ports. Tests run without any external infrastructure. Competitors either require a running broker/database for integration tests or require mocking at the HTTP layer.
+`flowforge.testing.port_fakes` provides full in-memory implementations of all 15 ports. Tests run without any external infrastructure. Competitors either require a running broker/database for integration tests or require mocking at the HTTP layer.
 
 ### 3. HMAC Hash Chain Audit Trail
 `audit_events.chain_hash` creates a tamper-evident audit ledger — each row's hash depends on the previous row's hash, making retrospective tampering detectable. No competitor provides this out of the box.

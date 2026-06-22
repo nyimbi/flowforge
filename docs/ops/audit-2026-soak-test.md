@@ -10,7 +10,7 @@ this runbook satisfies the deferred work post-merge.
   fires/sec + 100 outbox dispatches/sec for 24h).
 - `flowforge_signing_secret_default_used_total == 0` (no host quietly
   running on the legacy opt-in flag).
-- Alert rules in `framework/tests/observability/promql/audit-2026.yml`
+- Alert rules in `tests/observability/promql/audit-2026.yml`
   fire correctly when synthetic faults are injected (run-1 below).
 - E-32 / E-37 / E-40 conformance invariants (engine atomicity, audit
   monotonicity, saga durability) hold at scale.
@@ -86,11 +86,11 @@ After a green soak, attach to the audit-2026 release:
 - `soak-evidence/sli-post.txt`
 - `soak-evidence/k6-summary.json`
 - `soak-evidence/run.log`
-- A short post-mortem at `framework/docs/audit-2026/soak-evidence-{date}.md`
+- A short post-mortem at `docs/audit-2026/soak-evidence-{date}.md`
   recording the run params + verdict + any anomalies + the final
   `verify_chain` output. This satisfies criterion 7 sign-off.
 
-Update `framework/docs/audit-2026/signoff-checklist.md` E-72 row's
+Update `docs/audit-2026/signoff-checklist.md` E-72 row's
 `final_verifications` block to add `soak_run_evidence: <date>` so the
 post-merge verification trail is complete.
 

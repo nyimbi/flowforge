@@ -47,21 +47,22 @@ Since v0.1.0 three additional surfaces have shipped and are now stable at
   workflow definition versions side-by-side. Both are accessible via the
   Designer simulation panel and the CLI (`flowforge simulate --fault`,
   `flowforge diff`).
-- **AI authoring surface** — `flowforge ai-draft` emits a JTBD bundle from
+- **AI authoring surface** — `flowforge jtbd ai-draft` emits a JTBD spec from
   a natural-language description; `flowforge jtbd quality-score` rates
   bundle completeness; `flowforge jtbd compliance-lint` validates against
   a configurable rule catalogue. The LLM is opt-in and only emits
   reviewable diffs (see ADR-3).
-- **28 domain JTBD libraries** — pre-built JTBD bundles for common
-  vertical domains (see §1.7). Each is a `flowforge-jtbd-<domain>`
-  package usable as a starting point or shipped as-is.
+- **30 domain JTBD libraries** — workspace-only starter/content packages for
+  common vertical domains (see §1.7). Each is a `flowforge-jtbd-<domain>`
+  package directory with `[tool.uv] package = false` until review promotes it
+  into the publishable release set.
 
 ### 1.2 Top-Level Topology
 
 ```mermaid
 flowchart TB
   subgraph Editing["Editing surfaces"]
-    JE[JTBDEditor<br/>(framework/js/flowforge-jtbd-editor/)]
+    JE[JTBDEditor<br/>(js/flowforge-jtbd-editor/)]
     DG[Designer<br/>(@flowforge/designer)]
   end
   JE -->|JTBD bundle| GEN[Generator<br/>(flowforge-cli)]
@@ -80,7 +81,7 @@ flowchart TB
 ### 1.3 Repository Layout (current)
 
 ```
-framework/
+.
 ├── pyproject.toml             # uv workspace root
 ├── python/
 │   ├── flowforge-core/        # DSL types, engine, expr, ports, replay, testing
@@ -95,13 +96,19 @@ framework/
 │   ├── flowforge-money/
 │   ├── flowforge-signing-kms/
 │   ├── flowforge-notify-multichannel/
-│   └── flowforge-cli/         # `flowforge` typer CLI
+│   ├── flowforge-otel/        # OTel metrics/tracing adapter
+│   ├── flowforge-cli/         # `flowforge` Typer CLI
+│   ├── flowforge-jtbd/        # JTBD models, lint, registries, AI helpers
+│   ├── flowforge-jtbd-hub/    # JTBD hub auth/RBAC surface
+│   ├── flowforge-connectors/  # incubating connector SDK
+│   └── flowforge-jtbd-*/      # 30 workspace-only domain packages
 ├── js/
 │   ├── flowforge-types/
 │   ├── flowforge-renderer/
 │   ├── flowforge-runtime-client/
 │   ├── flowforge-step-adapters/
 │   ├── flowforge-designer/
+│   ├── flowforge-jtbd-editor/
 │   └── flowforge-integration-tests/
 ├── examples/
 │   ├── insurance_claim/
@@ -113,124 +120,141 @@ framework/
 
 ### 1.4 Package Inventory
 
-> **Phase status:** the table below shows the *target* package set. For
-> *shipped vs roadmap* status by phase, see §10.9. The PyPI distribution
-> name for the core is `flowforge` (singular); per-package nicknames
-> below distinguish siblings (per §10.1).
+The source tree currently has 47 Python package directories under `python/`.
+Sixteen are the lockstep PyPI release set, one is an incubating connector SDK,
+and 30 are workspace-only domain JTBD libraries. The PyPI distribution name for
+the core is `flowforge` (singular); `flowforge-core` is only the repository
+directory/package-family nickname.
 
 #### Backend (Python, PyPI)
 
-| Package | Path | Lines (target) | Responsibility |
+| Package | Path | Status | Responsibility |
 |---|---|---|---|
-| `flowforge-core` | `framework/python/flowforge-core/` | ≤4k | DSL types, schema, compiler, validator, expression evaluator, two-phase fire algorithm, simulator, replay, ports/ABCs, testing fixtures |
-| `flowforge-fastapi` | `framework/python/flowforge-fastapi/` | ≤1.5k | Designer router, runtime router, WS adapter, CSRF passthrough, cookie auth shim |
-| `flowforge-sqlalchemy` | `framework/python/flowforge-sqlalchemy/` | ≤2k | ORM models, alembic bundle, RLS binder default, snapshot store, saga ledger queries |
-| `flowforge-tenancy` | `framework/python/flowforge-tenancy/` | ≤500 | Tenancy resolver impls (`SingleTenantGUC`, `MultiTenantGUC`, `NoTenancy`), RLS templates |
-| `flowforge-audit-pg` | `framework/python/flowforge-audit-pg/` | ≤600 | Hash-chain audit sink |
-| `flowforge-outbox-pg` | `framework/python/flowforge-outbox-pg/` | ≤700 | Outbox registry + worker (dramatiq) |
-| `flowforge-rbac-spicedb` | `framework/python/flowforge-rbac-spicedb/` | ≤500 | SpiceDB-backed `RbacResolver` |
-| `flowforge-rbac-static` | `framework/python/flowforge-rbac-static/` | ≤200 | RBAC from YAML/JSON |
-| `flowforge-documents-s3` | `framework/python/flowforge-documents-s3/` | ≤600 | S3-backed `DocumentPort` |
-| `flowforge-money` | `framework/python/flowforge-money/` | ≤300 | FX + money formatting |
-| `flowforge-signing-kms` | `framework/python/flowforge-signing-kms/` | ≤300 | AWS KMS `SigningPort` (HMAC dev fallback) |
-| `flowforge-notify-multichannel` | `framework/python/flowforge-notify-multichannel/` | ≤700 | Email/Slack/SMS/in-app fan-out |
-| `flowforge-cli` | `framework/python/flowforge-cli/` | ≤1.5k | `flowforge new`, `add-jtbd`, `regen-catalog`, `validate`, `simulate` |
+| `flowforge` (`flowforge-core`) | `python/flowforge-core/` | PyPI release set, v0.5.x | DSL types, schema, compiler, validator, expression evaluator, two-phase fire algorithm, simulator, replay, ports/ABCs, testing fixtures |
+| `flowforge-fastapi` | `python/flowforge-fastapi/` | PyPI release set, v0.5.x | Designer router, runtime router, WS adapter, CSRF, auth/tenant resolution |
+| `flowforge-sqlalchemy` | `python/flowforge-sqlalchemy/` | PyPI release set, v0.5.x | ORM models, alembic bundle, RLS binder, snapshot store, saga queries |
+| `flowforge-tenancy` | `python/flowforge-tenancy/` | PyPI release set, v0.5.x | Tenancy resolver impls and RLS helpers |
+| `flowforge-audit-pg` | `python/flowforge-audit-pg/` | PyPI release set, v0.5.x | Hash-chain audit sink and analytics helpers |
+| `flowforge-outbox-pg` | `python/flowforge-outbox-pg/` | PyPI release set, v0.5.x | Durable outbox registry and drain helpers |
+| `flowforge-rbac-spicedb` | `python/flowforge-rbac-spicedb/` | PyPI release set, v0.5.x | SpiceDB-backed `RbacResolver` |
+| `flowforge-rbac-static` | `python/flowforge-rbac-static/` | PyPI release set, v0.5.x | Static RBAC from YAML/JSON |
+| `flowforge-documents-s3` | `python/flowforge-documents-s3/` | PyPI release set, v0.5.x | S3-backed `DocumentPort` |
+| `flowforge-money` | `python/flowforge-money/` | PyPI release set, v0.5.x | Money validation, formatting, and FX helpers |
+| `flowforge-signing-kms` | `python/flowforge-signing-kms/` | PyPI release set, v0.5.x | AWS KMS signing adapter |
+| `flowforge-notify-multichannel` | `python/flowforge-notify-multichannel/` | PyPI release set, v0.5.x | Email/Slack/SMS/in-app notification fan-out |
+| `flowforge-otel` | `python/flowforge-otel/` | PyPI release set, v0.5.x | OpenTelemetry metrics/tracing adapter |
+| `flowforge-cli` | `python/flowforge-cli/` | PyPI release set, v0.5.x | `flowforge` Typer CLI and deterministic JTBD generator |
+| `flowforge-jtbd` | `python/flowforge-jtbd/` | PyPI release set, v0.5.x | Canonical JTBD models, lint, registries, compliance, AI helpers |
+| `flowforge-jtbd-hub` | `python/flowforge-jtbd-hub/` | PyPI release set, v0.5.x | JTBD hub JWT/RBAC and publication support |
+| `flowforge-connectors` | `python/flowforge-connectors/` | Workspace incubation, v0.1.0 | Connector SDK and starter connectors; not part of the 16-package PyPI release gate |
 
 #### Frontend (TypeScript, npm)
 
 | Package | Path | Responsibility |
 |---|---|---|
-| `@flowforge/types` | `framework/js/flowforge-types/` | TS types generated from `flowforge-core/schema/*.json` |
-| `@flowforge/renderer` | `framework/js/flowforge-renderer/` | `FormRenderer`, field components, validators |
-| `@flowforge/designer` | `framework/js/flowforge-designer/` | Canvas, property panel, form builder, simulation panel, diff viewer |
-| `@flowforge/runtime-client` | `framework/js/flowforge-runtime-client/` | REST + WS client, `useTenantQueryKey`-style hook (host-pluggable) |
-| `@flowforge/step-adapters` | `framework/js/flowforge-step-adapters/` | Generic step components (`ManualReviewStep`, `FormStep`, `DocumentReviewStep`) |
+| `@flowforge/types` | `js/flowforge-types/` | Shared TypeScript contracts |
+| `@flowforge/renderer` | `js/flowforge-renderer/` | `FormRenderer`, field components, validators |
+| `@flowforge/designer` | `js/flowforge-designer/` | Canvas, property panel, form builder, simulation panel, diff viewer, JobMap |
+| `@flowforge/runtime-client` | `js/flowforge-runtime-client/` | REST + WS client and React hooks |
+| `@flowforge/step-adapters` | `js/flowforge-step-adapters/` | Generic step components |
+| `@flowforge/jtbd-editor` | `js/flowforge-jtbd-editor/` | JTBD authoring/editor surface |
+| `flowforge-integration-tests` | `js/flowforge-integration-tests/` | Cross-package JS integration tests |
 
 ### 1.5 Ports (the 15 ABCs)
 
-| # | Port | Purpose | Default impl |
+| # | Port | Purpose | Current implementation surface |
 |---|---|---|---|
-| 1 | `TenancyResolver` | Resolve current tenant; bind session GUCs; elevation scope | `SingleTenantGUC`, `MultiTenantGUC`, `NoTenancy` |
+| 1 | `TenancyResolver` | Resolve current tenant; bind session GUCs; elevation scope | `flowforge-tenancy`; in-memory fake for tests |
 | 2 | `RbacResolver` | `has_permission`, `list_principals_with`, `register_permission`, `assert_seed` | `flowforge-rbac-spicedb`, `flowforge-rbac-static` |
 | 3 | `AuditSink` | `record`, `verify_chain`, `redact` | `flowforge-audit-pg` (hash chain) |
-| 4 | `OutboxRegistry` | `register(kind, handler, backend)`, `dispatch(envelope)` | `flowforge-outbox-pg` (default), Temporal/Celery alternatives |
-| 5 | `DocumentPort` | `list_for_subject`, `attach`, `get_classification`, `freshness_days` | `flowforge-documents-s3`, `flowforge-documents-noop` |
-| 6 | `MoneyPort` | `convert`, `format` | `flowforge-money-static`, `flowforge-money-ecb` |
-| 7 | `SettingsPort` | `get`, `set`, `register` | `flowforge-settings-pg`, `flowforge-settings-env` |
-| 8 | `SigningPort` | `sign_payload`, `verify`, `current_key_id` | `flowforge-signing-hmac` (dev), `flowforge-signing-kms` (AWS), `flowforge-signing-vault` |
-| 9 | `NotificationPort` | `render`, `send`, `register_template` | `flowforge-notify-noop`, `flowforge-notify-mailgun`, `flowforge-notify-multichannel` |
-| 10 | `RlsBinder` | `bind(session, ctx)`, `elevated(session)` | `flowforge-rls-pg` (GUC-based) |
+| 4 | `OutboxRegistry` | `register(kind, handler, backend)`, `dispatch(envelope)` | `flowforge-outbox-pg`; in-memory fake for tests |
+| 5 | `DocumentPort` | `list_for_subject`, `attach`, `get_classification`, `freshness_days` | `flowforge-documents-s3`; in-memory fake for tests |
+| 6 | `MoneyPort` | `convert`, `format` | `flowforge-money`; in-memory fake for tests |
+| 7 | `SettingsPort` | `get`, `set`, `register` | Host implementation or in-memory fake |
+| 8 | `SigningPort` | `sign_payload`, `verify`, `current_key_id` | `flowforge-signing-kms`; in-memory fake for tests |
+| 9 | `NotificationPort` | `render`, `send`, `register_template` | `flowforge-notify-multichannel`; in-memory fake for tests |
+| 10 | `RlsBinder` | `bind(session, ctx)`, `elevated(session)` | `flowforge-sqlalchemy` / `flowforge-tenancy`; noop fake for tests |
 | 11 | `EntityAdapter` registry | `create`, `update`, `lookup`, `compensations` | None default — host code |
-| 12 | `MetricsPort` | `emit(name, value, labels)` | `flowforge-metrics-prometheus`, `flowforge-metrics-noop` |
-| 13 | `TaskTrackerPort` | `create_task(kind, ref, note)` | `flowforge-tasks-noop` |
-| 14 | `AccessGrantPort` | `grant(rel, until)`, `revoke(rel)` | `flowforge-grants-spicedb`, `flowforge-grants-noop` |
+| 12 | `MetricsPort` | `emit(name, value, labels)`, optional histograms | `flowforge-otel`; in-memory fake for tests |
+| 13 | `TaskTrackerPort` | `create_task(kind, ref, note)` | Host implementation or in-memory fake |
+| 14 | `AccessGrantPort` | `grant(rel, until)`, `revoke(rel)` | Host implementation or in-memory fake |
 | 15 | `TracingPort` | OTEL span management — `start_span`, `end_span`, `add_event`, `set_attribute` | `NoopTracing` (default), `flowforge-otel` |
 
 ### 1.6 Generated Artefacts (per JTBD)
 
-For one JTBD `claim_intake`, the generator emits ≈ 12-15 files
-totalling ≈ 600 LOC of host code:
+For one JTBD `claim_intake`, the generator emits deterministic host-code and
+evidence artifacts:
 
 | File | Purpose |
 |---|---|
-| `alembic/versions/000N_jtbd_<id>.py` | Entity table migration + RLS policy |
-| `backend/src/<pkg>/<entity>/models.py` | SQLAlchemy model with `WorkflowExposed` mixin |
-| `backend/src/<pkg>/<entity>/views.py` | Pydantic models for HTTP/CLI |
-| `backend/src/<pkg>/<entity>/service.py` | Business logic (`<Entity>Service`) |
-| `backend/src/<pkg>/<entity>/router.py` | FastAPI router |
-| `backend/src/<pkg>/<entity>/workflow_adapter.py` | `EntityAdapter` impl + compensations map |
-| `backend/src/<pkg>/<entity>/tests/test_workflow_adapter.py` | Unit tests |
-| `backend/src/<pkg>/workflows/<id>/definition.json` | Workflow DSL |
-| `backend/src/<pkg>/workflows/<id>/form_spec.<form_id>.json` | Form spec |
-| `backend/src/<pkg>/workflows/<id>/tests/test_simulation.py` | Auto-generated simulator tests |
-| `frontend/src/components/<entity>/<Entity>Step.tsx` | React step wrapper |
+| `workflows/<id>/definition.json` | Workflow DSL |
+| `workflows/<id>/form_spec.json` | Form renderer schema |
+| `workflows/<id>/diagram.mmd` | Mermaid diagram source |
+| `workflows/<id>/reachability.json` or `reachability_skipped.txt` | Optional reachability proof |
+| `backend/src/<pkg>/models.py` | SQLAlchemy model |
+| `backend/src/<pkg>/services/<id>_service.py` | Domain service |
+| `backend/src/<pkg>/routers/<id>_router.py` | FastAPI route surface |
+| `backend/src/<pkg>/adapters/<id>_adapter.py` | `EntityAdapter` and fire wrapper |
+| `backend/tests/<id>/test_simulation.py` | Simulator tests |
+| `backend/tests/<id>/test_property.py` | Property tests |
+| `frontend/src/.../Step.tsx` | React workflow step |
+| `frontend/src/.../runtimeClient.ts` | Runtime API client |
+| `frontend/src/.../design_tokens.css` | Host skin/theme tokens |
+| `frontend-admin/...` | Admin shell |
 | `tests/e2e/<id>.spec.ts` | Playwright happy-path |
+| `docs/ops/<bundle>/restore-runbook.md` | Generated restore runbook |
 
-For a bundle of N JTBDs the generator additionally emits 4-6
-cross-cutting files (permission seeds, RBAC seed test, navigation
-index, JTBD glossary, audit taxonomy enum, frontend wiring).
+For a bundle of N JTBDs the generator additionally emits cross-cutting
+permission, audit taxonomy, analytics taxonomy, OpenAPI, i18n, seed data,
+lineage, notification, frontend-admin, CLI/email/Slack adapter, design-token,
+and restore-runbook artifacts.
 
 ### 1.7 Domain JTBD Libraries
 
-28 domain JTBD libraries ship as `flowforge-jtbd-<domain>` packages
-(Tier-2, `package = true`, pinned at `0.1.0` in lockstep with Tier-1).
-Each package contains a curated JTBD bundle, generated scaffold, and
-Playwright smoke spec. Domains:
+Thirty domain JTBD libraries live under `python/flowforge-jtbd-*`, excluding
+`flowforge-jtbd-hub`. They are registered as workspace members for local
+development and build discovery, but each domain package currently carries
+`[tool.uv] package = false` and is not part of the PyPI release set.
 
-| # | Package suffix | Domain |
+Five strategic domain-content candidates keep their original distribution
+names: `banking`, `gov`, `healthcare`, `hr`, and `insurance`. The other
+25 packages are named `flowforge-jtbd-<domain>-starter`.
+
+| # | Directory | Distribution name |
 |---|---|---|
-| 1 | `insurance-claims` | P&C claims intake and adjudication |
-| 2 | `insurance-underwriting` | Commercial lines underwriting |
-| 3 | `insurance-broker-portal` | Broker submission and quote management |
-| 4 | `mortgage-origination` | Residential mortgage application |
-| 5 | `mortgage-servicing` | Loan modification and escrow workflows |
-| 6 | `trade-finance` | Letter of credit and documentary collections |
-| 7 | `kyc-onboarding` | Individual and entity KYC / CDD |
-| 8 | `aml-screening` | Transaction monitoring and SAR filing |
-| 9 | `regulatory-reporting` | Periodic regulatory submission |
-| 10 | `procurement` | Purchase requisition to PO approval |
-| 11 | `vendor-onboarding` | Supplier registration and risk review |
-| 12 | `contract-management` | Drafting, redline, execution, renewal |
-| 13 | `hr-hiring` | Requisition through offer letter |
-| 14 | `hr-onboarding` | Day-1 provisioning through 90-day check-in |
-| 15 | `hr-offboarding` | Separation, access revocation, exit interview |
-| 16 | `hr-performance` | Goal setting, mid-year, year-end review |
-| 17 | `leave-management` | Request, approval, and accrual adjustment |
-| 18 | `expense-management` | Submission, approval, and reimbursement |
-| 19 | `building-permit` | Application, inspection scheduling, certificate |
-| 20 | `planning-permission` | Council planning application and appeal |
-| 21 | `environmental-permit` | EIA, public notice, permit issuance |
-| 22 | `grants-management` | Application, review, disbursement, reporting |
-| 23 | `clinical-trial` | Protocol, IRB, site activation, close-out |
-| 24 | `medical-device-approval` | 510(k) / PMA submission workflow |
-| 25 | `drug-safety-reporting` | ADR / SUSAR collection and submission |
-| 26 | `change-management` | RFC, impact assessment, CAB approval |
-| 27 | `incident-response` | Detection, triage, remediation, PIR |
-| 28 | `audit-findings` | Finding, remediation plan, evidence, closure |
+| 1 | `flowforge-jtbd-accounting` | `flowforge-jtbd-accounting-starter` |
+| 2 | `flowforge-jtbd-agritech` | `flowforge-jtbd-agritech-starter` |
+| 3 | `flowforge-jtbd-banking` | `flowforge-jtbd-banking` |
+| 4 | `flowforge-jtbd-compliance` | `flowforge-jtbd-compliance` |
+| 5 | `flowforge-jtbd-construction` | `flowforge-jtbd-construction-starter` |
+| 6 | `flowforge-jtbd-corp-finance` | `flowforge-jtbd-corp-finance-starter` |
+| 7 | `flowforge-jtbd-crm` | `flowforge-jtbd-crm-starter` |
+| 8 | `flowforge-jtbd-ecom` | `flowforge-jtbd-ecom-starter` |
+| 9 | `flowforge-jtbd-edu` | `flowforge-jtbd-edu-starter` |
+| 10 | `flowforge-jtbd-gaming` | `flowforge-jtbd-gaming-starter` |
+| 11 | `flowforge-jtbd-gov` | `flowforge-jtbd-gov` |
+| 12 | `flowforge-jtbd-healthcare` | `flowforge-jtbd-healthcare` |
+| 13 | `flowforge-jtbd-hr` | `flowforge-jtbd-hr` |
+| 14 | `flowforge-jtbd-insurance` | `flowforge-jtbd-insurance` |
+| 15 | `flowforge-jtbd-legal` | `flowforge-jtbd-legal-starter` |
+| 16 | `flowforge-jtbd-logistics` | `flowforge-jtbd-logistics-starter` |
+| 17 | `flowforge-jtbd-media` | `flowforge-jtbd-media-starter` |
+| 18 | `flowforge-jtbd-mfg` | `flowforge-jtbd-mfg-starter` |
+| 19 | `flowforge-jtbd-municipal` | `flowforge-jtbd-municipal` |
+| 20 | `flowforge-jtbd-nonprofit` | `flowforge-jtbd-nonprofit-starter` |
+| 21 | `flowforge-jtbd-platformeng` | `flowforge-jtbd-platformeng-starter` |
+| 22 | `flowforge-jtbd-pm` | `flowforge-jtbd-pm-starter` |
+| 23 | `flowforge-jtbd-procurement` | `flowforge-jtbd-procurement-starter` |
+| 24 | `flowforge-jtbd-realestate` | `flowforge-jtbd-realestate-starter` |
+| 25 | `flowforge-jtbd-restaurants` | `flowforge-jtbd-restaurants-starter` |
+| 26 | `flowforge-jtbd-retail` | `flowforge-jtbd-retail-starter` |
+| 27 | `flowforge-jtbd-saasops` | `flowforge-jtbd-saasops-starter` |
+| 28 | `flowforge-jtbd-telco` | `flowforge-jtbd-telco-starter` |
+| 29 | `flowforge-jtbd-travel` | `flowforge-jtbd-travel-starter` |
+| 30 | `flowforge-jtbd-utilities` | `flowforge-jtbd-utilities-starter` |
 
-Tier designation: all 28 are Tier-2. Flip to `package = true` requires
-gate E-48a (rebrand to `*-starter`) or E-48b (real-content SME review).
-See §1.4 Package Inventory for the full gate description.
+Promotion to publishable package status requires package-level review and a
+`[tool.uv] package = true` flip coordinated with the release gate.
 
 ---
 
@@ -256,7 +280,7 @@ Activiti. The IDE story for BPMN is also poor — most editors are
 heavy desktop apps with proprietary extensions.
 
 **What we did.** Defined a narrow JSON DSL with one canonical schema
-(`framework/python/flowforge-core/src/flowforge/dsl/schema/workflow_def.schema.json`).
+(`python/flowforge-core/src/flowforge/dsl/schema/workflow_def.schema.json`).
 Schema is testable, diffable, AI-generatable. BPMN export ships as a
 community plugin (`flowforge-jtbd-bpmn`), not the public surface.
 
@@ -357,7 +381,7 @@ the database.
 - Replay is deterministic from persisted lookup snapshots.
 
 **What we did.** Two-phase algorithm in
-`framework/python/flowforge-core/src/flowforge/engine/fire.py`. Plan
+`python/flowforge-core/src/flowforge/engine/fire.py`. Plan
 emits a `TransitionPlan`; commit re-validates and writes the
 `workflow_event` row.
 
@@ -388,7 +412,7 @@ sequential or external.
 
 **What we did.** Schema in `docs/workflow-ed-arch.md` §17.1.
 Engine code at
-`framework/python/flowforge-core/src/flowforge/engine/tokens.py`.
+`python/flowforge-core/src/flowforge/engine/tokens.py`.
 
 **Consequence.** Forks fan out cleanly. Aggregate status is consistent
 because it derives from tokens. Compensation is per-token, not
@@ -570,7 +594,7 @@ seed doesn't match the catalog.
 | **Z3** | The SMT solver used by default in the conflict solver; alternative is a simple-pairs incompatibility table. |
 | **pgvector** | Postgres extension for vector similarity; powers JTBD recommender. |
 | **NL→JTBD** | Natural-language input → drafted JTBD → validator-gated ingestion. |
-| **JTBD hub** | Public registry (`framework/python/flowforge-jtbd-hub/`) for publishing + installing JTBD packages. |
+| **JTBD hub** | Public registry (`python/flowforge-jtbd-hub/`) for publishing + installing JTBD packages. |
 
 ---
 
@@ -1134,7 +1158,7 @@ config.tenancy = MySingleTenancy()         # TenancyResolver
 config.rbac = MyRbac()                     # RbacResolver
 config.audit = MyAudit()                   # AuditSink
 config.outbox_backends["default"] = MyOutbox()
-# ... 14 ports total
+# ... 15 ports total
 ```
 
 ### 5.2 `flowforge-fastapi`
@@ -1275,7 +1299,7 @@ flowforge ai-assist <jtbd-bundle.json> --job <jtbd-id>
 import type { WorkflowDef, State, Transition, Gate, Effect, FormSpec, FieldKind, WorkflowInstance, WorkflowStepProps } from "@flowforge/types";
 ```
 
-Generated from `framework/python/flowforge-core/src/flowforge/dsl/schema/*.json`
+Generated from `python/flowforge-core/src/flowforge/dsl/schema/*.json`
 via `pnpm gen:flowforge-types`.
 
 ### 6.2 `@flowforge/renderer`
@@ -1568,12 +1592,12 @@ flowchart LR
 ### 8.2 Adding a New Field Type (Form Builder)
 
 1. Add to `FieldKind` enum at
-   `framework/python/flowforge-core/src/flowforge/dsl/form_spec.py`.
+   `python/flowforge-core/src/flowforge/dsl/form_spec.py`.
 
 2. Add server-side validator: extend `field_validators[<kind>]`.
 
 3. Add React component at
-   `framework/js/flowforge-renderer/src/fields/<Kind>.tsx`.
+   `js/flowforge-renderer/src/fields/<Kind>.tsx`.
 
 4. Register in `fields/index.ts`:
 
@@ -1583,7 +1607,7 @@ flowchart LR
    ```
 
 5. Add Storybook story + property tests under
-   `framework/js/flowforge-renderer/src/__tests__/<Kind>.test.tsx`.
+   `js/flowforge-renderer/src/__tests__/<Kind>.test.tsx`.
 
 6. Update `@flowforge/types` via `pnpm gen:flowforge-types`.
 
@@ -1631,7 +1655,7 @@ flowchart LR
 3. Run the contract tests:
 
    ```bash
-   pytest framework/python/flowforge-core/tests/ci/test_rbac_contract.py
+   pytest python/flowforge-core/tests/ci/test_rbac_contract.py
    ```
 
 4. Permission seeds are idempotent — calling `register_permission` for
@@ -1852,16 +1876,16 @@ audit trail of redaction.
 
 ### 9.2 Repo Cross-References
 
-- `framework/python/flowforge-core/src/flowforge/dsl/schema/workflow_def.schema.json` — canonical DSL schema.
-- `framework/python/flowforge-core/src/flowforge/engine/fire.py` — two-phase fire.
-- `framework/python/flowforge-core/src/flowforge/engine/tokens.py` — parallel tokens.
-- `framework/python/flowforge-core/src/flowforge/engine/saga.py` — saga ledger.
-- `framework/python/flowforge-core/src/flowforge/expr/evaluator.py` — pure-Python evaluator.
-- `framework/python/flowforge-core/src/flowforge/replay/simulator.py` — deterministic walk.
-- `framework/python/flowforge-cli/src/flowforge_cli/` — CLI entry points.
-- `framework/examples/insurance_claim/` — claim_intake worked example.
-- `framework/examples/hiring-pipeline/` — ats-lite worked example.
-- `framework/examples/building-permit/` — permits worked example.
+- `python/flowforge-core/src/flowforge/dsl/schema/workflow_def.schema.json` — canonical DSL schema.
+- `python/flowforge-core/src/flowforge/engine/fire.py` — two-phase fire.
+- `python/flowforge-core/src/flowforge/engine/tokens.py` — parallel tokens.
+- `python/flowforge-core/src/flowforge/engine/saga.py` — saga ledger.
+- `python/flowforge-core/src/flowforge/expr/evaluator.py` — pure-Python evaluator.
+- `python/flowforge-core/src/flowforge/replay/simulator.py` — deterministic walk.
+- `python/flowforge-cli/src/flowforge_cli/` — CLI entry points.
+- `examples/insurance_claim/` — claim_intake worked example.
+- `examples/hiring-pipeline/` — ats-lite worked example.
+- `examples/building-permit/` — permits worked example.
 
 ### 9.3 UMS-Specific Paths (Migration Reference)
 
@@ -1883,7 +1907,7 @@ P1. The handbook ToC is too long; readers will not find the saga
 P2. Section 4 (data model) will miss at least one column on
     `workflow_events` (the `seq` identity).
 P3. Section 5 API reference for `flowforge.config` won't enumerate all
-    14 ports.
+    15 ports.
 
 **Scan results:**
 
@@ -1891,7 +1915,7 @@ P3. Section 5 API reference for `flowforge.config` won't enumerate all
 |---|---|---|---|
 | F-1 (P1 hit) | MINOR | ToC is 9 entries — fine for a handbook. Section sub-anchors not exposed | Acceptable; Section ToC implicit via h2 navigation |
 | F-2 (P2 hit) | MAJOR | `workflow_events.seq` was missing in initial draft of §4.5 | Added `seq bigint not null` + unique constraint |
-| F-3 (P3 hit) | MINOR | §5 lists all 14 ports in §1.5 but §5.4 only shows 6 adapter examples | Acceptable — examples are representative; full list cross-references §1.5 |
+| F-3 (P3 hit) | MINOR | §5 lists all 15 ports in §1.5 but §5.4 only shows 6 adapter examples | Acceptable — examples are representative; full list cross-references §1.5 |
 | F-4 | MAJOR | §7.1 sequence diagram missed the saga ledger appended in commit phase | Added: "ENG enqueue saga steps with status=pending for outbox effects" |
 | F-5 | MINOR | §3 glossary lacks "FormSpec" entry | Inline reference to form spec in §1.5 + §6.2 |
 | F-6 | MAJOR | §4.13 elevation log doesn't say where the signed_payload is verified | Implied by SigningPort; cross-referenced ADR-7 chain integrity |
@@ -1911,7 +1935,7 @@ P3. §8 runbook hooks omit the case where a new RBAC backend introduces a new pe
 
 | ID | Severity | Finding | Resolution |
 |---|---|---|---|
-| A-1 (P1 hit) | MINOR | ADR-5 cites `framework/python/flowforge-core/src/flowforge/engine/fire.py` but earlier drafts had only the UMS path | Both paths cited; framework path is canonical |
+| A-1 (P1 hit) | MINOR | ADR-5 cites `python/flowforge-core/src/flowforge/engine/fire.py` but earlier drafts had only the UMS path | Both paths cited; repo path is canonical |
 | A-2 (P2 partial) | MAJOR | §7.1 lacks the stale-plan abort path | Added `alt stale plan` branch with retry callback |
 | A-3 (P3 hit) | MINOR | §8.4 doesn't mention `register_permission` shape vs alternative shapes | Permission seeds remain canonical via the `PermissionSeed` dataclass; clarified |
 | A-4 | MAJOR | §4.7 audit table example omits the GDPR erasure log link | Added §4.14 with `workflow_gdpr_erasure_log` |
@@ -1959,12 +1983,12 @@ No contradictions found.
 
 ### 9.5 Known Limitations
 
-KL-HB-1: Section 1.3 repository layout is a snapshot of the v1 framework
-tree. Apps directory (JTBDEditor, jtbd-hub) lands in E2/E6.
+KL-HB-1: Section 1.3 repository layout is a snapshot of the current
+repository root and intentionally omits generated example subtrees.
 
-KL-HB-2: Section 1.4 lists 13 backend packages; `flowforge-jtbd*`
-packages from the JTBDEditor evolution land in E1+ (see
-`docs/flowforge-evolution.md`).
+KL-HB-2: Section 1.4 lists current package directories and release status.
+Future package promotions should update both §1.4 and
+`docs/release/PUBLISHING.md`.
 
 KL-HB-3: Section 5.4 adapter package examples are representative; the
 full constructor signatures + initialization orchestration are in each
@@ -2015,21 +2039,21 @@ correctness or implementability.
 
 Driven by `docs/flowforge-plan-review.md`. The plan-review pass
 ground-truthed the four flowforge plan docs against the shipped tree at
-`framework/`. This appendix records the resulting normative
+the repository root. This appendix records the resulting normative
 reconciliations. Where this appendix and earlier sections disagree, this
 appendix wins.
 
 ### 10.1 Canonical package + config-attribute names (P0-1)
 
 The shipped pyproject at
-`framework/python/flowforge-core/pyproject.toml` declares
+`python/flowforge-core/pyproject.toml` declares
 `name = "flowforge"` (singular). Adopters install `flowforge`, not
 `flowforge-core`. The `flowforge-core` label is the *package family
 nickname* used in this doc and §1.4 to distinguish it from sibling
 packages; the PyPI distribution name is `flowforge`.
 
 `flowforge.config` exposes single attributes per port — see the shipped
-file `framework/python/flowforge-core/src/flowforge/config.py`:
+file `python/flowforge-core/src/flowforge/config.py`:
 
 | Attribute | Type | Note |
 |---|---|---|
@@ -2050,63 +2074,52 @@ config.outbox.register("wf.notify", my_notify_handler)
 Multi-backend hosts wrap the registry themselves and inject the wrapper
 at `config.outbox`; the framework never assumes a dict shape.
 
-### 10.2 Shipped vs roadmap adapter packages (P0-3)
+### 10.2 Current package-set reconciliation
 
-The `framework/python/` directory ships exactly thirteen Python
-distributions today: `flowforge-core`, `flowforge-fastapi`,
-`flowforge-sqlalchemy`, `flowforge-tenancy`, `flowforge-audit-pg`,
-`flowforge-outbox-pg`, `flowforge-rbac-spicedb`, `flowforge-rbac-static`,
-`flowforge-documents-s3`, `flowforge-money`, `flowforge-signing-kms`,
-`flowforge-notify-multichannel`, `flowforge-cli`. Section §1.5's
-"Default impl" column references additional package names
-(`flowforge-settings-pg`, `flowforge-grants-spicedb`, etc.) that are
-**roadmap, not shipped**.
+The `python/` directory currently has 47 package directories. The release gate
+publishes 16 lockstep packages (`flowforge`, FastAPI/SQLAlchemy/adapters,
+`flowforge-cli`, `flowforge-jtbd`, and `flowforge-jtbd-hub`). It also contains
+`flowforge-connectors` as an incubating workspace package and 30
+workspace-only domain JTBD packages. The domain packages are registered for
+local development and build discovery, but their `pyproject.toml` files carry
+`[tool.uv] package = false`.
 
-| Package referenced in §1.5 | Status | Phase |
-|---|---|---|
-| `flowforge-settings-pg`, `flowforge-settings-env` | not shipped | E1 |
-| `flowforge-grants-spicedb`, `flowforge-grants-noop` | not shipped | E1 |
-| `flowforge-tasks-noop` | not shipped | E1 |
-| `flowforge-metrics-prometheus`, `flowforge-metrics-noop` | not shipped | E1 |
-| `flowforge-notify-noop`, `flowforge-notify-mailgun` | not shipped | E1 (in-process noop test fakes ship via `flowforge.testing.port_fakes`) |
-| `flowforge-documents-noop` | not shipped (in-process fake exists) | E1 |
-| `flowforge-money-static`, `flowforge-money-ecb` | not shipped (`flowforge-money` ships as the umbrella) | E1 |
-| `flowforge-signing-hmac`, `flowforge-signing-vault` | not shipped (`flowforge-signing-kms` ships only) | E1 |
-| `flowforge-rls-pg` | shipped *as part of* `flowforge-sqlalchemy` (`PgRlsBinder`) | shipped |
-| `flowforge-jtbd*` (incl. domain libraries, BPMN, story-map exporters) | not shipped | E1+ per `docs/flowforge-evolution.md` |
-| `flowforge-jtbd-api` | not shipped | E1 |
-
-E1 deliverables of the evolution roadmap include splitting the umbrella
-adapters into the named distributions above. Until then, hosts wire
-`flowforge.testing.port_fakes` for the not-yet-shipped impls or
-implement the Protocol in their own code.
+Older plan text in this handbook used to describe 13 shipping packages plus
+future E1 package splits. That is superseded by §1.4 and the live workspace
+metadata in root `pyproject.toml`.
 
 ### 10.3 Engine API signature reconciliation (P0-2)
 
 The shipped engine
-(`framework/python/flowforge-core/src/flowforge/engine/fire.py`) exposes
-the in-memory API:
+(`python/flowforge-core/src/flowforge/engine/fire.py`) exposes the async
+in-memory API:
 
 ```python
 from flowforge.engine import new_instance, fire
 
 instance = new_instance(wd, instance_id="i-1", initial_context={...})
-result = fire(wd, instance, event="submit", ctx=execution_ctx)
+result = await fire(
+    wd,
+    instance,
+    event="submit",
+    payload={...},
+    principal=principal,
+    tenant_id="tenant-1",
+)
 # result: FireResult(instance, matched_transition_id, planned_effects,
 #                    new_state, terminal, audit_events, outbox_envelopes)
 ```
 
 `fire` does not take a SQLAlchemy session, an `external_event_id`, or an
 HTTP-edge idempotency key — those live one layer up in
-`flowforge-fastapi` once it ships the runtime router. Earlier §5.1
-snippets that reference `fire.start_instance(session, …)` describe the
-**intended v1 surface** to be added in E1. The API gap is tracked as a
-P0 in `docs/flowforge-plan-review.md` and closed in the E1 deliverables
-list of `docs/flowforge-evolution.md` §3.
+`flowforge-fastapi` and `flowforge-sqlalchemy`. SQLAlchemy-backed hosts should
+use `SqlAlchemySnapshotStore.fire_and_commit(...)`, which calls
+`fire(..., dispatch_ports=False)` and persists state, workflow event, audit,
+and outbox rows in one transaction.
 
 ### 10.4 EntityAdapter / EntityRegistry duality (P0-4)
 
-`framework/python/flowforge-core/src/flowforge/ports/entity.py` exports
+`python/flowforge-core/src/flowforge/ports/entity.py` exports
 both an `EntityAdapter` Protocol and a `register_entity` decorator. The
 decorator writes to the same module-level registry that
 `flowforge.config.entity_registry` references — both paths converge.
@@ -2158,7 +2171,7 @@ counters live on the outbox row, not the envelope.
 | `requires_relock` | Guard flag indicating the guard re-evaluates self-referential or write-after-read state; commit phase re-runs it under row lock. |
 | `stale plan abort` | Commit-phase abort when `version_cursor` advanced between plan and commit; caller retries. |
 | `lookup snapshot` | Persisted `evaluated_lookups[]` projection for replay determinism. |
-| `feature flag` | Namespaced `jtbd.<feature>` flag; resolution order env > config > DB; default off until E1+ ships flips. |
+| `feature flag` | Runtime toggle. Core fork dispatch uses `FLOWFORGE_FORKS_ENABLED` (default on in v0.3.0+; set `0` to disable). Host-level flags may be layered through `SettingsPort`. |
 | `audit subject_kind` | One of `workflow_definition_version`, `workflow_event`, `jtbd_library`, `jtbd_spec_version`, `jtbd_composition`, `jtbd_review`, `jtbd_package`. Verifiable end-to-end via `flowforge audit verify --subject-kind <name>`. |
 | `canonical JSON` | RFC-8785 (JCS) — sorted keys, NFC unicode, no whitespace, no trailing newline; basis for every `spec_hash`. |
 | `EntityRegistry` | Module-level dict written by `@register_entity`; mirror of `config.entity_registry`. |
@@ -2174,7 +2187,7 @@ counters live on the outbox row, not the envelope.
 - §10.7 added: glossary additions (P1-20, P1-22, P2-5).
 - §1.4 picture left intact; the deltas land in §10.2.
 - §1.5 row 11 EntityAdapter clarified via §10.4.
-- KL-HB-2 unchanged (still tracking E1+ packages).
+- KL-HB-2 updated to point at the current 47-package workspace shape.
 
 Iteration 1: 12 P0 + 18 P1 closed via §10. Remaining items applied in
 sister docs (`docs/jtbd-editor-arch.md`, `docs/flowforge-evolution.md`,
@@ -2182,40 +2195,11 @@ sister docs (`docs/jtbd-editor-arch.md`, `docs/flowforge-evolution.md`,
 
 ### 10.9 Iteration 2 — backend table phase column (P1-39)
 
-The §1.4 backend-package table is augmented with a `Phase` column:
-
-| Package | Path | Lines (target) | Responsibility | Phase |
-|---|---|---|---|---|
-| `flowforge-core` (PyPI: `flowforge`) | `framework/python/flowforge-core/` | ≤4k | DSL, engine, ports, simulator | shipped |
-| `flowforge-fastapi` | `framework/python/flowforge-fastapi/` | ≤1.5k | Designer + runtime routers | shipped (E1 cutover for session-bearing engine) |
-| `flowforge-sqlalchemy` | `framework/python/flowforge-sqlalchemy/` | ≤2k | ORM + alembic | shipped |
-| `flowforge-tenancy` | `framework/python/flowforge-tenancy/` | ≤500 | Tenancy resolvers | shipped |
-| `flowforge-audit-pg` | `framework/python/flowforge-audit-pg/` | ≤600 | Hash-chain audit | shipped |
-| `flowforge-outbox-pg` | `framework/python/flowforge-outbox-pg/` | ≤700 | Outbox + worker | shipped |
-| `flowforge-rbac-spicedb` | `framework/python/flowforge-rbac-spicedb/` | ≤500 | SpiceDB RBAC | shipped |
-| `flowforge-rbac-static` | `framework/python/flowforge-rbac-static/` | ≤200 | Static RBAC | shipped |
-| `flowforge-documents-s3` | `framework/python/flowforge-documents-s3/` | ≤600 | S3 documents | shipped |
-| `flowforge-money` | `framework/python/flowforge-money/` | ≤300 | FX + format | shipped |
-| `flowforge-signing-kms` | `framework/python/flowforge-signing-kms/` | ≤300 | KMS signer | shipped |
-| `flowforge-notify-multichannel` | `framework/python/flowforge-notify-multichannel/` | ≤700 | Multichannel notify | shipped |
-| `flowforge-cli` | `framework/python/flowforge-cli/` | ≤1.5k | CLI | shipped |
-| `flowforge-jtbd-api` | `framework/python/flowforge-jtbd-api/` | ≤1k | JTBD editor REST + WS | E1 (P1-35) |
-| `flowforge-jtbd` | `framework/python/flowforge-jtbd/` | ≤2k | JTBD pydantic + linter + AI ports | E1 |
-| `flowforge-settings-pg`, `flowforge-settings-env` | (split) | ≤300 each | Settings adapters | E1 |
-| `flowforge-grants-spicedb`, `flowforge-grants-noop` | (split) | ≤300 each | Access grants | E1 |
-| `flowforge-tasks-noop` | (split) | ≤200 | Task tracker fake | E1 |
-| `flowforge-metrics-prometheus`, `flowforge-metrics-noop` | (split) | ≤300 each | Metrics adapters | E1 |
-| `flowforge-notify-noop`, `flowforge-notify-mailgun` | (split) | ≤200/≤500 | Notify adapters | E1 |
-| `flowforge-money-static`, `flowforge-money-ecb` | (split) | ≤200/≤500 | Money adapters | E1 |
-| `flowforge-signing-hmac`, `flowforge-signing-vault` | (split) | ≤300 each | Signing adapters | E1 |
-| `flowforge-rls-pg` | (split from `flowforge-sqlalchemy`) | ≤200 | RLS binder | E1 |
-| `flowforge-documents-noop` | (split) | ≤200 | Documents fake | E1 |
-| `flowforge-jtbd-bpmn`, `flowforge-jtbd-storymap` | new | ≤500 each | Exporters | E6 |
-| `flowforge-jtbd-<domain>` ×30 | new | ≤2k each | Domain libraries | E2 (12) / E4 (18) |
-
-§1.5 row 1 footnote: PyPI distribution name is `flowforge` (singular).
-The `flowforge-core` label here is the package-family nickname for
-clarity vs sibling packages — see §10.1 (P1-26).
+This historical appendix originally added a phase column to a roadmap table.
+The current source-of-truth package table is now §1.4, which lists the
+16-package PyPI release set, the incubating `flowforge-connectors` package, and
+the 30 workspace-only domain packages. The PyPI distribution name is
+`flowforge` (singular); `flowforge-core` remains the repository nickname.
 
 ### 10.10 Iteration 2 — canonical-JSON glossary expansion (P1-31)
 
@@ -2228,12 +2212,10 @@ whitespace, and trailing newline. RFC 8785 (JCS) is the standard.
 
 The §10.7 glossary entry "feature flag" is augmented:
 
-> Flags are declared in `flowforge.config.feature_flags: dict[str, bool]`
-> at startup (typed loader from `SettingsPort`). Resolution order:
-> environment variable (`FLOWFORGE_FLAG_<NAME>`) > `config.feature_flags`
-> > DB-persisted value via `SettingsPort.get(f"flowforge.flag.{name}")`.
-> Default off until the introducing phase ships and the operator flips
-> via the per-tenant flip checklist (`docs/flowforge-evolution.md` §23).
+> Core fork dispatch is controlled by `FLOWFORGE_FORKS_ENABLED`, default-on
+> since v0.3.0 and disabled only when set to `0`. Other host feature flags are
+> host policy: wire them through `SettingsPort` or host config before invoking
+> Flowforge APIs.
 
 ### 10.12 Iteration 2 — MultiBackendOutboxRegistry reference impl (P0-18)
 

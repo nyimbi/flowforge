@@ -18,8 +18,8 @@ It gives host applications:
   designer, JTBD editor, and **JobMap swimlane component**.
 - A deterministic JTBD-to-application generator that emits backend, frontend,
   workflow, form, tests, seed data, docs, design-token, i18n, and operator-manual assets.
-- **28 domain JTBD libraries** covering every major vertical (5 Tier-A with SME signoff;
-  23 Tier-B AI-authored with citation anchors).
+- **30 domain JTBD libraries** covering every major vertical (5 strategic
+  domain-content candidates; 25 starter packages with citation anchors).
 - **JTBD authoring CLI**: `flowforge jtbd lint|lock|fork|ai-draft|quality-score|compliance-lint`
 - **JTBD debugger**: `FaultInjector` (7 failure modes) + `WorkflowDiffer`
 - **JWT/RBAC for jtbd-hub**: `JwtPrincipalExtractor`, `RevocationList`, per-user audit identity
@@ -33,7 +33,7 @@ ordinary package development.
 
 | Version | Date | Highlights |
 |---|---|---|
-| **v0.5.0** | 2026-06-07 | FaultInjector (7 modes), WorkflowDiffer, `tutorial --domain`, 28 domain bundles |
+| **v0.5.0** | 2026-06-07 | FaultInjector (7 modes), WorkflowDiffer, `tutorial --domain`, 30 domain bundles |
 | v0.4.0 | 2026-06-06 | AI draft/quality/compliance CLI, JobMap component, pre-commit hook + GH Action |
 | v0.3.0 | 2026-06-04 | `forks_enabled` default-on, `jtbd lint/lock/fork` CLI, E1 linter core |
 | v0.2.0 | 2026-06-01 | Parallel fork engine, JWT/RBAC, Instance.tokens, per-fix metrics, registries |
@@ -340,10 +340,13 @@ If `policy` is `n_of_m`, `n` is required. If `policy` is `authority_tier`,
 state_enter, state_exit, sla_warn, sla_breach, approved, rejected, escalated
 ```
 
+Those are the standard engine-trigger names. Domain bundles may also use
+custom event names for domain-specific alerts.
+
 `notifications[].channel`:
 
 ```text
-email, sms, slack, webhook, in_app
+email, sms, slack, webhook, in_app, mail, push
 ```
 
 `compliance`:
@@ -662,7 +665,7 @@ Frequently used commands:
 | `flowforge jtbd-generate` | Deterministically generate app artifacts |
 | `flowforge jtbd lint [--strict]` | Lint bundle for lifecycle, dependency, actor-consistency issues |
 | `flowforge jtbd lock --init\|--verify` | Generate or verify a deterministic bundle lockfile |
-| `flowforge jtbd fork <src> <name>` | Fork a bundle with `parent_version_id` tracking |
+| `flowforge jtbd fork <upstream> --tenant <id> [--out <path>]` | Fork a bundle with tenant provenance tracking |
 | `flowforge jtbd ai-draft "<desc>"` | Draft a JTBD from natural language (requires `ANTHROPIC_API_KEY`) |
 | `flowforge jtbd quality-score` | 0-100 rubric quality score per JTBD |
 | `flowforge jtbd compliance-lint` | 8-regime compliance linter (GDPR, HIPAA, SOX, PCI-DSS, …) |

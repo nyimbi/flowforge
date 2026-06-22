@@ -75,9 +75,9 @@ Summary, Requires-Python, license, author, maintainer, project URLs,
 classifiers, keywords, and README content type, verify each wheel and sdist
 contains the declared `LICENSE` file, verify the wheel's own
 `.dist-info/METADATA` and top-level sdist `PKG-INFO` `Requires-Dist` metadata
-keep internal Flowforge dependencies on the exact `>=0.1.0,<0.2.0`
-compatibility bound, with no extra internal dependency specifiers, and limited
-to shipping distributions, checks every wheel/sdist with `twine`, then
+keep internal Flowforge dependencies inside the compatibility window derived
+from the shared release version, with no extra internal dependency specifiers,
+and limited to shipping distributions, checks every wheel/sdist with `twine`, then
 installs every shipping wheel from the built artifacts into a clean venv,
 imports every shipping package, and runs `flowforge --help`.
 
@@ -186,7 +186,8 @@ personal account password.
 Versions live in each package's `pyproject.toml::project.version`.
 Bump every shipping package together. The PyPI build smoke rejects mixed
 shipping versions and derives the internal Flowforge dependency window from the
-shared release line, for example `>=0.1.0,<0.2.0` for any `0.1.x` release.
+shared release line; for the current `0.5.x` line, internal package bounds must
+stay within `>=0.5.0,<0.6.0`.
 The workspace deps in
 `pyproject.toml::[tool.uv.sources]` resolve from the
 workspace during local dev, so no per-package dep version pin needs

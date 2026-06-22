@@ -4,6 +4,10 @@
 > `docs/flowforge-evolution.md` (roadmap), `docs/llm.txt` (AI quickstart),
 > and `docs/workflow-framework-portability.md` (extraction strategy).
 >
+> Status: roadmap/design document. Current shipped package names and paths are
+> canonicalized in `docs/flowforge-handbook.md` §1.4; older design fragments in
+> this file may still describe planned packages rather than shipped packages.
+>
 > Goal: turn flowforge from a compiler (JSON DSL → executable workflow)
 > into a full no-code IDE for authoring, validating, debugging,
 > publishing, and reusing JTBDs across 30+ domain libraries.

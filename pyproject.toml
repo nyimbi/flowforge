@@ -2,7 +2,7 @@
 # Version cadence policy (E-69 / DOC-05)
 # =============================================================================
 #
-# Two tiers govern version numbers across the 46-package workspace:
+# Three groups govern version numbers across the 47-package Python workspace:
 #
 #   * tier-1 — engine + adapters (16 packages):
 #       flowforge-core, flowforge-fastapi, flowforge-sqlalchemy,
@@ -10,10 +10,14 @@
 #       flowforge-rbac-static, flowforge-rbac-spicedb, flowforge-documents-s3,
 #       flowforge-money, flowforge-signing-kms, flowforge-notify-multichannel,
 #       flowforge-otel, flowforge-cli, flowforge-jtbd, flowforge-jtbd-hub.
-#       → version = "0.1.x". Patch bump per audit-fix release; minor
-#         (0.2.0) reserved for the post-audit GA. Public APIs are stable
-#         within 0.1.x; SECURITY-flagged removals follow the F-7 two-version
-#         deprecation rule.
+#       → version = "0.5.x" on the current release line. Bump these in
+#         lockstep for publishable releases; SECURITY-flagged removals follow
+#         the F-7 two-version deprecation rule.
+#
+#   * incubation — connector SDK (1 package):
+#       flowforge-connectors.
+#       → version currently independent at "0.1.0"; it is a workspace member
+#         but not part of the 16-package PyPI release gate.
 #
 #   * tier-2 — domain JTBD libraries (30 packages):
 #       flowforge-jtbd-* (excluding -hub). Currently scaffolds /
@@ -21,11 +25,11 @@
 #       per F-5 mitigation.
 #       → version = "0.0.1" until the package passes E-48a (rebrand to
 #         *-starter) or E-48b (real-content review by named SME). On
-#         flip to ``package = true``, the version moves to 0.1.0 in
-#         lockstep with the tier-1 cadence.
+#         flip to ``package = true``, the version moves onto the active
+#         release line in lockstep with the tier-1 cadence.
 #
-# CI test ``framework/tests/audit_2026/test_E_69_evolution_reconciliation.py``
-# enforces both rules; any drift fails the audit-2026 macro target.
+# CI test ``tests/audit_2026/test_E_69_evolution_reconciliation.py``
+# enforces these rules; any drift fails the audit-2026 macro target.
 # =============================================================================
 
 [project]
@@ -53,7 +57,7 @@ dependencies = [
 ]
 
 [tool.uv.workspace]
-# E-46 / DOC-01: every Python package under ``framework/python/`` is a
+# E-46 / DOC-01: every Python package under ``python/`` is a
 # workspace member. Strategic packages ship today (default ``package=true``);
 # the 30 ``flowforge-jtbd-*`` domain libraries (excluding ``-hub``) carry
 # ``[tool.uv] package = false`` per pkg until they are reviewed and rebranded
@@ -77,6 +81,8 @@ members = [
     "python/flowforge-cli",
     "python/flowforge-jtbd",
     "python/flowforge-jtbd-hub",
+    # Incubating connector SDK (workspace package, not in the 16-package
+    # PyPI release gate).
     "python/flowforge-connectors",
     # Domain libraries — registered for build discovery; package=false until
     # they pass E-48a (rebrand to *-starter) or E-48b (real-content review).
@@ -162,7 +168,7 @@ dev = [
     # to provision z3 transparently) while letting hosts opt out without
     # paying the ~50 MB cost.
     "flowforge-cli[reachability]",
-    # E-44 / IT-01: property-based tests under framework/tests/property/.
+    # E-44 / IT-01: property-based tests under tests/property/.
     "hypothesis>=6.100",
     "opentelemetry-api>=1.20",
     "opentelemetry-sdk>=1.20",

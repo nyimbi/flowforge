@@ -109,7 +109,7 @@ uv run flowforge jtbd lint --bundle examples/insurance_claim/jtbd-bundle.json --
 uv run flowforge jtbd lint <bundle.json> [--strict]        # v0.5.0: strict mode
 uv run flowforge jtbd lock --init <bundle.json>            # create lockfile
 uv run flowforge jtbd lock --verify <bundle.json>          # verify lockfile matches
-uv run flowforge jtbd fork <src> <name>                    # fork a JTBD bundle
+uv run flowforge jtbd fork <upstream> --tenant <id> [--out <path>]  # fork a JTBD bundle
 uv run flowforge jtbd ai-draft "<description>" [--domain <d>]  # requires ANTHROPIC_API_KEY
 uv run flowforge jtbd quality-score <bundle.json>          # score bundle quality
 uv run flowforge jtbd compliance-lint <bundle.json> [--regime GDPR|HIPAA|SOX]
@@ -239,7 +239,7 @@ state_enter, state_exit, sla_warn, sla_breach, approved, rejected, escalated
 Notification channels:
 
 ```text
-email, sms, slack, webhook, in_app
+email, sms, slack, webhook, in_app, mail, push
 ```
 
 Compliance labels:
@@ -399,18 +399,20 @@ these values to their own app shell and CSS variables.
 
 ## Domain Libraries (v0.5.0)
 
-28 domain packages installed under `python/flowforge-jtbd-<domain>/`.
+30 workspace-only domain packages live under `python/flowforge-jtbd-<domain>/`.
 
-**Tier-A** (SME-reviewed, `package = true`):
+Strategic domain-content candidates:
 - `flowforge-jtbd-insurance`
 - `flowforge-jtbd-healthcare`
 - `flowforge-jtbd-banking`
 - `flowforge-jtbd-hr`
 - `flowforge-jtbd-gov`
 
-**Tier-B** (AI-authored, `package = false` until E-48a/E-48b gate): 23 additional domains.
+The other 25 domain packages are starter packages with citation anchors.
+All 30 currently keep `[tool.uv] package = false` until E-48a/E-48b review.
 
-Do not flip a Tier-B package to `package = true` without SME sign-off (E-48a rebrand or E-48b content review).
+Do not flip a domain package to `package = true` without SME sign-off
+(E-48a rebrand or E-48b content review).
 
 ## Code Map
 

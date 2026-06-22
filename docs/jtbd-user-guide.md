@@ -234,16 +234,19 @@ Allowed approval policies:
 
 ### Notifications
 
-Allowed triggers:
+Standard triggers:
 
 ```text
 state_enter, state_exit, sla_warn, sla_breach, approved, rejected, escalated
 ```
 
+Those names are the built-in engine triggers. Bundle authors may also use custom
+event names for domain-specific alerts.
+
 Allowed channels:
 
 ```text
-email, sms, slack, webhook, in_app
+email, sms, slack, webhook, in_app, mail, push
 ```
 
 ### Design Tokens

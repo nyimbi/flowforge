@@ -38,7 +38,7 @@ uv run flowforge simulate --def /tmp/flowforge-insurance/workflows/claim_intake/
 - Fault injection: `--fault gate_fail:review` flag on `simulate`; `FaultInjector` API.
 - New CLI: `jtbd lint --strict`, `jtbd lock`, `jtbd fork`, `jtbd ai-draft`, `jtbd quality-score`, `jtbd compliance-lint`, `tutorial --domain`.
 - JWT/RBAC hub: `flowforge_jtbd_hub.jwt_extractor`.
-- 28 domain packages; Tier-A (SME-reviewed): insurance, healthcare, banking, hr, gov.
+- 30 workspace-only domain packages; banking, gov, healthcare, hr, and insurance remain strategic content-review candidates, while the other 25 are starter packages with citation anchors.
 
 ## Rules
 

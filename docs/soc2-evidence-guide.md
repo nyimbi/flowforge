@@ -1,6 +1,6 @@
 # SOC 2 Type II Evidence Guide for flowforge Deployments
 
-**Version:** 0.1.x  
+**Version:** 0.5.x documentation baseline
 **Audience:** Security auditors, compliance officers, enterprise security teams  
 **Scope:** flowforge-core and its adapter packages deployed as a production workflow engine
 
@@ -31,7 +31,7 @@
 
 ## Overview
 
-flowforge is a portable workflow engine that ships 14 hexagonal-architecture port ABCs. Each port maps directly to a SOC 2 control area. This guide explains which framework capabilities satisfy which Trust Service Criteria (TSC) and how to extract evidence for each.
+flowforge is a portable workflow engine that ships 15 hexagonal-architecture port ABCs. Each port maps directly to a SOC 2 control area. This guide explains which framework capabilities satisfy which Trust Service Criteria (TSC) and how to extract evidence for each.
 
 ### Framework Components Referenced
 
@@ -889,4 +889,4 @@ SELECT COUNT(*) FROM workflow_instances WHERE tenant_id = 'tenant-b';
 
 ---
 
-*This guide was generated from the flowforge codebase at version 0.1.x. Evidence procedures reference table names, metric names, and port names that are stable within the 0.1.x series. Update this document when upgrading to 0.2.0.*
+*This guide has been refreshed for the v0.5.x package line. Evidence procedures reference table names, metric names, and port names that should be re-checked before each minor release.*
