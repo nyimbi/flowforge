@@ -1,6 +1,6 @@
 # flowforge-tenancy changelog
 
-## 0.1.0 — Unreleased
+## 0.1.0 — Historical initial delivery
 
 ### [SECURITY] E-36 — tenancy SQL hardening (audit 2026)
 
@@ -18,8 +18,8 @@
   not scope to the request and could leak; we now refuse to bind.
 
 Regression tests: `tests/test_resolvers.py::test_T_01..T_03_*`,
-`framework/tests/audit_2026/test_E_36_tenancy_hardening.py`,
-`framework/tests/conformance/test_arch_invariants.py::test_invariant_1_tenant_isolation`.
+`tests/audit_2026/test_E_36_tenancy_hardening.py`,
+`tests/conformance/test_arch_invariants.py::test_invariant_1_tenant_isolation`.
 
 Security ratchet: `scripts/ci/ratchets/no_string_interp_sql.sh`.
 

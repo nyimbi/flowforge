@@ -10,7 +10,7 @@
     minor-version deprecation window via `FLOWFORGE_ALLOW_INSECURE_DEFAULT=1`;
     that path logs `WARNING !!! INSECURE DEFAULT IN USE !!!` and increments
     the `flowforge_signing_secret_default_used_total` counter.  See
-    `framework/docs/audit-2026/SECURITY-NOTE.md` E-34 for migration guidance
+    `docs/audit-2026/SECURITY-NOTE.md` E-34 for migration guidance
     and `flowforge pre-upgrade-check signing` for the pre-upgrade gate.
   - **SK-02.**  New `HmacDevSigning(keys={kid: secret}, current_key_id=kid)`
     constructor form lets a single signer carry multiple key-id → secret

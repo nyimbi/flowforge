@@ -1,6 +1,6 @@
 # @flowforge/jtbd-editor changelog
 
-## 0.1.0 — Unreleased
+## 0.1.0 — Historical initial delivery
 
 - E-11: visual swimlane animation.
   - `buildDefaultTrace(bundle)` — Kahn topological order that lands
@@ -27,4 +27,4 @@
   - Cross-lane edges paint distinctly so the dependency hop is
     visually obvious.
   - Layout pass meets the 200-JTBD perf budget called out in
-    `framework/docs/jtbd-editor-arch.md` §17.
+    `docs/jtbd-editor-arch.md` §17.

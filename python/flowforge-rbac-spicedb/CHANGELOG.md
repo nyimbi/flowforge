@@ -1,6 +1,6 @@
 # flowforge-rbac-spicedb changelog
 
-## 0.1.0 — Unreleased
+## 0.1.0 — Historical initial delivery
 
 - Initial `SpiceDBRbac` resolver wrapping the `authzed-py` async client.
 - `has_permission` delegates to `CheckPermission`; `register_permission`

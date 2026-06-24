@@ -1,6 +1,6 @@
 # flowforge-jtbd-banking
 
-**Tier-A** domain library — Banking industry Jobs-To-Be-Done bundle for the flowforge workflow framework.
+**Strategic domain-content candidate** — Banking industry Jobs-To-Be-Done bundle for the flowforge workflow framework.
 
 Contains 30 fully-specified JTBD definitions covering the core operational workflows for Banking organisations.
 
@@ -70,4 +70,4 @@ uv run flowforge jtbd-generate \
 
 ## Status
 
-`package = false` — registered in the uv workspace but not published to PyPI. Flip to `package = true` after Tier-A SME sign-off (gate E-48a/E-48b).
+`package = false` — registered in the uv workspace but not published to PyPI. Flip to `package = true` only after SME/content review passes gate E-48a/E-48b.

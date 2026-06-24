@@ -1,6 +1,6 @@
 # flowforge-jtbd changelog
 
-## 0.1.0 — Unreleased
+## 0.1.0 — Historical initial delivery
 
 ### E-47 — Intelligence quality (audit 2026)
 
@@ -17,7 +17,7 @@
   `PerformanceWarning` pointing to the pgvector replacement.
 - **J-05** — direct prompt-injection guard test bank (50 prompts,
   ≥45 catch threshold). Residual-risk note at
-  `framework/docs/security/nl-injection.md`.
+  `docs/security/nl-injection.md`.
 - **J-06** — dead `"HIPAA, GDPR": ()` placeholder removed from
   `_COMPLIANCE_KEYWORDS`. Composite regimes still emit via union of
   single-regime hits.
@@ -49,11 +49,11 @@
     raises ``ValueError`` with zero side effects.
 
 Regression tests:
-- `framework/tests/audit_2026/test_E_38_migration_rls_ddl.py` (6 tests)
-- `framework/tests/conformance/test_arch_invariants.py::test_invariant_8_migration_rls_safe`
+- `tests/audit_2026/test_E_38_migration_rls_ddl.py` (6 tests)
+- `tests/conformance/test_arch_invariants.py::test_invariant_8_migration_rls_safe`
 
 Existing alembic round-trip tests
-(`framework/python/flowforge-jtbd/tests/ci/test_jtbd_alembic_upgrade.py`)
+(`python/flowforge-jtbd/tests/ci/test_jtbd_alembic_upgrade.py`)
 still green. F-4 mitigation (online + reversible + dry-run) covered by
 the new ``test_J_01_alembic_dryrun_prod_shape`` test which upgrades and
 then immediately downgrades on a SQLite stand-in for the prod-shape DB.

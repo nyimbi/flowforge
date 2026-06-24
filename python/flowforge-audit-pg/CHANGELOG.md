@@ -17,7 +17,7 @@
   via `flowforge_audit_pg.sink.VERIFY_CHUNK_SIZE` in tests.
 - **AU-03 (P1, escalated SOX/HIPAA)** — canonical bytes regression
   protection: a committed golden fixture
-  (`framework/tests/audit_2026/fixtures/canonical_golden.bin`) records
+  (`tests/audit_2026/fixtures/canonical_golden.bin`) records
   the canonical-JSON bytes and `row_sha256` for a fixed input vector.
   The new `flowforge_audit_pg._golden` module (loader/regenerator) signs
   the bundle with an envelope sha256; load refuses on mismatch.
@@ -26,9 +26,9 @@
   security review.
 
 Regression tests:
-- `framework/tests/audit_2026/test_E_37_audit_chain_hardening.py` (6 tests)
-- `framework/tests/conformance/test_arch_invariants.py::test_invariant_7_audit_chain_monotonic`
-- `framework/python/flowforge-audit-pg/tests/test_sink.py` (existing 15
+- `tests/audit_2026/test_E_37_audit_chain_hardening.py` (6 tests)
+- `tests/conformance/test_arch_invariants.py::test_invariant_7_audit_chain_monotonic`
+- `python/flowforge-audit-pg/tests/test_sink.py` (existing 15
   tests, now run under both auto and STRICT asyncio modes)
 
 ## 0.1.0 — 2025-05-05

@@ -77,7 +77,7 @@ async def main():
 
 - **AU-01** (E-37): per-tenant serialisation via `pg_advisory_xact_lock` on PG and `asyncio.Lock` on SQLite; `UNIQUE(tenant_id, ordinal)` constraint catches regressions at the schema layer
 - **AU-02** (E-37): `verify_chain()` streams rows in `VERIFY_CHUNK_SIZE` batches via keyset pagination on `(occurred_at, event_id)`; peak memory is bounded by chunk size, not row count
-- **AU-03** (E-37): canonical golden-bytes fixture in `framework/tests/audit_2026/fixtures/canonical_golden.bin`; the `_golden` module regenerates or verifies it — drift in `canonical_json` is a SOX/HIPAA P1 regression
+- **AU-03** (E-37): canonical golden-bytes fixture in `tests/audit_2026/fixtures/canonical_golden.bin`; the `_golden` module regenerates or verifies it — drift in `canonical_json` is a SOX/HIPAA P1 regression
 - **AU-04** (E-60): `_looks_like_datetime` uses `datetime.fromisoformat` rather than a regex, so UUID-shaped event IDs that happen to start with `YYYY-MM-DD` are not silently treated as timestamps
 
 ## Compatibility

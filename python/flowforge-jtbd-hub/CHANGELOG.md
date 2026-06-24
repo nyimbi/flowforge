@@ -1,6 +1,6 @@
 # flowforge-jtbd-hub changelog
 
-## 0.1.0 — Unreleased
+## 0.1.0 — Historical initial delivery
 
 - **[SECURITY] (audit-2026 E-37b, P0)** Explicit hub trust gate (JH-01).
   - `Package.signed_at_publish: bool` is now persisted at publish time:

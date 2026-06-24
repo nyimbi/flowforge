@@ -1,8 +1,8 @@
 # flowforge changelog
 
-## 0.1.0 — Unreleased
+## 0.1.0 — Historical initial delivery
 
-- Initial port ABCs (14 ports per portability spec §2).
+- Initial port ABCs, now 15 including tracing.
 - DSL Pydantic models for `WorkflowDef`, `FormSpec`, JTBD bundle.
 - JSON schemas under `flowforge.dsl.schema`.
 - Whitelisted expression evaluator with 25+ operators.

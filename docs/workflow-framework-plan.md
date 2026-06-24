@@ -4,6 +4,11 @@ Companion to `docs/workflow-framework-plan.json` (machine-readable). Source spec
 `docs/workflow-framework-portability.md`. Build target: `framework/` subtree
 inside the UMS repo (no PyPI/npm publish in this iteration).
 
+> Historical build plan: this file records the original extraction plan. The
+> current repository root is the Flowforge workspace itself; use
+> `docs/flowforge-handbook.md` and `pyproject.toml` for the current package
+> layout and release surface.
+
 ## Constraints
 
 - Total agent invocation cap: **25** across the full pipeline (planner + executors + critics + commits combined where possible).
