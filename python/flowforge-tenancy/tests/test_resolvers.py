@@ -3,11 +3,26 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import hashlib
+import hmac
+import json
+import time
+from dataclasses import dataclass
+from typing import Any
 
 import pytest
 
 from flowforge.ports import TenancyResolver
-from flowforge_tenancy import MultiTenantGUC, NoTenancy, SingleTenantGUC
+from flowforge_tenancy import (
+	HeaderTenantResolver,
+	JwtClaimTenantResolver,
+	MultiTenantGUC,
+	NoTenancy,
+	SingleTenantGUC,
+	SubdomainTenantResolver,
+	TenantResolutionError,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -43,6 +58,24 @@ class DuckTypedSession:
 
 	def execute(self, sql, params=None):
 		self.calls.append((sql, dict(params or {})))
+
+
+@dataclass
+class RequestStub:
+	headers: dict[str, str]
+
+
+def _b64url(data: bytes) -> str:
+	return base64.urlsafe_b64encode(data).decode().rstrip("=")
+
+
+def _jwt(payload: dict[str, Any], *, secret: str = "secret", alg: str = "HS256") -> str:
+	header = {"typ": "JWT", "alg": alg}
+	header_b64 = _b64url(json.dumps(header, separators=(",", ":")).encode())
+	payload_b64 = _b64url(json.dumps(payload, separators=(",", ":")).encode())
+	signing_input = f"{header_b64}.{payload_b64}".encode()
+	signature = hmac.new(secret.encode(), signing_input, hashlib.sha256).digest()
+	return f"{header_b64}.{payload_b64}.{_b64url(signature)}"
 
 
 async def test_single_tenant_satisfies_protocol() -> None:
@@ -90,6 +123,73 @@ async def test_multi_tenant_supports_async_resolver() -> None:
 
 	r = MultiTenantGUC(resolver=aresolver)
 	assert await r.current_tenant() == "t-async"
+
+
+async def test_header_tenant_resolver_reads_x_tenant_id() -> None:
+	request = RequestStub(headers={"X-Tenant-ID": " tenant-a "})
+	r = MultiTenantGUC(resolver=HeaderTenantResolver(lambda: request))
+	assert await r.current_tenant() == "tenant-a"
+
+
+async def test_header_tenant_resolver_rejects_missing_and_unsafe_values() -> None:
+	with pytest.raises(TenantResolutionError, match="missing tenant header"):
+		HeaderTenantResolver(lambda: RequestStub(headers={}))()
+
+	with pytest.raises(TenantResolutionError, match="unsupported characters"):
+		HeaderTenantResolver(lambda: RequestStub(headers={"x-tenant-id": "../../tenant"}))()
+
+
+async def test_jwt_claim_tenant_resolver_verifies_hmac_signature() -> None:
+	token = _jwt({"tenant_id": "tenant-jwt", "exp": time.time() + 60}, secret="s3cr3t")
+	request = RequestStub(headers={"Authorization": f"Bearer {token}"})
+	r = MultiTenantGUC(resolver=JwtClaimTenantResolver(lambda: request, secret="s3cr3t"))
+	assert await r.current_tenant() == "tenant-jwt"
+
+
+async def test_jwt_claim_tenant_resolver_detects_tampering() -> None:
+	token = _jwt({"tenant_id": "tenant-a"}, secret="s3cr3t")
+	header, payload, signature = token.split(".")
+	tampered_payload = _b64url(json.dumps({"tenant_id": "tenant-b"}, separators=(",", ":")).encode())
+	request = RequestStub(headers={"Authorization": f"Bearer {header}.{tampered_payload}.{signature}"})
+
+	with pytest.raises(TenantResolutionError, match="signature verification failed"):
+		JwtClaimTenantResolver(lambda: request, secret="s3cr3t")()
+
+
+async def test_jwt_claim_tenant_resolver_requires_secret_by_default() -> None:
+	token = _jwt({"tenant_id": "tenant-a"}, secret="s3cr3t")
+	request = RequestStub(headers={"Authorization": f"Bearer {token}"})
+
+	with pytest.raises(TenantResolutionError, match="requires a secret"):
+		JwtClaimTenantResolver(lambda: request)()
+
+
+async def test_jwt_claim_tenant_resolver_allows_explicit_unverified_decode() -> None:
+	token = _jwt({"tenant_id": "tenant-unverified"}, secret="unused")
+	request = RequestStub(headers={"Authorization": f"Bearer {token}"})
+	resolver = JwtClaimTenantResolver(lambda: request, verify_signature=False)
+	assert resolver() == "tenant-unverified"
+
+
+async def test_subdomain_tenant_resolver_reads_host_label() -> None:
+	request = RequestStub(headers={"Host": "tenant-42.example.com:8443"})
+	r = MultiTenantGUC(resolver=SubdomainTenantResolver(lambda: request, base_domain="example.com"))
+	assert await r.current_tenant() == "tenant-42"
+
+
+async def test_subdomain_tenant_resolver_rejects_ambiguous_hosts() -> None:
+	resolver = SubdomainTenantResolver(
+		lambda: RequestStub(headers={"Host": "api.tenant.example.com"}),
+		base_domain="example.com",
+	)
+	with pytest.raises(TenantResolutionError, match="multiple subdomain labels"):
+		resolver()
+
+	with pytest.raises(TenantResolutionError, match="outside base domain"):
+		SubdomainTenantResolver(
+			lambda: RequestStub(headers={"Host": "tenant.other.test"}),
+			base_domain="example.com",
+		)()
 
 
 async def test_no_tenancy_does_not_bind() -> None:

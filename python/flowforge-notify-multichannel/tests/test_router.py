@@ -42,6 +42,28 @@ class StubAdapter:
 		return DeliveryResult(ok=self._ok)
 
 
+class SequenceAdapter:
+	"""Returns or raises queued outcomes in order."""
+
+	def __init__(self, channel: str, outcomes: list[DeliveryResult | Exception]) -> None:
+		self.channel = channel
+		self.outcomes = outcomes
+		self.calls: list[dict[str, Any]] = []
+
+	async def deliver(
+		self,
+		recipient: str,
+		subject: str,
+		body: str,
+		metadata: dict[str, Any],
+	) -> DeliveryResult:
+		self.calls.append({"recipient": recipient, "subject": subject, "body": body, "metadata": metadata})
+		outcome = self.outcomes.pop(0)
+		if isinstance(outcome, Exception):
+			raise outcome
+		return outcome
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -191,6 +213,58 @@ class TestSend:
 
 		for adapter in adapters:
 			assert len(adapter.calls) == 1  # type: ignore[union-attr]
+
+	async def test_send_retries_failed_delivery_result_then_succeeds(self, spec_en: NotificationSpec) -> None:
+		adapter = SequenceAdapter(
+			"email",
+			[
+				DeliveryResult(ok=False, error="temporary"),
+				DeliveryResult(ok=True),
+			],
+		)
+		n = MultiChannelNotifier(adapters=[adapter], max_delivery_attempts=3)
+		await n.register_template(spec_en)
+		rendered = await n.render("welcome", "en", {"name": "A", "code": "0"})
+
+		sent = await n.send("email", "a@b.com", rendered)
+
+		assert sent is True
+		assert len(adapter.calls) == 2
+		assert n.last_delivery_error is None
+
+	async def test_send_retries_adapter_exception_then_succeeds(self, spec_en: NotificationSpec) -> None:
+		adapter = SequenceAdapter("email", [RuntimeError("network"), DeliveryResult(ok=True)])
+		n = MultiChannelNotifier(adapters=[adapter], max_delivery_attempts=2)
+		await n.register_template(spec_en)
+		rendered = await n.render("welcome", "en", {"name": "A", "code": "0"})
+
+		sent = await n.send("email", "a@b.com", rendered)
+
+		assert sent is True
+		assert len(adapter.calls) == 2
+
+	async def test_send_returns_false_after_retries_and_keeps_dedupe_retryable(
+		self, spec_en: NotificationSpec
+	) -> None:
+		adapter = SequenceAdapter(
+			"email",
+			[
+				DeliveryResult(ok=False, error="down"),
+				DeliveryResult(ok=False, error="still down"),
+			],
+		)
+		n = MultiChannelNotifier(adapters=[adapter], max_delivery_attempts=2)
+		await n.register_template(spec_en)
+		rendered = await n.render("welcome", "en", {"name": "A", "code": "0"})
+
+		first = await n.send("email", "a@b.com", rendered, dedupe_key="same-key")
+		adapter.outcomes = [DeliveryResult(ok=True)]
+		second = await n.send("email", "a@b.com", rendered, dedupe_key="same-key")
+
+		assert first is False
+		assert second is True
+		assert len(adapter.calls) == 3
+		assert n.last_delivery_error is None
 
 
 # ---------------------------------------------------------------------------
@@ -362,6 +436,17 @@ class TestFanout:
 
 		assert r1.get("email") is True
 		assert r2.get("email") is False  # deduped
+
+	async def test_fanout_reports_failed_channel_false(self, spec_en: NotificationSpec) -> None:
+		stub = StubAdapter("email", ok=False)
+		n = MultiChannelNotifier(adapters=[stub], max_delivery_attempts=1)
+		await n.register_template(spec_en)
+
+		results = await n.fanout("u@x.com", "welcome", "en", {"name": "A", "code": "0"})
+
+		assert results == {"email": False}
+		assert n.last_delivery_error is not None
+		assert n.last_delivery_error["channel"] == "email"
 
 
 # ---------------------------------------------------------------------------

@@ -10,6 +10,7 @@ Features:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import time
 from dataclasses import dataclass, field
@@ -39,6 +40,21 @@ class RecipientPreferences:
 class _ThrottleKey:
 	recipient: str
 	template_id: str
+
+
+def _delivery_ok(result: Any) -> bool:
+	if result is None:
+		return True
+	if isinstance(result, bool):
+		return result
+	return bool(getattr(result, "ok", False))
+
+
+def _delivery_error(result: Any) -> str:
+	error = getattr(result, "error", None)
+	if error:
+		return str(error)
+	return "delivery failed"
 
 
 # ---------------------------------------------------------------------------
@@ -85,7 +101,13 @@ class MultiChannelNotifier:
 		adapters: list[Any] | None = None,
 		throttle_seconds: int = 0,
 		recipient_prefs: dict[str, RecipientPreferences] | None = None,
+		max_delivery_attempts: int = 3,
+		retry_backoff_seconds: float = 0.0,
 	) -> None:
+		if max_delivery_attempts < 1:
+			raise ValueError("max_delivery_attempts must be >= 1")
+		if retry_backoff_seconds < 0:
+			raise ValueError("retry_backoff_seconds must be >= 0")
 		self._adapters: dict[str, Any] = {}
 		for adapter in adapters or []:
 			self._adapters[adapter.channel] = adapter
@@ -100,6 +122,9 @@ class MultiChannelNotifier:
 		# recipient -> channel prefs
 		self._prefs: dict[str, RecipientPreferences] = recipient_prefs or {}
 		self._jinja = _make_jinja_env()
+		self._max_delivery_attempts = max_delivery_attempts
+		self._retry_backoff_seconds = retry_backoff_seconds
+		self.last_delivery_error: dict[str, Any] | None = None
 		# E-54 / NM-03: last timezone fallback breadcrumb for observability.
 		# When a render() call falls back to UTC because the requested zone
 		# is unknown, the originating exception is preserved here so a
@@ -167,34 +192,73 @@ class MultiChannelNotifier:
 	) -> bool:
 		"""Deliver *rendered* over *channel* to *recipient*.
 
-		Returns True if delivery was attempted, False if skipped (throttle / dedup).
+		Returns True if delivery succeeds, False if skipped or all delivery
+		attempts fail.  Failure details are exposed in ``last_delivery_error``.
 		Raises ValueError if no adapter for *channel* is registered.
 		"""
 		meta = metadata or {}
 
 		# Deduplication
+		dk: tuple[str, str] | None = None
 		if dedupe_key:
 			dk = (recipient, dedupe_key)
 			if dk in self._dedupe:
 				return False
-			self._dedupe.add(dk)
 
 		# Throttle
+		tk: _ThrottleKey | None = None
 		if self._throttle_seconds > 0 and template_id:
 			tk = _ThrottleKey(recipient=recipient, template_id=template_id)
 			last = self._throttle.get(tk)
 			now = time.monotonic()
 			if last is not None and (now - last) < self._throttle_seconds:
 				return False
-			self._throttle[tk] = now
 
 		adapter = self._adapters.get(channel)
 		if adapter is None:
 			raise ValueError(f"No adapter registered for channel: {channel!r}")
 
 		subject, body = rendered
-		await adapter.deliver(recipient, subject, body, meta)
+		ok, error = await self._deliver_with_retries(adapter, recipient, subject, body, meta)
+		if not ok:
+			self.last_delivery_error = {
+				"channel": channel,
+				"recipient": recipient,
+				"error": error,
+				"attempts": self._max_delivery_attempts,
+			}
+			return False
+
+		self.last_delivery_error = None
+		if dk is not None:
+			self._dedupe.add(dk)
+		if tk is not None:
+			self._throttle[tk] = time.monotonic()
 		return True
+
+	async def _deliver_with_retries(
+		self,
+		adapter: Any,
+		recipient: str,
+		subject: str,
+		body: str,
+		metadata: dict[str, Any],
+	) -> tuple[bool, str | None]:
+		last_error: str | None = None
+		for attempt in range(1, self._max_delivery_attempts + 1):
+			try:
+				result = await adapter.deliver(recipient, subject, body, metadata)
+			except Exception as exc:
+				last_error = str(exc)
+			else:
+				if _delivery_ok(result):
+					return True, None
+				last_error = _delivery_error(result)
+
+			if attempt < self._max_delivery_attempts and self._retry_backoff_seconds:
+				await asyncio.sleep(self._retry_backoff_seconds * (2 ** (attempt - 1)))
+
+		return False, last_error
 
 	# ------------------------------------------------------------------
 	# Preference-based fanout
