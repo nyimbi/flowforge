@@ -4,8 +4,10 @@ E-34 hardening (audit-fix-plan §4.1, §7):
 
 * SK-01 — no implicit default secret.  Instantiating without
   ``FLOWFORGE_SIGNING_SECRET`` env var (or an explicit ``secret=`` /
-  ``keys=`` argument) raises ``RuntimeError``.  There is no hardcoded
-  fallback secret.
+  ``keys=`` argument) raises ``RuntimeError`` unless
+  ``FLOWFORGE_ALLOW_INSECURE_DEFAULT=1`` explicitly enables the local-dev
+  bridge.  The bridge emits a warning and increments
+  ``_INSECURE_DEFAULT_USED_TOTAL`` for observability.
 * SK-02 — per-key_id signed key map.  ``HmacDevSigning(keys={kid: secret})``
   configures the signer with multiple keys; ``verify(key_id="unknown", ...)``
   raises ``UnknownKeyId`` rather than silently using the wrong secret.  Old
@@ -22,13 +24,17 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import os
 from typing import Final
 
 from flowforge_signing_kms.errors import UnknownKeyId
 
 _DEFAULT_KEY_ID: Final = "dev-key-1"
+_INSECURE_DEFAULT_SECRET: Final = "flowforge-insecure-dev-secret"
 _SEP: Final = b"."
+_LOGGER = logging.getLogger(__name__)
+_INSECURE_DEFAULT_USED_TOTAL = 0
 
 
 def _hmac_sign(secret: str, key_id: str, payload: bytes) -> bytes:
@@ -53,7 +59,8 @@ def _resolve_keys(
     * ``HmacDevSigning(keys={...}, current_key_id="k2")`` — explicit map.
     * ``HmacDevSigning()`` (env-only) — read ``$FLOWFORGE_SIGNING_SECRET``
       and ``$FLOWFORGE_SIGNING_KEY_ID``.  Raises ``RuntimeError`` if no
-      secret material is available.
+      secret material is available unless ``$FLOWFORGE_ALLOW_INSECURE_DEFAULT``
+      is explicitly set to ``"1"`` for the local-dev bridge.
     """
     # Forbid mixing the two forms — easier to misconfigure than helpful.
     if keys is not None and (secret is not None or key_id is not None):
@@ -86,10 +93,19 @@ def _resolve_keys(
     resolved_key_id = key_id if key_id is not None else env_key_id
 
     if resolved_secret is None:
-        raise RuntimeError(
-            "HmacDevSigning: explicit secret required; "
-            "set FLOWFORGE_SIGNING_SECRET or pass secret=."
-        )
+        if os.environ.get("FLOWFORGE_ALLOW_INSECURE_DEFAULT") == "1":
+            global _INSECURE_DEFAULT_USED_TOTAL
+            _INSECURE_DEFAULT_USED_TOTAL += 1
+            resolved_secret = _INSECURE_DEFAULT_SECRET
+            _LOGGER.warning(
+                "INSECURE HmacDevSigning default secret enabled by "
+                "FLOWFORGE_ALLOW_INSECURE_DEFAULT=1; use only for local development."
+            )
+        else:
+            raise RuntimeError(
+                "HmacDevSigning: explicit secret required; "
+                "set FLOWFORGE_SIGNING_SECRET or pass secret=."
+            )
 
     if resolved_key_id is None:
         resolved_key_id = _DEFAULT_KEY_ID
@@ -109,7 +125,9 @@ class HmacDevSigning:
 
     1. **Single-key** — ``HmacDevSigning(secret="s", key_id="k")``.
        Reads ``$FLOWFORGE_SIGNING_SECRET`` / ``$FLOWFORGE_SIGNING_KEY_ID`` if
-       omitted.  Raises ``RuntimeError`` if no secret can be resolved (SK-01).
+       omitted.  Raises ``RuntimeError`` if no secret can be resolved unless
+       ``FLOWFORGE_ALLOW_INSECURE_DEFAULT=1`` enables the local-dev bridge
+       (SK-01).
 
     2. **Key map** — ``HmacDevSigning(keys={"k1": "s1", "k2": "s2"},
        current_key_id="k2")``.  Lets the caller carry pre-rotation keys for

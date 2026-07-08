@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import logging
 from typing import Any
 
 import pytest
@@ -165,13 +166,18 @@ def test_empty_single_key_material_is_rejected(monkeypatch) -> None:
         HmacDevSigning(secret="secret", key_id="")
 
 
-def test_insecure_default_flag_does_not_enable_hardcoded_secret(monkeypatch):
+def test_insecure_default_flag_enables_warned_dev_secret(monkeypatch, caplog):
     monkeypatch.delenv("FLOWFORGE_SIGNING_SECRET", raising=False)
     monkeypatch.delenv("FLOWFORGE_SIGNING_KEY_ID", raising=False)
     monkeypatch.setenv("FLOWFORGE_ALLOW_INSECURE_DEFAULT", "1")
 
-    with pytest.raises(RuntimeError, match="explicit secret required"):
-        HmacDevSigning()
+    before = hmac_dev_module._INSECURE_DEFAULT_USED_TOTAL
+    with caplog.at_level(logging.WARNING, logger="flowforge_signing_kms.hmac_dev"):
+        signer = HmacDevSigning()
+
+    assert signer.current_key_id() == "dev-key-1"
+    assert hmac_dev_module._INSECURE_DEFAULT_USED_TOTAL == before + 1
+    assert any("INSECURE" in record.message for record in caplog.records)
 
 
 def test_explicit_secret_uses_env_key_id_when_key_id_missing(monkeypatch):

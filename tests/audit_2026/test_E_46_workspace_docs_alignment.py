@@ -7,7 +7,7 @@ Audit findings (audit-fix-plan §4.x DOC-01/DOC-02, §7 E-46, §2 F-5):
   in two steps — first as ``package=false`` build-only members, then flip
   to ``package=true`` per pkg as it's reviewed.
 - **DOC-02 (P2)** — ``README.md`` package count matches the
-  filesystem (no drift like "12 PyPI packages" while there are 46).
+  filesystem (no drift like "12 PyPI packages" while there are 47).
 - **DOC-02 (P2)** — ``docs/flowforge-evolution.md`` paths match
   the actual layout (no ``apps/jtbd-hub/`` artefacts; the package lives
   at ``python/flowforge-jtbd-hub/``).
@@ -202,16 +202,16 @@ def test_DOC_01_strategic_pkg_readmes_are_standalone_flowforge() -> None:
 
 
 def test_DOC_02_readme_pkg_count_matches_filesystem() -> None:
-	"""``README.md`` must reference 46 (not stale historical totals)."""
+	"""``README.md`` must reference 47 (not stale historical totals)."""
 	text = _README.read_text(encoding="utf-8")
 	on_disk = len(_list_python_packages())
-	assert on_disk == 46, f"unexpected package count on disk: {on_disk}"
+	assert on_disk == 47, f"unexpected package count on disk: {on_disk}"
 	# Reject the historical "12" claim outright.
 	assert not re.search(r"\b12\s+(PyPI\s+)?packages\b", text, re.IGNORECASE), (
-		"README still claims '12 PyPI packages' — update to 46"
+		"README still claims '12 PyPI packages' — update to 47"
 	)
 	# Positive: the README mentions the real total.
-	assert re.search(r"\b46\b", text), "README does not reference the real 46-package total"
+	assert re.search(r"\b47\b", text), "README does not reference the real 47-package total"
 
 
 def test_DOC_02_handbook_path_drift_fixed() -> None:

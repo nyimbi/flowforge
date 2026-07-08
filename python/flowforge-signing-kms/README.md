@@ -21,7 +21,7 @@ uv pip install "flowforge-signing-kms[gcp]"
 
 This package provides three concrete implementations of the flowforge `SigningPort` protocol. `HmacDevSigning` uses HMAC-SHA256 with a key map stored in process memory — it is for local development and CI only and must not be used in production. `AwsKmsSigning` delegates to AWS KMS using `boto3`; `GcpKmsSigning` delegates to GCP Cloud KMS using `google-cloud-kms`. Both KMS adapters work against live service or against mocks (moto for AWS, injected stub for GCP) so integration tests need no real cloud credentials.
 
-The E-34 audit round removed the hard-coded fallback secret that earlier versions used when `FLOWFORGE_SIGNING_SECRET` was absent. `HmacDevSigning` now raises `RuntimeError` at construction time if no secret material is available; `FLOWFORGE_ALLOW_INSECURE_DEFAULT` is ignored and no longer restores any legacy secret. Both KMS adapters run their blocking `boto3`/gRPC calls via `asyncio.to_thread` (SK-04) so they do not stall the event loop during the 50–500 ms KMS round-trip.
+The E-34 audit round removed implicit use of the hard-coded fallback secret that earlier versions used when `FLOWFORGE_SIGNING_SECRET` was absent. `HmacDevSigning` now raises `RuntimeError` at construction time if no secret material is available unless `FLOWFORGE_ALLOW_INSECURE_DEFAULT=1` explicitly enables the local-development bridge. That bridge emits an `INSECURE` warning and increments an observability counter so it can be retired after the deprecation window. Both KMS adapters run their blocking `boto3`/gRPC calls via `asyncio.to_thread` (SK-04) so they do not stall the event loop during the 50–500 ms KMS round-trip.
 
 The package does not provide key generation, key storage, or rotation scheduling. It does not wrap `cryptography` or any other local asymmetric library — production asymmetric signing goes through KMS directly.
 
@@ -70,13 +70,13 @@ gcp_signer = GcpKmsSigning(
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `FLOWFORGE_SIGNING_SECRET` | — | **Required** for `HmacDevSigning`. Set to a real secret in all environments. |
+| `FLOWFORGE_SIGNING_SECRET` | — | **Required** for `HmacDevSigning` outside the explicit local-development bridge. Set to a real secret in all environments. |
 | `FLOWFORGE_SIGNING_KEY_ID` | `dev-key-1` | Optional key id when using the single-key form. |
-| `FLOWFORGE_ALLOW_INSECURE_DEFAULT` | — | Ignored by `HmacDevSigning`; retained only so older deployments fail closed instead of restoring a hardcoded secret. |
+| `FLOWFORGE_ALLOW_INSECURE_DEFAULT` | — | Set to `1` only for the temporary local-development bridge. Emits a warning and increments the insecure-default counter. |
 
 ## Audit-2026 hardening
 
-- **SK-01** (E-34): `FLOWFORGE_SIGNING_SECRET` is now required. `HmacDevSigning` raises `RuntimeError` at construction if no secret is configured. The hard-coded fallback secret and bridge path are removed; `FLOWFORGE_ALLOW_INSECURE_DEFAULT=1` no longer creates signing material. Run `flowforge pre-upgrade-check signing` in CI before bumping the version.
+- **SK-01** (E-34): `FLOWFORGE_SIGNING_SECRET` is now required. `HmacDevSigning` raises `RuntimeError` at construction if no secret is configured unless `FLOWFORGE_ALLOW_INSECURE_DEFAULT=1` explicitly enables the temporary local-development bridge. The bridge logs an `INSECURE` warning and increments `_INSECURE_DEFAULT_USED_TOTAL`. Run `flowforge pre-upgrade-check signing` in CI before bumping the version.
 - **SK-02** (E-34): `HmacDevSigning` accepts a `keys={kid: secret}` map so old signatures verify against their original `key_id` after rotation. `verify(key_id="unknown")` raises `UnknownKeyId` rather than silently failing with the wrong key.
 - **SK-03** (E-34): `verify()` returns `True`/`False` for valid/invalid. Unknown key ids raise `UnknownKeyId`; recoverable KMS failures raise `KmsTransientError`. Both AWS and GCP error codes are classified against named frozensets — no string-matching on generic `Exception`.
 - **SK-04** (E-56): `AwsKmsSigning` and `GcpKmsSigning` dispatch all blocking SDK calls via `asyncio.to_thread`.

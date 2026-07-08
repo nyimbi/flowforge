@@ -7,9 +7,10 @@ Audit reference: framework/docs/audit-fix-plan.md §7 E-69.
   (E-31 through E-72) so a reader of the evolution doc isn't left with
   a sequence gap between E-30 and E-72.
 - **DOC-05 / version cadence** — every Python package in the workspace
-  follows a documented two-tier policy:
-    * **Tier-1 (engine + adapters)**: ``0.1.x`` until the audit-2026
-      hardenings sign off.
+  follows a documented cadence policy:
+    * **Tier-1 (engine + adapters)**: ``0.5.x`` on the current release line.
+    * **Incubation (connector SDK)**: ``0.1.0`` and ``package=false`` until
+      it joins the release gate.
     * **Tier-2 (domain JTBD libraries)**: ``0.0.1`` for scaffolds /
       starters until they are reviewed and rebranded.
 """
@@ -88,6 +89,8 @@ _TIER_1: frozenset[str] = frozenset({
 def _tier_for(pkg_dir_name: str) -> str:
 	if pkg_dir_name in _TIER_1:
 		return "tier-1"
+	if pkg_dir_name == "flowforge-connectors":
+		return "incubation"
 	if pkg_dir_name.startswith("flowforge-jtbd-"):
 		return "tier-2"
 	raise AssertionError(f"unknown pkg tier for {pkg_dir_name!r}")
@@ -99,6 +102,9 @@ def test_DOC_05_versions_consistent_per_tier() -> None:
 	Tier-1 (16 strategic packages): all must share the same semver string
 	of the form ``0.MINOR.PATCH`` — releasing them in lockstep prevents
 	split-brain between adapters that share port ABCs.
+
+	Incubation (connector SDK): pinned at ``0.1.0`` and ``package=false``
+	until it joins the shipping gate.
 
 	Tier-2 (domain JTBD packages with ``[tool.uv] package = false``):
 	pinned at ``0.0.1`` until a per-package SME-review gate flips them
@@ -121,6 +127,13 @@ def test_DOC_05_versions_consistent_per_tier() -> None:
 				f"tier-1 pkg {pkg_dir.name} version {version!r} is not 0.x.y semver"
 			)
 			tier1_versions[pkg_dir.name] = version
+		elif tier == "incubation":
+			assert version == "0.1.0", (
+				f"incubation pkg {pkg_dir.name} should be 0.1.0; got {version!r}"
+			)
+			assert data.get("tool", {}).get("uv", {}).get("package") is False, (
+				f"incubation pkg {pkg_dir.name} must stay [tool.uv] package=false"
+			)
 		else:
 			assert version == "0.0.1", (
 				f"tier-2 pkg {pkg_dir.name} should be 0.0.1; got {version!r}"

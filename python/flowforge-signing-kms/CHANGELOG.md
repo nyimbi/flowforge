@@ -2,16 +2,18 @@
 
 ## Unreleased
 
-- **[SECURITY-BREAKING] (adapter audit)** Removed the final hardcoded HMAC fallback secret path from `HmacDevSigning`. `FLOWFORGE_ALLOW_INSECURE_DEFAULT=1` no longer restores legacy secret material; callers must pass `secret=`, configure `FLOWFORGE_SIGNING_SECRET`, or use the `keys={...}` form.
+- **[SECURITY-BREAKING] (adapter audit)** Removed implicit use of the hardcoded HMAC fallback secret path from `HmacDevSigning`. Callers must pass `secret=`, configure `FLOWFORGE_SIGNING_SECRET`, use the `keys={...}` form, or explicitly opt into the temporary local-development bridge with `FLOWFORGE_ALLOW_INSECURE_DEFAULT=1`.
 
 - **[SECURITY-BREAKING] (audit-2026 E-34, P0)** Crypto rotation hardening (SK-01, SK-02, SK-03).
-  - **SK-01.**  `HmacDevSigning()` no longer falls back to a hard-coded
-    legacy secret.  Calling without `FLOWFORGE_SIGNING_SECRET` (or an explicit
-    `secret=` / `keys=` argument) raises `RuntimeError("explicit secret
-    required …")`.  The older deprecation bridge has since been removed:
-    `FLOWFORGE_ALLOW_INSECURE_DEFAULT=1` no longer restores a fallback secret.
-    See `docs/audit-2026/SECURITY-NOTE.md` E-34 for migration guidance
-    and `flowforge pre-upgrade-check signing` for the pre-upgrade gate.
+  - **SK-01.**  `HmacDevSigning()` no longer implicitly falls back to a
+    hard-coded legacy secret.  Calling without `FLOWFORGE_SIGNING_SECRET`
+    (or an explicit `secret=` / `keys=` argument) raises
+    `RuntimeError("explicit secret required …")` unless the caller explicitly
+    sets `FLOWFORGE_ALLOW_INSECURE_DEFAULT=1` for the temporary
+    local-development bridge.  The bridge emits an `INSECURE` warning and
+    increments `_INSECURE_DEFAULT_USED_TOTAL` for observability.  See
+    `docs/audit-2026/SECURITY-NOTE.md` E-34 for migration guidance and
+    `flowforge pre-upgrade-check signing` for the pre-upgrade gate.
   - **SK-02.**  New `HmacDevSigning(keys={kid: secret}, current_key_id=kid)`
     constructor form lets a single signer carry multiple key-id → secret
     entries so old signatures keep verifying after rotation.  `verify()`

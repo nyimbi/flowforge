@@ -601,7 +601,7 @@ flowforge/
   scripts/
 ```
 
-The monorepo currently has 46 Python workspace members and 7 JS workspace
+The monorepo currently has 47 Python workspace members and 7 JS workspace
 members. Tier-1 engine/adapters are the package surface. Domain
 `flowforge-jtbd-*` libraries remain source/workspace members until each is
 reviewed and flipped to package publishing.
