@@ -225,8 +225,11 @@ class AwsKmsSigning:
 					_c = _cfg.current()
 					if _c.metrics is not None:
 						_c.metrics.emit("flowforge_kms_transient_errors_total", 1.0, {})
-				except Exception:
-					pass
+				except Exception as metrics_exc:
+					_logger.debug(
+						"metrics emit failed (kms_transient_errors): %s",
+						metrics_exc,
+					)
 			raise classified from exc
 
 	async def verify(self, payload: bytes, signature: bytes, key_id: str) -> bool:
@@ -371,8 +374,11 @@ class GcpKmsSigning:
 					_c = _cfg.current()
 					if _c.metrics is not None:
 						_c.metrics.emit("flowforge_kms_transient_errors_total", 1.0, {})
-				except Exception:
-					pass
+				except Exception as metrics_exc:
+					_logger.debug(
+						"metrics emit failed (kms_transient_errors): %s",
+						metrics_exc,
+					)
 			raise classified from exc
 
 	async def verify(self, payload: bytes, signature: bytes, key_id: str) -> bool:
