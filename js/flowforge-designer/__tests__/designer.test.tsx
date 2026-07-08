@@ -45,6 +45,26 @@ describe("createDesignerStore", () => {
 		);
 	});
 
+	it("adds palette nodes with serialized canvas positions", () => {
+		const store = createDesignerStore();
+		store.getState().addNode({
+			type: "task",
+			position: { x: 240, y: 180 },
+		});
+
+		const state = store.getState().workflow.states[0];
+		expect(state?.kind).toBe("automatic");
+		const workflow = store.getState().workflow as WorkflowDef & {
+			metadata?: {
+				nodes?: Record<string, { position: { x: number; y: number } }>;
+			};
+		};
+		expect(workflow.metadata?.nodes?.[state?.id ?? ""]?.position).toEqual({
+			x: 240,
+			y: 180,
+		});
+	});
+
 	it("reorders form fields with moveField", () => {
 		const store = createDesignerStore({ form: sampleForm() });
 		store.getState().moveField("notes", 0);
@@ -159,6 +179,42 @@ describe("Designer (integration)", () => {
 		expect(fields.some((f) => f.kind === "date")).toBe(true);
 	});
 
+	it("shows an empty canvas state and adds the first state", () => {
+		const store = createDesignerStore();
+		render(<Designer store={store} withReactFlow={false} />);
+
+		expect(screen.getByTestId("canvas-empty-state")).toHaveTextContent("Add your first state");
+		fireEvent.click(screen.getByTestId("canvas-empty-add-state"));
+
+		expect(store.getState().workflow.states).toHaveLength(1);
+		expect(screen.getByTestId("canvas-state-state_node_1")).toBeInTheDocument();
+	});
+
+	it("adds a dragged palette node to the canvas", () => {
+		const store = createDesignerStore();
+		render(<Designer store={store} withReactFlow={false} />);
+
+		const data = new Map<string, string>();
+		const dataTransfer = {
+			dropEffect: "move",
+			effectAllowed: "all",
+			setData: (format: string, value: string): void => {
+				data.set(format, value);
+			},
+			getData: (format: string): string => data.get(format) ?? "",
+		};
+
+		fireEvent.dragStart(screen.getByTestId("palette-node-gate"), { dataTransfer });
+		fireEvent.drop(screen.getByTestId("ff-canvas"), {
+			clientX: 220,
+			clientY: 140,
+			dataTransfer,
+		});
+
+		expect(store.getState().workflow.states[0]?.kind).toBe("parallel_fork");
+		expect(screen.getByTestId("canvas-state-gate_node_1")).toBeInTheDocument();
+	});
+
 	it("adds a conditional rule to a field via the rules editor", () => {
 		const store = createDesignerStore({ form: sampleForm() });
 		render(<Designer store={store} withReactFlow={false} initialTab="form" />);
@@ -177,6 +233,23 @@ describe("Designer (integration)", () => {
 		const store = createDesignerStore({ workflow: wf });
 		render(<Designer store={store} withReactFlow={false} initialTab="validation" />);
 		expect(screen.getByTestId("validation-counts").textContent).toMatch(/errors/);
+	});
+
+	it("validation issue buttons navigate to the related node", () => {
+		const wf: WorkflowDef = {
+			...sampleWorkflow(),
+			states: [
+				...sampleWorkflow().states,
+				{ id: "lonely", name: "Lonely", kind: "manual_review" },
+			],
+		};
+		const store = createDesignerStore({ workflow: wf });
+		render(<Designer store={store} withReactFlow={false} initialTab="validation" />);
+
+		fireEvent.click(screen.getByTestId("validation-issue-STATE_UNREACHABLE-0"));
+
+		expect(screen.getByTestId("canvas-state-lonely")).toBeInTheDocument();
+		expect(within(screen.getByTestId("property-panel")).getByText(/State: lonely/)).toBeInTheDocument();
 	});
 
 	it("simulates events from the simulation panel", () => {
@@ -275,5 +348,31 @@ describe("Designer (integration)", () => {
 		expect(screen.getByTestId("designer-toolbar")).toHaveClass("ff-designer__toolbar");
 		expect(screen.getByTestId("designer-main")).toHaveClass("ff-designer__main");
 		expect(screen.getByTestId("tab-canvas")).toHaveClass("ff-designer__tab");
+	});
+
+	it("supports canvas keyboard shortcuts for select all, delete, undo, redo, and escape", () => {
+		const store = createDesignerStore({ workflow: sampleWorkflow() });
+		render(<Designer store={store} withReactFlow={false} />);
+
+		fireEvent.keyDown(window, { key: "a", ctrlKey: true });
+		fireEvent.keyDown(window, { key: "Delete" });
+		expect(store.getState().workflow.states).toHaveLength(0);
+		expect(store.temporal.getState().pastStates).toHaveLength(1);
+
+		fireEvent.keyDown(window, { key: "z", ctrlKey: true });
+		expect(store.getState().workflow.states).toHaveLength(3);
+
+		fireEvent.keyDown(window, { key: "y", ctrlKey: true });
+		expect(store.getState().workflow.states).toHaveLength(0);
+
+		fireEvent.keyDown(window, { key: "z", ctrlKey: true });
+		fireEvent.click(screen.getByTestId("canvas-state-submitted"));
+		expect(
+			within(screen.getByTestId("property-panel")).getByText(/State: submitted/),
+		).toBeInTheDocument();
+		fireEvent.keyDown(window, { key: "Escape" });
+		expect(
+			within(screen.getByTestId("property-panel")).getByText(/Select a state/),
+		).toBeInTheDocument();
 	});
 });

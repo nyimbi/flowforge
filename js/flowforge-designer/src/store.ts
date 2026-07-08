@@ -6,8 +6,22 @@ import type {
 	FormSpec,
 	WorkflowDef,
 	WorkflowState,
+	WorkflowStateKind,
 	WorkflowTransition,
 } from "./types.js";
+
+export interface CanvasPosition {
+	x: number;
+	y: number;
+}
+
+export type NodePaletteType = "state" | "transition" | "task" | "gate";
+
+export interface DesignerNodeMeta {
+	position: CanvasPosition;
+}
+
+export type DesignerNodeMap = Record<string, DesignerNodeMeta>;
 
 export type SelectionKind =
 	| { kind: "state"; id: string }
@@ -19,6 +33,7 @@ export interface DesignerState {
 	workflow: WorkflowDef;
 	form: FormSpec | null;
 	selection: SelectionKind;
+	nodes: DesignerNodeMap;
 	/**
 	 * Designer-local version counter. Increments on every mutating
 	 * action; participates in undo/redo snapshots so the safeRedo
@@ -30,8 +45,11 @@ export interface DesignerState {
 	// workflow mutations
 	setWorkflow: (wf: WorkflowDef) => void;
 	addState: (state: WorkflowState) => void;
+	addNode: (node: { type: NodePaletteType; position: CanvasPosition }) => void;
 	updateState: (id: string, patch: Partial<WorkflowState>) => void;
+	updateNodePosition: (id: string, position: CanvasPosition) => void;
 	removeState: (id: string) => void;
+	removeElements: (selection: { stateIds?: string[]; transitionIds?: string[] }) => void;
 	addTransition: (t: WorkflowTransition) => void;
 	updateTransition: (id: string, patch: Partial<WorkflowTransition>) => void;
 	removeTransition: (id: string) => void;
@@ -66,6 +84,144 @@ export const emptyWorkflow = (): WorkflowDef => ({
 	terminal_states: [],
 });
 
+type WorkflowWithMetadata = WorkflowDef & {
+	metadata?: unknown;
+};
+
+const PALETTE_STATE_KIND: Record<NodePaletteType, WorkflowStateKind> = {
+	state: "manual_review",
+	transition: "signal_wait",
+	task: "automatic",
+	gate: "parallel_fork",
+};
+
+const PALETTE_STATE_NAME: Record<NodePaletteType, string> = {
+	state: "State",
+	transition: "Transition",
+	task: "Task",
+	gate: "Gate",
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isCanvasPosition = (value: unknown): value is CanvasPosition => {
+	if (!isRecord(value)) return false;
+	return (
+		typeof value.x === "number" &&
+		Number.isFinite(value.x) &&
+		typeof value.y === "number" &&
+		Number.isFinite(value.y)
+	);
+};
+
+const workflowMetadata = (workflow: WorkflowDef): Record<string, unknown> => {
+	const metadata = (workflow as WorkflowWithMetadata).metadata;
+	return isRecord(metadata) ? metadata : {};
+};
+
+const workflowNodes = (workflow: WorkflowDef): DesignerNodeMap => {
+	const metadata = workflowMetadata(workflow);
+	const rawNodes = metadata.nodes;
+	if (!isRecord(rawNodes)) return {};
+
+	const nodes: DesignerNodeMap = {};
+	for (const [id, rawMeta] of Object.entries(rawNodes)) {
+		if (!isRecord(rawMeta) || !isCanvasPosition(rawMeta.position)) continue;
+		nodes[id] = { position: rawMeta.position };
+	}
+	return nodes;
+};
+
+const compactNodes = (
+	workflow: WorkflowDef,
+	nodes: DesignerNodeMap,
+): DesignerNodeMap => {
+	const stateIds = new Set(workflow.states.map((state) => state.id));
+	const compacted: DesignerNodeMap = {};
+	for (const [id, meta] of Object.entries(nodes)) {
+		if (stateIds.has(id)) {
+			compacted[id] = meta;
+		}
+	}
+	return compacted;
+};
+
+const withSerializedNodes = (
+	workflow: WorkflowDef,
+	nodes: DesignerNodeMap,
+): WorkflowDef => {
+	const compacted = compactNodes(workflow, nodes);
+	const entries = Object.entries(compacted);
+	const metadataWithoutNodes = Object.fromEntries(
+		Object.entries(workflowMetadata(workflow)).filter(([key]) => key !== "nodes"),
+	);
+
+	if (entries.length === 0 && Object.keys(metadataWithoutNodes).length === 0) {
+		return { ...workflow };
+	}
+
+	const metadata =
+		entries.length === 0
+			? metadataWithoutNodes
+			: { ...metadataWithoutNodes, nodes: compacted };
+	const withMetadata: WorkflowWithMetadata = { ...workflow, metadata };
+	return withMetadata;
+};
+
+const paletteStateId = (
+	type: NodePaletteType,
+	states: WorkflowState[],
+): string => {
+	const base = `${type}_node`;
+	const used = new Set(states.map((state) => state.id));
+	let index = states.length + 1;
+	let id = `${base}_${index}`;
+	while (used.has(id)) {
+		index += 1;
+		id = `${base}_${index}`;
+	}
+	return id;
+};
+
+const paletteState = (
+	type: NodePaletteType,
+	states: WorkflowState[],
+): WorkflowState => {
+	const id = paletteStateId(type, states);
+	return {
+		id,
+		name: `${PALETTE_STATE_NAME[type]} ${states.length + 1}`,
+		kind: PALETTE_STATE_KIND[type],
+		description: `Created from the ${PALETTE_STATE_NAME[type]} palette item.`,
+	};
+};
+
+const removeWorkflowElements = (
+	workflow: WorkflowDef,
+	stateIds: Set<string>,
+	transitionIds: Set<string>,
+): WorkflowDef => {
+	const states = workflow.states.filter((state) => !stateIds.has(state.id));
+	const transitions = workflow.transitions.filter(
+		(transition) =>
+			!transitionIds.has(transition.id) &&
+			!stateIds.has(transition.from) &&
+			!stateIds.has(transition.to),
+	);
+	const initial_state = stateIds.has(workflow.initial_state)
+		? states[0]?.id ?? ""
+		: workflow.initial_state;
+	const terminal_states = workflow.terminal_states.filter((id) => !stateIds.has(id));
+	return {
+		...workflow,
+		states,
+		transitions,
+		initial_state,
+		terminal_states,
+	};
+};
+
 const replaceById = <T extends { id: string }>(
 	list: T[],
 	id: string,
@@ -85,6 +241,9 @@ export const createDesignerStore = (opts: CreateStoreOptions = {}) =>
 	create<DesignerState>()(
 		temporal(
 			(set) => {
+				const initialWorkflow = opts.workflow ?? emptyWorkflow();
+				const initialNodes = workflowNodes(initialWorkflow);
+
 				/**
 				 * Wrap a state-update producer so the resulting set call also
 				 * bumps the version counter. Every undoable mutation should
@@ -102,17 +261,27 @@ export const createDesignerStore = (opts: CreateStoreOptions = {}) =>
 				};
 
 				return {
-					workflow: opts.workflow ?? emptyWorkflow(),
+					workflow: withSerializedNodes(initialWorkflow, initialNodes),
 					form: opts.form ?? null,
 					selection: { kind: "none" },
+					nodes: initialNodes,
 					version: 0,
 
-					setWorkflow: (wf) => set(bump(() => ({ workflow: wf }))),
+					setWorkflow: (wf) =>
+						set(
+							bump(() => {
+								const nodes = workflowNodes(wf);
+								return {
+									workflow: withSerializedNodes(wf, nodes),
+									nodes,
+								};
+							}),
+						),
 
 					addState: (state) =>
 						set(
-							bump((s) => ({
-								workflow: {
+							bump((s) => {
+								const workflow = {
 									...s.workflow,
 									states: [...s.workflow.states, state],
 									// audit-2026 JS-05: the dead
@@ -123,35 +292,102 @@ export const createDesignerStore = (opts: CreateStoreOptions = {}) =>
 									// first state added when none has been
 									// chosen yet, regardless of kind.
 									initial_state: s.workflow.initial_state || state.id,
-								},
-							})),
+								};
+								return { workflow: withSerializedNodes(workflow, s.nodes) };
+							}),
+						),
+
+					addNode: ({ type, position }) =>
+						set(
+							bump((s) => {
+								const state = paletteState(type, s.workflow.states);
+								const workflow = {
+									...s.workflow,
+									states: [...s.workflow.states, state],
+									initial_state: s.workflow.initial_state || state.id,
+								};
+								const nodes = {
+									...s.nodes,
+									[state.id]: { position },
+								};
+								return {
+									workflow: withSerializedNodes(workflow, nodes),
+									nodes: compactNodes(workflow, nodes),
+									selection: { kind: "state", id: state.id },
+								};
+							}),
 						),
 
 					updateState: (id, patch) =>
 						set(
-							bump((s) => ({
-								workflow: {
+							bump((s) => {
+								const workflow = {
 									...s.workflow,
 									states: replaceById(s.workflow.states, id, patch),
-								},
-							})),
+								};
+								return { workflow: withSerializedNodes(workflow, s.nodes) };
+							}),
+						),
+
+					updateNodePosition: (id, position) =>
+						set(
+							bump((s) => {
+								if (!s.workflow.states.some((state) => state.id === id)) {
+									return {};
+								}
+								const nodes = { ...s.nodes, [id]: { position } };
+								return {
+									workflow: withSerializedNodes(s.workflow, nodes),
+									nodes: compactNodes(s.workflow, nodes),
+								};
+							}),
 						),
 
 					removeState: (id) =>
 						set(
-							bump((s) => ({
-								workflow: {
-									...s.workflow,
-									states: s.workflow.states.filter((st) => st.id !== id),
-									transitions: s.workflow.transitions.filter(
-										(t) => t.from !== id && t.to !== id,
-									),
-								},
-								selection:
-									s.selection.kind === "state" && s.selection.id === id
-										? { kind: "none" }
-										: s.selection,
-							})),
+							bump((s) => {
+								const workflow = removeWorkflowElements(
+									s.workflow,
+									new Set([id]),
+									new Set(),
+								);
+								const nodes = compactNodes(workflow, s.nodes);
+								return {
+									workflow: withSerializedNodes(workflow, nodes),
+									nodes,
+									selection:
+										s.selection.kind === "state" && s.selection.id === id
+											? { kind: "none" }
+											: s.selection,
+								};
+							}),
+						),
+
+					removeElements: ({ stateIds = [], transitionIds = [] }) =>
+						set(
+							bump((s) => {
+								const statesToRemove = new Set(stateIds);
+								const transitionsToRemove = new Set(transitionIds);
+								if (statesToRemove.size === 0 && transitionsToRemove.size === 0) {
+									return {};
+								}
+								const workflow = removeWorkflowElements(
+									s.workflow,
+									statesToRemove,
+									transitionsToRemove,
+								);
+								const nodes = compactNodes(workflow, s.nodes);
+								const selectionRemoved =
+									(s.selection.kind === "state" &&
+										statesToRemove.has(s.selection.id)) ||
+									(s.selection.kind === "transition" &&
+										transitionsToRemove.has(s.selection.id));
+								return {
+									workflow: withSerializedNodes(workflow, nodes),
+									nodes,
+									selection: selectionRemoved ? { kind: "none" } : s.selection,
+								};
+							}),
 						),
 
 					addTransition: (t) =>
@@ -256,10 +492,16 @@ export const createDesignerStore = (opts: CreateStoreOptions = {}) =>
 
 					applyRemotePatch: (patch) =>
 						set(
-							bump((s) => ({
-								workflow: patch.workflow ?? s.workflow,
-								form: patch.form !== undefined ? patch.form : s.form,
-							})),
+							bump((s) => {
+								const workflow = patch.workflow ?? s.workflow;
+								const nodes =
+									patch.workflow === undefined ? s.nodes : workflowNodes(workflow);
+								return {
+									workflow: withSerializedNodes(workflow, nodes),
+									nodes,
+									form: patch.form !== undefined ? patch.form : s.form,
+								};
+							}),
 						),
 
 					select: (selection) => set({ selection }),
@@ -271,8 +513,14 @@ export const createDesignerStore = (opts: CreateStoreOptions = {}) =>
 				partialize: (state) => ({
 					workflow: state.workflow,
 					form: state.form,
+					nodes: state.nodes,
 					version: state.version,
 				}),
+				equality: (past, current) =>
+					past.workflow === current.workflow &&
+					past.form === current.form &&
+					past.nodes === current.nodes &&
+					past.version === current.version,
 				limit: 100,
 			},
 		),
