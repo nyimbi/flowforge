@@ -175,8 +175,8 @@ def sniff_filetype(data: bytes) -> str:
 		mime = _magic.from_buffer(data, mime=True)
 		if isinstance(mime, str) and mime:
 			return mime
-	except (ImportError, Exception):  # pragma: no cover — defensive
-		pass
+	except Exception:  # pragma: no cover — defensive
+		return "application/octet-stream"
 
 	return "application/octet-stream"
 
