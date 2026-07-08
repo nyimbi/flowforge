@@ -114,6 +114,29 @@ async def test_has_permission_uses_resource_kind_when_present(
 	) is False
 
 
+async def test_grant_and_revoke_write_spicedb_relationships(
+	fake: FakeSpiceDBClient, rbac: SpiceDBRbac
+) -> None:
+	principal = Principal(user_id="alice")
+	scope = Scope(tenant_id="t-1")
+
+	await rbac.grant(principal, "claim.create", scope)
+
+	assert fake.write_calls == 1
+	assert rbac.last_zedtoken() == "fake-zedtoken"
+	assert await rbac.has_permission(principal, "claim.create", scope) is True
+	assert await rbac.check_permission(principal, "claim.create", scope) is True
+	assert [p.user_id for p in await rbac.list_principals_with("claim.create", scope)] == [
+		"alice"
+	]
+
+	await rbac.revoke(principal, "claim.create", scope)
+
+	assert fake.write_calls == 2
+	assert await rbac.has_permission(principal, "claim.create", scope) is False
+	assert await rbac.list_principals_with("claim.create", scope) == []
+
+
 async def test_system_principal_short_circuits_rpc(
 	fake: FakeSpiceDBClient, rbac: SpiceDBRbac
 ) -> None:

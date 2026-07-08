@@ -155,6 +155,36 @@ class SpiceDBRbac:
 			)
 		)
 
+	async def _write_relationship(
+		self,
+		operation: int,
+		*,
+		resource: _wire.ObjectReference,
+		relation: str,
+		subject: _wire.SubjectReference,
+	) -> None:
+		resp = await self._client.WriteRelationships(
+			_wire.WriteRelationshipsRequest(
+				updates=[
+					_wire.RelationshipUpdate(
+						operation=operation,
+						relationship=_wire.Relationship(
+							resource=resource,
+							relation=relation,
+							subject=subject,
+						),
+					)
+				]
+			),
+		)
+		self._capture_zedtoken(resp)
+
+	def _capture_zedtoken(self, response: Any) -> None:
+		"""Record write revision returned by SpiceDB, when present."""
+		token = getattr(response, "written_at_token", "")
+		if token:
+			self._zedtoken = token
+
 	# --------------------------------------------------------- RbacResolver
 
 	async def has_permission(
@@ -232,9 +262,7 @@ class SpiceDBRbac:
 			_wire.WriteRelationshipsRequest(updates=updates),
 		)
 		# E-55 / RB-02: capture the Zedtoken so subsequent reads see this write.
-		token = getattr(resp, "written_at_token", "")
-		if token:
-			self._zedtoken = token
+		self._capture_zedtoken(resp)
 
 	async def assert_seed(self, names: list[PermissionName]) -> list[PermissionName]:
 		assert isinstance(names, list), "names must be a list"
@@ -255,3 +283,44 @@ class SpiceDBRbac:
 		if missing and self._strict:
 			raise CatalogDriftError(f"missing permissions: {missing}")
 		return missing
+
+	# --------------------------------------------------------- grant helpers
+
+	async def grant(
+		self,
+		principal: Principal,
+		permission: PermissionName,
+		scope: Scope,
+	) -> None:
+		"""Create or touch a permission relationship for *principal* on *scope*."""
+		assert isinstance(permission, str) and permission, "permission name required"
+		await self._write_relationship(
+			_wire.OPERATION_TOUCH,
+			resource=self._resource(scope),
+			relation=permission,
+			subject=self._subject(principal),
+		)
+
+	async def revoke(
+		self,
+		principal: Principal,
+		permission: PermissionName,
+		scope: Scope,
+	) -> None:
+		"""Remove a permission relationship for *principal* on *scope*."""
+		assert isinstance(permission, str) and permission, "permission name required"
+		await self._write_relationship(
+			_wire.OPERATION_DELETE,
+			resource=self._resource(scope),
+			relation=permission,
+			subject=self._subject(principal),
+		)
+
+	async def check_permission(
+		self,
+		principal: Principal,
+		permission: PermissionName,
+		scope: Scope,
+	) -> bool:
+		"""Compatibility alias for callers that use SpiceDB naming."""
+		return await self.has_permission(principal, permission, scope)

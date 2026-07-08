@@ -95,7 +95,14 @@ class FakeSpiceDBClient:
 			request.permission,
 			f"{request.subject.object.object_type}:{request.subject.object.object_id}",
 		)
-		ok = key in self._grants
+		rel_key: _RelKey = (
+			request.resource.object_type,
+			request.resource.object_id,
+			request.permission,
+			request.subject.object.object_type,
+			request.subject.object.object_id,
+		)
+		ok = key in self._grants or rel_key in self._relations
 		return _wire.CheckPermissionResponse(
 			permissionship=(
 				_wire.PERMISSIONSHIP_HAS_PERMISSION if ok

@@ -14,7 +14,7 @@ The `spicedb` extra pulls in `authzed`. The package itself and its test suite do
 
 ## What it does
 
-Wraps an `authzed-py` async client and delegates `has_permission` calls to SpiceDB's `CheckPermission` RPC. Subject is always `user:<principal.user_id>`; resource is `<scope.resource_kind or "tenant">:<scope.resource_id or scope.tenant_id>`. System principals (`Principal.is_system=True`) bypass the wire and return `True` without contacting SpiceDB.
+Wraps an `authzed-py` async client and delegates `has_permission` calls to SpiceDB's `CheckPermission` RPC. Subject is always `user:<principal.user_id>`; resource is `<scope.resource_kind or "tenant">:<scope.resource_id or scope.tenant_id>`. System principals (`Principal.is_system=True`) bypass the wire and return `True` without contacting SpiceDB. `grant` and `revoke` write permission relationships through `WriteRelationships`, so tests and production use the same SpiceDB mutation surface.
 
 The permission catalogue — which SpiceDB has no native concept of — is maintained as a synthetic `permission_catalog:<schema_prefix>` object with a `defined` relation per permission name. `register_permission` writes this relation via `WriteRelationships`; `assert_seed` reads it back via `LookupSubjects`.
 
@@ -45,7 +45,9 @@ config.rbac = rbac
 
 principal = Principal(user_id="alice")
 scope = Scope(tenant_id="t-1")
+await rbac.grant(principal, "claim.create", scope)
 allowed = await rbac.has_permission(principal, "claim.create", scope)
+await rbac.revoke(principal, "claim.create", scope)
 ```
 
 Testing without SpiceDB:
@@ -68,6 +70,8 @@ assert await rbac.has_permission(principal, "claim.create", scope)
 ## Public API
 
 - `SpiceDBRbac(client, *, schema_prefix, subject_object_type, default_resource_type, strict)` — main resolver
+- `SpiceDBRbac.grant(principal, permission, scope)` / `SpiceDBRbac.revoke(...)` — create or delete permission relationships via `WriteRelationships`
+- `SpiceDBRbac.check_permission(...)` — compatibility alias for `has_permission(...)`
 - `SpiceDBRbac.last_zedtoken()` — most-recently-observed write Zedtoken
 - `SpiceDBRbac.reset_zedtoken()` — drop the cached token (use in read-only batch paths)
 - `SpiceDBClientProtocol` — structural `Protocol` that both `authzed.api.v1.AsyncClient` and `FakeSpiceDBClient` satisfy
