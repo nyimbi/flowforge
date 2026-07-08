@@ -23,6 +23,7 @@ Hosts wire :class:`SqlAlchemySnapshotStore` into the engine via
 from __future__ import annotations
 
 from .base import Base, metadata
+from .entity_adapter import EntityNotFound, SqlAlchemyEntityAdapter
 from .models import (
 	BusinessCalendar,
 	OutboxMessage,
@@ -47,6 +48,7 @@ from .snapshot_store import (
 __all__ = [
 	"Base",
 	"BusinessCalendar",
+	"EntityNotFound",
 	"OutboxMessage",
 	"PendingSignal",
 	"PgRlsBinder",
@@ -55,6 +57,7 @@ __all__ = [
 	"SagaTenantMismatch",
 	"SnapshotConflict",
 	"SnapshotTenantMismatch",
+	"SqlAlchemyEntityAdapter",
 	"SqlAlchemySnapshotStore",
 	"WorkflowDefinition",
 	"WorkflowDefinitionVersion",

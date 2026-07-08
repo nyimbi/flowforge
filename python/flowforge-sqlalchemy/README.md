@@ -1,6 +1,6 @@
 # flowforge-sqlalchemy
 
-Async SQLAlchemy 2.x storage adapter for the flowforge engine — snapshot store, transactional fire commits, saga ledger, RLS binder, durable outbox table, and Alembic migration bundle.
+Async SQLAlchemy 2.x storage adapter for the flowforge engine — snapshot store, transactional fire commits, generic ORM entity adapter, saga ledger, RLS binder, durable outbox table, and Alembic migration bundle.
 
 Part of [flowforge](https://github.com/nyimbi/flowforge) — a portable workflow framework with audit-trail, multi-tenancy, and pluggable adapters.
 
@@ -18,7 +18,7 @@ uv pip install 'flowforge-sqlalchemy[postgres]'
 
 `flowforge-sqlalchemy` provides the durable storage layer for the flowforge engine. The engine itself is storage-agnostic — it reads and writes through the `SnapshotStore` ABC and `SagaQueriesProtocol`. This package supplies concrete async SQLAlchemy 2.x implementations backed by PostgreSQL (production) or SQLite (tests and replay).
 
-Eleven ORM models cover every engine-managed table. `SqlAlchemySnapshotStore` persists one snapshot row per workflow instance, updating it in-place on each fire. For critical paths, `SqlAlchemySnapshotStore.fire_and_commit(...)` calls the core engine with `dispatch_ports=False` and writes the workflow event, snapshot CAS update, instance row state, audit-chain rows, and pending outbox rows in one SQLAlchemy transaction. `SagaQueries` provides append, list, and mark operations over the saga ledger with LIFO ordering for compensation. `PgRlsBinder` issues `SELECT set_config(:k, :v, true)` GUC calls to activate row-level security policies without any SQL string interpolation.
+Eleven ORM models cover every engine-managed table. `SqlAlchemySnapshotStore` persists one snapshot row per workflow instance, updating it in-place on each fire. For critical paths, `SqlAlchemySnapshotStore.fire_and_commit(...)` calls the core engine with `dispatch_ports=False` and writes the workflow event, snapshot CAS update, instance row state, audit-chain rows, and pending outbox rows in one SQLAlchemy transaction. `SqlAlchemyEntityAdapter` implements the core `EntityAdapter` contract for simple host ORM models with create, update, lookup, and delete helpers while leaving transaction ownership to the caller. `SagaQueries` provides append, list, and mark operations over the saga ledger with LIFO ordering for compensation. `PgRlsBinder` issues `SELECT set_config(:k, :v, true)` GUC calls to activate row-level security policies without any SQL string interpolation.
 
 The bundled Alembic migration (`r1_initial`) creates all eleven tables in a single up/downgrade pair. Column types are dialect-aware: `JSONB` on PostgreSQL, plain `JSON` on SQLite. Hosts include the bundle's `VERSIONS_DIR` alongside their own Alembic versions directory.
 
@@ -96,6 +96,7 @@ alembic upgrade r1_initial
 ## Public API
 
 - `SqlAlchemySnapshotStore(session_factory, *, tenant_id, audit_sink=None)` — async `SnapshotStore`; `create_instance(instance, workflow_def=..., tenant_id=...)` creates the durable `workflow_instances` owner row plus the initial snapshot for HTTP/runtime adapters; `get(instance_id)` / `get_for_tenant(instance_id, tenant_id=...)` / `put(instance, tenant_id=...)` operate over `workflow_instance_snapshots`; `compare_and_put(instance, expected_seq=...)` provides optimistic locking; `fire_and_commit(...)` performs transactional event/snapshot/audit/outbox commits.
+- `SqlAlchemyEntityAdapter(model, *, id_field="id", writable_fields=None, readable_fields=None, compensations=None)` — generic async ORM `EntityAdapter`; `create`, `update`, `lookup`, and `delete` flush through the caller-owned session without committing.
 - `SagaQueries(session_factory, *, tenant_id)` — `append(instance_id, *, kind, args, status)`, `list_for_instance(instance_id)`, `mark(instance_id, idx, status)`, `list_pending_for_compensation(instance_id)`.
 - `PgRlsBinder()` — `RlsBinder` implementation; issues GUC calls per session inside a transaction; no-op on SQLite.
 - `Base` — SQLAlchemy declarative base shared by all ORM models.
