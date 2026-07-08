@@ -60,7 +60,25 @@ export type NotificationChannel =
 
 export type TenancyMode = "none" | "single" | "multi";
 
-export type DataSensitivity = "PII" | "PHI" | "PCI" | "secrets" | "regulated";
+export type DataSensitivity =
+	| "public"
+	| "internal"
+	| "confidential"
+	| "restricted"
+	| "highly-restricted"
+	| "PII"
+	| "PHI"
+	| "PCI"
+	| "secrets"
+	| "regulated";
+
+export type JtbdDependencyType =
+	| "triggers"
+	| "blocks"
+	| "informs"
+	| "shares-actor";
+
+export type JtbdDependencyStrength = "strong" | "weak" | "optional";
 
 export type ComplianceRegime =
 	| "GDPR"
@@ -123,6 +141,9 @@ export interface JtbdSpec {
 	id: string;
 	title?: string;
 	version?: string;
+	actors?: string[];
+	domain?: string;
+	description?: string;
 	spec_hash?: string;
 	parent_version_id?: string | null;
 	replaced_by?: string | null;
@@ -138,8 +159,16 @@ export interface JtbdSpec {
 	sla?: JtbdSla | null;
 	notifications?: JtbdNotification[];
 	requires?: string[];
+	dependencies?: JtbdDependency[];
 	compliance?: ComplianceRegime[];
 	data_sensitivity?: DataSensitivity[];
+}
+
+export interface JtbdDependency {
+	source: string;
+	type?: JtbdDependencyType;
+	strength?: JtbdDependencyStrength;
+	description?: string;
 }
 
 export interface JtbdProject {

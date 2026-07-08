@@ -29,6 +29,7 @@ import ReactFlow, {
 	MiniMap,
 	type Edge,
 	type Node,
+	type ReactFlowInstance,
 } from "reactflow";
 
 import "reactflow/dist/style.css";
@@ -66,6 +67,8 @@ const CYCLE_NODE_BORDER = "var(--ff-jobmap-node-cycle-border, #dc2626)";
 const NODE_BORDER = "var(--ff-jobmap-node-border, #1e3a8a)";
 const ACTIVE_NODE_BORDER = "var(--ff-jobmap-node-active-border, #16a34a)";
 const ACTIVE_NODE_FILL = "var(--ff-jobmap-node-active-bg, #dcfce7)";
+const SELECTED_NODE_BORDER = "var(--ff-jobmap-node-selected-border, #f59e0b)";
+const SELECTED_NODE_FILL = "var(--ff-jobmap-node-selected-bg, #fffbeb)";
 const FIRED_NODE_BORDER = "var(--ff-jobmap-node-fired-border, #0ea5e9)";
 const FIRED_NODE_FILL = "var(--ff-jobmap-node-fired-bg, #e0f2fe)";
 const LANE_FILL_ODD = "var(--ff-jobmap-lane-odd-bg, #f8fafc)";
@@ -133,6 +136,16 @@ export interface JobMapProps {
 	bundle: JtbdBundle;
 	/** Click handler invoked with the JTBD id whose box was clicked. */
 	onSelectJtbd?: (jtbdId: string) => void;
+	/** Click handler invoked with the dependency edge id (`source->target`). */
+	onSelectDependency?: (dependencyId: string) => void;
+	/** JTBD id rendered as selected in authoring flows. */
+	selectedJtbdId?: string | null;
+	/** Dependency edge id rendered as selected in authoring flows. */
+	selectedDependencyId?: string | null;
+	/** JTBD id to center in the viewport. */
+	focusJtbdId?: string | null;
+	/** Increment to re-run focus even when `focusJtbdId` is unchanged. */
+	focusRequest?: number;
 	/** Test-mode escape hatch — see component doc-comment. */
 	withReactFlow?: boolean;
 	/** Optional className on the outer wrapper, used for theming. */
@@ -181,7 +194,11 @@ const animationStateFor = (
 const styleForState = (
 	cycle: boolean,
 	state: NodeAnimationState,
+	selected: boolean,
 ): { border: string; background: string } => {
+	if (selected) {
+		return { border: SELECTED_NODE_BORDER, background: SELECTED_NODE_FILL };
+	}
 	if (state === "active") {
 		return { border: ACTIVE_NODE_BORDER, background: ACTIVE_NODE_FILL };
 	}
@@ -197,8 +214,9 @@ const styleForState = (
 const toReactFlowNode = (
 	n: NodeLayout,
 	state: NodeAnimationState,
+	selected: boolean,
 ): Node => {
-	const { border, background } = styleForState(n.inCycle, state);
+	const { border, background } = styleForState(n.inCycle, state, selected);
 	return {
 		id: n.jtbdId,
 		position: { x: n.x, y: n.y },
@@ -232,9 +250,23 @@ const toReactFlowEdge = (e: EdgeLayout): Edge => ({
 	animated: false,
 });
 
+const toReactFlowAuthoringEdge = (e: EdgeLayout, selected: boolean): Edge => ({
+	...toReactFlowEdge(e),
+	style: {
+		stroke: e.crossLane ? CROSS_LANE_EDGE_COLOR : SAME_LANE_EDGE_COLOR,
+		strokeWidth: selected ? 4 : 2,
+	},
+	selected,
+});
+
 export const JobMap = ({
 	bundle,
 	onSelectJtbd,
+	onSelectDependency,
+	selectedJtbdId,
+	selectedDependencyId,
+	focusJtbdId,
+	focusRequest = 0,
 	withReactFlow = true,
 	className,
 	firedIds,
@@ -247,17 +279,25 @@ export const JobMap = ({
 	const nodes = useMemo(
 		() =>
 			layout.nodes.map((n) =>
-				toReactFlowNode(n, animationStateFor(n.jtbdId, firedIds, activeIds)),
+				toReactFlowNode(
+					n,
+					animationStateFor(n.jtbdId, firedIds, activeIds),
+					n.jtbdId === selectedJtbdId,
+				),
 			),
-		[layout.nodes, firedIds, activeIds],
+		[layout.nodes, firedIds, activeIds, selectedJtbdId],
 	);
-	const edges = useMemo(() => layout.edges.map(toReactFlowEdge), [layout.edges]);
+	const edges = useMemo(
+		() => layout.edges.map((e) => toReactFlowAuthoringEdge(e, e.id === selectedDependencyId)),
+		[layout.edges, selectedDependencyId],
+	);
 	const nodeMap = useMemo(() => new Map(layout.nodes.map((n) => [n.jtbdId, n])), [layout.nodes]);
 	const nodeCount = nodes.length;
 
 	// E-67 / JS-07: viewport-aware filtering for the SVG-fallback mode.
 	const wrapperRef = useRef<HTMLDivElement | null>(null);
 	const [autoViewport, setAutoViewport] = useState<JobMapViewport | null>(null);
+	const [reactFlow, setReactFlow] = useState<ReactFlowInstance | null>(null);
 
 	const threshold =
 		virtualise === false
@@ -301,6 +341,31 @@ export const JobMap = ({
 			window.removeEventListener("resize", measure);
 		};
 	}, [shouldVirtualise, viewport]);
+
+	useEffect(() => {
+		if (!focusJtbdId) {
+			return;
+		}
+		const node = nodeMap.get(focusJtbdId);
+		if (!node) {
+			return;
+		}
+		const centerX = node.x + node.width / 2;
+		const centerY = node.y + node.height / 2;
+		if (withReactFlow) {
+			reactFlow?.setCenter(centerX, centerY, { zoom: 1, duration: 300 });
+			return;
+		}
+		const wrapper = wrapperRef.current;
+		if (!wrapper || typeof wrapper.scrollTo !== "function") {
+			return;
+		}
+		wrapper.scrollTo({
+			left: Math.max(centerX - wrapper.clientWidth / 2, 0),
+			top: Math.max(centerY - wrapper.clientHeight / 2, 0),
+			behavior: "smooth",
+		});
+	}, [focusJtbdId, focusRequest, nodeMap, reactFlow, withReactFlow]);
 
 	const effectiveViewport = viewport ?? autoViewport;
 	const { visibleNodes, visibleEdges } = useMemo(() => {
@@ -353,7 +418,13 @@ export const JobMap = ({
 						<LaneStrip key={lane.role} lane={lane} totalWidth={layout.width} />
 					))}
 					{visibleEdges.map((edge) => (
-						<JobMapEdge key={edge.id} edge={edge} nodeMap={nodeMap} />
+						<JobMapEdge
+							key={edge.id}
+							edge={edge}
+							nodeMap={nodeMap}
+							onSelect={onSelectDependency}
+							selected={edge.id === selectedDependencyId}
+						/>
 					))}
 				</svg>
 				{visibleNodes.map((node) => (
@@ -362,6 +433,7 @@ export const JobMap = ({
 						node={node}
 						onSelect={onSelectJtbd}
 						animationState={animationStateFor(node.jtbdId, firedIds, activeIds)}
+						selected={node.jtbdId === selectedJtbdId}
 					/>
 				))}
 			</div>
@@ -386,6 +458,12 @@ export const JobMap = ({
 						onSelectJtbd(node.id);
 					}
 				}}
+				onEdgeClick={(_, edge) => {
+					if (onSelectDependency) {
+						onSelectDependency(edge.id);
+					}
+				}}
+				onInit={setReactFlow}
 			>
 				<Background />
 				<Controls />
@@ -440,14 +518,16 @@ interface JobMapNodeProps {
 	node: NodeLayout;
 	onSelect?: (jtbdId: string) => void;
 	animationState?: NodeAnimationState;
+	selected?: boolean;
 }
 
 const JobMapNode = ({
 	node,
 	onSelect,
 	animationState = "default",
+	selected = false,
 }: JobMapNodeProps): JSX.Element => {
-	const { border, background } = styleForState(node.inCycle, animationState);
+	const { border, background } = styleForState(node.inCycle, animationState, selected);
 	const handleClick = (): void => {
 		if (onSelect) {
 			onSelect(node.jtbdId);
@@ -468,6 +548,7 @@ const JobMapNode = ({
 			data-role={node.role}
 			data-column={String(node.column)}
 			data-animation-state={animationState}
+			data-selected={selected ? "true" : "false"}
 			onClick={handleClick}
 			onKeyDown={handleKeyDown}
 			style={{
@@ -500,9 +581,16 @@ const JobMapNode = ({
 interface JobMapEdgeProps {
 	edge: EdgeLayout;
 	nodeMap: ReadonlyMap<string, NodeLayout>;
+	onSelect?: (dependencyId: string) => void;
+	selected?: boolean;
 }
 
-const JobMapEdge = ({ edge, nodeMap }: JobMapEdgeProps): JSX.Element | null => {
+const JobMapEdge = ({
+	edge,
+	nodeMap,
+	onSelect,
+	selected = false,
+}: JobMapEdgeProps): JSX.Element | null => {
 	const source = nodeMap.get(edge.source);
 	const target = nodeMap.get(edge.target);
 	if (!source || !target) {
@@ -515,15 +603,35 @@ const JobMapEdge = ({ edge, nodeMap }: JobMapEdgeProps): JSX.Element | null => {
 	const y2 = target.y + NODE_HEIGHT / 2;
 	const midX = (x1 + x2) / 2;
 	const path = `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`;
+	const handleSelect = (): void => {
+		if (onSelect) {
+			onSelect(edge.id);
+		}
+	};
+	const handleKeyDown = (event: React.KeyboardEvent<SVGPathElement>): void => {
+		if (event.key === "Enter" || event.key === " ") {
+			event.preventDefault();
+			handleSelect();
+		}
+	};
 	return (
 		<path
+			role={onSelect ? "button" : undefined}
+			tabIndex={onSelect ? 0 : undefined}
 			data-testid={`ff-jobmap-edge-${edge.id}`}
 			data-crosslane={edge.crossLane ? "true" : "false"}
+			data-selected={selected ? "true" : "false"}
 			d={path}
 			fill="none"
 			stroke={stroke}
-			strokeWidth={2}
+			strokeWidth={selected ? 4 : 2}
 			markerEnd="url(#ff-jobmap-arrow)"
+			onClick={handleSelect}
+			onKeyDown={handleKeyDown}
+			style={{
+				cursor: onSelect ? "pointer" : "default",
+				pointerEvents: "stroke",
+			}}
 		/>
 	);
 };

@@ -1,6 +1,9 @@
 export { JobMap } from "./JobMap.js";
 export type { JobMapProps, NodeAnimationState } from "./JobMap.js";
 
+export { JtbdEditor } from "./Editor.js";
+export type { JtbdEditorProps, ValidationIssue } from "./Editor.js";
+
 export { JobMapAnimation } from "./JobMapAnimation.js";
 export type { JobMapAnimationProps } from "./JobMapAnimation.js";
 
@@ -49,6 +52,9 @@ export type {
 	JtbdActor,
 	JtbdApproval,
 	JtbdBundle,
+	JtbdDependency,
+	JtbdDependencyStrength,
+	JtbdDependencyType,
 	JtbdEdgeCase,
 	JtbdField,
 	JtbdNotification,
