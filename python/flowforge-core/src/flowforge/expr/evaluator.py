@@ -16,6 +16,10 @@ Registry semantics (audit-2026 E-35, findings C-06 / C-07):
   :func:`register_op` raise :class:`RegistryFrozenError`. This is required
   for replay determinism (architecture invariant 3) — same DSL across two
   evaluator instances must yield byte-identical guard outcomes.
+* ``evaluate(..., strict_ops=True)`` rejects unknown single-key operator
+  dictionaries instead of treating them as literal values. Runtime guard and
+  effect evaluation uses strict mode so operator typos cannot become truthy
+  literal dicts.
 * Every operator declares an arity (min, max) at registration. Calling an
   op with the wrong arity raises :class:`ArityMismatchError`. The
   compile-time validator surfaces these errors before runtime via
@@ -230,11 +234,19 @@ def _arity_repr(lo: int, hi: int | None) -> str:
 	return f"{lo}..{hi}"
 
 
-def evaluate(node: Any, ctx: dict[str, Any]) -> Any:
-	"""Evaluate *node* in the given *ctx* dictionary."""
+def evaluate(node: Any, ctx: dict[str, Any], *, strict_ops: bool = False) -> Any:
+	"""Evaluate *node* in the given *ctx* dictionary.
+
+	When ``strict_ops`` is true, a single-key dict whose key is neither
+	``var`` nor a registered operator raises :class:`EvaluationError`.
+	Non-strict mode preserves the historical literal-dict behaviour.
+	"""
 
 	op = _is_op_call(node)
 	if op is None:
+		if strict_ops and isinstance(node, dict) and len(node) == 1:
+			((key, _),) = node.items()
+			raise EvaluationError(f"Unknown operator: {key}")
 		# literal
 		return node
 
@@ -246,9 +258,9 @@ def evaluate(node: Any, ctx: dict[str, Any]) -> Any:
 
 	spec = _OPS_RAW[name]
 	if isinstance(raw, list):
-		args = [evaluate(a, ctx) for a in raw]
+		args = [evaluate(a, ctx, strict_ops=strict_ops) for a in raw]
 	else:
-		args = [evaluate(raw, ctx)]
+		args = [evaluate(raw, ctx, strict_ops=strict_ops)]
 
 	n = len(args)
 	if n < spec.arity_min or (spec.arity_max is not None and n > spec.arity_max):
@@ -263,24 +275,24 @@ def evaluate(node: Any, ctx: dict[str, Any]) -> Any:
 		raise EvaluationError(f"operator `{name}` failed: {exc}") from exc
 
 
-def check_arity(node: Any, *, path: str = "$") -> list[str]:
+def check_arity(node: Any, *, path: str = "$", strict_ops: bool = False) -> list[str]:
 	"""Walk *node* (JSON expression AST) and report arity violations.
 
 	Returns a list of error messages — empty when the expression is well-formed.
-	Unknown op keys are not flagged: they are treated as literal dicts by
-	:func:`evaluate`. Cross-runtime unknown-op semantics live in audit-2026
-	E-43 (TS↔Python expression conformance).
+	By default, unknown op keys are not flagged: they are treated as literal
+	dicts by :func:`evaluate`. ``strict_ops=True`` rejects unknown single-key
+	operator dictionaries for workflow definition validation.
 	"""
 
 	errors: list[str] = []
-	_walk_arity(node, path, errors)
+	_walk_arity(node, path, errors, strict_ops=strict_ops)
 	return errors
 
 
-def _walk_arity(node: Any, path: str, errors: list[str]) -> None:
+def _walk_arity(node: Any, path: str, errors: list[str], *, strict_ops: bool) -> None:
 	if isinstance(node, list):
 		for i, child in enumerate(node):
-			_walk_arity(child, f"{path}[{i}]", errors)
+			_walk_arity(child, f"{path}[{i}]", errors, strict_ops=strict_ops)
 		return
 	if not isinstance(node, dict):
 		return
@@ -288,24 +300,25 @@ def _walk_arity(node: Any, path: str, errors: list[str]) -> None:
 		# multi-key dict — never an op call. Recurse into values to catch
 		# nested expressions (e.g. inside Effect.values payloads).
 		for k, v in node.items():
-			_walk_arity(v, f"{path}.{k}", errors)
+			_walk_arity(v, f"{path}.{k}", errors, strict_ops=strict_ops)
 		return
 	((key, val),) = node.items()
 	if key == "var":
 		return
 	spec = _OPS_RAW.get(key)
 	if spec is None:
-		# unknown op — treated as literal dict by evaluate(); recurse in
-		# case sub-expressions live inside.
-		_walk_arity(val, f"{path}.{key}", errors)
+		if strict_ops:
+			errors.append(f"Unknown operator: {key} at {path}")
+		# Recurse in case sub-expressions live inside.
+		_walk_arity(val, f"{path}.{key}", errors, strict_ops=strict_ops)
 		return
 	if isinstance(val, list):
 		n = len(val)
 		for i, child in enumerate(val):
-			_walk_arity(child, f"{path}.{key}[{i}]", errors)
+			_walk_arity(child, f"{path}.{key}[{i}]", errors, strict_ops=strict_ops)
 	else:
 		n = 1
-		_walk_arity(val, f"{path}.{key}", errors)
+		_walk_arity(val, f"{path}.{key}", errors, strict_ops=strict_ops)
 	if n < spec.arity_min or (spec.arity_max is not None and n > spec.arity_max):
 		errors.append(
 			f"operator {key!r} at {path}: expected "

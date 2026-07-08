@@ -724,4 +724,12 @@
 
 ---
 
+## High Security Finding Signoffs
+
+| Ticket | Finding | Evidence | Status |
+| --- | --- | --- | --- |
+| S-02 | Unknown expression operators bypass guards | tests/audit_2026/test_S_02_unknown_operator_guard.py | DONE |
+
+---
+
 *This file is the artefact named in audit-fix-plan.md §10.2 and §3.1. Treated as living doc updated per-ticket.*

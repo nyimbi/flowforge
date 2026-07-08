@@ -115,23 +115,26 @@ def _check_subworkflow_cycle(wd: WorkflowDef, report: ValidationReport) -> None:
 
 
 def _check_expr_arity(wd: WorkflowDef, report: ValidationReport) -> None:
-	"""Compile-time arity check for guard / effect expressions (audit-2026 C-07).
+	"""Compile-time operator check for guard / effect expressions.
 
 	Walks every ``Guard.expr`` and ``Effect.expr`` and surfaces operator
-	calls with the wrong arity. Pairing this with the frozen registry
-	(C-06) gives us replay determinism and prevents wrong-arity calls
-	from reaching the engine at runtime.
+	calls with the wrong arity or unknown operator keys. Pairing this with
+	the frozen registry (C-06) gives us replay determinism and prevents
+	wrong-arity or typoed operators from reaching the engine at runtime.
 	"""
 
 	for t in wd.transitions:
 		for i, g in enumerate(t.guards):
 			path = f"transition {t.id!r}.guards[{i}].expr"
-			report.errors.extend(check_arity(g.expr, path=path))
+			report.errors.extend(check_arity(g.expr, path=path, strict_ops=True))
 		for i, e in enumerate(t.effects):
-			if e.expr is None:
-				continue
-			path = f"transition {t.id!r}.effects[{i}].expr"
-			report.errors.extend(check_arity(e.expr, path=path))
+			if e.expr is not None:
+				path = f"transition {t.id!r}.effects[{i}].expr"
+				report.errors.extend(check_arity(e.expr, path=path, strict_ops=True))
+			if e.kind == "create_entity" and e.values:
+				for key, value in e.values.items():
+					path = f"transition {t.id!r}.effects[{i}].values[{key!r}]"
+					report.errors.extend(check_arity(value, path=path, strict_ops=True))
 
 
 def _expr_invokes_lookup(expr: Any) -> bool:

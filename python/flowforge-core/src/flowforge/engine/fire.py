@@ -203,7 +203,7 @@ def _guards_pass(transition: Transition, ctx: dict[str, Any]) -> bool:
 
 	for g in transition.guards:
 		try:
-			result = evaluate(g.expr, ctx)
+			result = evaluate(g.expr, ctx, strict_ops=True)
 		except EvaluationError as exc:
 			raise GuardEvaluationError(transition.id, g.expr) from exc
 		if not bool(result):
@@ -216,7 +216,10 @@ def _apply_effect(effect: Effect, instance: Instance, ctx: dict[str, Any]) -> tu
 	outboxes: list[OutboxEnvelope] = []
 
 	if effect.kind == "create_entity":
-		values = {k: evaluate(v, ctx) for k, v in (effect.values or {}).items()}
+		values = {
+			k: evaluate(v, ctx, strict_ops=True)
+			for k, v in (effect.values or {}).items()
+		}
 		# E-39 / C-02: time-ordered ids for entity rows.
 		row = {**values, "id": uuid7str(), "status": values.get("status", "draft")}
 		instance.created_entities.append((effect.entity or "<unknown>", row))
@@ -232,7 +235,7 @@ def _apply_effect(effect: Effect, instance: Instance, ctx: dict[str, Any]) -> tu
 		)
 	elif effect.kind == "set":
 		target = effect.target or ""
-		val = evaluate(effect.expr, ctx)
+		val = evaluate(effect.expr, ctx, strict_ops=True)
 		_set_dotted(instance.context, target, val)
 	elif effect.kind == "notify":
 		notify_body: dict[str, Any] = {
@@ -280,7 +283,11 @@ def _apply_effect(effect: Effect, instance: Instance, ctx: dict[str, Any]) -> tu
 			AuditEvent(
 				kind=f"wf.{instance.def_key}.entity_update_requested",
 				subject_kind=effect.entity or "unknown",
-				subject_id=str(evaluate(effect.target, ctx)) if effect.target else "?",
+				subject_id=(
+					str(evaluate(effect.target, ctx, strict_ops=True))
+					if effect.target
+					else "?"
+				),
 				tenant_id=ctx.get("__tenant_id__", ""),
 				actor_user_id=ctx.get("__actor__"),
 				payload={"values": effect.values or {}},
