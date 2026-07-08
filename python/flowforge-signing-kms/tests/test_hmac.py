@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-import logging
 from typing import Any
 
 import pytest
@@ -31,6 +30,7 @@ def run(coro):
 def test_hmac_public_validation_does_not_use_optimized_out_asserts() -> None:
     source = inspect.getsource(hmac_dev_module)
     assert "assert " not in source
+    assert "flowforge-dev-secret-not-for-production" not in source
 
 
 def test_sign_returns_bytes():
@@ -145,9 +145,8 @@ def test_env_secret_uses_default_key_id_when_key_env_missing(monkeypatch):
 def test_no_env_no_arg_raises_runtime_error(monkeypatch):
     """SK-01: instantiating without secret material raises ``RuntimeError``.
 
-    The hard-coded legacy fallback was removed in E-34.  Operators must
-    either pass ``secret=``, set ``FLOWFORGE_SIGNING_SECRET``, or opt in to
-    the deprecation flag ``FLOWFORGE_ALLOW_INSECURE_DEFAULT=1``.
+    Operators must either pass ``secret=``, set ``FLOWFORGE_SIGNING_SECRET``,
+    or use the explicit key-map form.
     """
     monkeypatch.delenv("FLOWFORGE_SIGNING_SECRET", raising=False)
     monkeypatch.delenv("FLOWFORGE_SIGNING_KEY_ID", raising=False)
@@ -166,25 +165,20 @@ def test_empty_single_key_material_is_rejected(monkeypatch) -> None:
         HmacDevSigning(secret="secret", key_id="")
 
 
-def test_insecure_default_requires_explicit_opt_in(monkeypatch, caplog):
+def test_insecure_default_flag_does_not_enable_hardcoded_secret(monkeypatch):
     monkeypatch.delenv("FLOWFORGE_SIGNING_SECRET", raising=False)
     monkeypatch.delenv("FLOWFORGE_SIGNING_KEY_ID", raising=False)
     monkeypatch.setenv("FLOWFORGE_ALLOW_INSECURE_DEFAULT", "1")
 
-    with caplog.at_level(logging.WARNING):
-        signer = HmacDevSigning()
-
-    assert signer.current_key_id() == "dev-key-1"
-    assert "INSECURE DEFAULT IN USE" in caplog.text
-    sig = run(signer.sign_payload(b"legacy-dev-only"))
-    assert run(signer.verify(b"legacy-dev-only", sig, "dev-key-1")) is True
+    with pytest.raises(RuntimeError, match="explicit secret required"):
+        HmacDevSigning()
 
 
-def test_insecure_default_keeps_explicit_key_id(monkeypatch):
+def test_explicit_secret_uses_env_key_id_when_key_id_missing(monkeypatch):
     monkeypatch.delenv("FLOWFORGE_SIGNING_SECRET", raising=False)
     monkeypatch.setenv("FLOWFORGE_SIGNING_KEY_ID", "dev-env-key")
     monkeypatch.setenv("FLOWFORGE_ALLOW_INSECURE_DEFAULT", "1")
-    signer = HmacDevSigning()
+    signer = HmacDevSigning(secret="explicit-secret")
     assert signer.current_key_id() == "dev-env-key"
 
 

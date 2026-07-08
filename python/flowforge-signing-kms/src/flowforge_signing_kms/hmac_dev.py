@@ -4,11 +4,8 @@ E-34 hardening (audit-fix-plan §4.1, §7):
 
 * SK-01 — no implicit default secret.  Instantiating without
   ``FLOWFORGE_SIGNING_SECRET`` env var (or an explicit ``secret=`` /
-  ``keys=`` argument) raises ``RuntimeError``.  Operators may opt in to the
-  legacy default for one minor-version deprecation window by setting
-  ``FLOWFORGE_ALLOW_INSECURE_DEFAULT=1``; doing so emits a loud-log
-  ``WARNING`` and increments ``_INSECURE_DEFAULT_USED_TOTAL`` (mirrored to
-  the Prometheus metric ``flowforge_signing_secret_default_used_total``).
+  ``keys=`` argument) raises ``RuntimeError``.  There is no hardcoded
+  fallback secret.
 * SK-02 — per-key_id signed key map.  ``HmacDevSigning(keys={kid: secret})``
   configures the signer with multiple keys; ``verify(key_id="unknown", ...)``
   raises ``UnknownKeyId`` rather than silently using the wrong secret.  Old
@@ -25,23 +22,13 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import logging
 import os
 from typing import Final
 
 from flowforge_signing_kms.errors import UnknownKeyId
 
-_logger = logging.getLogger(__name__)
-
-# Sentinel secret used only when the operator explicitly opts in via
-# ``FLOWFORGE_ALLOW_INSECURE_DEFAULT=1`` during the deprecation window.
-_LEGACY_DEFAULT_SECRET: Final = "flowforge-dev-secret-not-for-production"
-_LEGACY_DEFAULT_KEY_ID: Final = "dev-key-1"
+_DEFAULT_KEY_ID: Final = "dev-key-1"
 _SEP: Final = b"."
-
-# Process-wide counter mirrored by the Prometheus collector
-# ``flowforge_signing_secret_default_used_total`` (audit-fix-plan §10.2).
-_INSECURE_DEFAULT_USED_TOTAL: int = 0
 
 
 def _hmac_sign(secret: str, key_id: str, payload: bytes) -> bytes:
@@ -66,8 +53,7 @@ def _resolve_keys(
     * ``HmacDevSigning(keys={...}, current_key_id="k2")`` — explicit map.
     * ``HmacDevSigning()`` (env-only) — read ``$FLOWFORGE_SIGNING_SECRET``
       and ``$FLOWFORGE_SIGNING_KEY_ID``.  Raises ``RuntimeError`` if no
-      secret material is available unless ``$FLOWFORGE_ALLOW_INSECURE_DEFAULT=1``
-      is set.
+      secret material is available.
     """
     # Forbid mixing the two forms — easier to misconfigure than helpful.
     if keys is not None and (secret is not None or key_id is not None):
@@ -100,36 +86,13 @@ def _resolve_keys(
     resolved_key_id = key_id if key_id is not None else env_key_id
 
     if resolved_secret is None:
-        # SK-01: no env var, no arg — refuse to start unless explicit opt-in.
-        if os.environ.get("FLOWFORGE_ALLOW_INSECURE_DEFAULT") == "1":
-            global _INSECURE_DEFAULT_USED_TOTAL
-            _INSECURE_DEFAULT_USED_TOTAL += 1
-            try:
-                from flowforge import config as _cfg
-                _c = _cfg.current()
-                if _c.metrics is not None:
-                    _c.metrics.emit("flowforge_signing_secret_default_used_total", 1.0, {})
-            except Exception as _exc:
-                _logger.debug("metrics emit failed (signing_secret_default_used): %s", _exc)
-            _logger.warning(
-                "!!! INSECURE DEFAULT IN USE !!! "
-                "HmacDevSigning fell back to the hard-coded legacy secret because "
-                "FLOWFORGE_ALLOW_INSECURE_DEFAULT=1 is set.  "
-                "This path will be removed in the next minor release.  "
-                "Set FLOWFORGE_SIGNING_SECRET to a real secret to silence this warning."
-            )
-            resolved_secret = _LEGACY_DEFAULT_SECRET
-            if resolved_key_id is None:
-                resolved_key_id = _LEGACY_DEFAULT_KEY_ID
-        else:
-            raise RuntimeError(
-                "HmacDevSigning: explicit secret required; "
-                "set FLOWFORGE_SIGNING_SECRET or pass secret= "
-                "(or set FLOWFORGE_ALLOW_INSECURE_DEFAULT=1 for the deprecation window)."
-            )
+        raise RuntimeError(
+            "HmacDevSigning: explicit secret required; "
+            "set FLOWFORGE_SIGNING_SECRET or pass secret=."
+        )
 
     if resolved_key_id is None:
-        resolved_key_id = _LEGACY_DEFAULT_KEY_ID
+        resolved_key_id = _DEFAULT_KEY_ID
 
     if not isinstance(resolved_secret, str) or not resolved_secret:
         raise ValueError("resolved secret must be a non-empty string")

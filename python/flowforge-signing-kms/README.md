@@ -21,7 +21,7 @@ uv pip install "flowforge-signing-kms[gcp]"
 
 This package provides three concrete implementations of the flowforge `SigningPort` protocol. `HmacDevSigning` uses HMAC-SHA256 with a key map stored in process memory — it is for local development and CI only and must not be used in production. `AwsKmsSigning` delegates to AWS KMS using `boto3`; `GcpKmsSigning` delegates to GCP Cloud KMS using `google-cloud-kms`. Both KMS adapters work against live service or against mocks (moto for AWS, injected stub for GCP) so integration tests need no real cloud credentials.
 
-The E-34 audit round removed the hard-coded fallback secret that earlier versions used when `FLOWFORGE_SIGNING_SECRET` was absent. `HmacDevSigning` now raises `RuntimeError` at construction time if no secret material is available. A one-minor deprecation bridge exists: set `FLOWFORGE_ALLOW_INSECURE_DEFAULT=1` to restore the legacy default with loud-log warnings and a Prometheus counter. Both KMS adapters run their blocking `boto3`/gRPC calls via `asyncio.to_thread` (SK-04) so they do not stall the event loop during the 50–500 ms KMS round-trip.
+The E-34 audit round removed the hard-coded fallback secret that earlier versions used when `FLOWFORGE_SIGNING_SECRET` was absent. `HmacDevSigning` now raises `RuntimeError` at construction time if no secret material is available; `FLOWFORGE_ALLOW_INSECURE_DEFAULT` is ignored and no longer restores any legacy secret. Both KMS adapters run their blocking `boto3`/gRPC calls via `asyncio.to_thread` (SK-04) so they do not stall the event loop during the 50–500 ms KMS round-trip.
 
 The package does not provide key generation, key storage, or rotation scheduling. It does not wrap `cryptography` or any other local asymmetric library — production asymmetric signing goes through KMS directly.
 
@@ -72,11 +72,11 @@ gcp_signer = GcpKmsSigning(
 |---|---|---|
 | `FLOWFORGE_SIGNING_SECRET` | — | **Required** for `HmacDevSigning`. Set to a real secret in all environments. |
 | `FLOWFORGE_SIGNING_KEY_ID` | `dev-key-1` | Optional key id when using the single-key form. |
-| `FLOWFORGE_ALLOW_INSECURE_DEFAULT` | — | Set to `1` to activate the deprecation bridge (one minor version only). Emits warnings and increments `flowforge_signing_secret_default_used_total`. |
+| `FLOWFORGE_ALLOW_INSECURE_DEFAULT` | — | Ignored by `HmacDevSigning`; retained only so older deployments fail closed instead of restoring a hardcoded secret. |
 
 ## Audit-2026 hardening
 
-- **SK-01** (E-34): `FLOWFORGE_SIGNING_SECRET` is now required. `HmacDevSigning` raises `RuntimeError` at construction if no secret is configured. The hard-coded `"flowforge-dev-secret-not-for-production"` default is gone from the normal code path. Bridge: `FLOWFORGE_ALLOW_INSECURE_DEFAULT=1` re-enables it for one minor release with loud-log `WARNING` and Prometheus counter `flowforge_signing_secret_default_used_total`. Run `flowforge pre-upgrade-check signing` in CI before bumping the version.
+- **SK-01** (E-34): `FLOWFORGE_SIGNING_SECRET` is now required. `HmacDevSigning` raises `RuntimeError` at construction if no secret is configured. The hard-coded fallback secret and bridge path are removed; `FLOWFORGE_ALLOW_INSECURE_DEFAULT=1` no longer creates signing material. Run `flowforge pre-upgrade-check signing` in CI before bumping the version.
 - **SK-02** (E-34): `HmacDevSigning` accepts a `keys={kid: secret}` map so old signatures verify against their original `key_id` after rotation. `verify(key_id="unknown")` raises `UnknownKeyId` rather than silently failing with the wrong key.
 - **SK-03** (E-34): `verify()` returns `True`/`False` for valid/invalid. Unknown key ids raise `UnknownKeyId`; recoverable KMS failures raise `KmsTransientError`. Both AWS and GCP error codes are classified against named frozensets — no string-matching on generic `Exception`.
 - **SK-04** (E-56): `AwsKmsSigning` and `GcpKmsSigning` dispatch all blocking SDK calls via `asyncio.to_thread`.

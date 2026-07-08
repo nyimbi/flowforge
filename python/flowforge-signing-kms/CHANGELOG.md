@@ -2,15 +2,15 @@
 
 ## Unreleased
 
+- **[SECURITY-BREAKING] (adapter audit)** Removed the final hardcoded HMAC fallback secret path from `HmacDevSigning`. `FLOWFORGE_ALLOW_INSECURE_DEFAULT=1` no longer restores legacy secret material; callers must pass `secret=`, configure `FLOWFORGE_SIGNING_SECRET`, or use the `keys={...}` form.
+
 - **[SECURITY-BREAKING] (audit-2026 E-34, P0)** Crypto rotation hardening (SK-01, SK-02, SK-03).
   - **SK-01.**  `HmacDevSigning()` no longer falls back to a hard-coded
     legacy secret.  Calling without `FLOWFORGE_SIGNING_SECRET` (or an explicit
     `secret=` / `keys=` argument) raises `RuntimeError("explicit secret
-    required …")`.  Operators may opt in to the legacy default for one
-    minor-version deprecation window via `FLOWFORGE_ALLOW_INSECURE_DEFAULT=1`;
-    that path logs `WARNING !!! INSECURE DEFAULT IN USE !!!` and increments
-    the `flowforge_signing_secret_default_used_total` counter.  See
-    `docs/audit-2026/SECURITY-NOTE.md` E-34 for migration guidance
+    required …")`.  The older deprecation bridge has since been removed:
+    `FLOWFORGE_ALLOW_INSECURE_DEFAULT=1` no longer restores a fallback secret.
+    See `docs/audit-2026/SECURITY-NOTE.md` E-34 for migration guidance
     and `flowforge pre-upgrade-check signing` for the pre-upgrade gate.
   - **SK-02.**  New `HmacDevSigning(keys={kid: secret}, current_key_id=kid)`
     constructor form lets a single signer carry multiple key-id → secret
