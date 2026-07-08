@@ -54,6 +54,7 @@ dependencies = [
     "flowforge-cli",
     "flowforge-jtbd",
     "flowforge-jtbd-hub",
+    "flowforge-connectors",
 ]
 
 [tool.uv.workspace]
