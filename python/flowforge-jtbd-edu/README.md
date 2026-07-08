@@ -1,5 +1,7 @@
 # flowforge-jtbd-edu
 
+**Starter scaffold** — workspace-only package scaffold; not publishable, not SME-reviewed, and not part of the critical-system support matrix. Keep `package = false` until E-48a review flips `package = true`.
+
 Higher education administrative workflows covering student admissions, financial aid, grade appeals, course registration, academic misconduct investigations, disability accommodations, transcript requests, faculty hiring, research compliance review, and graduation audits.
 
 **Tier**: B (AI-authored, citation-anchored)

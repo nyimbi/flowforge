@@ -1,5 +1,7 @@
 # flowforge-jtbd-saasops
 
+**Starter scaffold** — workspace-only package scaffold; not publishable, not SME-reviewed, and not part of the critical-system support matrix. Keep `package = false` until E-48a review flips `package = true`.
+
 Workflow definitions covering SaaS platform operations, including tenant provisioning, incident management, customer offboarding, usage billing, compliance requests, feature flag rollouts, security reviews, DSARs, SLA breach handling, and contract renewals.
 
 **Tier**: B (AI-authored, citation-anchored)

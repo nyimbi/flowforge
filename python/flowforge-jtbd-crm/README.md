@@ -1,5 +1,7 @@
 # flowforge-jtbd-crm
 
+**Starter scaffold** — workspace-only package scaffold; not publishable, not SME-reviewed, and not part of the critical-system support matrix. Keep `package = false` until E-48a review flips `package = true`.
+
 Customer relationship management workflows covering lead qualification, opportunity management, account onboarding, contract renewal, escalation handling, complaint resolution, upsell/cross-sell, quarterly reviews, churn risk management, and partner deal registration.
 
 **Tier**: B (AI-authored, citation-anchored)

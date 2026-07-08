@@ -1,5 +1,7 @@
 # flowforge-jtbd-ecom
 
+**Starter scaffold** — workspace-only package scaffold; not publishable, not SME-reviewed, and not part of the critical-system support matrix. Keep `package = false` until E-48a review flips `package = true`.
+
 E-commerce platform workflows covering order processing, returns, product catalog management, refunds, chargeback disputes, inventory replenishment, fraud review, delivery exception handling, marketplace seller onboarding, and subscription renewals.
 
 **Tier**: B (AI-authored, citation-anchored)

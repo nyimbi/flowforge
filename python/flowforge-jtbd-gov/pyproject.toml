@@ -4,7 +4,7 @@ version = "0.0.1"
 description = "flowforge JTBD domain library — Government (Permit, case, license)"
 requires-python = ">=3.11"
 dependencies = [
-    "flowforge-jtbd>=0.1.0,<0.2.0",
+    "flowforge-jtbd>=0.5.0,<0.6.0",
     "pyyaml>=6.0",
 ]
 

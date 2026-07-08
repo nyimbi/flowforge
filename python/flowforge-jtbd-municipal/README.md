@@ -1,5 +1,7 @@
 # flowforge-jtbd-municipal
 
+**Starter scaffold** — workspace-only package scaffold; not publishable, not SME-reviewed, and not part of the critical-system support matrix. Keep `package = false` until E-48a review flips `package = true`.
+
 Municipal government workflows covering permitting, code enforcement, business licensing, public works, zoning, parks, and utility connections for city and county operations.
 
 **Tier**: B (AI-authored, citation-anchored)

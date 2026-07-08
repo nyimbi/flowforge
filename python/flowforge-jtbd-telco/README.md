@@ -1,5 +1,7 @@
 # flowforge-jtbd-telco
 
+**Starter scaffold** — workspace-only package scaffold; not publishable, not SME-reviewed, and not part of the critical-system support matrix. Keep `package = false` until E-48a review flips `package = true`.
+
 Workflow definitions covering telecommunications carrier operations, including subscriber provisioning, churn retention, number porting, network outage response, billing disputes, roaming activation, device returns, regulatory submissions, wholesale settlement, and MVNO onboarding.
 
 **Tier**: B (AI-authored, citation-anchored)

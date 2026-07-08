@@ -1,5 +1,7 @@
 # flowforge-jtbd-gov
 
+**Status: strategic domain content candidate. Package state: workspace-only; not publishable, not SME-reviewed, and not part of the critical-system support matrix. Keep `package = false` until E-48b review flips `package = true`.**
+
 **Strategic domain-content candidate** — Gov industry Jobs-To-Be-Done bundle for the flowforge workflow framework.
 
 Contains 30 fully-specified JTBD definitions covering the core operational workflows for Gov organisations.

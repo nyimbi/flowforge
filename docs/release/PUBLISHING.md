@@ -187,7 +187,7 @@ Versions live in each package's `pyproject.toml::project.version`.
 Bump every shipping package together. The PyPI build smoke rejects mixed
 shipping versions and derives the internal Flowforge dependency window from the
 shared release line; for the current `0.5.x` line, internal package bounds must
-stay within `>=0.5.0,<0.6.0`.
+use the exact `>=0.5.0,<0.6.0` window.
 The workspace deps in
 `pyproject.toml::[tool.uv.sources]` resolve from the
 workspace during local dev, so no per-package dep version pin needs

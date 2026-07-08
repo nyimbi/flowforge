@@ -1,5 +1,7 @@
 # flowforge-jtbd-retail
 
+**Starter scaffold** — workspace-only package scaffold; not publishable, not SME-reviewed, and not part of the critical-system support matrix. Keep `package = false` until E-48a review flips `package = true`.
+
 Workflow definitions covering brick-and-mortar and omnichannel retail operations, including trade-ins, clienteling, loyalty enrolment, returns, stock replenishment, price adjustments, staff training, vendor markdowns, shrinkage investigations, and store audits.
 
 **Tier**: B (AI-authored, citation-anchored)

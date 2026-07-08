@@ -1,5 +1,7 @@
 # flowforge-jtbd-restaurants
 
+**Starter scaffold** — workspace-only package scaffold; not publishable, not SME-reviewed, and not part of the critical-system support matrix. Keep `package = false` until E-48a review flips `package = true`.
+
 Workflow definitions covering restaurant and food-service operations, including supplier procurement, food safety incident response, staff scheduling, vendor payments, franchise audits, and menu governance.
 
 **Tier**: B (AI-authored, citation-anchored)

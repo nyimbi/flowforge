@@ -1,5 +1,7 @@
 # flowforge-jtbd-agritech
 
+**Starter scaffold** — workspace-only package scaffold; not publishable, not SME-reviewed, and not part of the critical-system support matrix. Keep `package = false` until E-48a review flips `package = true`.
+
 Agricultural operations workflows covering crop cycle planning, harvest coordination, pest response, irrigation scheduling, input procurement, certification audits, subsidy claims, equipment repair, and sustainability reporting.
 
 **Tier**: B (AI-authored, citation-anchored)

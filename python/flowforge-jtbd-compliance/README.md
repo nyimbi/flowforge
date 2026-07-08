@@ -1,5 +1,7 @@
 # flowforge-jtbd-compliance
 
+**Starter scaffold** — workspace-only package scaffold; not publishable, not SME-reviewed, and not part of the critical-system support matrix. Keep `package = false` until E-48a review flips `package = true`.
+
 Enterprise compliance workflows covering KYC/CDD, AML alert investigation, SAR filing, internal audit, policy review, sanctions screening, compliance training, GDPR/CCPA data subject requests, regulatory examinations, and enterprise risk assessment.
 
 **Tier**: B (AI-authored, citation-anchored)

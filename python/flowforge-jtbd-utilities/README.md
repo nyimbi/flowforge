@@ -1,5 +1,7 @@
 # flowforge-jtbd-utilities
 
+**Starter scaffold** — workspace-only package scaffold; not publishable, not SME-reviewed, and not part of the critical-system support matrix. Keep `package = false` until E-48a review flips `package = true`.
+
 Workflow definitions covering electric, gas, and water utility operations, including meter reading, outage response, new service connections, billing disputes, safety incident investigations, regulatory filings, construction permitting, service relocations, renewable energy credit tracking, and demand response execution.
 
 **Tier**: B (AI-authored, citation-anchored)

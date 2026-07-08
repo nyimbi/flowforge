@@ -1,5 +1,7 @@
 # flowforge-jtbd-corp-finance
 
+**Starter scaffold** — workspace-only package scaffold; not publishable, not SME-reviewed, and not part of the critical-system support matrix. Keep `package = false` until E-48a review flips `package = true`.
+
 Corporate finance workflows covering capital expenditure approval, treasury forecasting, FX hedging, dividend declaration, debt covenant monitoring, M&A due diligence, board approvals, audit committee responses, investor relations, and transfer pricing.
 
 **Tier**: B (AI-authored, citation-anchored)

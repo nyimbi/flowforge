@@ -1,5 +1,7 @@
 # flowforge-jtbd-construction
 
+**Starter scaffold** — workspace-only package scaffold; not publishable, not SME-reviewed, and not part of the critical-system support matrix. Keep `package = false` until E-48a review flips `package = true`.
+
 Construction project lifecycle workflows covering bid submission, subcontractor onboarding, change orders, regulatory inspections, materials procurement, safety incident reporting, lien waivers, punch list closeout, warranty claims, and final project close-out.
 
 **Tier**: B (AI-authored, citation-anchored)

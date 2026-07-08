@@ -469,7 +469,7 @@ def test_internal_python_dependencies_are_compatibly_bounded() -> None:
         )
         for pyproject in pyprojects
     }
-    assert len(internal_names) == 46
+    assert len(internal_names) == 47
     assert (
         package_sets._distribution_key("flowforge-notify-multichannel")
         in internal_names
@@ -633,7 +633,7 @@ def test_publishing_docs_require_cli_wheel_smoke() -> None:
     assert "Requires-Dist" in script
     assert "PKG-INFO" in script
     assert "_has_required_internal_dependency_bounds(" in script
-    assert "exact `>=0.1.0,<0.2.0`" in publishing
+    assert "exact `>=0.5.0,<0.6.0`" in publishing
     assert "same `project.version`" in publishing
     assert "derives the internal Flowforge dependency window" in publishing
     assert "wheel filename distribution" in script
@@ -1023,24 +1023,40 @@ def _flowforge_core_shipping_package():
     )
 
 
+def _flowforge_core_release_version() -> str:
+    return pypi_build_smoke._shipping_release_version(
+        (_flowforge_core_shipping_package(),)
+    )
+
+
+def _flowforge_wheel_path(tmp_path: Path) -> Path:
+    return tmp_path / f"flowforge-{_flowforge_core_release_version()}-py3-none-any.whl"
+
+
+def _flowforge_sdist_path(tmp_path: Path) -> Path:
+    return tmp_path / f"flowforge-{_flowforge_core_release_version()}.tar.gz"
+
+
 def _write_test_artifact_manifest(artifacts: list[Path], manifest_path: Path) -> None:
     pypi_build_smoke._write_artifact_manifest(
         artifacts,
         manifest_path,
         packages=(_flowforge_core_shipping_package(),),
-        release_version="0.1.0",
+        release_version=_flowforge_core_release_version(),
     )
 
 
 def _minimal_publication_metadata(
     *,
     distribution: str = "flowforge",
-    version: str = "0.1.0",
+    version: str | None = None,
     metadata_name: str | None = None,
     metadata_version: str | None = None,
     metadata_summary: str | None = None,
     requires_dist: tuple[str, ...] = (),
 ) -> str:
+    if version is None:
+        version = _flowforge_core_release_version()
     project = pypi_build_smoke._package_project_metadata(
         _flowforge_core_shipping_package()
     )
@@ -1075,7 +1091,7 @@ def _write_minimal_wheel(
     path: Path,
     *,
     distribution: str = "flowforge",
-    version: str = "0.1.0",
+    version: str | None = None,
     metadata_name: str | None = None,
     metadata_version: str | None = None,
     metadata_summary: str | None = None,
@@ -1083,6 +1099,8 @@ def _write_minimal_wheel(
     include_license: bool = True,
     include_py_typed: bool = True,
 ) -> None:
+    if version is None:
+        version = _flowforge_core_release_version()
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr(
             f"{distribution}-{version}.dist-info/METADATA",
@@ -1105,13 +1123,15 @@ def _write_minimal_sdist(
     path: Path,
     *,
     distribution: str = "flowforge",
-    version: str = "0.1.0",
+    version: str | None = None,
     metadata_name: str | None = None,
     metadata_version: str | None = None,
     metadata_summary: str | None = None,
     requires_dist: tuple[str, ...] = (),
     include_license: bool = True,
 ) -> None:
+    if version is None:
+        version = _flowforge_core_release_version()
     root = f"{distribution}-{version}"
     metadata = path.parent / f"{path.name}.PKG-INFO"
     license_file = path.parent / f"{path.name}.LICENSE"
@@ -1141,8 +1161,8 @@ def _write_minimal_sdist(
 def test_pypi_artifact_manifest_verifier_accepts_matching_dist(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "flowforge-0.1.0-py3-none-any.whl"
-    sdist = tmp_path / "flowforge-0.1.0.tar.gz"
+    wheel = _flowforge_wheel_path(tmp_path)
+    sdist = _flowforge_sdist_path(tmp_path)
     _write_minimal_wheel(wheel)
     _write_minimal_sdist(sdist)
     manifest_path = tmp_path / "manifest.json"
@@ -1158,8 +1178,8 @@ def test_pypi_artifact_manifest_verifier_accepts_matching_dist(
 def test_pypi_artifact_manifest_verifier_rejects_manifest_release_metadata_drift(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "flowforge-0.1.0-py3-none-any.whl"
-    sdist = tmp_path / "flowforge-0.1.0.tar.gz"
+    wheel = _flowforge_wheel_path(tmp_path)
+    sdist = _flowforge_sdist_path(tmp_path)
     _write_minimal_wheel(wheel)
     _write_minimal_sdist(sdist)
     manifest_path = tmp_path / "manifest.json"
@@ -1179,8 +1199,8 @@ def test_pypi_artifact_manifest_verifier_rejects_manifest_release_metadata_drift
 def test_pypi_artifact_manifest_verifier_rejects_digest_drift(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "flowforge-0.1.0-py3-none-any.whl"
-    sdist = tmp_path / "flowforge-0.1.0.tar.gz"
+    wheel = _flowforge_wheel_path(tmp_path)
+    sdist = _flowforge_sdist_path(tmp_path)
     _write_minimal_wheel(wheel)
     _write_minimal_sdist(sdist)
     manifest_path = tmp_path / "manifest.json"
@@ -1198,8 +1218,8 @@ def test_pypi_artifact_manifest_verifier_rejects_digest_drift(
 def test_pypi_artifact_manifest_verifier_rejects_missing_manifest_entry(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "flowforge-0.1.0-py3-none-any.whl"
-    sdist = tmp_path / "flowforge-0.1.0.tar.gz"
+    wheel = _flowforge_wheel_path(tmp_path)
+    sdist = _flowforge_sdist_path(tmp_path)
     extra = tmp_path / "flowforge_cli-0.1.0-py3-none-any.whl"
     _write_minimal_wheel(wheel)
     _write_minimal_sdist(sdist)
@@ -1218,8 +1238,9 @@ def test_pypi_artifact_manifest_verifier_rejects_missing_manifest_entry(
 def test_pypi_artifact_manifest_verifier_rejects_wrong_distribution_set(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "not_flowforge-0.1.0-py3-none-any.whl"
-    sdist = tmp_path / "not_flowforge-0.1.0.tar.gz"
+    release_version = _flowforge_core_release_version()
+    wheel = tmp_path / f"not_flowforge-{release_version}-py3-none-any.whl"
+    sdist = tmp_path / f"not_flowforge-{release_version}.tar.gz"
     _write_minimal_wheel(wheel, distribution="not_flowforge")
     _write_minimal_sdist(sdist, distribution="not_flowforge")
     manifest_path = tmp_path / "manifest.json"
@@ -1254,8 +1275,8 @@ def test_pypi_artifact_manifest_verifier_rejects_release_version_drift(
 def test_pypi_artifact_manifest_verifier_rejects_metadata_identity_drift(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "flowforge-0.1.0-py3-none-any.whl"
-    sdist = tmp_path / "flowforge-0.1.0.tar.gz"
+    wheel = _flowforge_wheel_path(tmp_path)
+    sdist = _flowforge_sdist_path(tmp_path)
     _write_minimal_wheel(wheel, metadata_name="not-flowforge")
     _write_minimal_sdist(sdist, metadata_version="0.0.9")
     manifest_path = tmp_path / "manifest.json"
@@ -1272,8 +1293,8 @@ def test_pypi_artifact_manifest_verifier_rejects_metadata_identity_drift(
 def test_pypi_artifact_manifest_verifier_rejects_missing_artifact_payloads(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "flowforge-0.1.0-py3-none-any.whl"
-    sdist = tmp_path / "flowforge-0.1.0.tar.gz"
+    wheel = _flowforge_wheel_path(tmp_path)
+    sdist = _flowforge_sdist_path(tmp_path)
     _write_minimal_wheel(wheel, include_license=False, include_py_typed=False)
     _write_minimal_sdist(sdist, include_license=False)
     manifest_path = tmp_path / "manifest.json"
@@ -1290,8 +1311,8 @@ def test_pypi_artifact_manifest_verifier_rejects_missing_artifact_payloads(
 def test_pypi_artifact_manifest_verifier_rejects_publication_metadata_drift(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "flowforge-0.1.0-py3-none-any.whl"
-    sdist = tmp_path / "flowforge-0.1.0.tar.gz"
+    wheel = _flowforge_wheel_path(tmp_path)
+    sdist = _flowforge_sdist_path(tmp_path)
     _write_minimal_wheel(wheel, metadata_summary="wrong summary")
     _write_minimal_sdist(sdist)
     manifest_path = tmp_path / "manifest.json"
@@ -1308,8 +1329,8 @@ def test_pypi_artifact_manifest_verifier_rejects_publication_metadata_drift(
 def test_pypi_artifact_manifest_verifier_rejects_internal_dependency_drift(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "flowforge-0.1.0-py3-none-any.whl"
-    sdist = tmp_path / "flowforge-0.1.0.tar.gz"
+    wheel = _flowforge_wheel_path(tmp_path)
+    sdist = _flowforge_sdist_path(tmp_path)
     _write_minimal_wheel(wheel, requires_dist=("flowforge-cli>=0.1.0",))
     _write_minimal_sdist(sdist, requires_dist=("flowforge-cli>=0.1.0",))
     manifest_path = tmp_path / "manifest.json"
@@ -1338,7 +1359,7 @@ def test_pypi_artifact_manifest_verifier_rejects_empty_release_set(
         json.dumps(
             {
                 "schema_version": 2,
-                "release_version": "0.1.0",
+                "release_version": _flowforge_core_release_version(),
                 "packages": pypi_build_smoke._artifact_manifest_package_entries(
                     (package,)
                 ),
