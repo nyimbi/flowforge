@@ -41,6 +41,10 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from rich.panel import Panel
+from rich.table import Table
+
+from .._ux import console, error, success
 
 
 # ---------------------------------------------------------------------------
@@ -166,9 +170,13 @@ _STEPS = [
 def _print_step_header(step: dict, total: int = 5) -> None:
 	n = step["n"]
 	title = step["title"]
-	typer.echo(f"\n─── Step {n}/{total}: {title} ───")
-	typer.echo(f"  {step['description']}")
-	typer.echo("")
+	console.print(
+		Panel(
+			step["description"],
+			title=f"Step {n}/{total}: {title}",
+			border_style="cyan",
+		)
+	)
 
 
 def _validated_cwd(cwd: Path) -> Path:
@@ -234,26 +242,28 @@ def _load_domain_bundle(domain: str) -> dict:
 		import importlib
 		mod = importlib.import_module(pkg_name)
 	except ImportError:  # catches ModuleNotFoundError + transitive ImportError
-		typer.echo(
-			f"error: domain package {pkg_name!r} is not installed.\n"
-			f"Install it with: uv pip install flowforge-jtbd-{domain}",
-			err=True,
+		error(
+			"Domain tutorial package is not installed.",
+			why=f"{pkg_name!r} could not be imported.",
+			next_step=f"Install it with: uv pip install flowforge-jtbd-{domain}",
 		)
 		raise typer.Exit(1)
 
 	if not hasattr(mod, "load_bundle"):
-		typer.echo(
-			f"error: {pkg_name}.load_bundle() not found — package does not follow E-51 standard.",
-			err=True,
+		error(
+			"Domain tutorial package is missing load_bundle().",
+			why=f"{pkg_name} does not follow the E-51 package contract.",
+			next_step="Upgrade the domain package or use the built-in tutorial without --domain.",
 		)
 		raise typer.Exit(1)
 
 	try:
 		bundle: dict = mod.load_bundle()
 	except Exception as exc:
-		typer.echo(
-			f"error: {pkg_name}.load_bundle() raised {type(exc).__name__}: {exc}",
-			err=True,
+		error(
+			"Domain tutorial bundle failed to load.",
+			why=f"{pkg_name}.load_bundle() raised {type(exc).__name__}: {exc}",
+			next_step="Fix the domain package bundle loader and retry.",
 		)
 		raise typer.Exit(1) from exc
 	return bundle
@@ -290,10 +300,16 @@ def tutorial_cmd(
 ) -> None:
 	"""Walk through the five tutorial steps end-to-end."""
 
-	typer.echo(_BANNER)
-	typer.echo(f"\nOutput directory: {out.resolve()}")
+	console.print(
+		Panel(
+			"flowforge interactive tutorial\nFive steps from zero to a validated, simulated workflow.",
+			title="Tutorial",
+			border_style="green",
+		)
+	)
+	console.print(f"Output directory: {out.resolve()}")
 	if dry_run:
-		typer.echo("  (dry-run mode — no files will be written)")
+		console.print("  (dry-run mode - no files will be written)")
 
 	# Determine bundle data: domain override or built-in starter.
 	if domain is not None:
@@ -304,7 +320,11 @@ def tutorial_cmd(
 
 	selected_steps = _STEPS if step is None else [s for s in _STEPS if s["n"] == step]
 	if not selected_steps:
-		typer.echo(f"error: --step must be 1-5; got {step}", err=True)
+		error(
+			"Invalid tutorial step.",
+			why=f"--step must be 1-5; got {step}.",
+			next_step="Choose --step 1, 2, 3, 4, or 5.",
+		)
 		raise typer.Exit(1)
 
 	bundle_path = out / "bundle.json"
@@ -333,11 +353,14 @@ def tutorial_cmd(
 			_actor = (_first_jtbd.get("actor") or {}).get("role", "?")
 			_dc_count = len(_first_jtbd.get("data_capture") or [])
 			_sla = _first_jtbd.get("sla") or {}
-			typer.echo("  Bundle fields:")
-			typer.echo(f"    - JTBD id       : {_first_jtbd_id}")
-			typer.echo(f"    - Actor         : {_actor}")
-			typer.echo(f"    - Data capture  : {_dc_count} field(s)")
-			typer.echo(f"    - SLA breach    : {_sla.get('breach_seconds', '?')}s")
+			table = Table(title="Bundle fields", show_header=True, header_style="bold")
+			table.add_column("Field")
+			table.add_column("Value")
+			table.add_row("JTBD id", str(_first_jtbd_id))
+			table.add_row("Actor", str(_actor))
+			table.add_row("Data capture", f"{_dc_count} field(s)")
+			table.add_row("SLA breach", f"{_sla.get('breach_seconds', '?')}s")
+			console.print(table)
 
 		# ── Step 2: Generate ─────────────────────────────────────────────
 		elif n == 2:
@@ -416,18 +439,24 @@ def tutorial_cmd(
 
 		# Pause between steps
 		if pause and not dry_run and s["n"] < selected_steps[-1]["n"]:
-			typer.echo("")
-			input("  Press Enter to continue to the next step…")
+			console.print("")
+			console.print("[bold]Press Enter to continue to the next step...[/]", markup=True, end="")
+			input("")
 
 	# Summary
-	typer.echo("\n" + "─" * 60)
 	if errors:
-		typer.echo(f"  Tutorial completed with {len(errors)} error(s):")
+		console.print(
+			Panel(
+				f"Tutorial completed with {len(errors)} error(s):",
+				title="Tutorial Summary",
+				border_style="red",
+			)
+		)
 		for err in errors:
-			typer.echo(f"    ✗ {err}")
+			typer.echo(f"    x {err}")
 		raise typer.Exit(1)
 	else:
-		typer.echo("  ✓ Tutorial complete!")
+		success("Tutorial complete!")
 		typer.echo(f"  Your demo project lives in: {out.resolve()}/")
 		typer.echo("")
 		typer.echo("  Next steps:")

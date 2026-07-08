@@ -288,7 +288,10 @@ def test_root_help_lists_commands() -> None:
 	assert r.exit_code == 0
 	for cmd in [
 		"new",
+		"new-workflow",
+		"status",
 		"add-jtbd",
+		"lint-jtbd",
 		"jtbd-generate",
 		"validate",
 		"simulate",
