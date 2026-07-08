@@ -41,6 +41,7 @@ a remediation hint when they are not.
 from __future__ import annotations
 
 import logging
+import re
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Awaitable, Callable, Sequence
@@ -53,6 +54,13 @@ DEFAULT_SCHEMA = "flowforge"
 DEFAULT_TABLE = "jtbd_embeddings"
 DEFAULT_IVFFLAT_INDEX = "jtbd_embeddings_ivfflat_idx"
 DEFAULT_HNSW_INDEX = "jtbd_embeddings_hnsw_idx"
+_SAFE_IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$")
+
+
+def _safe_identifier(name: str, label: str = "identifier") -> str:
+	if not isinstance(name, str) or not _SAFE_IDENTIFIER.fullmatch(name):
+		raise ValueError(f"Unsafe SQL {label}: {name!r}")
+	return name
 
 
 class PgVectorUnavailable(RuntimeError):
@@ -99,19 +107,22 @@ class TableSpec:
 
 	def __post_init__(self) -> None:
 		assert self.dim >= 1, "vector dim must be ≥ 1"
-		assert self.schema, "schema must be non-empty"
-		assert self.table, "table must be non-empty"
+		object.__setattr__(self, "schema", _safe_identifier(self.schema, "schema"))
+		object.__setattr__(self, "table", _safe_identifier(self.table, "table"))
 		assert self.ivfflat_lists >= 1, "ivfflat lists must be ≥ 1"
 
 	@property
 	def qualified(self) -> str:
-		return f"{self.schema}.{self.table}"
+		schema = _safe_identifier(self.schema, "schema")
+		table = _safe_identifier(self.table, "table")
+		return f"{schema}.{table}"
 
 	def create_extension_sql(self) -> str:
 		return "create extension if not exists vector;"
 
 	def create_schema_sql(self) -> str:
-		return f"create schema if not exists {self.schema};"
+		schema = _safe_identifier(self.schema, "schema")
+		return f"create schema if not exists {schema};"
 
 	def create_table_sql(self) -> str:
 		return (
@@ -128,8 +139,9 @@ class TableSpec:
 		*,
 		index_name: str = DEFAULT_IVFFLAT_INDEX,
 	) -> str:
+		index = _safe_identifier(index_name, "index name")
 		return (
-			f"create index if not exists {index_name}"
+			f"create index if not exists {index}"
 			f" on {self.qualified}"
 			f" using ivfflat (vector vector_cosine_ops)"
 			f" with (lists = {self.ivfflat_lists});"
@@ -143,17 +155,19 @@ class TableSpec:
 		ef_construction: int = 64,
 		concurrently: bool = True,
 	) -> str:
+		index = _safe_identifier(index_name, "index name")
 		concurrent = "concurrently " if concurrently else ""
 		return (
-			f"create index {concurrent}if not exists {index_name}"
+			f"create index {concurrent}if not exists {index}"
 			f" on {self.qualified}"
 			f" using hnsw (vector vector_cosine_ops)"
 			f" with (m = {m}, ef_construction = {ef_construction});"
 		)
 
 	def drop_index_sql(self, index_name: str) -> str:
-		assert index_name, "index_name must be non-empty"
-		return f"drop index if exists {self.schema}.{index_name};"
+		schema = _safe_identifier(self.schema, "schema")
+		index = _safe_identifier(index_name, "index name")
+		return f"drop index if exists {schema}.{index};"
 
 
 # ---------------------------------------------------------------------------

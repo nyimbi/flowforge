@@ -16,6 +16,8 @@ import { SimulationPanel } from "./SimulationPanel.js";
 import { ValidationPanel } from "./ValidationPanel.js";
 import {
 	createDesignerStore,
+	safeRedo,
+	safeUndo,
 	type DesignerStore,
 } from "./store.js";
 import type { FormSpec, WorkflowDef } from "./types.js";
@@ -79,8 +81,12 @@ export const Designer = ({
 		previousFormProp.current = form;
 	}, [externalStore, form, internalStore]);
 
-	const undo = (): void => store.temporal.getState().undo();
-	const redo = (): void => store.temporal.getState().redo();
+	const undo = (): void => {
+		safeUndo(store);
+	};
+	const redo = (): void => {
+		safeRedo(store);
+	};
 	const pastSize = useStore(store.temporal, (t) => t.pastStates.length);
 	const futureSize = useStore(store.temporal, (t) => t.futureStates.length);
 

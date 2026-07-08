@@ -252,6 +252,8 @@ export const JobMap = ({
 		[layout.nodes, firedIds, activeIds],
 	);
 	const edges = useMemo(() => layout.edges.map(toReactFlowEdge), [layout.edges]);
+	const nodeMap = useMemo(() => new Map(layout.nodes.map((n) => [n.jtbdId, n])), [layout.nodes]);
+	const nodeCount = nodes.length;
 
 	// E-67 / JS-07: viewport-aware filtering for the SVG-fallback mode.
 	const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -263,7 +265,15 @@ export const JobMap = ({
 			: typeof virtualise === "number"
 				? virtualise
 				: VIRTUALISATION_THRESHOLD;
-	const shouldVirtualise = !withReactFlow && layout.nodes.length >= threshold;
+	const shouldVirtualise = !withReactFlow && nodeCount >= threshold;
+
+	useEffect(() => {
+		if (withReactFlow && nodeCount > VIRTUALISATION_THRESHOLD) {
+			console.warn(
+				`Flowforge JobMap is rendering ${nodeCount} ReactFlow nodes. Consider withReactFlow={false} to use the SVG fallback with viewport virtualisation.`,
+			);
+		}
+	}, [nodeCount, withReactFlow]);
 
 	useEffect(() => {
 		if (!shouldVirtualise || viewport !== undefined) {
@@ -343,7 +353,7 @@ export const JobMap = ({
 						<LaneStrip key={lane.role} lane={lane} totalWidth={layout.width} />
 					))}
 					{visibleEdges.map((edge) => (
-						<JobMapEdge key={edge.id} edge={edge} layout={layout} />
+						<JobMapEdge key={edge.id} edge={edge} nodeMap={nodeMap} />
 					))}
 				</svg>
 				{visibleNodes.map((node) => (
@@ -489,12 +499,12 @@ const JobMapNode = ({
 
 interface JobMapEdgeProps {
 	edge: EdgeLayout;
-	layout: JobMapLayout;
+	nodeMap: ReadonlyMap<string, NodeLayout>;
 }
 
-const JobMapEdge = ({ edge, layout }: JobMapEdgeProps): JSX.Element | null => {
-	const source = layout.nodes.find((n) => n.jtbdId === edge.source);
-	const target = layout.nodes.find((n) => n.jtbdId === edge.target);
+const JobMapEdge = ({ edge, nodeMap }: JobMapEdgeProps): JSX.Element | null => {
+	const source = nodeMap.get(edge.source);
+	const target = nodeMap.get(edge.target);
 	if (!source || !target) {
 		return null;
 	}

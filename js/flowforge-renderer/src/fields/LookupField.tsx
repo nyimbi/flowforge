@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FieldShell, type FieldComponentProps } from "./common.js";
+
+const LOOKUP_DEBOUNCE_MS = 300;
 
 /**
  * Async lookup field. The renderer wires the async resolver via the `lookup`
@@ -12,25 +14,40 @@ export function LookupField({ field, value, error, disabled, readOnly, onChange,
 	const [query, setQuery] = useState("");
 	const [options, setOptions] = useState<{ v: string; label?: string }[]>(field.options ?? []);
 	const [loading, setLoading] = useState(false);
+	const lookupDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	useEffect(() => {
 		if (!lookup) return;
 		const ac = new AbortController();
-		setLoading(true);
-		lookup(query)
-			.then((res) => {
-				if (!ac.signal.aborted) setOptions(res);
-			})
-			.catch((err) => {
-				if (ac.signal.aborted) return;
-				if ((err as { name?: string }).name === "AbortError") return;
-				// Surface failure by showing zero options; renderer error UI handles it.
-				setOptions([]);
-			})
-			.finally(() => {
-				if (!ac.signal.aborted) setLoading(false);
-			});
-		return () => ac.abort();
+		const doLookup = (q: string): void => {
+			setLoading(true);
+			lookup(q, ac.signal)
+				.then((res) => {
+					if (!ac.signal.aborted) setOptions(res);
+				})
+				.catch((err) => {
+					if (ac.signal.aborted) return;
+					if ((err as { name?: string }).name === "AbortError") return;
+					// Surface failure by showing zero options; renderer error UI handles it.
+					setOptions([]);
+				})
+				.finally(() => {
+					if (!ac.signal.aborted) setLoading(false);
+				});
+		};
+		if (lookupDebounceRef.current) {
+			clearTimeout(lookupDebounceRef.current);
+		}
+		lookupDebounceRef.current = setTimeout(() => {
+			lookupDebounceRef.current = null;
+			doLookup(query);
+		}, LOOKUP_DEBOUNCE_MS);
+		return () => {
+			if (lookupDebounceRef.current) {
+				clearTimeout(lookupDebounceRef.current);
+			}
+			ac.abort();
+		};
 	}, [lookup, query]);
 
 	return (

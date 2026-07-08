@@ -358,6 +358,59 @@ describe("FlowforgeWsClient", () => {
     mockServer.stop();
   });
 
+  it("dispatches workflow events to registered hook handlers", async () => {
+    const WS_URL = "ws://localhost:9994";
+    const mockServer = new MockWsServer(WS_URL);
+
+    const receivedEvents: unknown[] = [];
+    const hookEvents: unknown[] = [];
+
+    const wsClient = new FlowforgeWsClient({
+      wsBaseUrl: WS_URL,
+      path: "",
+      WebSocketImpl: MockWebSocket as unknown as typeof WebSocket,
+      onEvent: (evt) => receivedEvents.push(evt),
+      maxReconnectAttempts: 1,
+    });
+
+    (
+      wsClient as unknown as {
+        _hookHandlers: Set<(event: Record<string, unknown>) => void>;
+      }
+    )._hookHandlers.add((event) => hookEvents.push(event));
+
+    wsClient.open();
+
+    await new Promise<void>((resolve) => {
+      mockServer.on("connection", (socket) => {
+        socket.send(JSON.stringify({ type: "hello", user_id: "u1" }));
+        setTimeout(() => {
+          socket.send(
+            JSON.stringify({
+              type: "instance.state_changed",
+              instance_id: "inst-001",
+              from_state: "draft",
+              to_state: "triage",
+            }),
+          );
+          resolve();
+        }, 10);
+      });
+    });
+
+    await new Promise((r) => setTimeout(r, 30));
+
+    expect(receivedEvents).toHaveLength(1);
+    expect(hookEvents).toHaveLength(1);
+    expect(hookEvents[0]).toMatchObject({
+      type: "instance.state_changed",
+      instance_id: "inst-001",
+    });
+
+    wsClient.close();
+    mockServer.stop();
+  });
+
   it("does not reconnect after close()", async () => {
     const WS_URL = "ws://localhost:9997";
     const mockServer = new MockWsServer(WS_URL);

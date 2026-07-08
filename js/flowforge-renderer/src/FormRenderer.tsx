@@ -108,8 +108,32 @@ function pickValue(field: FormField, values: FormValues): unknown {
 	return field.default;
 }
 
-function computeAll(spec: RendererFormSpec, values: FormValues): FormValues {
+interface ComputeAllResult {
+	values: FormValues;
+	errors: FormErrors;
+}
+
+function seedDefaults(spec: RendererFormSpec, defaultValues: FormValues | undefined): FormValues {
+	const seeded: FormValues = { ...(defaultValues ?? {}) };
+	for (const f of spec.fields) {
+		if (seeded[f.id] === undefined && f.default !== undefined) {
+			seeded[f.id] = f.default;
+		}
+	}
+	return seeded;
+}
+
+function computedErrorMessage(field: FormField, err: unknown): string {
+	const label = field.label ?? field.id;
+	if (err instanceof Error && err.message) {
+		return `Unable to compute ${label}: ${err.message}`;
+	}
+	return `Unable to compute ${label}`;
+}
+
+function computeAll(spec: RendererFormSpec, values: FormValues): ComputeAllResult {
 	let next = values;
+	const errors: FormErrors = {};
 	for (const f of spec.fields) {
 		if (!f.computed) continue;
 		try {
@@ -117,11 +141,11 @@ function computeAll(spec: RendererFormSpec, values: FormValues): FormValues {
 			if (next[f.id] !== out) {
 				next = { ...next, [f.id]: out };
 			}
-		} catch {
-			/* ignore expression errors; surface via validator instead */
+		} catch (err) {
+			errors[f.id] = computedErrorMessage(f, err);
 		}
 	}
-	return next;
+	return { values: next, errors };
 }
 
 export function FormRenderer({
@@ -142,21 +166,21 @@ export function FormRenderer({
 }: FormRendererProps) {
 	const isControlled = controlledValues !== undefined;
 	const [internalValues, setInternalValues] = useState<FormValues>(() => {
-		const seeded: FormValues = { ...(defaultValues ?? {}) };
-		for (const f of spec.fields) {
-			if (seeded[f.id] === undefined && f.default !== undefined) {
-				seeded[f.id] = f.default;
-			}
-		}
-		return computeAll(spec, seeded);
+		return computeAll(spec, seedDefaults(spec, defaultValues)).values;
 	});
 	const [errors, setErrors] = useState<FormErrors>({});
+	const [fieldErrors, setFieldErrors] = useState<FormErrors>(() => {
+		const initialValues = controlledValues ?? seedDefaults(spec, defaultValues);
+		return computeAll(spec, initialValues).errors;
+	});
 	const [submitting, setSubmitting] = useState(false);
 	const onChangeRef = useRef(onChange);
 	onChangeRef.current = onChange;
 
 	const baseValues = isControlled ? controlledValues! : internalValues;
-	const values = useMemo(() => computeAll(spec, baseValues), [spec, baseValues]);
+	const computed = useMemo(() => computeAll(spec, baseValues), [spec, baseValues]);
+	const values = computed.values;
+	const displayErrors = useMemo(() => ({ ...errors, ...fieldErrors }), [errors, fieldErrors]);
 
 	const validator = useMemo(() => buildValidator(spec), [spec]);
 
@@ -164,10 +188,11 @@ export function FormRenderer({
 		(id: string, next: unknown) => {
 			const updated = { ...values, [id]: next };
 			const computed = computeAll(spec, updated);
-			if (!isControlled) setInternalValues(computed);
-			onChangeRef.current?.(computed);
+			if (!isControlled) setInternalValues(computed.values);
+			setFieldErrors(computed.errors);
+			onChangeRef.current?.(computed.values);
 			if (validateOn === "change") {
-				const errs = validator.validate(computed);
+				const errs = { ...validator.validate(computed.values), ...computed.errors };
 				setErrors(errs);
 				onValidate?.(errs);
 			}
@@ -178,26 +203,30 @@ export function FormRenderer({
 	const handleBlur = useCallback(
 		(_id: string) => {
 			if (validateOn === "blur") {
-				const errs = validator.validate(values);
+				const errs = { ...validator.validate(values), ...fieldErrors };
 				setErrors(errs);
 				onValidate?.(errs);
 			}
 		},
-		[onValidate, validator, validateOn, values],
+		[fieldErrors, onValidate, validator, validateOn, values],
 	);
+
+	useEffect(() => {
+		setFieldErrors(computed.errors);
+	}, [computed.errors]);
 
 	useEffect(() => {
 		// Re-run validation when spec changes so error state stays consistent.
 		if (validateOn === "change" || validateOn === "blur") {
-			const errs = validator.validate(values);
+			const errs = { ...validator.validate(values), ...computed.errors };
 			setErrors(errs);
 		}
-	}, [validator, validateOn, values]);
+	}, [computed.errors, validator, validateOn, values]);
 
 	const handleSubmit = useCallback(
 		async (e: FormEvent<HTMLFormElement>) => {
 			e.preventDefault();
-			const errs = validator.validate(values);
+			const errs = { ...validator.validate(values), ...fieldErrors };
 			// Required-if check augments static `required` flag.
 			for (const f of spec.fields) {
 				if (errs[f.id]) continue;
@@ -220,7 +249,7 @@ export function FormRenderer({
 				setSubmitting(false);
 			}
 		},
-		[onSubmit, onValidate, spec.fields, validator, values],
+		[fieldErrors, onSubmit, onValidate, spec.fields, validator, values],
 	);
 
 	const components = useMemo<Record<string, FieldComponent>>(
@@ -251,7 +280,7 @@ export function FormRenderer({
 				key={field.id}
 				field={augmented}
 				value={pickValue(field, values)}
-				error={errors[field.id]}
+				error={displayErrors[field.id]}
 				disabled={fieldDisabled}
 				readOnly={fieldReadOnly}
 				onChange={(next) => setValue(field.id, next)}
@@ -283,9 +312,9 @@ export function FormRenderer({
 		}
 		return [renderSection(0, undefined, spec.fields)];
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [spec, values, errors, disabled, readOnly]);
+	}, [spec, values, displayErrors, disabled, readOnly]);
 
-	const formError = errors._form;
+	const formError = displayErrors._form;
 
 	return (
 		<form
@@ -322,11 +351,11 @@ function makeLookupCallback(
 	field: FormField,
 	values: FormValues,
 	lookups: LookupRegistry | undefined,
-): ((query?: string) => Promise<{ v: string; label?: string }[]>) | undefined {
+): ((query?: string, signal?: AbortSignal) => Promise<{ v: string; label?: string }[]>) | undefined {
 	const source = field.source as { hook?: string } | undefined;
 	if (!source?.hook || !lookups || !lookups[source.hook]) return undefined;
 	const hook = lookups[source.hook]!;
-	return (query?: string) => hook({ field, values, query });
+	return (query?: string, signal?: AbortSignal) => hook({ field, values, query, signal });
 }
 
 // Re-export FieldShell so consumers building their own field components can

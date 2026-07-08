@@ -129,11 +129,7 @@ export function useFlowforgeWorkflow({
       }
     };
 
-    const prevHandler = wsClient["onEvent" as keyof typeof wsClient] as
-      | ((e: WsEnvelope) => void)
-      | undefined;
-
-    // Chain handlers — we don't replace an existing onEvent, we compose.
+    // Register with FlowforgeWsClient's event fan-out without replacing onEvent.
     (wsClient as unknown as { _hookHandlers: Set<(e: WsEnvelope) => void> })[
       "_hookHandlers"
     ] ??= new Set();

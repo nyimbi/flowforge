@@ -61,6 +61,7 @@ export class FlowforgeWsClient {
   private attempt = 0;
   private closed = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly _hookHandlers = new Set<WsEventHandler>();
 
   constructor(opts: FlowforgeWsOptions = {}) {
     this.wsBaseUrl = opts.wsBaseUrl ?? deriveWsBase();
@@ -122,7 +123,7 @@ export class FlowforgeWsClient {
       if (envelope["type"] === "hello") {
         this.onConnect?.(envelope as unknown as WsHelloFrame);
       } else {
-        this.onEvent?.(envelope);
+        this._dispatchEvent(envelope);
       }
     };
 
@@ -158,6 +159,13 @@ export class FlowforgeWsClient {
         this._connect();
       }
     }, delay);
+  }
+
+  private _dispatchEvent(envelope: WsEnvelope): void {
+    this.onEvent?.(envelope);
+    for (const handler of this._hookHandlers) {
+      handler(envelope);
+    }
   }
 }
 

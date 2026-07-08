@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { FormRenderer } from "../src/FormRenderer.js";
 import type { LookupRegistry, RendererFormSpec } from "../src/types.js";
@@ -219,6 +219,80 @@ describe("FormRenderer", () => {
 		);
 		await waitFor(() => {
 			expect(lookups.parties).toHaveBeenCalled();
+		});
+	});
+
+	it("debounces async lookup queries", async () => {
+		vi.useFakeTimers();
+		try {
+			const lookups: LookupRegistry = {
+				parties: vi.fn(async ({ query }) => [{ v: "p1", label: query ? `Party ${query}` : "Party 1" }]),
+			};
+			render(
+				<FormRenderer
+					spec={{
+						id: "x",
+						version: "1.0.0",
+						title: "x",
+						fields: [{ id: "p", kind: "lookup", label: "Party", source: { hook: "parties" } }],
+					}}
+					lookups={lookups}
+				/>,
+			);
+
+			const input = screen.getByPlaceholderText("Search…");
+			fireEvent.change(input, { target: { value: "a" } });
+			fireEvent.change(input, { target: { value: "ab" } });
+			fireEvent.change(input, { target: { value: "abc" } });
+			expect(lookups.parties).not.toHaveBeenCalled();
+
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(299);
+			});
+			expect(lookups.parties).not.toHaveBeenCalled();
+
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(1);
+			});
+			expect(lookups.parties).toHaveBeenCalledTimes(1);
+			expect(lookups.parties).toHaveBeenLastCalledWith(
+				expect.objectContaining({ query: "abc", signal: expect.any(AbortSignal) }),
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("surfaces computed expression errors inline", async () => {
+		const expr: Record<string, unknown> = {};
+		Object.defineProperty(expr, "+", {
+			enumerable: true,
+			get() {
+				throw new Error("bad expression");
+			},
+		});
+
+		render(
+			<FormRenderer
+				spec={{
+					id: "x",
+					version: "1.0.0",
+					title: "x",
+					fields: [
+						{ id: "qty", kind: "number", label: "Qty", default: 1 },
+						{
+							id: "total",
+							kind: "number",
+							label: "Total",
+							computed: { expr },
+						},
+					],
+				}}
+			/>,
+		);
+
+		await waitFor(() => {
+			expect(screen.getByRole("alert")).toHaveTextContent("Unable to compute Total: bad expression");
 		});
 	});
 

@@ -15,7 +15,7 @@ export interface FieldComponentProps {
 	onChange: (next: unknown) => void;
 	onBlur?: () => void;
 	/** Async lookup callback exposed by FormRenderer for fields that need it. */
-	lookup?: (query?: string) => Promise<{ v: string; label?: string }[]>;
+	lookup?: (query?: string, signal?: AbortSignal) => Promise<{ v: string; label?: string }[]>;
 }
 
 export interface FieldShellProps {

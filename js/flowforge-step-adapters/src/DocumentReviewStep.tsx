@@ -30,6 +30,16 @@ export interface DocumentReviewMeta {
 
 type DocDecision = "pending" | "accepted" | "rejected";
 
+function sanitizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (!["https:", "http:"].includes(parsed.protocol)) return "#";
+    return url;
+  } catch {
+    return "#";
+  }
+}
+
 export function DocumentReviewStep({
   instanceId,
   stepId,
@@ -80,7 +90,7 @@ export function DocumentReviewStep({
           <li key={doc.id} className="ff-doc-review__item" data-doc-id={doc.id}>
             <span className="ff-doc-review__name">
               {doc.url ? (
-                <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                <a href={sanitizeUrl(doc.url)} target="_blank" rel="noopener noreferrer">
                   {doc.name}
                 </a>
               ) : (

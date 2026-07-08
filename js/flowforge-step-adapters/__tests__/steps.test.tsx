@@ -216,6 +216,24 @@ describe("DocumentReviewStep", () => {
     expect(screen.getByText("RESTRICTED")).toBeInTheDocument();
   });
 
+  it("sanitizes unsafe document URLs", () => {
+    render(
+      <DocumentReviewStep
+        {...baseProps}
+        meta={{
+          ...baseProps.meta,
+          documents: [
+            { id: "doc-js", name: "Script.pdf", url: "javascript:alert(1)" },
+            { id: "doc-data", name: "Data.txt", url: "data:text/html,<script>alert(1)</script>" },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Script.pdf" })).toHaveAttribute("href", "#");
+    expect(screen.getByRole("link", { name: "Data.txt" })).toHaveAttribute("href", "#");
+  });
+
   it("renders comment textarea when commentLabel is set", () => {
     render(<DocumentReviewStep {...baseProps} />);
     expect(screen.getByLabelText("Reviewer notes")).toBeInTheDocument();

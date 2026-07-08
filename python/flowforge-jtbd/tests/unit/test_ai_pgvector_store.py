@@ -28,6 +28,7 @@ from flowforge_jtbd.ai.pgvector_store import (
     _format_metadata,
     _format_vector,
     _row_tuple,
+    _safe_identifier,
 )
 
 
@@ -139,13 +140,98 @@ def test_drop_index_sql_qualifies_schema() -> None:
 
 
 def test_drop_index_sql_rejects_empty_name() -> None:
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         _spec().drop_index_sql("")
 
 
 def test_table_spec_validates_dim() -> None:
     with pytest.raises(AssertionError):
         TableSpec(dim=0)
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "bad name",
+        "bad;drop",
+        "bad'quote",
+        'bad"quote',
+        "bad--comment",
+        "1starts_with_digit",
+        "bad-name",
+        "bad\n",
+    ],
+)
+def test_safe_identifier_rejects_unsafe_names(name: str) -> None:
+    with pytest.raises(ValueError, match="Unsafe SQL identifier"):
+        _safe_identifier(name)
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "snake_case",
+        "_leading_underscore",
+        "snake_case_123",
+    ],
+)
+def test_safe_identifier_accepts_valid_snake_case_names(name: str) -> None:
+    assert _safe_identifier(name) == name
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "bad name",
+        "bad;drop",
+        "bad'quote",
+        'bad"quote',
+        "bad--comment",
+        "1starts_with_digit",
+        "bad-name",
+        "bad\n",
+    ],
+)
+@pytest.mark.parametrize("field", ["schema", "table"])
+def test_table_spec_rejects_unsafe_schema_and_table(field: str, name: str) -> None:
+    with pytest.raises(ValueError, match=f"Unsafe SQL {field}"):
+        TableSpec(dim=3, **{field: name})
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "bad name",
+        "bad;drop",
+        "bad'quote",
+        'bad"quote',
+        "bad--comment",
+        "1starts_with_digit",
+        "bad-name",
+        "bad\n",
+    ],
+)
+def test_index_sql_rejects_unsafe_index_names(name: str) -> None:
+    spec = _spec()
+    with pytest.raises(ValueError, match="Unsafe SQL index name"):
+        spec.create_ivfflat_index_sql(index_name=name)
+    with pytest.raises(ValueError, match="Unsafe SQL index name"):
+        spec.create_hnsw_index_sql(index_name=name)
+    with pytest.raises(ValueError, match="Unsafe SQL index name"):
+        spec.drop_index_sql(name)
+
+
+def test_identifier_allowlist_accepts_valid_snake_case_sql_names() -> None:
+    spec = TableSpec(dim=4, schema="tenant_alpha_1", table="_embeddings")
+    assert spec.qualified == "tenant_alpha_1._embeddings"
+    assert "idx_alpha_123" in spec.create_ivfflat_index_sql(
+        index_name="idx_alpha_123"
+    )
+    assert "idx_alpha_123" in spec.create_hnsw_index_sql(index_name="idx_alpha_123")
+    assert (
+        spec.drop_index_sql("idx_alpha_123")
+        == "drop index if exists tenant_alpha_1.idx_alpha_123;"
+    )
 
 
 # ---------------------------------------------------------------------------
