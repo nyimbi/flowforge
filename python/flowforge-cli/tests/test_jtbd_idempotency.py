@@ -146,7 +146,7 @@ def test_idempotency_helper_emitted_per_jtbd() -> None:
 		f for f in files if f.path == "backend/src/idem_demo/claim_intake/idempotency.py"
 	]
 	# Constants the router pulls in
-	assert "IDEMPOTENCY_TABLE: str = \"claim_intake_idempotency_keys\"" in helper.content
+	assert "IDEMPOTENCY_TABLE: str = \"idem_demo_claim_intake_idempotency_keys\"" in helper.content
 	# Default TTL is 24h
 	assert "IDEMPOTENCY_TTL_HOURS: int = 24" in helper.content
 	# Helper exposes the three callables the router uses

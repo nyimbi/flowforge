@@ -375,7 +375,7 @@ def test_stage_records_carry_expected_locations() -> None:
 		== "backend/src/insurance_claim_demo/claim_intake/service.py"
 	)
 	assert by_stage["service_layer"]["entrypoint"] == "ClaimIntakeService.fire"
-	assert by_stage["orm_column"]["table"] == "claim_intake"
+	assert by_stage["orm_column"]["table"] == "insurance_claim_demo_claim_intake"
 	assert by_stage["orm_column"]["column"] == "policy_number"
 	# Audit-payload + outbox stages list the JTBD's audit topics.
 	assert by_stage["audit_event_payload"]["topics"] == sorted(
