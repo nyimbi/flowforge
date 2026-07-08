@@ -9,18 +9,26 @@ It gives host applications:
 - A JSON workflow DSL with a compiler, simulator, deterministic replay, and a
   two-phase fire engine including **parallel fork/join** (`parallel_fork`,
   `parallel_join` states; per-token `fire(..., token_id=...)` dispatch).
+- A security-hardened expression evaluator: host/runtime guard paths use
+  `strict_ops=True`, so unknown operators raise instead of falling through as
+  truthy literal dictionaries.
 - A pure Python core with no I/O dependencies and **15 explicit host-wired ports**
   (tenancy, RBAC, audit, outbox, documents, money, settings, signing,
   notifications, RLS, entity registry, metrics, tasks, grants, tracing).
 - Adapter packages for FastAPI, SQLAlchemy/Postgres, tenancy, audit, outbox,
-  RBAC, documents, signing, notifications, metrics, OTel, and related infrastructure.
+  RBAC, documents, signing, notifications, metrics, OTel, and related
+  infrastructure, with the v0.6.0 hardening sprint replacing the remaining
+  stubs with working implementations.
 - A TypeScript frontend surface: form renderer, runtime client, visual workflow
-  designer, JTBD editor, and **JobMap swimlane component**.
+  designer with draggable node palette and keyboard shortcuts, JTBD editor,
+  and **JobMap swimlane component**.
 - A deterministic JTBD-to-application generator that emits backend, frontend,
   workflow, form, tests, seed data, docs, design-token, i18n, and operator-manual assets.
 - **30 domain JTBD libraries** covering every major vertical (5 strategic
   domain-content candidates; 25 starter packages with citation anchors).
-- **JTBD authoring CLI**: `flowforge jtbd lint|lock|fork|ai-draft|quality-score|compliance-lint`
+- **Rich-powered CLI**: global `--verbose` / `--quiet`, top-level
+  `status`, `lint-jtbd`, `new-workflow`, and the JTBD authoring subcommands
+  `flowforge jtbd lint|lock|fork|ai-draft|quality-score|compliance-lint`.
 - **JTBD debugger**: `FaultInjector` (7 failure modes) + `WorkflowDiffer`
 - **JWT/RBAC for jtbd-hub**: `JwtPrincipalExtractor`, `RevocationList`, per-user audit identity
 
@@ -29,10 +37,38 @@ checkout is used only for explicit downstream release-certification parity
 tests. Nothing under this repository should import from UMS or require UMS for
 ordinary package development.
 
+## What's New in v0.6.0
+
+The 2026-07-08 world-class sprint hardens the v0.5.0 foundation into the
+effective v0.6.0 state. Some package metadata may still report `0.5.0` until
+the formal release-version bump; this documentation uses `v0.6.0` for the
+post-sprint hardening state.
+
+- **S-class security fixes**: dashboard HTML now escapes DB/query values before
+  rendering; `strict_ops` closes the unknown-operator guard bypass; pgvector SQL
+  identifiers are regex allowlisted instead of relying on assert-only checks.
+- **UI/UX pass**: the FastAPI ops dashboard has dark-mode CSS custom properties,
+  stat tiles, color-coded state badges, pagination, responsive layout,
+  accessible labels, and 30-second auto-refresh.
+- **CLI pass**: Rich formatting is installed across the Typer CLI, global
+  verbosity flags are available, and `status`, `lint-jtbd`, and `new-workflow`
+  join the command surface.
+- **Designer/editor pass**: the workflow designer has a draggable palette,
+  persisted node positions, keyboard shortcuts, clickable validation errors,
+  and an empty-canvas state; the JTBD editor adds metadata, dependency,
+  validation, JSON export, loading/error/empty states, and an O(1) edge map.
+- **Adapter completion**: tenancy resolvers, multichannel notifications,
+  SQLAlchemy, SpiceDB RBAC, KMS signing, S3 documents, Postgres outbox, and
+  Postgres audit adapters now ship with real logic.
+- **Verification state**: 331/331 `audit_2026` tests pass; 632 tests pass
+  across core + audit + connectors; the full package suite covers 2566+
+  Python tests and 288 JS tests.
+
 ## Version History
 
 | Version | Date | Highlights |
 |---|---|---|
+| **v0.6.0** | 2026-07-08 | Security hardening (S-01/S-02/S-03), world-class UI/UX, all adapter stubs implemented, 331/331 audit tests |
 | **v0.5.0** | 2026-06-07 | FaultInjector (7 modes), WorkflowDiffer, `tutorial --domain`, 30 domain bundles |
 | v0.4.0 | 2026-06-06 | AI draft/quality/compliance CLI, JobMap component, pre-commit hook + GH Action |
 | v0.3.0 | 2026-06-04 | `forks_enabled` default-on, `jtbd lint/lock/fork` CLI, E1 linter core |
@@ -459,14 +495,20 @@ The visual workflow editor lives in
 [js/flowforge-designer](js/flowforge-designer). It is a React package around
 ReactFlow plus Flowforge-specific panels:
 
+- node palette with draggable `state`, `transition`, `task`, and `gate` types;
 - canvas for states and transitions;
+- position persistence for layout-stable workflow diagrams;
 - property panel for state, transition, gate, escalation, delegation, document,
   and checklist fields;
 - form builder;
-- validation panel;
+- validation panel with clickable errors;
 - simulation panel;
 - diff viewer;
 - review/comment helpers.
+
+Keyboard shortcuts cover delete, undo/redo, select all, fit/expand, and escape
+flows (`Delete`, `Ctrl+Z`, `Ctrl+Y`, `Ctrl+A`, `E`, `Escape`). Empty canvases
+render an authoring state instead of a blank surface.
 
 Embed it in a host admin application:
 
@@ -541,8 +583,12 @@ Per-instance fire is serialized; concurrent fires for one instance raise
 
 The expression evaluator is a frozen operator registry. There is no `eval`, no
 arbitrary Python execution, and Python/TypeScript parity is tested on every PR.
+Runtime guard evaluation and validator paths use `strict_ops=True`; a single-key
+dict whose key is neither `var` nor a registered operator raises
+`EvaluationError` (wrapped as `GuardEvaluationError` in runtime guard
+evaluation) instead of returning a truthy literal.
 
-### The 14 Ports
+### The 15 Ports
 
 | # | Port | Purpose | Typical implementation |
 |---|---|---|---|
@@ -560,6 +606,7 @@ arbitrary Python execution, and Python/TypeScript parity is tested on every PR.
 | 12 | `MetricsPort` | Emit metrics | host supplied or OTel |
 | 13 | `TaskTrackerPort` | Create operational tasks | host supplied |
 | 14 | `AccessGrantPort` | Temporary access grants | host supplied |
+| 15 | `TracingPort` | Span and event tracing | `flowforge-otel` or noop |
 
 Tests use in-memory fakes through `flowforge.testing.port_fakes`.
 
@@ -669,6 +716,9 @@ Frequently used commands:
 | `flowforge jtbd ai-draft "<desc>"` | Draft a JTBD from natural language (requires `ANTHROPIC_API_KEY`) |
 | `flowforge jtbd quality-score` | 0-100 rubric quality score per JTBD |
 | `flowforge jtbd compliance-lint` | 8-regime compliance linter (GDPR, HIPAA, SOX, PCI-DSS, …) |
+| `flowforge status [--json]` | Rich workspace status report: versions, packages, test inventory |
+| `flowforge lint-jtbd` | Rich top-level JTBD lint command for one bundle/spec |
+| `flowforge new-workflow` | Scaffold a minimal `workflow_def.json` |
 | `flowforge validate` | Validate workflow definitions |
 | `flowforge simulate [--fault mode:state]` | Simulate events; `--fault` injects failure modes |
 | `flowforge replay` | Replay workflow events |
@@ -695,7 +745,24 @@ Manual release certification uses:
 - `audit-2026-release-external.yml`: browser, sidecar, UMS parity, and live
   Postgres evidence bundle.
 
-## Security Posture
+## Security
+
+v0.6.0 closes the current S-class hardening items:
+
+- **S-01 dashboard XSS**: FastAPI dashboard HTML routes render database and
+  query values through the `_h()` helper, which wraps `html.escape(...,
+  quote=True)`.
+- **S-02 evaluator guard bypass**: strict operator mode is enforced for
+  runtime/validator guard evaluation, so unknown operators raise instead of
+  evaluating as truthy dictionaries.
+- **S-03 pgvector SQL identifiers**: pgvector table/schema/index identifiers
+  pass through a regex allowlist before interpolation into SQL.
+
+Related client/server hardening:
+
+- `DocumentReviewStep` sanitizes document links and permits only `http:` and
+  `https:` URLs; `javascript:` and `data:` fall back to `#`.
+- HMAC verification paths use timing-safe `hmac.compare_digest`.
 
 Non-negotiable safety gates:
 

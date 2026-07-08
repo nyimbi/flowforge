@@ -1,4 +1,7 @@
-# Flowforge LLM Guide — v0.5.0 (2026-06-07)
+# Flowforge LLM Guide — v0.6.0 (2026-07-08)
+
+Note: package metadata may still report `0.5.0` until the formal version bump;
+this guide names the post-sprint hardening state as `v0.6.0`.
 
 This file is the root entrypoint for AI agents working with Flowforge. Prefer
 this file first, then [README.md](README.md), then
@@ -12,9 +15,11 @@ applications. It has:
 
 - a JSON workflow DSL;
 - a pure Python workflow engine;
+- a strict expression evaluator for runtime/validator guard paths;
 - host-wired ports for infrastructure;
 - adapter packages for FastAPI, SQLAlchemy/Postgres, tenancy, audit, outbox,
-  RBAC, documents, signing, notifications, and observability;
+  RBAC, documents, signing, notifications, and observability, all with real
+  implementations in the current hardening state;
 - TypeScript packages for rendering, runtime clients, a visual workflow
   designer, and JTBD editing;
 - a deterministic JTBD-to-application generator.
@@ -22,7 +27,7 @@ applications. It has:
 UMS is not a Flowforge dependency. Use UMS only when an explicit downstream
 release-certification task asks for UMS parity.
 
-## Engine Capabilities (v0.5.0)
+## Engine Capabilities (v0.6.0)
 
 ### Parallel Fork / Join
 
@@ -76,6 +81,19 @@ token = await extractor.aissue_token(user_id, roles=["hub_admin"])
 principal = await extractor(request)  # verifies + checks revocation
 ```
 
+## Security Hardening (v0.6.0)
+
+- Evaluator guard paths use `strict_ops=True`; unknown operators raise
+  `EvaluationError` instead of returning truthy literal dictionaries.
+- The FastAPI dashboard renders DB/query values through `_h()`, which wraps
+  `html.escape(..., quote=True)`. Do not add dashboard HTML interpolation that
+  bypasses `_h()`.
+- JTBD pgvector store identifiers are regex-allowlisted through
+  `_safe_identifier()` before SQL interpolation.
+- `DocumentReviewStep` uses `sanitizeUrl()` and allows only `http:` and
+  `https:` links. `javascript:` and `data:` URLs fall back to `#`.
+- HMAC signature checks use timing-safe `hmac.compare_digest`.
+
 ## Setup
 
 From the repository root:
@@ -102,11 +120,17 @@ published PyPI install target.
 
 ## Main Commands
 
+The root CLI is Rich-backed Typer. Global `--verbose` and `--quiet` are
+available on the command surface.
+
 ```bash
+uv run flowforge status [--json]
 uv run flowforge tutorial --out /tmp/flowforge-demo --no-pause
 uv run flowforge tutorial --domain insurance               # domain-specific walkthrough
+uv run flowforge lint-jtbd examples/insurance_claim/jtbd-bundle.json
+uv run flowforge new-workflow claim-intake --subject-kind claim
 uv run flowforge jtbd lint --bundle examples/insurance_claim/jtbd-bundle.json --warn-only
-uv run flowforge jtbd lint <bundle.json> [--strict]        # v0.5.0: strict mode
+uv run flowforge jtbd lint <bundle.json> [--strict]        # strict lifecycle lint
 uv run flowforge jtbd lock --init <bundle.json>            # create lockfile
 uv run flowforge jtbd lock --verify <bundle.json>          # verify lockfile matches
 uv run flowforge jtbd fork <upstream> --tenant <id> [--out <path>]  # fork a JTBD bundle
@@ -130,6 +154,24 @@ make audit-2026-release-external-preflight
 The external release gate is manual release evidence. It needs browser support,
 reviewed sidecar evidence, downstream UMS parity only when explicitly
 configured, and live Postgres.
+
+## Dashboard
+
+`flowforge-fastapi` exposes `make_dashboard_router(session_factory, *,
+prefix="/flowforge/dashboard", page_size=50, worker_pool=None)`.
+
+The dashboard is server-rendered HTML with:
+
+- dark-mode CSS custom properties;
+- overview stat tiles;
+- color-coded state/status badges;
+- paginated instance and audit tables;
+- responsive layout and accessible form labels;
+- 30-second auto-refresh on the overview page.
+
+Security rule: use existing dashboard helpers (`_h`, `_table`, `_badge`,
+`_state_badge`, `_metric_card`, `_pagination`, `_json_block`, `_render_page`)
+so all DB/query values are escaped before HTML rendering.
 
 ## JTBD Bundle Grammar
 
@@ -361,6 +403,14 @@ Tabs:
 - `simulation`
 - `diff`
 
+Current designer UX:
+
+- draggable node palette for `state`, `transition`, `task`, and `gate`;
+- position persistence;
+- keyboard shortcuts: `Delete`, `Ctrl+Z`, `Ctrl+Y`, `Ctrl+A`, `E`, `Escape`;
+- clickable validation errors;
+- empty-canvas state.
+
 Use `compareTo` for diff:
 
 ```tsx
@@ -397,7 +447,27 @@ project:
 Regenerate after token changes. Host apps embedding the designer should map
 these values to their own app shell and CSS variables.
 
-## Domain Libraries (v0.5.0)
+## JTBD Editor
+
+`js/flowforge-jtbd-editor` is the bundle authoring surface. Current UX includes
+a metadata editor panel, dependency editor popover, validation bottom bar, JSON
+export, loading/error/empty states, and an O(1) edge map for dependency lookup.
+
+## Adapter Implementations (v0.6.0)
+
+| Package | Current implementation state |
+|---|---|
+| `flowforge-tenancy` | Header-based, JWT-claim, subdomain, static, and no-tenancy resolvers. |
+| `flowforge-notify-multichannel` | Channel router with email, SMS, push, webhook-style transports, retries, and timing-safe webhook verification. |
+| `flowforge-sqlalchemy` | Durable Postgres storage, RLS binding, snapshots, alembic helpers. |
+| `flowforge-rbac-spicedb` | SpiceDB-backed RBAC resolver and permission seed support. |
+| `flowforge-signing-kms` | KMS signer plus explicit dev HMAC signer with timing-safe verify. |
+| `flowforge-documents-s3` | S3-backed document port plus in-memory/noop variants. |
+| `flowforge-outbox-pg` | Durable Postgres outbox registry and drain helpers. |
+| `flowforge-audit-pg` | Hash-chain Postgres audit sink and verification. |
+| `flowforge-connectors` | Enabled in the root workspace; connector tests run in the current suite. |
+
+## Domain Libraries (v0.6.0)
 
 30 workspace-only domain packages live under `python/flowforge-jtbd-<domain>/`.
 
@@ -417,11 +487,14 @@ Do not flip a domain package to `package = true` without SME sign-off
 ## Code Map
 
 - `python/flowforge-core`: DSL, compiler, engine, simulator, ports.
-- `python/flowforge-cli`: CLI and JTBD generator command surfaces.
+- `python/flowforge-cli`: Rich Typer CLI and JTBD generator command surfaces.
 - `python/flowforge-jtbd`: canonical JTBD models and schema.
-- `python/flowforge-fastapi`: HTTP/WS adapter.
+- `python/flowforge-fastapi`: HTTP/WS adapter and ops dashboard.
 - `python/flowforge-sqlalchemy`: durable Postgres storage.
+- `python/flowforge-tenancy`: tenant resolvers and RLS helpers.
+- `python/flowforge-notify-multichannel`: notification router/transports.
 - `js/flowforge-designer`: visual workflow editor.
+- `js/flowforge-jtbd-editor`: JTBD authoring editor.
 - `js/flowforge-renderer`: form renderer and TS evaluator.
 - `js/flowforge-runtime-client`: runtime REST/WS client.
 - `examples/*/jtbd-bundle.json`: worked bundles.
@@ -441,3 +514,6 @@ Do not flip a domain package to `package = true` without SME sign-off
   adapter or live Postgres behavior.
 - For UI work, use the existing designer and generated design-token pipeline
   before adding new styling systems.
+- For dashboard work, escape all rendered DB/query values through `_h()`.
+- For expression work, keep runtime/validator guard paths in strict operator
+  mode.

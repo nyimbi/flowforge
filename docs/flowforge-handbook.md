@@ -1,5 +1,8 @@
 # Flowforge Handbook
 
+Current state: **v0.6.0 hardening, 2026-07-08**. Package metadata still reports
+`0.5.0` for the lockstep release packages until the formal version bump.
+
 > Comprehensive system overview. Sister docs:
 > `docs/jtbd-editor-arch.md` (the IDE design that turns flowforge into a
 > no-code platform), `docs/flowforge-evolution.md` (forward roadmap),
@@ -39,8 +42,8 @@ project generator. Three roles use it:
 Flowforge gives every role a different surface — JTBDEditor / Designer /
 Runtime — over the same underlying spec.
 
-Since v0.1.0 three additional surfaces have shipped and are now stable at
-**v0.5.0**:
+Since v0.1.0 the product surface has expanded and is now stable at the
+effective **v0.6.0** hardening state:
 
 - **JTBD debugger surface** — `FaultInjector` and `WorkflowDiffer` let
   operators inject faults into a running simulation and compare two
@@ -56,6 +59,16 @@ Since v0.1.0 three additional surfaces have shipped and are now stable at
   common vertical domains (see §1.7). Each is a `flowforge-jtbd-<domain>`
   package directory with `[tool.uv] package = false` until review promotes it
   into the publishable release set.
+- **Security-hardened runtime surfaces** — dashboard HTML escapes all
+  database/query values before interpolation, guard evaluation runs with
+  strict operator handling, pgvector SQL identifiers use a regex allowlist,
+  client document links are sanitized, and HMAC verification uses timing-safe
+  comparison.
+- **World-class operator UX** — the FastAPI dashboard has dark-mode CSS custom
+  properties, stat tiles, state badges, pagination, responsive layout,
+  accessible labels, and 30-second auto-refresh; the Typer CLI uses Rich output
+  with global verbosity controls; the visual designer and JTBD editor now have
+  production authoring affordances instead of prototype shells.
 
 ### 1.2 Top-Level Topology
 
@@ -115,7 +128,15 @@ flowchart TB
 │   ├── hiring-pipeline/
 │   └── building-permit/
 └── tests/
-    └── integration/
+    ├── audit_2026/
+    ├── conformance/
+    ├── property/
+    ├── chaos/
+    ├── cross_runtime/
+    ├── edge_cases/
+    ├── observability/
+    ├── integration/
+    └── visual_regression/
 ```
 
 ### 1.4 Package Inventory
@@ -130,23 +151,23 @@ directory/package-family nickname.
 
 | Package | Path | Status | Responsibility |
 |---|---|---|---|
-| `flowforge` (`flowforge-core`) | `python/flowforge-core/` | PyPI release set, v0.5.x | DSL types, schema, compiler, validator, expression evaluator, two-phase fire algorithm, simulator, replay, ports/ABCs, testing fixtures |
-| `flowforge-fastapi` | `python/flowforge-fastapi/` | PyPI release set, v0.5.x | Designer router, runtime router, WS adapter, CSRF, auth/tenant resolution |
-| `flowforge-sqlalchemy` | `python/flowforge-sqlalchemy/` | PyPI release set, v0.5.x | ORM models, alembic bundle, RLS binder, snapshot store, saga queries |
-| `flowforge-tenancy` | `python/flowforge-tenancy/` | PyPI release set, v0.5.x | Tenancy resolver impls and RLS helpers |
-| `flowforge-audit-pg` | `python/flowforge-audit-pg/` | PyPI release set, v0.5.x | Hash-chain audit sink and analytics helpers |
-| `flowforge-outbox-pg` | `python/flowforge-outbox-pg/` | PyPI release set, v0.5.x | Durable outbox registry and drain helpers |
-| `flowforge-rbac-spicedb` | `python/flowforge-rbac-spicedb/` | PyPI release set, v0.5.x | SpiceDB-backed `RbacResolver` |
-| `flowforge-rbac-static` | `python/flowforge-rbac-static/` | PyPI release set, v0.5.x | Static RBAC from YAML/JSON |
-| `flowforge-documents-s3` | `python/flowforge-documents-s3/` | PyPI release set, v0.5.x | S3-backed `DocumentPort` |
-| `flowforge-money` | `python/flowforge-money/` | PyPI release set, v0.5.x | Money validation, formatting, and FX helpers |
-| `flowforge-signing-kms` | `python/flowforge-signing-kms/` | PyPI release set, v0.5.x | AWS KMS signing adapter |
-| `flowforge-notify-multichannel` | `python/flowforge-notify-multichannel/` | PyPI release set, v0.5.x | Email/Slack/SMS/in-app notification fan-out |
-| `flowforge-otel` | `python/flowforge-otel/` | PyPI release set, v0.5.x | OpenTelemetry metrics/tracing adapter |
-| `flowforge-cli` | `python/flowforge-cli/` | PyPI release set, v0.5.x | `flowforge` Typer CLI and deterministic JTBD generator |
-| `flowforge-jtbd` | `python/flowforge-jtbd/` | PyPI release set, v0.5.x | Canonical JTBD models, lint, registries, compliance, AI helpers |
-| `flowforge-jtbd-hub` | `python/flowforge-jtbd-hub/` | PyPI release set, v0.5.x | JTBD hub JWT/RBAC and publication support |
-| `flowforge-connectors` | `python/flowforge-connectors/` | Workspace incubation, v0.1.0 | Connector SDK and starter connectors; not part of the 16-package PyPI release gate |
+| `flowforge` (`flowforge-core`) | `python/flowforge-core/` | PyPI release set, metadata 0.5.0; v0.6.0 hardening state | DSL types, schema, compiler, validator, strict expression evaluator, two-phase fire algorithm, simulator, replay, ports/ABCs, testing fixtures |
+| `flowforge-fastapi` | `python/flowforge-fastapi/` | PyPI release set, metadata 0.5.0; v0.6.0 hardening state | Designer router, runtime router, dashboard router, WS adapter, CSRF, auth/tenant resolution |
+| `flowforge-sqlalchemy` | `python/flowforge-sqlalchemy/` | PyPI release set, metadata 0.5.0; v0.6.0 hardening state | ORM models, alembic bundle, RLS binder, snapshot store, saga queries |
+| `flowforge-tenancy` | `python/flowforge-tenancy/` | PyPI release set, metadata 0.5.0; v0.6.0 hardening state | Header, JWT-claim, subdomain, static, and no-tenancy resolvers plus RLS helpers |
+| `flowforge-audit-pg` | `python/flowforge-audit-pg/` | PyPI release set, metadata 0.5.0; v0.6.0 hardening state | Hash-chain audit sink and analytics helpers |
+| `flowforge-outbox-pg` | `python/flowforge-outbox-pg/` | PyPI release set, metadata 0.5.0; v0.6.0 hardening state | Durable outbox registry and drain helpers |
+| `flowforge-rbac-spicedb` | `python/flowforge-rbac-spicedb/` | PyPI release set, metadata 0.5.0; v0.6.0 hardening state | SpiceDB-backed `RbacResolver` |
+| `flowforge-rbac-static` | `python/flowforge-rbac-static/` | PyPI release set, metadata 0.5.0; v0.6.0 hardening state | Static RBAC from YAML/JSON |
+| `flowforge-documents-s3` | `python/flowforge-documents-s3/` | PyPI release set, metadata 0.5.0; v0.6.0 hardening state | S3-backed `DocumentPort` plus in-memory/noop implementations for tests |
+| `flowforge-money` | `python/flowforge-money/` | PyPI release set, metadata 0.5.0; v0.6.0 hardening state | Money validation, formatting, and FX helpers |
+| `flowforge-signing-kms` | `python/flowforge-signing-kms/` | PyPI release set, metadata 0.5.0; v0.6.0 hardening state | AWS KMS signing adapter and explicit dev HMAC signer |
+| `flowforge-notify-multichannel` | `python/flowforge-notify-multichannel/` | PyPI release set, metadata 0.5.0; v0.6.0 hardening state | Email/SMS/push/webhook notification routing with retries |
+| `flowforge-otel` | `python/flowforge-otel/` | PyPI release set, metadata 0.5.0; v0.6.0 hardening state | OpenTelemetry metrics/tracing adapter |
+| `flowforge-cli` | `python/flowforge-cli/` | PyPI release set, metadata 0.5.0; v0.6.0 hardening state | Rich Typer CLI, status/lint/scaffold commands, deterministic JTBD generator |
+| `flowforge-jtbd` | `python/flowforge-jtbd/` | PyPI release set, metadata 0.5.0; v0.6.0 hardening state | Canonical JTBD models, lint, registries, compliance, AI helpers, pgvector store |
+| `flowforge-jtbd-hub` | `python/flowforge-jtbd-hub/` | PyPI release set, metadata 0.5.0; v0.6.0 hardening state | JTBD hub JWT/RBAC and publication support |
+| `flowforge-connectors` | `python/flowforge-connectors/` | Workspace enabled, metadata 0.1.0; v0.6.0 hardening state | Connector SDK and starter connectors; root workspace includes its 40 connector tests |
 
 #### Frontend (TypeScript, npm)
 
@@ -255,6 +276,117 @@ names: `banking`, `gov`, `healthcare`, `hr`, and `insurance`. The other
 
 Promotion to publishable package status requires package-level review and a
 `[tool.uv] package = true` flip coordinated with the release gate.
+
+### 1.8 Security Hardening Model (v0.6.0)
+
+The 2026-07-08 hardening sprint treats every port boundary as a place where
+untrusted host data can cross into Flowforge-controlled rendering, execution, or
+SQL construction.
+
+| Finding | Boundary | Current enforcement |
+|---|---|---|
+| S-01 dashboard XSS | Database/query result -> FastAPI dashboard HTML | `make_dashboard_router()` renders DB and query values through `_h()`, a wrapper around `html.escape(..., quote=True)`. Tables, badges, links, cards, JSON blocks, pagination controls, and detail views use escaped values before interpolation. |
+| S-02 unknown operator guard bypass | Workflow/JTBD guard AST -> expression evaluator | Runtime guard evaluation and validator paths pass `strict_ops=True`; a single-key dict whose key is not `var` or a registered operator raises `EvaluationError` instead of evaluating as a truthy literal. |
+| S-03 pgvector SQL identifiers | JTBD AI pgvector table/index names -> SQL text | `TableSpec` normalizes schema/table/index identifiers through `_safe_identifier()`, which requires the regex allowlist `_SAFE_IDENTIFIER.fullmatch(...)` before SQL interpolation. |
+
+Additional hardening is part of the same model:
+
+- `DocumentReviewStep` uses `sanitizeUrl()` and allows only `http:` and
+  `https:` document links; `javascript:` and `data:` links fall back to `#`.
+- HMAC verification paths use `hmac.compare_digest`, including tenancy JWT
+  claim verification, FastAPI cookie/CSRF checks, notification webhook
+  verification, connector webhook verification, and `HmacDevSigning.verify`.
+- Tenant identity is never accepted from a request body when a resolver is
+  configured. `flowforge-tenancy` now ships header-based, JWT-claim, and
+  subdomain resolvers; JWT claim resolution verifies HS signatures by default
+  and requires an explicit opt-out for externally verified tokens.
+
+### 1.9 Dashboard Architecture
+
+`flowforge-fastapi` exposes `make_dashboard_router(session_factory, *,
+prefix="/flowforge/dashboard", page_size=50, worker_pool=None)`. It returns an
+`APIRouter` tagged `flowforge-dashboard` and serves both HTML pages and JSON
+health where appropriate.
+
+Core routes:
+
+| Route | Purpose |
+|---|---|
+| `GET /health` | JSON by default; HTML health page when the client requests `text/html`. |
+| `GET /` | Overview with stat tiles, recent activity, system health, and 30-second auto-refresh. |
+| `GET /instances` | Paginated/filterable workflow instance list with color-coded state badges. |
+| `GET /instances/{instance_id}` | Instance detail, escaped context JSON, and audit trail. |
+| `GET /tasks` | Pending/resolved task queue view. |
+| `GET /audit` | Paginated/filterable audit log. |
+
+The dashboard intentionally uses a small server-rendered surface:
+
+- `_query`, `_query_first`, `_scalar`, and `_scalar_first` isolate SQL access and
+  degrade to empty/default values on query shape differences across host
+  schemas.
+- `_h()` is the only value-to-HTML escape path; helpers such as `_table`,
+  `_badge`, `_state_badge`, `_metric_card`, `_pagination`, `_json_block`, and
+  `_render_page` call it before building HTML fragments.
+- CSS custom properties define light/dark palettes. The layout uses stat tiles,
+  responsive grids, accessible form labels, table empty states, and compact
+  action controls instead of a client-side dashboard app.
+
+### 1.10 CLI Architecture
+
+`flowforge-cli` remains a Typer app, but v0.6.0 adds a repo-wide Rich UX layer:
+
+- `flowforge_cli._ux.install_rich_echo()` routes existing `typer.echo` calls
+  through Rich consoles while preserving test capture and plain-text output.
+- Global `--verbose` and `--quiet` flags set shared CLI state. `--quiet`
+  suppresses non-error output; verbose mode gives commands room for diagnostic
+  detail.
+- Command modules register into the root Typer app or JTBD sub-apps. New
+  top-level commands are `status`, `lint-jtbd`, and `new-workflow`.
+
+New command surfaces:
+
+| Command | Purpose |
+|---|---|
+| `flowforge status [--json] [--root PATH]` | Inspect a Flowforge workspace and print versions, package count, and test inventory using Rich tables or JSON. |
+| `flowforge lint-jtbd` | Top-level Rich JTBD lint command for a single bundle/spec authoring loop. |
+| `flowforge new-workflow` | Scaffold a minimal `workflow_def.json` for a new workflow. |
+
+The older JTBD sub-app commands still exist: `jtbd lint`, `jtbd lock`,
+`jtbd fork`, `jtbd ai-draft`, `jtbd quality-score`, and
+`jtbd compliance-lint`.
+
+### 1.11 Adapter Implementation State
+
+The v0.6.0 sprint replaces the remaining stub packages with host-usable
+implementations:
+
+| Package | Implemented behavior |
+|---|---|
+| `flowforge-tenancy` | `HeaderTenantResolver`, `JwtClaimTenantResolver`, `SubdomainTenantResolver`, static/single/no-tenancy helpers, tenant-id cleaning, and RLS binding helpers. |
+| `flowforge-notify-multichannel` | `MultiChannelNotifier` routes email, SMS, push, and webhook-style deliveries, with retry/backoff and timing-safe webhook signature verification. |
+| `flowforge-sqlalchemy` | Durable Postgres storage helpers, RLS binder, snapshots, alembic bundle, and SQLAlchemy integration utilities. |
+| `flowforge-rbac-spicedb` | SpiceDB-backed permission checks and seed registration for `RbacResolver`. |
+| `flowforge-signing-kms` | KMS signing plus explicit dev HMAC signer; verification uses timing-safe digest comparison and unknown-key errors are auditable. |
+| `flowforge-documents-s3` | S3 document port plus in-memory/noop variants for tests and local development. |
+| `flowforge-outbox-pg` | Durable Postgres outbox registry, drain helpers, retry state, and worker integration. |
+| `flowforge-audit-pg` | Postgres hash-chain audit sink with chain verification and redaction-aware behavior. |
+| `flowforge-connectors` | Root-workspace connector SDK and starter connectors, with 40 connector tests included in the current suite. |
+
+### 1.12 Current Test Suite Layout
+
+The current documented verification state after the sprint:
+
+- 331/331 `tests/audit_2026` tests pass.
+- 632 tests pass across core + audit + connectors.
+- The full package suite covers 2566+ Python tests and 288 JS tests.
+
+Useful local commands:
+
+```bash
+UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest tests/audit_2026 -q --tb=short
+UV_CACHE_DIR=/private/tmp/flowforge-uv-cache uv run pytest python/flowforge-core/tests tests/audit_2026 python/flowforge-connectors/tests -q
+pnpm --dir js -r test
+```
 
 ---
 
@@ -583,7 +715,7 @@ seed doesn't match the catalog.
 | **idempotency key** | `external_event_id` on `workflow_events`; deduplicates retried calls. |
 | **calendar snapshot** | Persisted business-calendar version captured at transition time, used for replay. |
 | **pending signal** | Row in `pending_signals`; out-of-order webhook event awaiting its predecessor (or TTL expiry). |
-| **port** | An ABC declaring an interface (e.g., `RbacResolver`, `AuditSink`); 14 in total. |
+| **port** | An ABC declaring an interface (e.g., `RbacResolver`, `AuditSink`); 15 in total. |
 | **adapter** | A package implementing one port (e.g., `flowforge-rbac-spicedb` implements `RbacResolver`). |
 | **EntityAdapter** | Per-domain Protocol bridging the engine to host services (`create`, `update`, `lookup`, `compensations`). |
 | **lockfile** | `flowforge.lockfile`; records per-file content hashes for incremental compilation. |
@@ -1205,6 +1337,35 @@ app.include_router(runtime_router(prefix="/api/workflows"))
 
 CSRF + cookie auth enforced via existing middleware. WS uses cookie auth.
 
+#### Dashboard router
+
+```python
+from flowforge_fastapi.dashboard import make_dashboard_router
+
+app.include_router(
+    make_dashboard_router(
+        session_factory,
+        prefix="/flowforge/dashboard",
+        page_size=50,
+        worker_pool=outbox_worker_pool,
+    )
+)
+```
+
+| Route | Response | Purpose |
+|---|---|---|
+| `GET /health` | JSON or HTML | Operational health, worker pool, and outbox status. |
+| `GET /` | HTML | Overview stats, recent activity, system health, auto-refresh every 30 seconds. |
+| `GET /instances` | HTML | Paginated/filterable instance list with state badges. |
+| `GET /instances/{id}` | HTML | Instance detail, escaped context, audit trail. |
+| `GET /tasks` | HTML | Pending/resolved operational task list. |
+| `GET /audit` | HTML | Paginated/filterable audit log. |
+
+All interpolated database/query values pass through `_h()`, which calls
+`html.escape(..., quote=True)`. When adding a new dashboard helper, keep this
+pattern: raw database values are allowed in SQL result dictionaries, but never
+in returned HTML.
+
 ### 5.3 `flowforge-sqlalchemy`
 
 | Symbol | Purpose |
@@ -1274,9 +1435,16 @@ config.notification = MultiChannelNotificationPort(
 
 #### `flowforge-cli`
 
+The CLI is a Typer application with a Rich output shim. `flowforge_cli._ux`
+installs Rich consoles behind `typer.echo`, exposes `success`, `warning`, and
+`error` helpers, and honors global `--verbose` / `--quiet` state.
+
 ```bash
+flowforge status [--json]
 flowforge new <project> --jtbd <bundle.yaml>
 flowforge add-jtbd <jtbd.yaml>
+flowforge new-workflow <workflow-key> --subject-kind <kind>
+flowforge lint-jtbd <bundle-or-spec>
 flowforge regen-catalog
 flowforge validate
 flowforge simulate --def <path> --context <fixture.json>
@@ -1352,7 +1520,7 @@ import { ManualReviewStep, FormStep, DocumentReviewStep } from "@flowforge/step-
 |---|---|
 | `ManualReviewStep` | Generic checklist + comment + approve/reject |
 | `FormStep` | Wraps `FormRenderer` and routes submit through `onSubmitEvent` |
-| `DocumentReviewStep` | Doc table + classification editor |
+| `DocumentReviewStep` | Doc table + classification editor; document links are sanitized to `http:` / `https:` only |
 
 ### 6.5 `@flowforge/designer`
 
@@ -1368,13 +1536,30 @@ import { DesignerCanvas, FormBuilder, ValidationPanel, DiffViewer, SimulationPan
 
 | Component | Purpose |
 |---|---|
-| `DesignerCanvas` | reactflow-based main editor |
+| `DesignerCanvas` | reactflow-based main editor with draggable node palette and persisted positions |
 | `DesignerToolbar` | Save/publish/diff/simulate |
 | `PropertyPanel.*` | StateProperties, TransitionProperties, GateEditor, EscalationEditor, DocumentRequirementEditor, ChecklistEditor, DelegationEditor |
 | `FormBuilder.*` | FormCanvas, FieldPalette, FieldProperties, ConditionalRulesEditor, PreviewPane |
-| `ValidationPanel` | Inline lint output |
+| `ValidationPanel` | Inline lint output with clickable errors |
 | `DiffViewer` | Side-by-side visual diff |
 | `SimulationPanel` | Walk-through with context mutations |
+
+Keyboard shortcuts cover delete, undo/redo, select all, fit/expand, and escape
+flows (`Delete`, `Ctrl+Z`, `Ctrl+Y`, `Ctrl+A`, `E`, `Escape`). Empty canvases
+show an authoring state instead of rendering blank.
+
+### 6.6 `@flowforge/jtbd-editor`
+
+The JTBD editor is the structured authoring surface for bundle metadata,
+dependencies, validation, and export.
+
+| Surface | Purpose |
+|---|---|
+| Metadata panel | Edit project/JTBD metadata without dropping into raw JSON. |
+| Dependency popover | Add and inspect JTBD dependencies with an O(1) edge map behind relationship lookups. |
+| Validation bottom bar | Surface lint findings and navigation targets. |
+| JSON export | Emit the current bundle as deterministic JSON for review and generation. |
+| Loading/error/empty states | Make network and empty-bundle states explicit to authors. |
 
 ---
 
@@ -2301,3 +2486,23 @@ class MultiBackendOutboxRegistry:
 - §10.14 added: MultiBackend fail-fast (P2-17).
 - ToC updated to include §10 (P2-19).
 - §1.4 banner pointing at §10.9 phase status (P1-43).
+
+### 10.16 v0.6.0 hardening reconciliation (2026-07-08)
+
+The current source-of-truth state is the v0.6.0 hardening sprint documented in
+§1.8-§1.12:
+
+- S-01, S-02, and S-03 are closed: dashboard values are escaped, evaluator
+  guard paths use `strict_ops`, and pgvector SQL identifiers use a regex
+  allowlist.
+- The FastAPI dashboard, Rich CLI, workflow designer, and JTBD editor are
+  production UX surfaces, not prototype placeholders.
+- Adapter stubs listed in older plan text are superseded by real
+  implementations in `flowforge-tenancy`, `flowforge-notify-multichannel`,
+  `flowforge-sqlalchemy`, `flowforge-rbac-spicedb`, `flowforge-signing-kms`,
+  `flowforge-documents-s3`, `flowforge-outbox-pg`, and `flowforge-audit-pg`.
+- `flowforge-connectors` is enabled in the root workspace so connector tests
+  run with the current gate.
+- Current verification evidence is 331/331 `audit_2026` tests, 632 tests
+  across core + audit + connectors, and a full package suite of 2566+ Python
+  tests plus 288 JS tests.

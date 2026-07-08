@@ -1,6 +1,7 @@
-# Flowforge LLM Quickstart — v0.5.0 (2026-06-07)
+# Flowforge LLM Quickstart — v0.6.0 (2026-07-08)
 
-The canonical AI-agent entrypoint is [../llm.txt](../llm.txt).
+The canonical AI-agent entrypoint is [../llm.txt](../llm.txt), updated for the
+v0.6.0 hardening sprint on 2026-07-08.
 
 Use this file only as a compatibility pointer for tools that scan `docs/`
 before the repository root.
@@ -31,14 +32,11 @@ uv run flowforge validate --def /tmp/flowforge-insurance/workflows/claim_intake/
 uv run flowforge simulate --def /tmp/flowforge-insurance/workflows/claim_intake/definition.json --events submit
 ```
 
-## New in v0.5.0
+## Current in v0.6.0
 
-- Parallel fork/join engine: `fire(..., token_id=str)`, join collapses when all tokens drain.
-- `FLOWFORGE_FORKS_ENABLED=0` disables fork (default on since v0.3.0).
-- Fault injection: `--fault gate_fail:review` flag on `simulate`; `FaultInjector` API.
-- New CLI: `jtbd lint --strict`, `jtbd lock`, `jtbd fork`, `jtbd ai-draft`, `jtbd quality-score`, `jtbd compliance-lint`, `tutorial --domain`.
-- JWT/RBAC hub: `flowforge_jtbd_hub.jwt_extractor`.
-- 30 workspace-only domain packages; banking, gov, healthcare, hr, and insurance remain strategic content-review candidates, while the other 25 are starter packages with citation anchors.
+Use the root [../llm.txt](../llm.txt) for current v0.6.0 details: security
+hardening, Rich CLI commands, dashboard behavior, adapter implementations,
+parallel fork/join, JTBD grammar, generation, and agent rules.
 
 ## Rules
 
