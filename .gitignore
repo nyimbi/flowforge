@@ -24,3 +24,5 @@ test-results/
 .DS_Store
 .last-check.log
 docs/audit-2026/external-release-pypi-artifacts-current.json
+
+.claude/
