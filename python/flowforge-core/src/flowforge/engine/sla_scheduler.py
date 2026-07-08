@@ -103,7 +103,9 @@ async def check_sla_breaches(
 		state_def = next(
 			(s for s in candidate.wd.states if s.name == candidate.instance.state), None
 		)
-		breach_s = state_def.sla.breach_seconds if state_def and state_def.sla else 0
+		assert state_def is not None and state_def.sla is not None
+		breach_s = state_def.sla.breach_seconds
+		assert breach_s is not None
 
 		try:
 			result = await fire(
